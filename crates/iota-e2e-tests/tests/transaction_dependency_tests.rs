@@ -6,36 +6,33 @@
 //! when that transaction failed. Every transaction here goes through the
 //! fullnode's transaction orchestrator, the path a client's request takes.
 
-use std::time::Duration;
+use std::{net::SocketAddr, time::Duration};
 
+use iota_core::authority_client::validator::ValidatorAPI;
 use iota_macros::sim_test;
 use iota_sdk_types::{
-    Address, ExecutionError, ExecutionStatus, Input, ProgrammableTransaction, TransactionDigest,
-    TransactionEffects, TransactionKind,
+    Address, ExecutionError, ExecutionStatus, Input, TransactionDigest, TransactionEffects,
+    TransactionKind,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     effects::TransactionEffectsAPI,
-    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    error::{IotaError, UserInputError},
     transaction::{TransactionAPI, TransactionEnvelope},
 };
 use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
 
 /// How long a submission may take before the test counts it as never
-/// executing. A dependent of an unknown transaction is retried by the drivers
-/// until they give up, so it only ends this way or with a transient error.
+/// executing.
 const SUBMISSION_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// How long the test waits for a submission that must not execute. Shorter
+/// than the drivers' own timeout, so they are still retrying it when the test
+/// stops waiting.
+const NOT_EXECUTED_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// The balance of each fresh gas coin, in NANOS.
 const GAS_COIN_AMOUNT: u64 = 10_000_000_000;
-
-/// A transfer of `amount` from the gas coin to a fresh address. `u64::MAX`
-/// fails at execution for an insufficient balance.
-fn transfer(amount: u64) -> ProgrammableTransaction {
-    let mut builder = ProgrammableTransactionBuilder::new();
-    builder.transfer_iota(Address::random(), Some(amount));
-    builder.finish()
-}
 
 fn current_epoch(cluster: &TestCluster) -> u64 {
     cluster
@@ -44,8 +41,9 @@ fn current_epoch(cluster: &TestCluster) -> u64 {
         .with(|node| node.state().epoch_store_for_testing().epoch())
 }
 
-/// Signs a transfer of `amount` paid with a fresh gas coin, depending on
-/// `dependency` when given.
+/// Signs a transfer of `amount` to a fresh address, paid with a fresh gas
+/// coin, depending on `dependency` when given. `u64::MAX` fails at execution
+/// for an insufficient balance.
 async fn signed(
     cluster: &TestCluster,
     amount: u64,
@@ -56,7 +54,8 @@ async fn signed(
     let gas = cluster
         .fund_address_and_return_gas(rgp, Some(GAS_COIN_AMOUNT), sender)
         .await;
-    let mut builder = TestTransactionBuilder::new(sender, gas, rgp).programmable(transfer(amount));
+    let mut builder = TestTransactionBuilder::new(sender, gas, rgp)
+        .transfer_iota(Some(amount), Address::random());
     if let Some(dependency) = dependency {
         builder = builder.with_transaction_dependency(dependency, current_epoch(cluster));
     }
@@ -72,22 +71,31 @@ enum Outcome {
 }
 
 async fn submit(cluster: &TestCluster, transaction: TransactionEnvelope) -> Outcome {
+    submit_with_timeout(cluster, transaction, SUBMISSION_TIMEOUT).await
+}
+
+async fn submit_with_timeout(
+    cluster: &TestCluster,
+    transaction: TransactionEnvelope,
+    timeout: Duration,
+) -> Outcome {
     match tokio::time::timeout(
-        SUBMISSION_TIMEOUT,
+        timeout,
         cluster.execute_transaction_via_orchestrator(transaction),
     )
     .await
     {
         Ok(Ok((effects, _))) => Outcome::Executed(effects),
-        Ok(Err(error)) => Outcome::Rejected(error.to_string()),
+        Ok(Err(error)) => Outcome::Rejected(format!("{error:#}")),
         Err(_) => Outcome::TimedOut,
     }
 }
 
-/// Whether `error` reports a transaction dependency check: the drivers render
-/// the error either with its message or with its variant name.
-fn is_dependency_error(error: &str) -> bool {
-    error.contains("depends on") || error.contains("TransactionDependency")
+/// Whether `error` reports that `dependency` failed: the drivers render the
+/// error either with its message or with its variant name.
+fn is_dependency_failed_error(error: &str, dependency: TransactionDigest) -> bool {
+    let expected = UserInputError::TransactionDependencyFailed { digest: dependency };
+    error.contains(&expected.to_string()) || error.contains(&format!("{expected:?}"))
 }
 
 fn assert_executed_successfully(outcome: &Outcome) -> &TransactionEffects {
@@ -116,7 +124,7 @@ fn assert_cancelled(outcome: &Outcome, dependency: TransactionDigest) {
         }
         Outcome::Rejected(error) => {
             assert!(
-                is_dependency_error(error),
+                is_dependency_failed_error(error, dependency),
                 "unexpected rejection of the dependent: {error}"
             );
         }
@@ -124,14 +132,39 @@ fn assert_cancelled(outcome: &Outcome, dependency: TransactionDigest) {
     }
 }
 
-/// The transaction never executed successfully.
-fn assert_not_executed(outcome: &Outcome) {
-    if let Outcome::Executed(effects) = outcome {
-        assert!(
-            !effects.status().is_success(),
-            "the transaction executed successfully: {effects:?}"
-        );
-    }
+/// Submits `transaction`, whose dependency no validator knows, and checks
+/// that it does not execute: validators reject it with the retriable
+/// `TransactionDependencyNotFound`, so the drivers are still retrying it when
+/// the test stops waiting. The drivers report no error while they retry, so
+/// the error is read from one validator directly.
+async fn assert_dependency_not_found(
+    cluster: &TestCluster,
+    pcool: bool,
+    transaction: TransactionEnvelope,
+    dependency: TransactionDigest,
+) {
+    let outcome = submit_with_timeout(cluster, transaction.clone(), NOT_EXECUTED_TIMEOUT).await;
+    assert!(
+        matches!(outcome, Outcome::TimedOut),
+        "the drivers stopped retrying the transaction: {outcome:?}"
+    );
+
+    let validator = cluster.get_validator_pubkeys()[0];
+    let error = if pcool {
+        cluster
+            .submit_tx_expecting_rejection(&validator, transaction)
+            .await
+    } else {
+        cluster.authority_aggregator().authority_clients[&validator]
+            .authority_client()
+            .handle_transaction(transaction, Some(SocketAddr::new([127, 0, 0, 1].into(), 0)))
+            .await
+            .unwrap_err()
+    };
+    assert_eq!(
+        error,
+        IotaError::from(UserInputError::TransactionDependencyNotFound { digest: dependency })
+    );
 }
 
 async fn dependent_executes_after_its_dependency_succeeds(pcool: bool) {
@@ -177,12 +210,12 @@ async fn dependent_of_a_failed_transaction_is_rejected(pcool: bool) {
     let Outcome::Rejected(error) = &second_outcome else {
         panic!("the dependent of a failed transaction was not rejected: {second_outcome:?}");
     };
-    assert!(is_dependency_error(error), "{error}");
+    assert!(is_dependency_failed_error(error, failing_digest), "{error}");
 
     // The rejected transaction never executes, so neither does a transaction
     // that depends on it.
     let third = signed(&cluster, 1_000, Some(second_digest)).await;
-    assert_not_executed(&submit(&cluster, third).await);
+    assert_dependency_not_found(&cluster, pcool, third, second_digest).await;
 }
 
 #[sim_test]
@@ -621,12 +654,9 @@ async fn dependency_on_an_unknown_transaction_never_executes(pcool: bool) {
     let _pcool_guard = override_pcool_flow(pcool);
     let cluster = TestClusterBuilder::new().build().await;
 
-    let dependent = signed(&cluster, 1_000, Some(TransactionDigest::random())).await;
-    let outcome = submit(&cluster, dependent).await;
-    assert!(
-        !matches!(outcome, Outcome::Executed(_)),
-        "a dependent of an unknown transaction executed: {outcome:?}"
-    );
+    let dependency = TransactionDigest::random();
+    let dependent = signed(&cluster, 1_000, Some(dependency)).await;
+    assert_dependency_not_found(&cluster, pcool, dependent, dependency).await;
 }
 
 #[sim_test]
@@ -681,7 +711,7 @@ async fn dependent_without_epoch_expiration_is_invalid(pcool: bool) {
         .await;
 
     let mut transaction = TestTransactionBuilder::new(sender, gas, rgp)
-        .programmable(transfer(1_000))
+        .transfer_iota(Some(1_000), Address::random())
         .build();
     let TransactionKind::Programmable(pt) = transaction.kind_mut() else {
         unreachable!()
