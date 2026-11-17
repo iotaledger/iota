@@ -15,10 +15,10 @@ use iota_grpc_types::{
         transaction as grpc_transaction,
     },
 };
-use iota_node_storage::GrpcStateReader;
+use iota_node_storage::{GrpcStateReader, TransactionKeyValueStoreTrait};
 use iota_sdk_types::{
-    Address, CheckpointContents, CheckpointDigest, ObjectId, StructTag, TransactionDigest,
-    TransactionEffects, TransactionEvents, TypeTag, Version,
+    Address, CheckpointContents, CheckpointDigest, ObjectId, ObjectReference, StructTag,
+    TransactionDigest, TransactionEffects, TransactionEvents, TypeTag,
 };
 use iota_types::{
     base_types::VersionNumber,
@@ -29,7 +29,7 @@ use iota_types::{
     },
     messages_checkpoint::CertifiedCheckpointSummary,
     object::Object,
-    storage::error::Kind,
+    storage::{ObjectKey, error::Kind},
 };
 use prometheus_filtered::IntGauge;
 use prost::Message;
@@ -43,8 +43,10 @@ use tracing::debug;
 
 use crate::{
     error::RpcError,
+    event_filter::EventFilter,
     merge::Merge,
     metrics::{CheckpointSizeTracker, RequestMetrics, ResponseItemKind},
+    transaction_filter::TransactionFilter,
 };
 
 /// Flags indicating which optional transaction fields to fetch from storage.
@@ -221,6 +223,20 @@ pub type ObjectsStreamResult = Result<grpc_ledger_service::GetObjectsResponse, S
 pub type TransactionsStreamResult = Result<grpc_ledger_service::GetTransactionsResponse, Status>;
 pub type CheckpointStreamResult = Result<grpc_ledger_service::CheckpointData, Status>;
 
+/// The read mask parts and filters of a checkpoint request, applied to every
+/// checkpoint the request returns.
+pub(crate) struct CheckpointMasksAndFilters {
+    /// The fields of the checkpoint.
+    pub(crate) checkpoint_mask: FieldMaskTree,
+    /// The fields of each transaction, or `None` if transactions are not
+    /// requested.
+    pub(crate) transactions_mask: Option<FieldMaskTree>,
+    /// The fields of each event, or `None` if events are not requested.
+    pub(crate) events_mask: Option<FieldMaskTree>,
+    pub(crate) transaction_filter: Option<TransactionFilter>,
+    pub(crate) event_filter: Option<EventFilter>,
+}
+
 // Iterator item types for state reader methods.
 //
 // These mirror the `iota_types::storage` item types but use `anyhow::Result`
@@ -295,6 +311,7 @@ fn checkpoint_summary_and_contents(
 pub struct GrpcReader {
     state_reader: Arc<dyn iota_node_storage::GrpcStateReader>,
     server_version: Option<String>,
+    transaction_fallback: Option<Arc<dyn TransactionKeyValueStoreTrait + Send + Sync>>,
 }
 
 impl GrpcReader {
@@ -317,7 +334,26 @@ impl GrpcReader {
         Self {
             state_reader,
             server_version,
+            transaction_fallback: None,
         }
+    }
+
+    /// Reads data the node has pruned from `store`; `None` turns the fallback
+    /// off.
+    ///
+    /// `store` must time out its own requests: a read is limited only by the
+    /// store read time the request has left.
+    pub fn with_transaction_fallback(
+        mut self,
+        store: Option<Arc<dyn TransactionKeyValueStoreTrait + Send + Sync>>,
+    ) -> Self {
+        self.transaction_fallback = store;
+        self
+    }
+
+    /// Whether a key-value store fallback exists.
+    pub(crate) fn has_transaction_fallback(&self) -> bool {
+        self.transaction_fallback.is_some()
     }
 
     pub fn server_version(&self) -> Option<String> {
@@ -369,12 +405,8 @@ impl GrpcReader {
     pub(crate) fn get_checkpoint_data(
         &self,
         sequence_number: u64,
-        checkpoint_mask: FieldMaskTree,
-        transactions_mask: Option<FieldMaskTree>,
-        events_mask: Option<FieldMaskTree>,
+        masks_and_filters: Arc<CheckpointMasksAndFilters>,
         max_message_size_bytes: u32,
-        transaction_filter: Option<crate::transaction_filter::TransactionFilter>,
-        event_filter: Option<crate::event_filter::EventFilter>,
         metrics: RequestMetrics,
     ) -> std::pin::Pin<Box<dyn futures::Stream<Item = CheckpointStreamResult> + Send>> {
         let state_reader = self.state_reader.clone();
@@ -386,12 +418,8 @@ impl GrpcReader {
                         checkpoint_summary,
                         checkpoint_contents,
                         transaction_stream,
-                        &checkpoint_mask,
-                        transactions_mask,
-                        events_mask,
+                        masks_and_filters,
                         max_message_size_bytes as usize,
-                        transaction_filter,
-                        event_filter,
                         metrics,
                     ));
 
@@ -424,12 +452,8 @@ impl GrpcReader {
         checkpoint_summary: CertifiedCheckpointSummary,
         checkpoint_contents: CheckpointContents,
         transaction_stream: S,
-        checkpoint_mask: &FieldMaskTree,
-        transactions_mask: Option<FieldMaskTree>,
-        events_mask: Option<FieldMaskTree>,
+        masks_and_filters: Arc<CheckpointMasksAndFilters>,
         max_message_size_bytes: usize,
-        transaction_filter: Option<crate::transaction_filter::TransactionFilter>,
-        event_filter: Option<crate::event_filter::EventFilter>,
         metrics: RequestMetrics,
     ) -> impl futures::Stream<Item = Result<grpc_ledger_service::CheckpointData, Status>> + Send
     where
@@ -437,10 +461,14 @@ impl GrpcReader {
     {
         use grpc_ledger_service::checkpoint_data::EndMarker;
 
-        // Clone values needed across the async boundary
-        let checkpoint_mask = checkpoint_mask.clone();
-
         async_stream::stream! {
+            let CheckpointMasksAndFilters {
+                checkpoint_mask,
+                transactions_mask,
+                events_mask,
+                transaction_filter,
+                event_filter,
+            } = &*masks_and_filters;
             let sequence_number = checkpoint_summary.data().sequence_number;
             let mut checkpoint_size_tracker = CheckpointSizeTracker::new(&metrics);
 
@@ -452,11 +480,11 @@ impl GrpcReader {
                 .with_sequence_number(sequence_number);
 
             // Use Merge to populate based on mask
-            Merge::merge(&mut checkpoint_proto, checkpoint_summary.data(), &checkpoint_mask)
+            Merge::merge(&mut checkpoint_proto, checkpoint_summary.data(), checkpoint_mask)
                 .map_err(|e| e.with_context("failed to merge summary"))?;
-            Merge::merge(&mut checkpoint_proto, &checkpoint_contents, &checkpoint_mask)
+            Merge::merge(&mut checkpoint_proto, &checkpoint_contents, checkpoint_mask)
                 .map_err(|e| e.with_context("failed to merge contents"))?;
-            Merge::merge(&mut checkpoint_proto, checkpoint_summary.auth_sig(), &checkpoint_mask)
+            Merge::merge(&mut checkpoint_proto, checkpoint_summary.auth_sig(), checkpoint_mask)
                 .map_err(|e| e.with_context("failed to merge signature"))?;
 
             let checkpoint_message = grpc_ledger_service::CheckpointData::default().with_checkpoint(checkpoint_proto);
@@ -465,13 +493,6 @@ impl GrpcReader {
 
             // 2. Stream transactions and events if requested (interleaved)
             if transactions_mask.is_some() || events_mask.is_some() {
-                let tx_mask = transactions_mask.clone().unwrap_or_else(FieldMaskTree::new_wildcard);
-                let should_collect_events = events_mask.is_some();
-                let events_submask = events_mask
-                    .as_ref()
-                    .and_then(|m| m.subtree("events"))
-                    .unwrap_or_else(FieldMaskTree::new_wildcard);
-
                 let mut transaction_stream = Box::pin(transaction_stream);
                 let mut current_batch: Vec<grpc_transaction::ExecutedTransaction> = Vec::new();
                 let mut current_batch_size = 0usize;
@@ -484,17 +505,17 @@ impl GrpcReader {
                     match result {
                         Ok(checkpoint_transaction) => {
                             // Collect and yield events as they reach size limits
-                            if should_collect_events {
+                            if let Some(events_mask) = events_mask {
                                 if let Some(ref tx_events) = checkpoint_transaction.events {
                                     // Filter raw events before SDK conversion
                                     for raw_event in &tx_events.0 {
                                         // Apply event filter if present
-                                        if let Some(ref evt_filter) = event_filter {
+                                        if let Some(evt_filter) = event_filter {
                                             if !evt_filter.matches_event(raw_event) {
                                                 continue; // Skip non-matching events
                                             }
                                         }
-                                        let grpc_event = grpc_event::Event::merge_from(raw_event, &events_submask)
+                                        let grpc_event = grpc_event::Event::merge_from(raw_event, events_mask)
                                             .map_err(|e| e.with_context("failed to merge event"))?;
                                         let event_encoded_len = grpc_event.encoded_len();
                                         let event_size = event_encoded_len + crate::utils::repeated_field_item_overhead(event_encoded_len);
@@ -530,9 +551,9 @@ impl GrpcReader {
                             }
 
                             // Build transaction only if transactions_mask is requested
-                            if transactions_mask.is_some() {
+                            if let Some(transactions_mask) = transactions_mask {
                                 // Apply transaction filter if present
-                                if let Some(ref tx_filter) = transaction_filter {
+                                if let Some(tx_filter) = transaction_filter {
                                     if !tx_filter.matches_transaction(&checkpoint_transaction) {
                                         continue; // Skip non-matching transactions
                                     }
@@ -545,7 +566,7 @@ impl GrpcReader {
                                 );
                                 let executed_tx = grpc_transaction::ExecutedTransaction::merge_from(
                                     checkpoint_tx_ctx,
-                                    &tx_mask,
+                                    transactions_mask,
                                 )
                                 .map_err(|e| e.with_context("failed to merge transaction"))?;
                                 let tx_encoded_len = executed_tx.encoded_len();
@@ -594,7 +615,7 @@ impl GrpcReader {
                 }
 
                 // Send final batch of events if any
-                if should_collect_events && !events_batch.is_empty() {
+                if events_mask.is_some() && !events_batch.is_empty() {
                     checkpoint_size_tracker.add_batch_size(events_batch_size);
                     yield Ok(grpc_ledger_service::CheckpointData::default()
                         .with_events(grpc_event::Events::default().with_events(events_batch)));
@@ -895,8 +916,8 @@ impl GrpcReader {
     /// Returns true on first match (OR semantics when both filters are set).
     async fn has_matching_data<S>(
         transaction_stream: S,
-        transaction_filter: &Option<crate::transaction_filter::TransactionFilter>,
-        event_filter: &Option<crate::event_filter::EventFilter>,
+        transaction_filter: Option<&TransactionFilter>,
+        event_filter: Option<&EventFilter>,
     ) -> Result<bool, Status>
     where
         S: futures::Stream<Item = anyhow::Result<IotaTypesCheckpointTransaction>> + Send,
@@ -906,13 +927,13 @@ impl GrpcReader {
             let checkpoint_transaction =
                 result.map_err(|e| Status::internal(format!("failed to read transaction: {e}")))?;
 
-            if let Some(ref tx_filter) = transaction_filter {
+            if let Some(tx_filter) = transaction_filter {
                 if tx_filter.matches_transaction(&checkpoint_transaction) {
                     return Ok(true);
                 }
             }
 
-            if let Some(ref evt_filter) = event_filter {
+            if let Some(evt_filter) = event_filter {
                 if let Some(ref tx_events) = checkpoint_transaction.events {
                     for event in &tx_events.0 {
                         if evt_filter.matches_event(event) {
@@ -935,8 +956,8 @@ impl GrpcReader {
     /// last emitted message.
     async fn match_checkpoint_filter_or_report_progress<S>(
         transaction_stream: S,
-        transaction_filter: &Option<crate::transaction_filter::TransactionFilter>,
-        event_filter: &Option<crate::event_filter::EventFilter>,
+        transaction_filter: Option<&TransactionFilter>,
+        event_filter: Option<&EventFilter>,
         last_msg_time: &std::sync::Mutex<tokio::time::Instant>,
         progress_interval: std::time::Duration,
         seq: u64,
@@ -971,13 +992,9 @@ impl GrpcReader {
         subscription: SubscribedReceiver,
         start_sequence_number: Option<u64>,
         end_sequence_number: Option<u64>,
-        checkpoint_mask: FieldMaskTree,
-        transactions_mask: Option<FieldMaskTree>,
-        events_mask: Option<FieldMaskTree>,
+        masks_and_filters: Arc<CheckpointMasksAndFilters>,
         max_message_size_bytes: u32,
         cancellation_token: CancellationToken,
-        transaction_filter: Option<crate::transaction_filter::TransactionFilter>,
-        event_filter: Option<crate::event_filter::EventFilter>,
         filter_checkpoints: bool,
         progress_interval: std::time::Duration,
         metrics: RequestMetrics,
@@ -990,11 +1007,7 @@ impl GrpcReader {
         let last_message_time = Arc::new(std::sync::Mutex::new(tokio::time::Instant::now()));
 
         // Clone for closures
-        let checkpoint_mask_historical = checkpoint_mask.clone();
-        let transactions_mask_historical = transactions_mask.clone();
-        let events_mask_historical = events_mask.clone();
-        let transaction_filter_historical = transaction_filter.clone();
-        let event_filter_historical = event_filter.clone();
+        let masks_and_filters_historical = masks_and_filters.clone();
 
         Box::new(Box::pin(reader.create_generic_checkpoint_stream(
             subscription.rx,
@@ -1022,11 +1035,7 @@ impl GrpcReader {
                     let state_reader_inner = state_reader_historical.clone();
                     let checkpoint_summary = item.0.clone();
                     let checkpoint_contents = item.1.clone();
-                    let cp_mask = checkpoint_mask_historical.clone();
-                    let tx_mask = transactions_mask_historical.clone();
-                    let ev_mask = events_mask_historical.clone();
-                    let tx_filter = transaction_filter_historical.clone();
-                    let ev_filter = event_filter_historical.clone();
+                    let masks_and_filters = masks_and_filters_historical.clone();
                     let last_msg_time = last_message_time_historical.clone();
                     {
                         Box::pin(async_stream::stream! {
@@ -1037,8 +1046,8 @@ impl GrpcReader {
                                 let scan_stream = state_reader_inner.stream_checkpoint_transactions(checkpoint_contents.clone());
                                 match Self::match_checkpoint_filter_or_report_progress(
                                     scan_stream,
-                                    &tx_filter,
-                                    &ev_filter,
+                                    masks_and_filters.transaction_filter.as_ref(),
+                                    masks_and_filters.event_filter.as_ref(),
                                     &last_msg_time,
                                     progress_interval,
                                     seq,
@@ -1061,12 +1070,8 @@ impl GrpcReader {
                                 checkpoint_summary,
                                 checkpoint_contents,
                                 transaction_stream,
-                                &cp_mask,
-                                tx_mask,
-                                ev_mask,
+                                masks_and_filters,
                                 max_message_size_bytes as usize,
-                                tx_filter,
-                                ev_filter,
                                 metrics,
                             ));
 
@@ -1082,11 +1087,7 @@ impl GrpcReader {
                 let last_message_time_live = last_message_time;
                 move |item: Arc<IotaTypesCheckpointData>| {
                     let metrics = metrics.clone();
-                    let cp_mask = checkpoint_mask.clone();
-                    let tx_mask = transactions_mask.clone();
-                    let ev_mask = events_mask.clone();
-                    let tx_filter = transaction_filter.clone();
-                    let ev_filter = event_filter.clone();
+                    let masks_and_filters = masks_and_filters.clone();
                     let last_msg_time = last_message_time_live.clone();
                     Box::pin(async_stream::stream! {
                         let seq = item.checkpoint_summary.sequence_number();
@@ -1099,8 +1100,8 @@ impl GrpcReader {
                             );
                             match Self::match_checkpoint_filter_or_report_progress(
                                 scan_stream,
-                                &tx_filter,
-                                &ev_filter,
+                                masks_and_filters.transaction_filter.as_ref(),
+                                masks_and_filters.event_filter.as_ref(),
                                 &last_msg_time,
                                 progress_interval,
                                 seq,
@@ -1129,12 +1130,8 @@ impl GrpcReader {
                             item.checkpoint_summary.clone(),
                             item.checkpoint_contents.clone(),
                             transaction_stream,
-                            &cp_mask,
-                            tx_mask,
-                            ev_mask,
+                            masks_and_filters,
                             max_message_size_bytes as usize,
-                            tx_filter,
-                            ev_filter,
                             metrics,
                         ));
 
@@ -1147,173 +1144,889 @@ impl GrpcReader {
         )))
     }
 
-    /// Get transaction data for a single transaction digest.
+    /// Reads the transactions of `digests` and returns one result per digest, in order.
     ///
     /// Only fetches data from storage when indicated by `fields`, enabling
     /// callers to skip unnecessary reads. Effects are fetched when any of
     /// effects/events/input_objects/output_objects are requested since they
-    /// provide the digests and references needed to fetch those fields.
+    /// provide the digests and references needed to fetch those fields, and
+    /// for checkpoint/timestamp when a key-value store is set, since they
+    /// decide whether the transaction is pruned.
     /// Balance/object changes are derived fields: they additionally force the
     /// fetch of effects and input/output objects, and object changes force the
     /// transaction fetch (for the sender). Over-fetched data never leaks into
     /// the response — the `Merge` impls only populate mask-requested fields.
     ///
     /// Errors with `FAILED_PRECONDITION` if a required object is unavailable
-    /// (e.g. pruned): a silently incomplete object set would be undetectable
-    /// by the client and would corrupt derived change fields.
-    #[tracing::instrument(skip(self))]
-    pub fn get_transaction_read(
+    /// (e.g. pruned and not in the key-value store): a silently incomplete
+    /// object set would be undetectable by the client and would corrupt
+    /// derived change fields.
+    ///
+    /// A transaction is pruned when the node lacks its effects and its
+    /// checkpoint is below the node's lowest available checkpoint. The data of
+    /// a pruned transaction, and any events, objects or checkpoint summary the
+    /// node lacks, are read from the key-value store set with
+    /// [`Self::with_transaction_fallback`], if any.
+    ///
+    /// The store is read once for each kind of data, for all the digests that need it. If a read
+    /// fails, each of its keys is read again on its own, and only the digests whose keys fail
+    /// again fail, except for the checkpoint lookup: until `store_budget` is spent, a failed lookup
+    /// is treated as "not in the store". Every read draws on `store_budget`, which callers share
+    /// across one request.
+    #[tracing::instrument(skip_all, fields(transactions = digests.len()))]
+    pub async fn get_transaction_reads(
+        &self,
+        digests: &[TransactionDigest],
+        fields: &TransactionReadFields,
+        store_budget: &StoreReadBudget,
+    ) -> Vec<Result<TransactionReadData, RpcError>> {
+        let needs = ReadNeeds::new(fields);
+        let mut reads = digests
+            .iter()
+            .map(|digest| self.local_read(digest, &needs))
+            .collect::<Vec<_>>();
+
+        if let Some(store) = &self.transaction_fallback {
+            self.read_pruned_checkpoints(store, &mut reads, &needs, store_budget)
+                .await;
+            read_pruned_transactions(store, &mut reads, &needs, store_budget).await;
+        }
+        for read in &mut reads {
+            if let Ok(pending) = read {
+                if let Err(error) = pending.check_found(&needs) {
+                    *read = Err(error);
+                }
+            }
+        }
+        if needs.checkpoint {
+            for read in &mut reads {
+                if let Ok(pending) = read {
+                    if let Err(error) = self.read_checkpoint(pending) {
+                        *read = Err(error);
+                    }
+                }
+            }
+        }
+        if fields.include_timestamp {
+            self.read_timestamps(&mut reads, store_budget).await;
+        }
+        if fields.include_events {
+            self.read_events(&mut reads, store_budget).await;
+        }
+        if needs.input_objects || needs.output_objects {
+            self.read_objects(&mut reads, &needs, store_budget).await;
+        }
+
+        reads
+            .into_iter()
+            .map(|read| read.map(|pending| pending.finish(&needs)))
+            .collect()
+    }
+
+    fn local_read(
         &self,
         digest: &TransactionDigest,
-        fields: &TransactionReadFields,
-    ) -> Result<TransactionReadData, crate::error::RpcError> {
-        let (transaction, signatures) = if fields.include_transaction
-            || fields.include_signatures
-            || fields.include_object_changes
-        {
-            // Get the transaction if transaction data or signatures are requested
-            let transaction = self
-                .state_reader
-                .try_get_transaction(digest)?
-                .ok_or(crate::error::TransactionNotFoundError(*digest))?;
+        needs: &ReadNeeds,
+    ) -> Result<PendingRead, RpcError> {
+        let mut pending = PendingRead::new(*digest);
+        if needs.transaction {
+            if let Some(transaction) = self.state_reader.try_get_transaction(digest)? {
+                pending.set_transaction(&transaction, &needs.fields);
+            }
+        }
+        if needs.effects || (needs.checkpoint && self.has_transaction_fallback()) {
+            pending.data.effects = self.state_reader.try_get_transaction_effects(digest)?;
+            // Read with the effects: pruning can delete the checkpoint while the store is read.
+            if needs.checkpoint && pending.data.effects.is_some() {
+                pending.data.checkpoint = self.state_reader.get_transaction_checkpoint(digest)?;
+            }
+        }
+        Ok(pending)
+    }
 
-            let transaction_data = (fields.include_transaction || fields.include_object_changes)
-                .then(|| transaction.transaction().clone());
-
-            let signatures_data = fields
-                .include_signatures
-                .then(|| transaction.signatures().to_owned());
-
-            (transaction_data, signatures_data)
-        } else {
-            (None, None)
+    /// Sets the checkpoint of each read whose transaction the node has pruned.
+    ///
+    /// Asks the store: pruning deletes the node's own transaction-to-checkpoint
+    /// entries no later than the effects, so the node cannot answer for a
+    /// transaction it lacks the effects of.
+    async fn read_pruned_checkpoints(
+        &self,
+        store: &Arc<dyn TransactionKeyValueStoreTrait + Send + Sync>,
+        reads: &mut [Result<PendingRead, RpcError>],
+        needs: &ReadNeeds,
+        store_budget: &StoreReadBudget,
+    ) {
+        let indexes = pending_indexes(reads, |pending| pending.needs_checkpoint_lookup(needs));
+        if indexes.is_empty() {
+            return;
+        }
+        let lowest_available = match self.state_reader.try_get_lowest_available_checkpoint() {
+            Ok(0) => return,
+            Ok(lowest_available) => lowest_available,
+            Err(error) => return fail_reads(reads, &indexes, &error.into()),
         };
+        let digests = digests_at(reads, &indexes);
+        let checkpoints = read_keys(store, &digests, store_budget, |store, digests| {
+            store.multi_get_transactions_perpetual_checkpoints(digests)
+        })
+        .await;
+        let checkpoints = digests
+            .into_iter()
+            .zip(checkpoints)
+            .collect::<std::collections::HashMap<_, _>>();
+        for index in indexes {
+            let Ok(pending) = &mut reads[index] else {
+                continue;
+            };
+            match &checkpoints[&pending.data.digest] {
+                Ok(checkpoint) => {
+                    pending.pruned = checkpoint.filter(|&checkpoint| checkpoint < lowest_available)
+                }
+                Err(error) if store_budget.is_spent() => reads[index] = Err(error.clone()),
+                // A failed lookup counts as a miss: clients polling for a new
+                // transaction give up on any per-item error other than `NOT_FOUND`.
+                Err(_) => {}
+            }
+        }
+    }
 
-        let (checkpoint, timestamp_ms) = if fields.include_checkpoint || fields.include_timestamp {
-            let checkpoint = self.state_reader.get_transaction_checkpoint(digest)?;
+    fn read_checkpoint(&self, pending: &mut PendingRead) -> Result<(), RpcError> {
+        if pending.data.checkpoint.is_some() {
+            return Ok(());
+        }
+        pending.data.checkpoint = match pending.pruned {
+            Some(checkpoint) => Some(checkpoint),
+            None => self
+                .state_reader
+                .get_transaction_checkpoint(&pending.data.digest)?,
+        };
+        Ok(())
+    }
 
-            let timestamp_ms = if fields.include_timestamp {
-                match checkpoint {
-                    Some(checkpoint_seq) => {
-                        let summary = self
-                            .state_reader
-                            .try_get_checkpoint_by_sequence_number(checkpoint_seq)?
-                            .ok_or_else(|| {
-                                crate::error::RpcError::new(
-                                    tonic::Code::Internal,
-                                    format!(
-                                        "Checkpoint summary {checkpoint_seq} not found for transaction {digest}"
-                                    ),
-                                )
-                            })?;
-                        Some(summary.data().timestamp_ms)
+    /// Reads from the store the data the node lacks: `missing` holds each key with the index of the
+    /// read that needs it. Returns what the store has, by key, and nothing without a store. A read
+    /// fails when the store fails to read one of its keys, see [`read_keys`].
+    async fn read_missing<K, V>(
+        &self,
+        reads: &mut [Result<PendingRead, RpcError>],
+        missing: &[(usize, K)],
+        store_budget: &StoreReadBudget,
+        read: impl for<'a> Fn(
+            &'a Arc<dyn TransactionKeyValueStoreTrait + Send + Sync>,
+            &'a [K],
+        ) -> futures::future::BoxFuture<
+            'a,
+            iota_types::error::IotaResult<Vec<Option<V>>>,
+        >,
+    ) -> std::collections::HashMap<K, V>
+    where
+        K: Copy + Ord + std::hash::Hash,
+    {
+        let Some(store) = self
+            .transaction_fallback
+            .as_ref()
+            .filter(|_| !missing.is_empty())
+        else {
+            return std::collections::HashMap::new();
+        };
+        let mut keys = missing.iter().map(|&(_, key)| key).collect::<Vec<_>>();
+        keys.sort_unstable();
+        keys.dedup();
+        let values = read_keys(store, &keys, store_budget, read).await;
+        let mut fetched = std::collections::HashMap::new();
+        let mut failed = std::collections::HashMap::new();
+        for (key, value) in keys.into_iter().zip(values) {
+            match value {
+                Ok(Some(value)) => {
+                    fetched.insert(key, value);
+                }
+                Ok(None) => {}
+                Err(error) => {
+                    failed.insert(key, error);
+                }
+            }
+        }
+        for (index, key) in missing {
+            if let Some(error) = failed.get(key) {
+                fail_reads(reads, &[*index], error);
+            }
+        }
+        fetched
+    }
+
+    async fn read_timestamps(
+        &self,
+        reads: &mut [Result<PendingRead, RpcError>],
+        store_budget: &StoreReadBudget,
+    ) {
+        let mut missing = Vec::new();
+        for (index, read) in reads.iter_mut().enumerate() {
+            let Ok(pending) = read else { continue };
+            // Transaction not yet included in a checkpoint
+            let Some(checkpoint_seq) = pending.data.checkpoint else {
+                continue;
+            };
+            match self
+                .state_reader
+                .try_get_checkpoint_by_sequence_number(checkpoint_seq)
+            {
+                Ok(Some(summary)) => pending.data.timestamp_ms = Some(summary.data().timestamp_ms),
+                Ok(None) => missing.push((index, checkpoint_seq)),
+                Err(error) => *read = Err(error.into()),
+            }
+        }
+        let summaries = self
+            .read_missing(reads, &missing, store_budget, |store, checkpoints| {
+                Box::pin(async move {
+                    let (summaries, _, _) =
+                        store.multi_get_checkpoints(checkpoints, &[], &[]).await?;
+                    Ok(summaries)
+                })
+            })
+            .await;
+        for (index, checkpoint_seq) in missing {
+            let Ok(pending) = &mut reads[index] else {
+                continue;
+            };
+            match summaries.get(&checkpoint_seq) {
+                Some(summary) => pending.data.timestamp_ms = Some(summary.data().timestamp_ms),
+                None => {
+                    let digest = pending.data.digest;
+                    reads[index] = Err(summary_unavailable(
+                        checkpoint_seq,
+                        &digest,
+                        self.has_transaction_fallback(),
+                    ));
+                }
+            }
+        }
+    }
+
+    /// Fails a read with `FAILED_PRECONDITION` if its events are unavailable,
+    /// `UNAVAILABLE` if the store read fails or the store lacks the events of a
+    /// pruned transaction, and `INTERNAL` if the store returns other events.
+    async fn read_events(
+        &self,
+        reads: &mut [Result<PendingRead, RpcError>],
+        store_budget: &StoreReadBudget,
+    ) {
+        let mut missing = Vec::new();
+        for (index, read) in reads.iter_mut().enumerate() {
+            let Ok(pending) = read else { continue };
+            let Some(effects) = &pending.data.effects else {
+                continue;
+            };
+            if effects.events_digest().is_none() {
+                continue;
+            }
+            match self.state_reader.try_get_events(&pending.data.digest) {
+                Ok(Some(events)) => pending.data.events = Some(events),
+                Ok(None) => missing.push((index, pending.data.digest)),
+                Err(error) => *read = Err(error.into()),
+            }
+        }
+        let fetched = self
+            .read_missing(reads, &missing, store_budget, |store, digests| {
+                store.multi_get_events_by_tx_digests(digests)
+            })
+            .await;
+        let mut mismatched = Vec::new();
+        for (index, digest) in missing {
+            let Ok(pending) = &mut reads[index] else {
+                continue;
+            };
+            let expected = pending
+                .data
+                .effects
+                .as_ref()
+                .and_then(|effects| effects.events_digest().copied());
+            match fetched.get(&digest) {
+                Some(events) if Some(events.digest()) == expected => {
+                    pending.data.events = Some(events.clone())
+                }
+                Some(_) => {
+                    mismatched.push(digest);
+                    reads[index] = Err(mismatched_store_data(format!(
+                        "events of transaction {digest} do not match the digest in its effects"
+                    )));
+                }
+                // The store holds the events of a transaction with the transaction
+                // itself, so it lacks those of a pruned one only when it fails.
+                None if pending.pruned.is_some() => {
+                    reads[index] = Err(store_unavailable(format!(
+                        "events of transaction {digest} missing after its checkpoint lookup"
+                    )))
+                }
+                None => {
+                    reads[index] = Err(events_unavailable(&digest, self.has_transaction_fallback()))
+                }
+            }
+        }
+        if let Some(store) = self
+            .transaction_fallback
+            .as_ref()
+            .filter(|_| !mismatched.is_empty())
+        {
+            store.evict_events_by_tx_digests(&mismatched).await;
+        }
+    }
+
+    /// Fails a read with `FAILED_PRECONDITION` if an object is unavailable,
+    /// `UNAVAILABLE` if the store read fails, and `INTERNAL` if the store
+    /// returns another object.
+    async fn read_objects(
+        &self,
+        reads: &mut [Result<PendingRead, RpcError>],
+        needs: &ReadNeeds,
+        store_budget: &StoreReadBudget,
+    ) {
+        let mut objects: Vec<Option<ReadObjects>> = Vec::with_capacity(reads.len());
+        let mut missing = Vec::new();
+        for (index, read) in reads.iter_mut().enumerate() {
+            let found = match read {
+                Ok(pending) => self.local_objects(pending, needs),
+                Err(_) => Ok(None),
+            };
+            match found {
+                Ok(Some((keys, found))) => {
+                    missing.extend(
+                        keys.iter()
+                            .zip(&found)
+                            .filter(|(_, object)| object.is_none())
+                            .map(|(key, _)| (index, ObjectKey::from(key))),
+                    );
+                    objects.push(Some((keys, found)));
+                }
+                Ok(None) => objects.push(None),
+                Err(error) => {
+                    *read = Err(error);
+                    objects.push(None);
+                }
+            }
+        }
+
+        let fetched = self
+            .read_missing(reads, &missing, store_budget, |store, keys| {
+                store.multi_get_objects(keys)
+            })
+            .await;
+        let mut mismatched = std::collections::BTreeSet::new();
+        for (index, read_objects) in objects.iter_mut().enumerate() {
+            let Some((keys, found)) = read_objects else {
+                continue;
+            };
+            for (key, object) in keys.iter().zip(found.iter_mut()) {
+                if object.is_some() {
+                    continue;
+                }
+                let Some(fetched) = fetched.get(&ObjectKey::from(key)) else {
+                    continue;
+                };
+                if let Err(error) = verify_object(key, fetched) {
+                    mismatched.insert(ObjectKey::from(key));
+                    if reads[index].is_ok() {
+                        reads[index] = Err(error);
                     }
-                    // Transaction not yet included in a checkpoint
-                    None => None,
                 }
-            } else {
-                None
-            };
-            (checkpoint, timestamp_ms)
-        } else {
-            (None, None)
-        };
-
-        // Derived change fields need effects plus the input/output objects
-        let include_derived_changes =
-            fields.include_balance_changes || fields.include_object_changes;
-
-        // Get the effects if any of the following are requested: effects, events,
-        // input/output objects, balance/object changes
-        let (effects, events, input_objects, output_objects) = if fields.include_effects
-            || fields.include_events
-            || fields.include_input_objects
-            || fields.include_output_objects
-            || include_derived_changes
+                *object = Some(fetched.clone());
+            }
+        }
+        if let Some(store) = self
+            .transaction_fallback
+            .as_ref()
+            .filter(|_| !mismatched.is_empty())
         {
-            // Effects are required for events and input/output objects, so we fetch them if
-            // any of those are requested
-            let effects = self
-                .state_reader
-                .try_get_transaction_effects(digest)?
-                .ok_or(crate::error::TransactionNotFoundError(*digest))?;
+            // Every rejected object is read again, so one request clears
+            // them all from the store's cache.
+            store
+                .evict_objects(&mismatched.into_iter().collect::<Vec<_>>())
+                .await;
+        }
 
-            // Get events only if requested
-            let events = if fields.include_events {
-                match effects.events_digest() {
-                    Some(_) => self.state_reader.try_get_events(digest)?,
-                    None => None,
+        for (read, objects) in reads.iter_mut().zip(objects) {
+            let (Ok(pending), Some((keys, found))) = (&mut *read, objects) else {
+                continue;
+            };
+            let input_count = pending.input_count;
+            match keys
+                .iter()
+                .zip(found)
+                .map(|(key, object)| {
+                    object.ok_or_else(|| object_unavailable(key, self.has_transaction_fallback()))
+                })
+                .collect::<Result<Vec<_>, _>>()
+            {
+                Ok(mut found) => {
+                    let output_objects = found.split_off(input_count);
+                    pending.data.input_objects = needs.input_objects.then_some(found);
+                    pending.data.output_objects = needs.output_objects.then_some(output_objects);
                 }
-            } else {
-                None
-            };
+                Err(error) => *read = Err(error),
+            }
+        }
+    }
 
-            // The object sets must be complete: a silently missing object
-            // would shorten the input/output object lists and corrupt any
-            // derived change fields, with no way for the client to detect it
-            let require_object = |object_id: &iota_sdk_types::ObjectId,
-                                  version: Version|
-             -> Result<Object, crate::error::RpcError> {
-                self.state_reader
-                    .try_get_object_by_key(object_id, version)?
-                    .ok_or_else(|| {
-                        crate::error::RpcError::new(
-                            tonic::Code::FailedPrecondition,
-                            format!(
-                                "object {object_id} at version {version} required by the \
-                                 requested fields is unavailable (possibly pruned); narrow the \
-                                 read_mask or fetch objects individually via `get_objects` for best-effort retrieval"
-                            ),
-                        )
-                    })
-            };
-
-            // Get input objects only if requested
-            let input_objects = if fields.include_input_objects || include_derived_changes {
-                let mut objects = Vec::new();
-                for modified in effects.modified_at_versions() {
-                    objects.push(require_object(modified.object_id(), modified.version())?);
-                }
-                Some(objects)
-            } else {
-                None
-            };
-
-            // Get output objects only if requested
-            let output_objects = if fields.include_output_objects || include_derived_changes {
-                let mut objects = Vec::new();
-                for written in effects
+    /// The object keys a read needs and the objects the node holds of them; `None` without
+    /// effects.
+    fn local_objects(
+        &self,
+        pending: &mut PendingRead,
+        needs: &ReadNeeds,
+    ) -> Result<Option<ReadObjects>, RpcError> {
+        let Some(effects) = &pending.data.effects else {
+            return Ok(None);
+        };
+        let mut keys = Vec::new();
+        if needs.input_objects {
+            keys.extend(
+                effects
+                    .old_object_metadata()
+                    .into_iter()
+                    .map(|modified| *modified.reference()),
+            );
+        }
+        pending.input_count = keys.len();
+        if needs.output_objects {
+            keys.extend(
+                effects
                     .created()
                     .into_iter()
                     .chain(effects.mutated())
                     .chain(effects.unwrapped())
-                {
-                    let object_ref = written.reference();
-                    objects.push(require_object(&object_ref.object_id, object_ref.version)?);
-                }
-                Some(objects)
-            } else {
-                None
-            };
+                    .map(|written| *written.reference()),
+            );
+        }
+        let found = keys
+            .iter()
+            .map(|key| {
+                self.state_reader
+                    .try_get_object_by_key(&key.object_id, key.version)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Some((keys, found)))
+    }
+}
 
-            (Some(effects), events, input_objects, output_objects)
-        } else {
-            // If none of the above are requested, we can skip fetching effects entirely
-            (None, None, None, None)
+/// Reads `keys` from `store` with one call of `read`. One key the HTTP store fails to read fails
+/// the whole call, so when the call fails before `store_budget` is spent, each key is read again
+/// with a call of its own. Returns one result per key, in key order: a key fails only when its own
+/// read fails.
+async fn read_keys<K, V>(
+    store: &Arc<dyn TransactionKeyValueStoreTrait + Send + Sync>,
+    keys: &[K],
+    store_budget: &StoreReadBudget,
+    read: impl for<'a> Fn(
+        &'a Arc<dyn TransactionKeyValueStoreTrait + Send + Sync>,
+        &'a [K],
+    ) -> futures::future::BoxFuture<
+        'a,
+        iota_types::error::IotaResult<Vec<Option<V>>>,
+    >,
+) -> Vec<Result<Option<V>, RpcError>> {
+    let error = match store_read(read(store, keys), store_budget).await {
+        Ok(values) => {
+            // A reply shorter than the request leaves the rest missing.
+            let mut values = values.into_iter();
+            return keys.iter().map(|_| Ok(values.next().flatten())).collect();
+        }
+        Err(error) => error,
+    };
+    if keys.len() < 2 || store_budget.is_spent() {
+        return keys.iter().map(|_| Err(error.clone())).collect();
+    }
+    let each = futures::future::join_all(
+        keys.iter()
+            .map(|key| read(store, std::slice::from_ref(key))),
+    );
+    match store_read(
+        async { Ok::<_, iota_types::error::IotaError>(each.await) },
+        store_budget,
+    )
+    .await
+    {
+        Ok(values) => {
+            // One warning for all the keys that fail again.
+            let mut failed = None;
+            values
+                .into_iter()
+                .map(|value| match value {
+                    Ok(value) => Ok(value.into_iter().next().flatten()),
+                    Err(error) => Err(failed
+                        .get_or_insert_with(|| store_unavailable(error))
+                        .clone()),
+                })
+                .collect()
+        }
+        Err(error) => keys.iter().map(|_| Err(error.clone())).collect(),
+    }
+}
+
+/// Reads the transactions and effects of the pruned reads from `store`.
+async fn read_pruned_transactions(
+    store: &Arc<dyn TransactionKeyValueStoreTrait + Send + Sync>,
+    reads: &mut [Result<PendingRead, RpcError>],
+    needs: &ReadNeeds,
+    store_budget: &StoreReadBudget,
+) {
+    // A pruned transaction reads both its transaction and its effects from the store.
+    let (read_transactions, read_effects) = (needs.transaction, needs.effects);
+    let indexes = pending_indexes(reads, |pending| pending.pruned.is_some());
+    if indexes.is_empty() || !(read_transactions || read_effects) {
+        return;
+    }
+    let digests = digests_at(reads, &indexes);
+    let read = read_keys(store, &digests, store_budget, move |store, digests| {
+        Box::pin(async move {
+            let (transactions, effects) = store
+                .multi_get(
+                    if read_transactions { digests } else { &[] },
+                    if read_effects { digests } else { &[] },
+                )
+                .await?;
+            let (mut transactions, mut effects) = (transactions.into_iter(), effects.into_iter());
+            Ok(digests
+                .iter()
+                .map(|_| Some((transactions.next().flatten(), effects.next().flatten())))
+                .collect())
+        })
+    })
+    .await;
+    let read = digests
+        .into_iter()
+        .zip(read)
+        .collect::<std::collections::HashMap<_, _>>();
+    for index in indexes {
+        let Ok(pending) = &mut reads[index] else {
+            continue;
         };
+        let (transaction, effects) = match &read[&pending.data.digest] {
+            Ok(found) => found
+                .as_ref()
+                .map_or((None, None), |(transaction, effects)| {
+                    (transaction.as_ref(), effects.as_ref())
+                }),
+            Err(error) => {
+                reads[index] = Err(error.clone());
+                continue;
+            }
+        };
+        if read_transactions {
+            match transaction {
+                Some(transaction) => pending.set_transaction(transaction, &needs.fields),
+                None => pending.has_transaction = false,
+            }
+        }
+        if read_effects {
+            pending.data.effects = effects.cloned();
+        }
+    }
+}
 
-        Ok(TransactionReadData {
-            digest: *digest,
-            transaction,
-            signatures,
-            effects,
-            events,
-            checkpoint,
-            timestamp_ms,
+/// The object keys of a read, inputs first, and the objects found of them so far.
+type ReadObjects = (Vec<ObjectReference>, Vec<Option<Object>>);
+
+/// Which data the read fields need.
+struct ReadNeeds {
+    fields: TransactionReadFields,
+    transaction: bool,
+    effects: bool,
+    checkpoint: bool,
+    input_objects: bool,
+    output_objects: bool,
+}
+
+impl ReadNeeds {
+    fn new(fields: &TransactionReadFields) -> Self {
+        // Derived change fields need effects plus the input/output objects
+        let derived_changes = fields.include_balance_changes || fields.include_object_changes;
+        let input_objects = fields.include_input_objects || derived_changes;
+        let output_objects = fields.include_output_objects || derived_changes;
+        Self {
+            fields: *fields,
+            transaction: fields.include_transaction
+                || fields.include_signatures
+                || fields.include_object_changes,
+            effects: fields.include_effects
+                || fields.include_events
+                || input_objects
+                || output_objects,
+            checkpoint: fields.include_checkpoint || fields.include_timestamp,
             input_objects,
             output_objects,
+        }
+    }
+}
+
+/// A transaction read in progress.
+struct PendingRead {
+    data: TransactionReadData,
+    has_transaction: bool,
+    /// The checkpoint of a transaction the node has pruned.
+    pruned: Option<u64>,
+    input_count: usize,
+}
+
+impl PendingRead {
+    fn new(digest: TransactionDigest) -> Self {
+        Self {
+            data: TransactionReadData {
+                digest,
+                transaction: None,
+                signatures: None,
+                effects: None,
+                events: None,
+                checkpoint: None,
+                timestamp_ms: None,
+                input_objects: None,
+                output_objects: None,
+            },
+            has_transaction: false,
+            pruned: None,
+            input_count: 0,
+        }
+    }
+
+    fn set_transaction(
+        &mut self,
+        transaction: &iota_sdk_types::SenderSignedTransaction,
+        fields: &TransactionReadFields,
+    ) {
+        self.has_transaction = true;
+        self.data.transaction = (fields.include_transaction || fields.include_object_changes)
+            .then(|| transaction.transaction().clone());
+        self.data.signatures = fields
+            .include_signatures
+            .then(|| transaction.signatures().to_owned());
+    }
+
+    /// Whether the store must say if the transaction is pruned: the node lacks its effects, and the
+    /// read needs data that a pruned transaction reads from the store. A transaction the node has
+    /// effects for is not pruned, even when it is not in a checkpoint yet.
+    fn needs_checkpoint_lookup(&self, needs: &ReadNeeds) -> bool {
+        self.data.effects.is_none()
+            && (needs.effects || needs.checkpoint || (needs.transaction && !self.has_transaction))
+    }
+
+    fn check_found(&self, needs: &ReadNeeds) -> Result<(), RpcError> {
+        if (!needs.transaction || self.has_transaction)
+            && (!needs.effects || self.data.effects.is_some())
+        {
+            return Ok(());
+        }
+        // The store has placed a pruned transaction in a checkpoint, so its
+        // transaction or effects missing from the store is a store failure.
+        Err(match self.pruned {
+            Some(_) => store_unavailable(format!(
+                "transaction {} or its effects missing after its checkpoint lookup",
+                self.data.digest
+            )),
+            None => crate::error::TransactionNotFoundError(self.data.digest).into(),
         })
     }
+
+    fn finish(mut self, needs: &ReadNeeds) -> TransactionReadData {
+        if !needs.effects {
+            self.data.effects = None;
+        }
+        self.data
+    }
+}
+
+/// The indexes of the reads that have not failed and match `filter`.
+fn pending_indexes(
+    reads: &[Result<PendingRead, RpcError>],
+    filter: impl Fn(&PendingRead) -> bool,
+) -> Vec<usize> {
+    reads
+        .iter()
+        .enumerate()
+        .filter_map(|(index, read)| {
+            read.as_ref()
+                .ok()
+                .filter(|pending| filter(pending))
+                .map(|_| index)
+        })
+        .collect()
+}
+
+/// The digests of the reads at `indexes` that have not failed, each once, in order.
+fn digests_at(
+    reads: &[Result<PendingRead, RpcError>],
+    indexes: &[usize],
+) -> Vec<TransactionDigest> {
+    let mut seen = std::collections::HashSet::new();
+    indexes
+        .iter()
+        .filter_map(|&index| Some(reads[index].as_ref().ok()?.data.digest))
+        .filter(|digest| seen.insert(*digest))
+        .collect()
+}
+
+/// Fails each read at `indexes` that has not failed yet with `error`.
+fn fail_reads(reads: &mut [Result<PendingRead, RpcError>], indexes: &[usize], error: &RpcError) {
+    for &index in indexes {
+        if reads[index].is_ok() {
+            reads[index] = Err(error.clone());
+        }
+    }
+}
+
+/// Why data is unavailable, and what to try first. A key-value store may report a failed read as a
+/// missing key, so with a store the data may also be missing because the read failed.
+fn unavailable_reason(store_read: bool) -> &'static str {
+    if store_read {
+        "(possibly pruned, or the key-value store failed to return it); retry, and if it stays \
+         unavailable, "
+    } else {
+        "(possibly pruned); "
+    }
+}
+
+fn summary_unavailable(
+    checkpoint_seq: u64,
+    digest: &TransactionDigest,
+    store_read: bool,
+) -> RpcError {
+    if !store_read {
+        // A node keeps the summary of every transaction it holds, so without a store a miss is a
+        // broken invariant.
+        return RpcError::new(
+            tonic::Code::Internal,
+            format!("Checkpoint summary {checkpoint_seq} not found for transaction {digest}"),
+        );
+    }
+    RpcError::new(
+        tonic::Code::FailedPrecondition,
+        format!(
+            "checkpoint summary {checkpoint_seq} of transaction {digest} required by the \
+             requested fields is unavailable {}narrow the read_mask",
+            unavailable_reason(true)
+        ),
+    )
+}
+
+fn events_unavailable(digest: &TransactionDigest, store_read: bool) -> RpcError {
+    RpcError::new(
+        tonic::Code::FailedPrecondition,
+        format!(
+            "events of transaction {digest} required by the requested fields are unavailable \
+             {}narrow the read_mask",
+            unavailable_reason(store_read)
+        ),
+    )
+}
+
+fn object_unavailable(key: &ObjectReference, store_read: bool) -> RpcError {
+    let (object_id, version) = (key.object_id, key.version);
+    // An incomplete set would corrupt the derived change fields.
+    RpcError::new(
+        tonic::Code::FailedPrecondition,
+        format!(
+            "object {object_id} at version {version} required by the requested fields is \
+             unavailable {}narrow the read_mask or fetch objects individually via \
+             `get_objects` for best-effort retrieval",
+            unavailable_reason(store_read)
+        ),
+    )
+}
+
+fn verify_object(
+    reference: &ObjectReference,
+    object: &Object,
+) -> Result<(), crate::error::RpcError> {
+    let object = object.as_inner();
+    if object.digest() == reference.digest {
+        return Ok(());
+    }
+    Err(mismatched_store_data(format!(
+        "key-value store returned object {} at version {} for object {} at version {}, \
+         which does not match the digest in the effects",
+        object.id(),
+        object.version(),
+        reference.object_id,
+        reference.version
+    )))
+}
+
+/// The time the key-value store reads of one request may take in total.
+const STORE_READ_BUDGET: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// The store read time a request has left; shared by its transactions.
+///
+/// Only time inside store reads counts. A deadline per request would also count the time the client
+/// takes to read the response, so a slow client would get `UNAVAILABLE` for its later transactions
+/// while the store is healthy.
+#[derive(Debug)]
+pub struct StoreReadBudget(std::sync::Mutex<std::time::Duration>);
+
+impl Default for StoreReadBudget {
+    fn default() -> Self {
+        Self(std::sync::Mutex::new(STORE_READ_BUDGET))
+    }
+}
+
+impl StoreReadBudget {
+    fn lock(&self) -> std::sync::MutexGuard<'_, std::time::Duration> {
+        self.0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    fn remaining(&self) -> std::time::Duration {
+        *self.lock()
+    }
+
+    fn is_spent(&self) -> bool {
+        self.remaining().is_zero()
+    }
+
+    fn spend(&self, spent: std::time::Duration) {
+        let mut remaining = self.lock();
+        *remaining = remaining.saturating_sub(spent);
+    }
+}
+
+async fn store_read<T>(
+    read: impl std::future::Future<Output = iota_types::error::IotaResult<T>>,
+    budget: &StoreReadBudget,
+) -> Result<T, crate::error::RpcError> {
+    let remaining = budget.remaining();
+    if remaining.is_zero() {
+        return Err(store_budget_spent());
+    }
+    let start = tokio::time::Instant::now();
+    // Only the budget limits a read: the store times out each of its requests, and a read of many
+    // keys can need several rounds of them.
+    let result = tokio::time::timeout(remaining, read).await;
+    budget.spend(start.elapsed());
+    match result {
+        Ok(Ok(value)) => Ok(value),
+        Ok(Err(error)) => Err(store_unavailable(error)),
+        // The read took all the time the request had left.
+        Err(_) => Err(store_budget_spent()),
+    }
+}
+
+fn store_unavailable(detail: impl std::fmt::Display) -> crate::error::RpcError {
+    // The store's error text can name its URL, so it stays in the log.
+    tracing::warn!("key-value store read failed: {detail}");
+    crate::error::RpcError::new(tonic::Code::Unavailable, "key-value store unavailable")
+}
+
+/// Not logged: every further item of the request gets it.
+fn store_budget_spent() -> crate::error::RpcError {
+    crate::error::RpcError::new(
+        tonic::Code::Unavailable,
+        "key-value store read time of the request is spent; request fewer transactions",
+    )
+}
+
+fn mismatched_store_data(detail: String) -> crate::error::RpcError {
+    tracing::warn!("{detail}");
+    crate::error::RpcError::new(
+        tonic::Code::Internal,
+        "key-value store returned data that does not match the effects",
+    )
 }
 
 /// Internal struct to hold all transaction-related data fetched from storage.
@@ -1472,5 +2185,67 @@ impl Merge<CheckpointTransactionWithContext>
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test(start_paused = true)]
+    async fn store_read_that_never_completes_is_unavailable() {
+        let budget = StoreReadBudget::default();
+        let start = tokio::time::Instant::now();
+
+        let never = std::future::pending::<iota_types::error::IotaResult<()>>();
+        let error = store_read(never, &budget).await.unwrap_err();
+
+        assert_eq!(Status::from(error).code(), tonic::Code::Unavailable);
+        // One read may take the whole 30 s budget.
+        assert_eq!(start.elapsed(), std::time::Duration::from_secs(30));
+        assert!(budget.is_spent());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn store_read_waits_no_longer_than_the_budget_left() {
+        let budget = StoreReadBudget::default();
+        budget.spend(std::time::Duration::from_secs(25));
+        let start = tokio::time::Instant::now();
+
+        let never = std::future::pending::<iota_types::error::IotaResult<()>>();
+        store_read(never, &budget).await.unwrap_err();
+
+        assert_eq!(start.elapsed(), std::time::Duration::from_secs(5));
+        assert!(budget.is_spent());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn successful_store_reads_spend_the_budget() {
+        let budget = StoreReadBudget::default();
+        for _ in 0..3 {
+            let slow = async {
+                tokio::time::sleep(std::time::Duration::from_secs(9)).await;
+                Ok(())
+            };
+            store_read(slow, &budget).await.unwrap();
+        }
+        assert_eq!(budget.remaining(), std::time::Duration::from_secs(3));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn time_outside_store_reads_does_not_spend_the_budget() {
+        let budget = StoreReadBudget::default();
+        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+        store_read(async { Ok(()) }, &budget).await.unwrap();
+        assert!(!budget.is_spent());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn store_read_past_the_budget_is_unavailable_without_reading() {
+        let budget = StoreReadBudget::default();
+        budget.spend(std::time::Duration::from_secs(30));
+        let read = async { panic!("the store must not be read past the budget") };
+        let error = store_read::<()>(read, &budget).await.unwrap_err();
+        assert_eq!(Status::from(error).code(), tonic::Code::Unavailable);
     }
 }

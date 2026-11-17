@@ -15,7 +15,7 @@ use tracing::{info, warn};
 use crate::{
     authority::AuthorityStore,
     index_rebuild_cancellation::{RebuildCancelled, is_cancelled},
-    progress_logger::{PROGRESS_REPORT_INTERVAL, progress_line},
+    progress::{PROGRESS_REPORT_INTERVAL, progress_line},
 };
 
 /// Make `LiveObjectIndexer`s for parallel indexing of the live object set

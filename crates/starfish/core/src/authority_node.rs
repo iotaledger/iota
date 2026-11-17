@@ -110,10 +110,6 @@ impl ConsensusAuthority {
                 .join(", ")
         );
         info!("Consensus parameters: {:?}", parameters);
-        info!(
-            "Protocol consensus flags: starfish_speed={}",
-            protocol_config.consensus_starfish_speed(),
-        );
         info!("Consensus committee: {:?}", committee);
         let context = Arc::new(Context::new(
             epoch_start_timestamp_ms,
@@ -126,8 +122,10 @@ impl ConsensusAuthority {
         ));
         let start_time = Instant::now();
 
-        let (tx_client, tx_receiver) = TransactionClient::new(context.clone());
-        let tx_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (tx_client, tx_receiver, priority_tx_receiver) =
+            TransactionClient::new(context.clone());
+        let tx_consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
 
         let (core_signals, signals_receivers) = CoreSignals::new(context.clone());
 
@@ -549,7 +547,7 @@ pub(crate) mod tests {
         block_header::GENESIS_ROUND,
         commit::CommitIndex,
         storage::{Store, WriteBatch},
-        transaction::NoopTransactionVerifier,
+        transaction::{NoopTransactionVerifier, Priority},
     };
 
     #[tokio::test]
@@ -746,7 +744,7 @@ pub(crate) mod tests {
             submitted_transactions.insert(txn.clone());
             authorities[i as usize % authorities.len()]
                 .transaction_client()
-                .submit(vec![txn])
+                .submit(vec![txn], Priority::Normal)
                 .await
                 .unwrap();
         }
@@ -797,7 +795,7 @@ pub(crate) mod tests {
             submitted_transactions.insert(txn.clone());
             authorities[i as usize % authorities.len()]
                 .transaction_client()
-                .submit(vec![txn])
+                .submit(vec![txn], Priority::Normal)
                 .await
                 .unwrap();
         }
@@ -812,7 +810,7 @@ pub(crate) mod tests {
             submitted_transactions.insert(txn.clone());
             authorities[i as usize % authorities.len()]
                 .transaction_client()
-                .submit(vec![txn])
+                .submit(vec![txn], Priority::Normal)
                 .await
                 .unwrap();
         }
@@ -947,7 +945,7 @@ pub(crate) mod tests {
             submitted_transactions.insert(txn.clone());
             authorities[i as usize % authorities.len()]
                 .transaction_client()
-                .submit(vec![txn])
+                .submit(vec![txn], Priority::Normal)
                 .await
                 .unwrap();
         }

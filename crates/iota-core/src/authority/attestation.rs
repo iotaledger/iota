@@ -6,6 +6,7 @@
 //! of an attested transaction's execution.
 
 use std::{
+    cell::Cell,
     collections::{BTreeSet, HashSet},
     sync::Arc,
 };
@@ -88,12 +89,22 @@ impl AuthorityState {
         let (kind, signer, gas_data) = tx.execution_parts();
         let tx_digest = *transaction.digest();
 
+        // Tests register the `attest-ignore-auth-failure` fail point to make a
+        // validator attest a transaction whose Move authentication fails, as a
+        // faulty validator can, claiming the units the test gives. A `Cell`
+        // keeps the binding immutable in builds where the fail point compiles
+        // to nothing.
+        let units_despite_failed_authentication = Cell::new(None);
+        iota_macros::fail_point_arg!("attest-ignore-auth-failure", |units: u64| {
+            units_despite_failed_authentication.set(Some(units))
+        });
+
         // The dry run meters authentication and body against the whole budget,
         // as execution does, and a failed authentication is refused unpaid. So
         // the authenticators first run on their own at the signing cap, as at
         // admission: one that fails or exceeds `max_auth_gas` is refused before
         // budget-sized work is done on it.
-        if !move_authenticators.is_empty() {
+        if !move_authenticators.is_empty() && units_despite_failed_authentication.get().is_none() {
             let function_refs = extract_auth_fun_refs(signer, gas_data.owner, |address| {
                 move_authenticators
                     .iter()
@@ -263,29 +274,40 @@ impl AuthorityState {
                 )
             };
 
-        // Refuse to attest a transaction when its Move authentication did not succeed.
-        // Any other failure (out-of-gas or a Move abort in the transaction body) is the
-        // issuer's responsibility and is still attested, sequenced and charged as a
-        // failed transaction under the normal flow.
-        if authentication_failed {
-            return Err(IotaError::Execution(format!(
-                "refusing to attest transaction with failed Move authentication: {:?}",
-                effects.status()
-            )));
-        }
-
         // Build `AttestationData`. The claim is in gas units, independent
         // of the gas price the user chose.
-        let computation_units =
-            attestation::computation_units(effects.gas_cost_summary(), tx.gas_price());
+        let computation_units = if authentication_failed {
+            // Refuse to attest a transaction when its Move authentication did
+            // not succeed. Any other failure (out-of-gas or a Move abort in the
+            // transaction body) is the issuer's responsibility and is still
+            // attested, sequenced and charged as a failed transaction under
+            // the normal flow.
+            units_despite_failed_authentication.get().ok_or_else(|| {
+                IotaError::Execution(format!(
+                    "refusing to attest transaction with failed Move authentication: {:?}",
+                    effects.status()
+                ))
+            })?
+        } else {
+            attestation::computation_units(effects.gas_cost_summary(), tx.gas_price())
+        };
 
-        let object_versions =
-            attestable_object_versions(tx, &inner_temp_store, account_object_refs)?;
+        // Tests register the `attest-object-versions` fail point to make a
+        // validator record the versions they give in place of the ones its dry
+        // run read, as a faulty validator can.
+        let object_versions = Cell::new(attestable_object_versions(
+            tx,
+            &inner_temp_store,
+            account_object_refs,
+        )?);
+        iota_macros::fail_point_arg!("attest-object-versions", |versions| {
+            object_versions.set(versions)
+        });
 
         Ok((
             AttestationData::V1 {
                 computation_units,
-                object_versions,
+                object_versions: object_versions.into_inner(),
             },
             owned_objects,
         ))

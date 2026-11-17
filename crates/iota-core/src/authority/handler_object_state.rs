@@ -69,7 +69,7 @@
 //!   ([`HandlerObjectState::take_completed_commit_rows`]). Otherwise they are all the commit's
 //!   rows, derived from its effects;
 //! - for every executed checkpoint, the checkpoint executor writes the rows its executions put in
-//!   memory, in a separate batch written just before the checkpoint's outputs and its watermark
+//!   memory, in a separate batch written before the checkpoint's outputs and its watermark
 //!   ([`HandlerObjectState::write_checkpoint_rows_to_batch`]). So an object is never written
 //!   without its row. Rows never change once written for a key, so this batch takes no lock.
 //!
@@ -978,7 +978,7 @@ impl HandlerObjectState {
     }
 
     /// Stages a checkpoint's rows into `batch`, a separate batch the
-    /// checkpoint executor writes just before the checkpoint's outputs. After
+    /// checkpoint executor writes before the checkpoint's outputs. After
     /// the batch is written, and not before, pass the same rows to
     /// [`Self::evict_flushed_checkpoint_rows`]. Rows never change once written
     /// for a key, so checkpoints may write in any order and concurrently with
@@ -1075,6 +1075,17 @@ mod tests {
     use prometheus_filtered::Registry;
 
     use super::*;
+
+    /// The table's prefix extractor indexes rows by object id, so the id must
+    /// be the leading `ObjectId::LENGTH` bytes of every serialized key.
+    #[test]
+    fn an_object_key_serializes_with_its_id_as_the_prefix() {
+        let id = ObjectId::random();
+        let key = typed_store::be_fix_int_ser(&ObjectKey(id, Version::from_u64(7)));
+        assert_eq!(key.len(), ObjectId::LENGTH + size_of::<u64>());
+        assert_eq!(&key[..ObjectId::LENGTH], id.as_bytes());
+        assert_eq!(key[..ObjectId::LENGTH], typed_store::be_fix_int_ser(&id));
+    }
 
     fn owned_inputs_tx(gas_version: u64) -> SenderSignedTransaction {
         let tx_data = TestTransactionBuilder::new(

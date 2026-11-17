@@ -287,21 +287,22 @@ impl ValidatorService {
             }
         };
 
-        // Check system overload.
-        if let Err(e) = state.check_system_overload(
-            consensus_adapter,
-            transaction.data(),
-            state.check_system_overload_at_signing(),
-            // `true` means P-COOL flow is enabled - ensured by `fp_ensure!` in the caller
-            true,
-        ) {
-            metrics
-                .num_rejected_tx_during_overload
-                .with_label_values(&[e.as_ref()])
-                .inc();
-            let weight = normalize(&e);
-            return (TxStatusUpdate::Rejected { error: e }, weight);
-        }
+        // Take this transaction's slot in the consensus queue and run the
+        // overload checks against the queue at that moment, which also counts
+        // admissions still in progress. Returning before the submission below
+        // drops the slot and releases it.
+        let slot = match state.reserve_consensus_queue_slot(consensus_adapter, transaction.data()) {
+            Ok(slot) => slot,
+            Err(e) => {
+                metrics
+                    .num_rejected_tx_during_overload
+                    .with_label_values(&[e.as_ref()])
+                    .inc();
+                let weight = normalize(&e);
+
+                return (TxStatusUpdate::Rejected { error: e }, weight);
+            }
+        };
 
         // Validate transaction.
         if let Err(e) = transaction.validity_check(&epoch_store.tx_validity_check_context()) {
@@ -337,10 +338,21 @@ impl ValidatorService {
         // for the rest of the epoch, so it rejects them here and the client
         // submits through another validator. Before the signature check,
         // which a rejected submission need not pay for.
-        if let Some(attestor) = epoch_store.own_index_if_cut_off() {
-            let error = IotaError::AttestorCutOff { attestor };
-            let weight = normalize(&error);
-            return (TxStatusUpdate::Rejected { error }, weight);
+        //
+        // Tests register the `attest-despite-cutoff` fail point to make a
+        // cut-off validator attest anyway, as a faulty validator can. A `Cell`
+        // keeps the binding immutable in builds where the fail point compiles
+        // to nothing.
+        let rejects_when_cut_off = std::cell::Cell::new(true);
+        iota_macros::fail_point_if!("attest-despite-cutoff", || {
+            rejects_when_cut_off.set(false)
+        });
+        if rejects_when_cut_off.get() {
+            if let Some(attestor) = epoch_store.own_index_if_cut_off() {
+                let error = IotaError::AttestorCutOff { attestor };
+                let weight = normalize(&error);
+                return (TxStatusUpdate::Rejected { error }, weight);
+            }
         }
 
         // Verify user signature.
@@ -503,8 +515,8 @@ impl ValidatorService {
         // The attestation adds object references for the shared inputs and the
         // objects the dry run loaded, after the transaction passed its own size
         // check, so a valid transaction can become larger than consensus
-        // accepts. Consensus would refuse it on every attempt while the adapter
-        // retries it until the epoch ends, holding a submit permit, so it is
+        // accepts. The consensus adapter refuses such a transaction as well,
+        // but only after the soft locks below are taken, so it is
         // rejected here. The rejection weighs: the dry run has already run, and
         // with no soft lock taken, the in-flight check does not stop a resend.
         if let Err(error) =
@@ -531,10 +543,14 @@ impl ValidatorService {
             .soft_lock_table_size
             .set(soft_locks.lock_count() as i64);
 
-        // Submit to consensus.
-        if let Err(e) =
-            consensus_adapter.submit(consensus_tx, Some(&reconfiguration_lock), epoch_store)
-        {
+        // Submit to consensus. The slot stays counted until consensus has
+        // processed the transaction, and any other outcome releases the slot.
+        if let Err(e) = consensus_adapter.submit_with_slot(
+            consensus_tx,
+            Some(&reconfiguration_lock),
+            epoch_store,
+            slot,
+        ) {
             let weight = normalize(&e);
             // Release soft locks so the transaction can be retried.
             tracing::debug!(

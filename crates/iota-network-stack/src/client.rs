@@ -8,6 +8,7 @@ use std::{
     future::Future,
     io,
     net::{SocketAddr, ToSocketAddrs},
+    num::NonZeroU32,
     pin::Pin,
     sync::{Arc, Mutex},
     task::{self, Poll},
@@ -201,8 +202,12 @@ fn apply_config_to_endpoint(config: &Config, mut endpoint: Endpoint) -> Endpoint
     }
 
     endpoint
-        .initial_stream_window_size(config.http2_initial_stream_window_size)
-        .initial_connection_window_size(config.http2_initial_connection_window_size)
+        .initial_stream_window_size(config.http2_initial_stream_window_size.map(NonZeroU32::get))
+        .initial_connection_window_size(
+            config
+                .http2_initial_connection_window_size
+                .map(NonZeroU32::get),
+        )
         .tcp_keepalive(config.tcp_keepalive)
 }
 

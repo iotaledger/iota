@@ -883,10 +883,11 @@ pub struct AuthorityEpochTables {
     /// version produced by a commit the handler assigned. Written by each
     /// commit's quarantine flush in the same batch as `last_consensus_stats`,
     /// and by the checkpoint executor in a separate batch just before each
-    /// checkpoint's outputs. Same
-    /// access profile as the lock table: one write per written object version
-    /// per commit, one point lookup per validated input.
-    #[default_options_override_fn = "owned_object_locked_transactions_table_default_config"]
+    /// checkpoint's outputs. One write per written object version per
+    /// commit. Validation reads the row at an input's version by key, and
+    /// seeks the rows of the input's id above or below a version, so the
+    /// table is indexed by id as well as by key.
+    #[default_options_override_fn = "handler_processed_objects_table_default_config"]
     handler_processed_objects: DBMap<ObjectKey, HandlerProcessedObject>,
 
     /// The `Refuted` attestation totals of each commit that has any (see
@@ -1118,6 +1119,13 @@ fn pending_consensus_transactions_table_default_config() -> DBOptions {
     default_db_options()
         .optimize_for_write_throughput()
         .optimize_for_large_values_no_scan(1 << 10)
+}
+
+/// The lock table's options plus a prefix extractor over the object id, the
+/// leading [`ObjectId::LENGTH`] bytes of the serialized [`ObjectKey`].
+fn handler_processed_objects_table_default_config() -> DBOptions {
+    owned_object_locked_transactions_table_default_config()
+        .with_fixed_prefix_extractor(ObjectId::LENGTH)
 }
 
 impl AuthorityEpochTables {
@@ -2381,16 +2389,24 @@ impl AuthorityPerEpochStore {
             Err(IotaError::EpochEnded(_)) => return Ok(()),
             Err(e) => return Err(e),
         };
-        let rows = handler_object_state.checkpoint_rows(effects);
+        let _scope = monitored_scope("PersistCheckpointBookkeeping");
+        let rows = {
+            let _scope = monitored_scope("PersistCheckpointBookkeeping::CollectRows");
+            handler_object_state.checkpoint_rows(effects)
+        };
         if rows.is_empty() {
             return Ok(());
         }
-        let mut batch = tables.handler_processed_objects.batch();
-        handler_object_state.write_checkpoint_rows_to_batch(&tables, &mut batch, &rows)?;
-        batch.write()?;
+        {
+            let _scope = monitored_scope("PersistCheckpointBookkeeping::WriteBatch");
+            let mut batch = tables.handler_processed_objects.batch();
+            handler_object_state.write_checkpoint_rows_to_batch(&tables, &mut batch, &rows)?;
+            batch.write()?;
+        }
         // Lets a test crash the node with the checkpoint's rows written and
         // its outputs not.
         fail_point!("crash-after-checkpoint-bookkeeping-write");
+        let _scope = monitored_scope("PersistCheckpointBookkeeping::EvictRows");
         handler_object_state.evict_flushed_checkpoint_rows(&rows);
         Ok(())
     }
@@ -4576,12 +4592,11 @@ impl AuthorityPerEpochStore {
                     digest,
                 );
                 // The copy is not recorded as processed, so the consensus
-                // adapter that submitted it would hold its submit permit, which
-                // checkpoint signatures also need, until the epoch ends. Only
-                // this validator's adapter is told: another author's copy can
-                // still be kept. Without the P-COOL flow the adapter waits
-                // until the epoch ends, as for the other copies ignored at the
-                // end of the epoch.
+                // adapter that submitted it would hold its submit permit until
+                // the epoch ends. Only this validator's adapter is told: another
+                // author's copy can still be kept. Without the P-COOL flow the
+                // adapter waits until the epoch ends, as for the other copies
+                // ignored at the end of the epoch.
                 if self.protocol_config().enable_pcool_flow()
                     && transaction.certificate_author == self.name
                 {
@@ -4630,9 +4645,8 @@ impl AuthorityPerEpochStore {
                     );
                     // An ignored copy is not recorded as processed, so the
                     // consensus adapter that submitted it would hold its submit
-                    // permit, which checkpoint signatures also need, until the
-                    // epoch ends. Only the adapter is told: another copy may
-                    // still be kept.
+                    // permit until the epoch ends. Only the adapter is told:
+                    // another copy may still be kept.
                     self.dropped_tx_status_cache.notify_dropped_copies(&[(
                         *user_transaction.digest(),
                         IotaError::ValidatorHaltedAtEpochEnd,
@@ -4866,12 +4880,14 @@ impl AuthorityPerEpochStore {
         // validators to exchange the round's partial signatures. So this wait
         // can last that long even on a validator whose execution keeps up.
         if self.pcool_bookkeeping_enabled && accepts_tx {
+            let _scope = monitored_scope("ProcessConsensusCommit::WaitForHorizon");
             self.within_alive_epoch(self.wait_for_fully_executed_commit(horizon(
                 &self.protocol_config,
                 consensus_commit_info.index,
             )))
             .await?;
         }
+        let mut phase_scope = monitored_scope("ProcessConsensusCommit::Prepare");
 
         // Split transactions into different types for processing.
         let mut system_transactions = Vec::with_capacity(verified_transactions.len());
@@ -5160,6 +5176,7 @@ impl AuthorityPerEpochStore {
                     }
                 });
             }
+            drop(phase_scope.take());
             let (dropped, owned_object_locks, soft_lock_digests) =
                 post_consensus_validation::validate_and_resolve_conflicts(
                     authority_state,
@@ -5169,6 +5186,7 @@ impl AuthorityPerEpochStore {
                     &mut sequenced_transactions,
                 )
                 .await?;
+            phase_scope = monitored_scope("ProcessConsensusCommit::AfterValidation");
             output.set_owned_object_locks(owned_object_locks);
             soft_lock_release_tx_digests.extend(soft_lock_digests);
             let kept: Vec<_> = sequenced_transactions
@@ -5263,6 +5281,8 @@ impl AuthorityPerEpochStore {
             })
             .collect();
 
+        drop(phase_scope.take());
+        let assign_versions_scope = monitored_scope("ProcessConsensusCommit::AssignVersions");
         // Order transactions by gas price. With the combined congestion
         // tracker this is one order across regular and randomness-using
         // transactions.
@@ -5342,6 +5362,8 @@ impl AuthorityPerEpochStore {
                 shared_object_using_randomness_congestion_tracker,
             )
             .await?;
+        drop(assign_versions_scope);
+        let write_output_scope = monitored_scope("ProcessConsensusCommit::WriteOutput");
         // Update scores on the consensus handler thread, right after processing
         // reports and snapshotting. This avoids cross-thread reads of the
         // aggregator — the checkpoint service only reads the published score
@@ -5482,6 +5504,7 @@ impl AuthorityPerEpochStore {
         self.consensus_quarantine
             .write()
             .push_consensus_output(output, self)?;
+        drop(write_output_scope);
 
         // Release pre-consensus soft locks now that permanent locks are visible
         // in the quarantine. Both accepted and rejected transactions are
