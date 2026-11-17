@@ -12,22 +12,32 @@
 /// - `rotate_to_builtin_auth_v1` attaches a key and sets the built-in authenticator in one call;
 /// - `rotate_to_custom_auth_v1` replaces the built-in authenticator with a custom one and detaches
 ///   the key in one call;
-/// - `rotate_public_key` replaces the key, with one of any supported scheme, while the built-in
-///   authenticator is set. The built-in authenticator uses the scheme of the attached key, so it
-///   stays as it is.
+/// - `rotate_public_key` replaces the key while the built-in authenticator is set. The built-in
+///   authenticator uses the scheme of the attached key, so it stays as it is.
 ///
 /// `smart_account::build_v1` and `smart_account::rotate_auth_function_ref_v1` check the same
 /// pairing, so no `SmartAccount` can have the built-in authenticator without the key, or the key
 /// without the built-in authenticator.
 ///
+/// `builder_v1`, `rotate_to_builtin_auth_v1` and `rotate_public_key` attach a key only with its
+/// holder's proof: a signature by the key, as an IOTA personal message, over
+/// `bcs(type name of KeyProofMessage) || bcs(KeyProofMessage)`. The type name is taken with
+/// original IDs. The message names the network, the account the key goes to, whether that account
+/// is new, the transaction's nonce, and the last epoch in which the proof is valid. A proof is
+/// accepted only in the one executed transaction whose nonce it names, and in that transaction by
+/// every check for the same account. A MultiSig key can't sign the proof, so it reaches a
+/// `SmartAccount` only through `ClaimAccount`.
+///
 /// Claiming an existing address through the `ClaimAccount` transaction kind drives the private
-/// `claim_account_v1` below.
+/// `claim_account_v1` below. It needs no proof: the key signs that transaction.
 module iota::smart_account_builtin_auth;
 
 use iota::authenticator_function::AuthenticatorFunctionRefV1;
+use iota::bcs;
 use iota::builtin_authenticator_functions::{Self, builtin_authenticator_function_ref_v1};
 use iota::public_key::PublicKey;
 use iota::smart_account::{Self, SmartAccount, SmartAccountBuilder};
+use std::type_name;
 
 // === Errors ===
 
@@ -39,18 +49,51 @@ const EBuiltinAuthNotSet: vector<u8> = b"The built-in authenticator is not set."
 #[error(code = 2)]
 const EAuthenticatorIsBuiltin: vector<u8> =
     b"Rotate to the built-in authenticator with `rotate_to_builtin_auth_v1`.";
+#[error(code = 3)]
+const EKeyProofExpired: vector<u8> = b"The key proof has expired.";
+#[error(code = 4)]
+const EInvalidKeyProof: vector<u8> = b"The key proof is not a valid signature by the key.";
+
+// === Structs ===
+
+/// The message a key holder signs to approve attaching the key to a `SmartAccount`.
+public struct KeyProofMessage has drop {
+    /// The 32-byte chain identifier of the network.
+    chain_identifier: vector<u8>,
+    /// The account the key is attached to. For a new account, the transaction sender, since the
+    /// new account's address is not known before signing.
+    account: address,
+    /// `true` for a new account, `false` for an existing one.
+    new_account: bool,
+    /// The nonce of the transaction.
+    nonce: vector<u8>,
+    /// The last epoch in which the proof is valid.
+    valid_until_epoch: u64,
+}
 
 // === Public Functions ===
 
 /// Creates a `SmartAccountBuilder` for a new account backed by the built-in authenticator, with
 /// `public_key` attached.
 ///
+/// `signature` is the key holder's proof (see the module documentation), for a new account
+/// created by the transaction sender. It is in the flag-prefixed wire format of the key's scheme.
+///
 /// Finish it with `smart_account::build_v1`.
 ///
 /// Emits a `builtin_authenticator_functions::PublicKeyAttached` event on success.
 ///
+/// Aborts if the current epoch is later than `valid_until_epoch`.
+/// Aborts if `signature` is not a valid proof by `public_key`.
 /// Aborts if `enable_builtin_move_authenticators` is not enabled in the protocol config.
-public fun builder_v1(public_key: PublicKey, ctx: &mut TxContext): SmartAccountBuilder {
+public fun builder_v1(
+    public_key: PublicKey,
+    signature: vector<u8>,
+    valid_until_epoch: u64,
+    ctx: &mut TxContext,
+): SmartAccountBuilder {
+    verify_key_proof(&public_key, &signature, ctx.sender(), true, valid_until_epoch, ctx);
+
     let builder = smart_account::builder_v1(builtin_authenticator_function_ref_v1(), ctx);
     with_public_key(builder, public_key)
 }
@@ -81,20 +124,35 @@ public fun borrow_public_key(account: &SmartAccount): &PublicKey {
 /// Attaches `public_key` to the account and rotates its authenticator to the built-in one, which
 /// checks signatures against that key. Returns the previous authenticator.
 ///
+/// `signature` is the key holder's proof (see the module documentation), for this existing
+/// account. It is in the flag-prefixed wire format of the key's scheme.
+///
 /// Emits a `builtin_authenticator_functions::PublicKeyAttached` event and an
 /// `account::AuthenticatorFunctionRefV1Rotated` event on success.
 ///
 /// Aborts if the transaction sender is not the account.
 /// Aborts if the built-in authenticator is already set; use `rotate_public_key` to replace its
 /// key.
+/// Aborts if the current epoch is later than `valid_until_epoch`.
+/// Aborts if `signature` is not a valid proof by `public_key`.
 /// Aborts if `enable_builtin_move_authenticators` is not enabled in the protocol config.
 public fun rotate_to_builtin_auth_v1(
     account: &mut SmartAccount,
     public_key: PublicKey,
+    signature: vector<u8>,
+    valid_until_epoch: u64,
     ctx: &TxContext,
 ): AuthenticatorFunctionRefV1<SmartAccount> {
     account.ensure_tx_sender_is_smart_account(ctx);
     assert!(!has_builtin_auth(account), EBuiltinAuthAlreadySet);
+    verify_key_proof(
+        &public_key,
+        &signature,
+        account.account_address(),
+        false,
+        valid_until_epoch,
+        ctx,
+    );
 
     builtin_authenticator_functions::attach_public_key(account.uid_mut(), public_key);
     account.rotate_auth_function_ref_v1(builtin_authenticator_function_ref_v1(), ctx)
@@ -130,21 +188,35 @@ public fun rotate_to_custom_auth_v1(
     public_key
 }
 
-/// Replaces the account's public key with `public_key`, of any supported scheme, and returns the
-/// previous key. The built-in authenticator stays as it is and checks signatures against the new
-/// key.
+/// Replaces the account's public key with `public_key` and returns the previous key. The built-in
+/// authenticator stays as it is and checks signatures against the new key.
+///
+/// `signature` is the proof of the new key's holder (see the module documentation), for this
+/// existing account. It is in the flag-prefixed wire format of the key's scheme.
 ///
 /// Emits a `builtin_authenticator_functions::PublicKeyRotated` event on success.
 ///
 /// Aborts if the transaction sender is not the account.
 /// Aborts if the built-in authenticator is not set; use `rotate_to_builtin_auth_v1`.
+/// Aborts if the current epoch is later than `valid_until_epoch`.
+/// Aborts if `signature` is not a valid proof by `public_key`.
 public fun rotate_public_key(
     account: &mut SmartAccount,
     public_key: PublicKey,
+    signature: vector<u8>,
+    valid_until_epoch: u64,
     ctx: &TxContext,
 ): PublicKey {
     account.ensure_tx_sender_is_smart_account(ctx);
     assert!(has_builtin_auth(account), EBuiltinAuthNotSet);
+    verify_key_proof(
+        &public_key,
+        &signature,
+        account.account_address(),
+        false,
+        valid_until_epoch,
+        ctx,
+    );
 
     builtin_authenticator_functions::rotate_public_key(account.uid_mut(), public_key)
 }
@@ -197,7 +269,52 @@ fun with_public_key(mut builder: SmartAccountBuilder, public_key: PublicKey): Sm
     builder
 }
 
+/// Aborts unless `signature` is a proof by `public_key` for attaching it to `account`.
+fun verify_key_proof(
+    public_key: &PublicKey,
+    signature: &vector<u8>,
+    account: address,
+    new_account: bool,
+    valid_until_epoch: u64,
+    ctx: &TxContext,
+) {
+    assert!(ctx.epoch() <= valid_until_epoch, EKeyProofExpired);
+
+    let message = key_proof_bytes(account, new_account, valid_until_epoch, ctx);
+    assert!(public_key.verify_personal_message_signature(signature, &message), EInvalidKeyProof);
+}
+
+/// Returns the bytes a key holder signs: `bcs(type name of KeyProofMessage) || bcs(message)`.
+fun key_proof_bytes(
+    account: address,
+    new_account: bool,
+    valid_until_epoch: u64,
+    ctx: &TxContext,
+): vector<u8> {
+    let message = KeyProofMessage {
+        chain_identifier: ctx.chain_identifier(),
+        account,
+        new_account,
+        nonce: ctx.tx_nonce(),
+        valid_until_epoch,
+    };
+    let mut bytes = bcs::to_bytes(&type_name::get_with_original_ids<KeyProofMessage>());
+    bytes.append(bcs::to_bytes(&message));
+    bytes
+}
+
 // === Test Functions ===
+
+#[test_only]
+/// Returns the bytes a key holder signs to attach a key to `account` in the transaction of `ctx`.
+public fun key_proof_bytes_for_testing(
+    account: address,
+    new_account: bool,
+    valid_until_epoch: u64,
+    ctx: &TxContext,
+): vector<u8> {
+    key_proof_bytes(account, new_account, valid_until_epoch, ctx)
+}
 
 /// Test-only entry to `claim_account_v1`, which is private so that only the node's
 /// `ClaimAccount` pipeline can reach it.
