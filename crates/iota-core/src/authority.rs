@@ -384,6 +384,9 @@ pub struct AuthorityMetrics {
     /// Attested transactions dropped by post-consensus validation because
     /// their attestor is cut off for the rest of the epoch.
     pub(crate) consensus_handler_validation_attestor_cut_off_transactions: IntCounter,
+    /// Attested transactions this validator executed that were cancelled for
+    /// congestion, by attestor.
+    pub(crate) cancelled_attested_transactions: IntCounterVec,
     /// Number of user transactions dropped during a consensus commit by
     /// post-consensus load shedding, i.e. probabilistically rejected at the
     /// quorum `consensus_handler_load_shedding_percentage` rate.
@@ -894,6 +897,13 @@ impl AuthorityMetrics {
                 "consensus_handler_validation_attestor_cut_off_transactions",
                 "Number of attested transactions dropped by post-consensus validation because their attestor is cut off for the rest of the epoch",
                 registry,
+            ).unwrap(),
+            cancelled_attested_transactions: register_int_counter_vec_with_registry!(
+                "cancelled_attested_transactions",
+                "Number of executed attested transactions cancelled for congestion, by attestor",
+                &["attestor"],
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             consensus_handler_load_shedding_dropped_transactions: register_int_counter_with_registry!(
                 "consensus_handler_load_shedding_dropped_transactions",
@@ -2229,6 +2239,27 @@ impl AuthorityState {
         let _metrics_guard = self.metrics.commit_certificate_latency.start_timer();
 
         let tx_digest = transaction.digest();
+        if let (
+            Some(record),
+            ExecutionStatus::Failure {
+                error:
+                    ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestion { .. }
+                    | ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestionV2 { .. }
+                    | ExecutionErrorKind::ExecutionCanceledDueToExecutionWorkerCongestion { .. },
+                ..
+            },
+        ) = (&attestation_record, effects.status())
+        {
+            self.metrics
+                .cancelled_attested_transactions
+                .with_label_values(&[&record.attestor.to_string()])
+                .inc();
+            debug!(
+                ?tx_digest,
+                attestor = record.attestor,
+                "attested transaction cancelled for congestion"
+            );
+        }
         let input_object_count = inner_temporary_store.input_objects.len();
         let shared_object_count = effects.input_shared_objects().len();
 

@@ -449,6 +449,14 @@ async fn cancelled_attested_transaction_charges_nobody_and_is_recorded_valid() {
     let gas_coin_after = env.object(&gas_coin_before.id());
     assert_not_charged(&effects, &gas_coin_before, &gas_coin_after);
     assert_record(&env, &effects, AttestationVerdict::Valid);
+    assert_eq!(
+        env.authority
+            .metrics
+            .cancelled_attested_transactions
+            .with_label_values(&["0"])
+            .get(),
+        1
+    );
 }
 
 /// A node executing from a checkpoint has no record for a valid attestation,
