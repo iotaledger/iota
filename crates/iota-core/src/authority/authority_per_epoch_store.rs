@@ -1375,7 +1375,7 @@ impl AuthorityPerEpochStore {
             VerifyParams::from_protocol_config(&protocol_config),
         );
 
-        let consensus_output_cache = ConsensusOutputCache::new(&tables);
+        let consensus_output_cache = ConsensusOutputCache::new(&tables, &protocol_config);
         let resume_point = protocol_config.enable_pcool_flow().then(|| {
             tables
                 .get_last_consensus_index()
@@ -5596,11 +5596,6 @@ impl AuthorityPerEpochStore {
                     deferred_transactions.remove(&deleted_deferred_key);
                 }
             }
-            self.consensus_output_cache
-                .rebuild_deferred_transaction_digests(
-                    self.protocol_config
-                        .congestion_control_gas_price_feedback_mechanism(),
-                );
         }
 
         let processed_keys = if self
@@ -5620,6 +5615,10 @@ impl AuthorityPerEpochStore {
         self.consensus_quarantine
             .write()
             .push_consensus_output(output, self)?;
+        // After the push, so that a transaction scheduled from the deferred
+        // set is in `root_commits` before it leaves the index.
+        self.consensus_output_cache
+            .rebuild_deferred_transaction_digests(&self.protocol_config);
         drop(write_output_scope);
 
         // Release pre-consensus soft locks now that permanent locks are visible

@@ -507,7 +507,7 @@ pub(crate) struct ConsensusOutputCache {
 }
 
 impl ConsensusOutputCache {
-    pub(crate) fn new(tables: &AuthorityEpochTables) -> Self {
+    pub(crate) fn new(tables: &AuthorityEpochTables, protocol_config: &ProtocolConfig) -> Self {
         let deferred_transactions = tables
             .get_all_deferred_transactions()
             .expect("load deferred transactions cannot fail");
@@ -518,22 +518,10 @@ impl ConsensusOutputCache {
 
         let executed_in_epoch_cache_capacity = 50_000;
 
-        let deferred_transaction_digests = deferred_transactions
-            .values()
-            .flatten()
-            .filter_map(|tx| tx.0.transaction.executable_transaction_digest())
-            .chain(
-                deferred_transactions_v2
-                    .values()
-                    .flatten()
-                    .filter_map(|tx| tx.transaction.0.transaction.executable_transaction_digest()),
-            )
-            .collect();
-
-        Self {
+        let cache = Self {
             deferred_transactions: Mutex::new(deferred_transactions),
             deferred_transactions_v2: Mutex::new(deferred_transactions_v2),
-            deferred_transaction_digests: Mutex::new(deferred_transaction_digests),
+            deferred_transaction_digests: Default::default(),
             user_signatures_for_checkpoints: Default::default(),
             executed_in_epoch: RwLock::new(DashMap::with_shard_amount(2048)),
             executed_in_epoch_cache: MokaCache::builder(8)
@@ -543,29 +531,36 @@ impl ConsensusOutputCache {
                 ))
                 .eviction_policy(EvictionPolicy::lru())
                 .build(),
-        }
+        };
+        cache.rebuild_deferred_transaction_digests(protocol_config);
+        cache
     }
 
     /// Rebuilds the digest index of the deferred transactions from the map
     /// in use: `deferred_transactions_v2` with the gas price feedback
     /// mechanism, `deferred_transactions` otherwise. Called once a commit's
-    /// deferrals are stored and its reloaded keys are removed.
-    pub(crate) fn rebuild_deferred_transaction_digests(&self, gas_price_feedback: bool) {
-        let digests: HashSet<_> = if gas_price_feedback {
-            self.deferred_transactions_v2
-                .lock()
-                .values()
-                .flatten()
-                .filter_map(|tx| tx.transaction.0.transaction.executable_transaction_digest())
-                .collect()
-        } else {
-            self.deferred_transactions
-                .lock()
-                .values()
-                .flatten()
-                .filter_map(|tx| tx.0.transaction.executable_transaction_digest())
-                .collect()
-        };
+    /// deferrals are stored and its reloaded keys are removed. The index stays
+    /// empty while the epoch does not enable transaction dependencies.
+    pub(crate) fn rebuild_deferred_transaction_digests(&self, protocol_config: &ProtocolConfig) {
+        if !protocol_config.enable_transaction_dependencies() {
+            return;
+        }
+        let digests: HashSet<_> =
+            if protocol_config.congestion_control_gas_price_feedback_mechanism() {
+                self.deferred_transactions_v2
+                    .lock()
+                    .values()
+                    .flatten()
+                    .filter_map(|tx| tx.transaction.0.transaction.executable_transaction_digest())
+                    .collect()
+            } else {
+                self.deferred_transactions
+                    .lock()
+                    .values()
+                    .flatten()
+                    .filter_map(|tx| tx.0.transaction.executable_transaction_digest())
+                    .collect()
+            };
         *self.deferred_transaction_digests.lock() = digests;
     }
 
