@@ -649,9 +649,7 @@ async fn dependency_from_an_earlier_epoch_is_rejected(pcool: bool) {
     let dependency_digest = *dependency.digest();
     assert_executed_successfully(&submit(&cluster, dependency).await);
 
-    let epoch = current_epoch(&cluster);
     cluster.force_new_epoch().await;
-    cluster.wait_for_epoch(Some(epoch + 1)).await;
 
     let dependent = signed(&cluster, 1_000, Some(dependency_digest)).await;
     let outcome = submit(&cluster, dependent).await;
