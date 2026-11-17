@@ -511,15 +511,27 @@ impl ValidatorService {
             return (TxStatusUpdate::Rejected { error }, weight);
         }
 
+        // A dependency not visible here yet is reported only after the checks
+        // below, so an error that rejects the transaction for good comes
+        // first. They then run without the attestation's dry run.
+        let mut dependency_not_found = None;
         if checks_admitted_inputs() {
-            if let Err(e) = check_transaction_dependency_for_submission(
+            match check_transaction_dependency_for_submission(
                 state,
                 epoch_store,
                 soft_locks,
                 &verified_tx,
             ) {
-                let weight = normalize(&e);
-                return (TxStatusUpdate::Rejected { error: e }, weight);
+                Ok(()) => {}
+                Err(
+                    error @ IotaError::UserInput {
+                        error: UserInputError::TransactionDependencyNotFound { .. },
+                    },
+                ) => dependency_not_found = Some(error),
+                Err(e) => {
+                    let weight = normalize(&e);
+                    return (TxStatusUpdate::Rejected { error: e }, weight);
+                }
             }
         }
 
@@ -534,10 +546,10 @@ impl ValidatorService {
 
         // With validator attestation enabled, `attest_transaction` runs the
         // deny checks, object loading, input checks, coin deny list and a full
-        // dry run in one call and produces the attestation payload; otherwise
-        // the validation-only function runs. The attestation takes the soft
-        // locks itself before its dry run, once the transaction's signers have
-        // authorized it.
+        // dry run in one call and produces the attestation payload; otherwise,
+        // or while the dependency is not found, the validation-only function
+        // runs. The attestation takes the soft locks itself before its dry
+        // run, once the transaction's signers have authorized it.
         let mut soft_lock = None;
         let (attestation_data, owned_objects, verified_tx, permit) = if !checks_admitted_inputs() {
             // Only tests take this branch, through the fail point of
@@ -551,7 +563,9 @@ impl ValidatorService {
                 .then(|| attest_without_dry_run(&verified_tx));
 
             (attestation_data, Vec::new(), verified_tx, None)
-        } else if epoch_store.protocol_config().enable_validator_attestation() {
+        } else if dependency_not_found.is_none()
+            && epoch_store.protocol_config().enable_validator_attestation()
+        {
             let permit = match state.acquire_attestation_permit().await {
                 Ok(permit) => permit,
                 Err(e) => return reject_for_overload(metrics, e),
@@ -658,6 +672,10 @@ impl ValidatorService {
                 }
             }
         };
+        if let Some(error) = dependency_not_found {
+            let weight = normalize(&error);
+            return (TxStatusUpdate::Rejected { error }, weight);
+        }
 
         // From here on, a rejection the sender causes weighs one if the
         // attestation's dry run ran.

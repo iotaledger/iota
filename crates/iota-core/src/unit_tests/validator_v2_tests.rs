@@ -6,6 +6,7 @@ use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 use iota_config::node::AuthorityOverloadConfig;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{Address, ObjectId, SharedObjectReference, Transaction, TransactionDigest};
+use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     attestation::Attestation,
     base_types::dbg_addr,
@@ -1153,4 +1154,87 @@ fn used_owned_input_weighs_one_after_dry_run() {
 
     assert_eq!(weigh_owned_input_rejection(&error, true).value(), 1.0);
     assert_eq!(weigh_owned_input_rejection(&error, false).value(), 0.0);
+}
+
+/// Submits to `submit_single_tx`, with `enable_validator_attestation` on,
+/// transactions whose dependency this validator does not know. One that
+/// another check rejects for good gets that error, a valid one the retriable
+/// `TransactionDependencyNotFound`, and neither reaches consensus.
+#[tokio::test]
+async fn test_submit_single_tx_reports_an_unknown_dependency_after_the_other_checks() {
+    telemetry_subscribers::init_for_testing();
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(true);
+        config.set_checkpoint_summary_version_specific_data_for_testing(2);
+        config.set_enable_transaction_dependencies_for_testing(true);
+        config
+    });
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let authority_state = TestAuthorityBuilder::new()
+        .with_starting_objects(&[Object::with_id_owner_for_testing(gas_id, sender)])
+        .build()
+        .await;
+
+    let mut mock = MockConsensusClient::new();
+    mock.expect_submit().never();
+
+    let consensus_adapter = Arc::new(ConsensusAdapter::new(
+        Arc::new(mock),
+        CheckpointStore::new_for_tests(),
+        authority_state.name,
+        Arc::new(ConnectionMonitorStatusForTests {}),
+        100_000,
+        100_000,
+        None,
+        None,
+        ConsensusAdapterMetrics::new_test(),
+        50,
+    ));
+
+    let epoch_store = authority_state.load_epoch_store_one_call_per_task();
+    let metrics = Arc::new(ValidatorServiceMetrics::new_for_tests());
+    let soft_locks = Arc::new(PreConsensusSoftLocks::new());
+
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let gas = authority_state.get_object(&gas_id).unwrap();
+    let dependency = TransactionDigest::random();
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.transfer_iota(dbg_addr(2), Some(1));
+    let transfer = builder.finish();
+
+    let submit = async |gas_price: u64| {
+        let tx = TestTransactionBuilder::new(sender, gas.object_ref(), gas_price)
+            .programmable(transfer.clone())
+            .with_transaction_dependency(dependency, epoch_store.epoch())
+            .build_and_sign(&sender_key);
+        let (update, _weight) = ValidatorService::submit_single_tx(
+            &authority_state,
+            &consensus_adapter,
+            &metrics,
+            &epoch_store,
+            &soft_locks,
+            tx,
+        )
+        .await;
+        match update {
+            TxStatusUpdate::Rejected {
+                error: IotaError::UserInput { error },
+            } => error,
+            update => panic!("expected a user input error, got {update:?}"),
+        }
+    };
+
+    let error = submit(rgp - 1).await;
+    assert!(
+        matches!(error, UserInputError::GasPriceUnderRGP { .. }),
+        "{error:?}"
+    );
+    assert_eq!(
+        submit(rgp).await,
+        UserInputError::TransactionDependencyNotFound { digest: dependency }
+    );
 }
