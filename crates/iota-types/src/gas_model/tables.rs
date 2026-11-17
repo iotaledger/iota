@@ -283,7 +283,11 @@ impl GasStatus {
         if !self.charge {
             return InternalGas::new(0);
         }
-        let limit = Self::to_internal_units(budget / self.gas_price);
+        // Saturating: a budget that buys more internal units than a `u64`
+        // holds is above any gas left, so it takes nothing off.
+        let limit = InternalGas::new(
+            (budget / self.gas_price).saturating_mul(Self::INTERNAL_UNIT_MULTIPLIER),
+        );
         let taken = self.gas_left.saturating_sub(limit);
         self.gas_left = self.gas_left.saturating_sub(taken);
         taken
@@ -424,5 +428,52 @@ pub fn initial_cost_schedule_for_unit_tests() -> move_vm_test_utils::gas_schedul
         instruction_tiers: table.instruction_tiers,
         stack_height_tiers: table.stack_height_tiers,
         stack_size_tiers: table.stack_size_tiers,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A metered status with `units` gas units left at `gas_price`.
+    fn gas_status(units: u64, gas_price: u64) -> GasStatus {
+        GasStatus::new(ZERO_COST_SCHEDULE.clone(), units * gas_price, gas_price, 1)
+    }
+
+    #[test]
+    fn limit_gas_left_takes_off_what_the_budget_does_not_buy() {
+        let gas_price = 5;
+        let mut status = gas_status(100, gas_price);
+
+        let taken = status.limit_gas_left(30 * gas_price);
+
+        assert_eq!(status.remaining_gas(), Gas::new(30));
+        assert_eq!(taken, GasStatus::to_internal_units(70));
+
+        status.add_gas_left(taken);
+        assert_eq!(status.remaining_gas(), Gas::new(100));
+    }
+
+    #[test]
+    fn limit_gas_left_takes_nothing_off_when_the_budget_buys_more() {
+        let gas_price = 5;
+        let mut status = gas_status(100, gas_price);
+
+        let taken = status.limit_gas_left(101 * gas_price);
+
+        assert_eq!(taken, InternalGas::new(0));
+        assert_eq!(status.remaining_gas(), Gas::new(100));
+    }
+
+    /// At a gas price below the internal unit multiplier, a budget can buy
+    /// more internal units than a `u64` holds.
+    #[test]
+    fn limit_gas_left_takes_nothing_off_when_the_budget_buys_more_than_a_u64_holds() {
+        let mut status = gas_status(100, 1);
+
+        let taken = status.limit_gas_left(u64::MAX);
+
+        assert_eq!(taken, InternalGas::new(0));
+        assert_eq!(status.remaining_gas(), Gas::new(100));
     }
 }
