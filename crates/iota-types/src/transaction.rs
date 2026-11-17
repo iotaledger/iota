@@ -710,6 +710,8 @@ pub trait ProgrammableTransactionExt: Sized + programmable_transaction_ext::Seal
     fn receiving_objects(&self) -> Vec<ObjectReference>;
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
     fn validate_argument_indices(&self) -> UserInputResult;
+    /// The index of the first transaction dependency input, if any.
+    fn dependency_input_index(&self) -> Option<usize>;
     /// The digest named by the transaction dependency input, if any.
     fn transaction_dependency(&self) -> Option<TransactionDigest>;
     /// Checks that at most one input is a transaction dependency and that no
@@ -823,37 +825,41 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
         Ok(())
     }
 
+    fn dependency_input_index(&self) -> Option<usize> {
+        self.inputs
+            .iter()
+            .position(|input| matches!(input, CallArg::TransactionDependency(_)))
+    }
+
     fn transaction_dependency(&self) -> Option<TransactionDigest> {
-        self.inputs.iter().find_map(|input| match input {
-            CallArg::TransactionDependency(digest) => Some(*digest),
-            _ => None,
-        })
+        self.dependency_input_index()
+            .map(|i| match &self.inputs[i] {
+                CallArg::TransactionDependency(digest) => *digest,
+                _ => unreachable!(),
+            })
     }
 
     fn validate_transaction_dependency_inputs(&self) -> UserInputResult {
-        let dependency_inputs: Vec<usize> = self
-            .inputs
-            .iter()
-            .enumerate()
-            .filter_map(|(index, input)| {
-                matches!(input, CallArg::TransactionDependency(_)).then_some(index)
-            })
-            .collect();
+        let dep_index = match self.dependency_input_index() {
+            Some(i) => i,
+            None => return Ok(()),
+        };
+        // At most one dependency input.
         fp_ensure!(
-            dependency_inputs.len() <= 1,
+            self.inputs[dep_index + 1..]
+                .iter()
+                .all(|input| !matches!(input, CallArg::TransactionDependency(_))),
             UserInputError::SizeLimitExceeded {
                 limit: "maximum transaction dependency inputs in a programmable transaction"
                     .to_string(),
                 value: "1".to_string(),
             }
         );
-        if dependency_inputs.is_empty() {
-            return Ok(());
-        }
+        // No command may use it.
         for (command_idx, command) in self.commands.iter().enumerate() {
             for (argument_idx, argument) in command_arguments(command).enumerate() {
                 if let Argument::Input(index) = argument {
-                    if dependency_inputs.contains(&(*index as usize)) {
+                    if *index as usize == dep_index {
                         return Err(UserInputError::TransactionDependencyInputUsed {
                             command_idx,
                             argument_idx,
