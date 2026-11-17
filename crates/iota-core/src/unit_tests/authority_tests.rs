@@ -6635,7 +6635,7 @@ async fn make_test_transaction(
             .await
             .unwrap();
         let vote = response.status.into_signed_for_testing();
-        sigs.push(vote.clone());
+        sigs.push(vote);
         if let Ok(cert) =
             CertifiedTransaction::new(transaction.clone().into_message(), sigs.clone(), &committee)
         {
