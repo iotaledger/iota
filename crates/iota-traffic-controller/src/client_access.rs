@@ -384,6 +384,7 @@ struct RuleSet {
     allow: Vec<IpNet>,
     deny: Vec<IpNet>,
     default: DefaultAction,
+    forwarders: Vec<IpNet>,
 }
 
 impl RuleSet {
@@ -436,21 +437,24 @@ impl ClientAccessManager {
         metrics: Arc<TrafficControllerMetrics>,
     ) -> Self {
         metrics.dry_run_enabled.set(policy_config.dry_run as i64);
-        let parse = |rules: &[String]| {
+        let parse = |list: &str, rules: &[String]| {
             rules
                 .iter()
                 .map(|rule| {
                     parse_access_rule(rule).unwrap_or_else(|err| {
-                        fatal!("Invalid traffic control config: access rule {rule:?}: {err}")
+                        fatal!(
+                            "Invalid traffic control config: access rule {rule:?} in access-rules.{list}: {err}"
+                        )
                     })
                 })
                 .collect::<Vec<_>>()
         };
         let access_rules = &policy_config.access_rules;
         let rules = RuleSet {
-            allow: parse(&access_rules.allow),
-            deny: parse(&access_rules.deny),
+            allow: parse("allow", &access_rules.allow),
+            deny: parse("deny", &access_rules.deny),
             default: access_rules.default,
+            forwarders: parse("forwarders", &access_rules.forwarders),
         };
         warn_about_rules(&rules, policy_config);
         set_rule_metrics(&rules, &metrics);
@@ -615,6 +619,49 @@ impl ClientAccessManager {
             allow: names(&rules.allow),
             deny: names(&rules.deny),
             default: rules.default,
+            forwarders: names(&rules.forwarders),
+        }
+    }
+
+    /// The client of a request that `client` sent with the client IP header
+    /// values `forwarded`: the user that the header names when `client` is a
+    /// forwarder, and `client` otherwise. A forwarder's request whose header
+    /// is missing, repeated or not an IP address is the forwarder's own.
+    pub(crate) fn forwarded_client(
+        &self,
+        client: Option<IpAddr>,
+        forwarded: &[&[u8]],
+    ) -> Option<IpAddr> {
+        let Some(direct) = client else {
+            return client;
+        };
+        if forwarded.is_empty() {
+            return client;
+        }
+        let rules = self.rules.load();
+        let direct_address = direct.to_canonical();
+        if !rules
+            .forwarders
+            .iter()
+            .any(|forwarder| forwarder.contains(&direct_address))
+        {
+            return client;
+        }
+        let user = match forwarded {
+            [forwarded] => std::str::from_utf8(forwarded)
+                .ok()
+                .and_then(|forwarded| forwarded.trim().parse::<IpAddr>().ok()),
+            _ => None,
+        };
+        match user {
+            Some(user) => {
+                self.metrics.forwarded_requests.inc();
+                Some(user.to_canonical())
+            }
+            None => {
+                warn!("The forwarder {direct} did not name one client IP address");
+                client
+            }
         }
     }
 
@@ -730,6 +777,18 @@ fn warn_about_rules(rules: &RuleSet, policy_config: &PolicyConfig) {
     {
         warn!(
             "The allow rules match the client that the x-forwarded-for header names. They hold \
+             only if clients reach the node through its proxy alone, since a client that \
+             reaches the node directly writes the whole header"
+        );
+    }
+    if !rules.forwarders.is_empty()
+        && matches!(
+            policy_config.client_id_source,
+            ClientIdSource::XForwardedFor(_)
+        )
+    {
+        warn!(
+            "The forwarders match the client that the x-forwarded-for header names. They hold \
              only if clients reach the node through its proxy alone, since a client that \
              reaches the node directly writes the whole header"
         );
@@ -1082,6 +1141,7 @@ mod tests {
                 allow: rules(allow),
                 deny: rules(deny),
                 default,
+                ..Default::default()
             },
             ..blocklist_mode(false, 120)
         }
@@ -1264,6 +1324,91 @@ mod tests {
         });
         assert_eq!(warnings.len(), 1, "{warnings:?}");
         assert!(warnings[0].contains("x-forwarded-for"), "{warnings:?}");
+    }
+
+    #[tokio::test]
+    async fn forwarders_behind_a_proxy_are_warned_about() {
+        let mut policy_config = PolicyConfig {
+            client_id_source: ClientIdSource::XForwardedFor(1),
+            ..with_rules(&[], &[], DefaultAction::Limit)
+        };
+        policy_config.access_rules.forwarders = vec!["10.0.0.5".to_string()];
+        let warnings = startup_warnings(policy_config);
+        assert_eq!(warnings.len(), 1, "{warnings:?}");
+        assert!(warnings[0].contains("The forwarders"), "{warnings:?}");
+    }
+
+    fn with_forwarders(forwarders: &[&str]) -> ClientAccessManager {
+        let mut policy_config = with_rules(&[], &[], DefaultAction::Limit);
+        policy_config.access_rules.forwarders =
+            forwarders.iter().map(|rule| rule.to_string()).collect();
+        manager(policy_config)
+    }
+
+    #[tokio::test]
+    async fn a_forwarder_request_is_the_client_it_names() {
+        let manager = with_forwarders(&["10.0.0.5/24"]);
+        assert_eq!(manager.access_rules().forwarders, ["10.0.0.0/24"]);
+        let forwarded = |header: &[u8]| manager.forwarded_client(ip("10.0.0.5"), &[header]);
+        assert_eq!(forwarded(b"198.51.100.7"), ip("198.51.100.7"));
+        assert_eq!(forwarded(b" 2001:db8::1 "), ip("2001:db8::1"));
+        assert_eq!(forwarded(b"::ffff:198.51.100.7"), ip("198.51.100.7"));
+        assert_eq!(manager.metrics.forwarded_requests.get(), 3);
+        // A forwarder that reaches the node as an IPv4-mapped IPv6 address is
+        // still the forwarder.
+        assert_eq!(
+            manager.forwarded_client(ip("::ffff:10.0.0.5"), &[b"198.51.100.7"]),
+            ip("198.51.100.7")
+        );
+    }
+
+    #[tokio::test]
+    async fn a_forwarder_request_without_one_client_ip_is_its_own() {
+        let manager = with_forwarders(&["10.0.0.5"]);
+        assert_eq!(
+            manager.forwarded_client(ip("10.0.0.5"), &[]),
+            ip("10.0.0.5")
+        );
+        for header in [
+            &b""[..],
+            b"not-an-address",
+            b"198.51.100.7, 198.51.100.8",
+            b"\xff",
+        ] {
+            assert_eq!(
+                manager.forwarded_client(ip("10.0.0.5"), &[header]),
+                ip("10.0.0.5")
+            );
+        }
+        // A repeated header names no single user.
+        assert_eq!(
+            manager.forwarded_client(ip("10.0.0.5"), &[b"198.51.100.7", b"198.51.100.8"]),
+            ip("10.0.0.5")
+        );
+        assert_eq!(manager.metrics.forwarded_requests.get(), 0);
+    }
+
+    #[tokio::test]
+    async fn the_client_ip_header_of_another_client_is_ignored() {
+        let manager = with_forwarders(&["10.0.0.5"]);
+        assert_eq!(
+            manager.forwarded_client(ip("10.0.0.6"), &[b"198.51.100.7"]),
+            ip("10.0.0.6")
+        );
+        // A request whose client the node could not resolve is no forwarder's.
+        assert_eq!(manager.forwarded_client(None, &[b"198.51.100.7"]), None);
+        let manager = with_forwarders(&[]);
+        assert_eq!(
+            manager.forwarded_client(ip("10.0.0.5"), &[b"198.51.100.7"]),
+            ip("10.0.0.5")
+        );
+        assert_eq!(manager.metrics.forwarded_requests.get(), 0);
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "access rule \"not-an-address\" in access-rules.forwarders")]
+    async fn an_invalid_forwarder_stops_the_node() {
+        with_forwarders(&["not-an-address"]);
     }
 
     #[tokio::test]
