@@ -7209,10 +7209,10 @@ async fn test_user_transaction_v1_sequenced_in_two_commits() {
     let genesis = network_config.genesis;
     let key1 = network_config.validator_configs[0]
         .authority_key_pair()
-        .copy();
+        .clone();
     let key2 = network_config.validator_configs[1]
         .authority_key_pair()
-        .copy();
+        .clone();
     let authority1 =
         init_state_with_objects_and_committee(genesis_objects.clone(), &genesis, &key1).await;
     let authority2 = init_state_with_objects_and_committee(genesis_objects, &genesis, &key2).await;
