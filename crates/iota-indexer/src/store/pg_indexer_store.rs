@@ -26,7 +26,7 @@ use crate::{
     errors::{Context, IndexerError},
     ingestion::{
         common::{
-            persist::{CommitterTables, CommitterWatermark},
+            persist::CommitterTables,
             prepare::{
                 CheckpointObjectChanges, LiveObject, RemovedObject,
                 retain_latest_objects_from_checkpoint_batch,
@@ -52,7 +52,7 @@ use crate::{
         packages::StoredPackage,
         transactions::{OptimisticTransaction, StoredTransaction, TxGlobalOrder},
         tx_indices::TxIndexSplit,
-        watermarks::StoredWatermark,
+        watermarks::{StoredWatermark, WatermarkLowerBounds, WatermarkUpperBounds},
     },
     on_conflict_do_update, on_conflict_do_update_with_condition, persist_chunk_into_table,
     persist_chunk_into_table_in_existing_connection,
@@ -1509,7 +1509,7 @@ impl PgIndexerStore {
     fn update_watermarks_upper_bound<Tables>(
         &self,
         tables: Tables,
-        watermark: CommitterWatermark,
+        watermark: WatermarkUpperBounds,
     ) -> Result<(), IndexerError>
     where
         Tables: IntoIterator<Item: AsRef<str>> + Send + 'static,
@@ -1604,9 +1604,11 @@ impl PgIndexerStore {
 
                 Ok(StoredWatermark::from_lower_bound_update(
                     table.as_ref(),
-                    epoch,
-                    bounds.first_checkpoint_id as u64,
-                    min_available_tx as u64,
+                    WatermarkLowerBounds {
+                        min_available_epoch: epoch as i64,
+                        min_available_cp: bounds.first_checkpoint_id,
+                        min_available_tx,
+                    },
                 ))
             })
             .collect();
@@ -2093,7 +2095,7 @@ impl IndexerStore for PgIndexerStore {
     async fn update_watermarks_upper_bound<Tables>(
         &self,
         tables: Tables,
-        watermark: CommitterWatermark,
+        watermark: WatermarkUpperBounds,
     ) -> Result<(), IndexerError>
     where
         Tables: IntoIterator<Item: AsRef<str>> + Send + 'static,
