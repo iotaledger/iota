@@ -179,6 +179,15 @@ impl ReportAggregator {
         self.received_reports_state[authority_index as usize].to_serializable()
     }
 
+    /// Each authority's merged report, by reporter index; `None` for an
+    /// authority that sent none.
+    pub(crate) fn reports(&self) -> Vec<Option<Arc<MisbehaviorObservations>>> {
+        self.received_reports_state
+            .iter()
+            .map(|state| state.received_metrics.load_full())
+            .collect()
+    }
+
     /// Returns the received counts paired with voting power for each authority
     /// that has submitted at least one report. Used by the `Scorer` to compute
     /// weighted medians.
