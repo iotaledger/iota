@@ -758,10 +758,12 @@ mod tests {
 
     use super::*;
     use crate::{
+        TestBlockHeader,
         block_header::BlockRef,
         commit::with_standard_metastate,
         context::Context,
         dag_state::{DagState, DataSource},
+        encoder::create_encoder,
         storage::mem_store::MemStore,
         test_dag_builder::DagBuilder,
     };
@@ -1784,6 +1786,174 @@ mod tests {
                 "Standard: post-restart commits SHOULD include L5_ack {ack:?} once natural acks accumulate"
             );
         }
+    }
+
+    /// An optimistic leader acknowledges a block outside its ancestry, and no
+    /// later block acknowledges it, so after a restart its acknowledgment
+    /// quorum comes only from the trackers that recovery rebuilds. When the
+    /// node restarts, or reinitializes after fast sync, between the optimistic
+    /// commit and the commit that traverses the block, that commit still
+    /// commits the block exactly once, and the stored commits equal those of
+    /// an uninterrupted run.
+    #[rstest::rstest]
+    #[case::restart(false)]
+    #[case::fast_sync_reinitialization(true)]
+    #[tokio::test]
+    async fn block_acknowledged_before_traversal_is_committed_once_after_recovery(
+        #[case] reinitialize: bool,
+    ) {
+        telemetry_subscribers::init_for_testing();
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(true);
+        context
+            .protocol_config
+            .set_consensus_commit_transactions_only_for_traversed_headers_for_testing(true);
+        context
+            .protocol_config
+            .set_consensus_commit_transactions_once_traversed_for_testing(true);
+        let context = Arc::new(context);
+
+        let leader_author = AuthorityIndex::new_for_test(1);
+        let orphan_author = AuthorityIndex::new_for_test(2);
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=4).build();
+        let round_4 = dag_builder.block_headers(4..=4);
+        let orphan = round_4
+            .iter()
+            .find(|b| b.author() == orphan_author)
+            .unwrap()
+            .clone();
+        // The round-5 leader acknowledges every round-4 block but does not
+        // reference the orphan.
+        let mut ancestors: Vec<BlockRef> = round_4
+            .iter()
+            .map(|b| b.reference())
+            .filter(|r| r.author != orphan_author)
+            .collect();
+        ancestors.sort_by_key(|r| r.author != leader_author);
+        let leader = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new_with_commitment(
+                5,
+                leader_author.value() as u8,
+                &context,
+                &mut create_encoder(&context),
+            )
+            .set_ancestors(ancestors)
+            .set_acknowledgments(round_4.iter().map(|b| b.reference()).collect())
+            .build(),
+        );
+        // The others build round 5 on every round-4 block without acknowledging
+        // any of them, and rounds 6 and 7 on top.
+        dag_builder
+            .layers(5..=5)
+            .authorities(vec![leader_author])
+            .skip_block()
+            .only_acknowledge(vec![])
+            .build();
+        dag_builder.layers(6..=7).build();
+
+        let optimistic_commit = vec![(
+            leader.clone(),
+            CommitMetastate::Optimistic,
+            context
+                .committee
+                .authorities()
+                .map(|(index, _)| index)
+                .collect(),
+        )];
+        let later_commits = with_standard_metastate(
+            dag_builder
+                .leader_blocks(6..=7)
+                .into_iter()
+                .flatten()
+                .collect(),
+        );
+        let start = || {
+            let store = Arc::new(MemStore::new());
+            let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+            dag_builder.persist_all_blocks(dag_state.clone());
+            dag_state
+                .write()
+                .accept_block_header(leader.clone(), DataSource::Test);
+            let leader_schedule = Arc::new(LeaderSchedule::from_store(
+                context.clone(),
+                dag_state.clone(),
+            ));
+            (store, dag_state, leader_schedule)
+        };
+        let (sender, _receiver) = unbounded_channel("consensus_output");
+
+        let (uninterrupted_store, dag_state, leader_schedule) = start();
+        let mut observer = CommitObserver::new(
+            context.clone(),
+            CommitConsumer::new(sender.clone(), 0),
+            dag_state,
+            uninterrupted_store.clone(),
+            leader_schedule,
+        )
+        .await;
+        for leaders in [optimistic_commit.clone(), later_commits.clone()] {
+            observer
+                .handle_committed_leaders(leaders, CommittedSubDagSource::Consensus)
+                .unwrap();
+        }
+
+        let (store, dag_state, leader_schedule) = start();
+        let mut observer = CommitObserver::new(
+            context.clone(),
+            CommitConsumer::new(sender.clone(), 0),
+            dag_state.clone(),
+            store.clone(),
+            leader_schedule.clone(),
+        )
+        .await;
+        observer
+            .handle_committed_leaders(optimistic_commit, CommittedSubDagSource::Consensus)
+            .unwrap();
+        assert_eq!(observer.last_sent_commit_index, 1);
+        if reinitialize {
+            dag_state.write().reinitialize();
+            leader_schedule.reinitialize(&dag_state);
+            observer.reinitialize().await.unwrap();
+        } else {
+            drop(observer);
+            let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+            let leader_schedule = Arc::new(LeaderSchedule::from_store(
+                context.clone(),
+                dag_state.clone(),
+            ));
+            observer = CommitObserver::new(
+                context,
+                CommitConsumer::new(sender, 1),
+                dag_state,
+                store.clone(),
+                leader_schedule,
+            )
+            .await;
+        }
+        observer
+            .handle_committed_leaders(later_commits, CommittedSubDagSource::Consensus)
+            .unwrap();
+
+        let stored_commits =
+            |store: &MemStore| store.scan_commits((1..=CommitIndex::MAX).into()).unwrap();
+        let commits = stored_commits(&store);
+        assert_eq!(commits, stored_commits(&uninterrupted_store));
+        let orphan_ref = orphan.transaction_ref();
+        let orphan_commits: Vec<usize> = commits
+            .iter()
+            .map(|commit| {
+                commit
+                    .committed_transactions()
+                    .iter()
+                    .filter(|r| **r == orphan_ref)
+                    .count()
+            })
+            .collect();
+        assert_eq!(orphan_commits, [0, 1, 0]);
+        assert!(commits[1].block_headers().contains(&orphan.reference()));
     }
 
     /// After recovery, every transaction the solidifier is still blocked on

@@ -3,9 +3,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
-use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_protocol_config::{
+    Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
+};
 use iota_sdk_types::{
     Address, CommandArgumentError, ExecutionError as ExecutionFailureStatus,
     ExecutionError::{InputObjectDeleted, SharedObjectOperationNotAllowed},
@@ -16,7 +18,9 @@ use iota_types::{
     committee::EpochId,
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
-    error::{ExecutionError, IotaError},
+    error::{ExecutionError, IotaError, UserInputError},
+    executable_transaction::VerifiedExecutableTransaction,
+    messages_consensus::ConsensusTransaction,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
@@ -33,9 +37,12 @@ use crate::{
             enqueue_all_and_execute_all, execute_programmable_transaction,
         },
         move_integration_tests::build_and_publish_test_package,
-        shared_object_version_manager::AssignedVersions,
+        shared_object_version_manager::{AssignedVersions, Schedulable},
         test_authority_builder::TestAuthorityBuilder,
     },
+    checkpoints::CheckpointServiceNoop,
+    consensus_handler::SequencedConsensusTransaction,
+    execution_scheduler::ExecutionSchedulerAPI,
     move_call,
 };
 
@@ -49,18 +56,38 @@ pub struct TestRunner {
 
 impl TestRunner {
     pub async fn new(base_package_name: &str) -> Self {
+        Self::new_with_protocol_config(
+            base_package_name,
+            ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown),
+        )
+        .await
+    }
+
+    /// [`Self::new`] without per-object congestion control, so a commit
+    /// schedules its transactions in consensus order.
+    pub async fn new_without_congestion_control(base_package_name: &str) -> Self {
+        let mut protocol_config =
+            ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        protocol_config.set_per_object_congestion_control_mode_for_testing(
+            PerObjectCongestionControlMode::None,
+        );
+        Self::new_with_protocol_config(base_package_name, protocol_config).await
+    }
+
+    async fn new_with_protocol_config(
+        base_package_name: &str,
+        protocol_config: ProtocolConfig,
+    ) -> Self {
         telemetry_subscribers::init_for_testing();
         let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
-        let protocol_config =
-            ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
         let authority_state = TestAuthorityBuilder::new()
             .with_protocol_config(protocol_config)
             .build()
             .await;
 
         let mut gas_object_ids = vec![];
-        for _ in 0..20 {
+        for _ in 0..24 {
             let gas_object_id = ObjectId::random();
             let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
             authority_state.insert_genesis_object(gas_object);
@@ -563,6 +590,247 @@ impl TestRunner {
             .get_object_cache_reader()
             .get_deleted_shared_object_previous_tx_digest(object_id, *version, epoch)
     }
+
+    /// `K`, the protocol config's horizon distance: post-consensus validation
+    /// at commit `C` reads the object state as of commit `C - K`.
+    pub fn horizon_distance(&self) -> u64 {
+        self.authority_state
+            .epoch_store_for_testing()
+            .protocol_config()
+            .pcool_deterministic_validation_horizon_distance()
+    }
+
+    /// Sequences `transactions` as `UserTransactionV1` in the next consensus
+    /// commit, as the P-COOL flow does, and returns the ones post-consensus
+    /// validation kept, in execution order, with the shared object versions
+    /// the commit assigned them. Every earlier commit counts as fully
+    /// executed.
+    pub async fn sequence_user_transactions(
+        &mut self,
+        transactions: &[TransactionEnvelope],
+    ) -> Vec<(VerifiedExecutableTransaction, AssignedVersions)> {
+        let sequenced = transactions
+            .iter()
+            .cloned()
+            .map(|tx| {
+                SequencedConsensusTransaction::new_test(ConsensusTransaction::new_user_transaction(
+                    tx,
+                ))
+            })
+            .collect();
+        let (scheduled, assigned_versions) = self
+            .authority_state
+            .epoch_store_for_testing()
+            .process_consensus_transactions_for_tests(
+                sequenced,
+                &Arc::new(CheckpointServiceNoop {}),
+                self.authority_state.get_object_cache_reader().as_ref(),
+                &self.authority_state.metrics,
+                true,
+                &self.authority_state,
+            )
+            .await
+            .unwrap();
+        let mut assigned_versions = assigned_versions.into_map();
+        scheduled
+            .into_iter()
+            .map(|schedulable| {
+                let executable = schedulable
+                    .as_tx()
+                    .expect("a commit of user transactions schedules only transactions")
+                    .clone();
+                let versions = assigned_versions
+                    .remove(&executable.key())
+                    .unwrap_or_default();
+                (executable, versions)
+            })
+            .collect()
+    }
+
+    /// [`Self::sequence_user_transactions`] of transactions the commit must
+    /// keep, all of them and in the given order.
+    pub async fn sequence_kept<const N: usize>(
+        &mut self,
+        transactions: [TransactionEnvelope; N],
+    ) -> [(VerifiedExecutableTransaction, AssignedVersions); N] {
+        let kept = self.sequence_user_transactions(&transactions).await;
+        assert_eq!(
+            kept.iter()
+                .map(|(executable, _)| *executable.digest())
+                .collect::<Vec<_>>(),
+            transactions
+                .iter()
+                .map(|tx| *tx.digest())
+                .collect::<Vec<_>>(),
+            "the commit must keep every transaction in order"
+        );
+        kept.try_into()
+            .unwrap_or_else(|_| unreachable!("the lengths were just compared"))
+    }
+
+    /// Sequences `count` consensus commits without transactions.
+    pub async fn sequence_empty_commits(&mut self, count: u64) {
+        for _ in 0..count {
+            assert!(self.sequence_user_transactions(&[]).await.is_empty());
+        }
+    }
+
+    /// Sequences enough empty commits that every transaction executed so far
+    /// is at or below the horizon of the next commit. The setup executes its
+    /// transactions in commits of their own, and validation does not see what
+    /// a commit above the horizon produced.
+    pub async fn sequence_past_setup(&mut self) {
+        self.sequence_empty_commits(self.horizon_distance()).await;
+    }
+
+    /// Executes a transaction the commit kept, with the versions it assigned.
+    pub fn execute_kept(
+        &mut self,
+        (executable, assigned_versions): (VerifiedExecutableTransaction, AssignedVersions),
+    ) -> (TransactionEffects, Option<ExecutionError>) {
+        self.authority_state
+            .try_execute_immediately(
+                &executable,
+                ExecutionEnv::new().with_assigned_versions(assigned_versions),
+                &self.authority_state.epoch_store_for_testing(),
+            )
+            .unwrap()
+    }
+
+    /// Hands the transactions the commit kept to the execution scheduler,
+    /// which runs each one once its inputs are available, and returns their
+    /// effects in the same order.
+    pub async fn enqueue_kept_and_execute_all(
+        &mut self,
+        kept: impl IntoIterator<Item = (VerifiedExecutableTransaction, AssignedVersions)>,
+    ) -> Vec<TransactionEffects> {
+        let (schedulables, digests): (Vec<_>, Vec<_>) = kept
+            .into_iter()
+            .map(|(executable, assigned_versions)| {
+                let digest = *executable.digest();
+                (
+                    (
+                        Schedulable::Transaction(executable),
+                        ExecutionEnv::new().with_assigned_versions(assigned_versions),
+                    ),
+                    digest,
+                )
+            })
+            .unzip();
+        self.authority_state.execution_scheduler().enqueue(
+            schedulables,
+            &self.authority_state.epoch_store_for_testing(),
+        );
+        tokio::time::timeout(
+            Duration::from_secs(10),
+            self.authority_state
+                .get_transaction_cache_reader()
+                .try_notify_read_executed_effects("", &digests),
+        )
+        .await
+        .expect("every kept transaction must execute")
+        .unwrap()
+    }
+
+    /// Checks that the commit dropped the transaction `digest` because the
+    /// shared object `object_id` was deleted at or below its horizon.
+    pub async fn assert_dropped_at_the_commit(
+        &self,
+        digest: TransactionDigest,
+        object_id: ObjectId,
+    ) {
+        let error = tokio::time::timeout(
+            Duration::from_secs(10),
+            self.authority_state
+                .epoch_store_for_testing()
+                .notify_read_dropped_digests(digest),
+        )
+        .await
+        .expect("the commit must have dropped the transaction");
+        assert_eq!(
+            error,
+            UserInputError::InputObjectNotAvailableAtCommit {
+                object_id,
+                version: None,
+            }
+            .into()
+        );
+    }
+
+    /// Sequences `at_deletion`, which deletes `object_id`, in commit `D` and
+    /// executes them in order. Then sequences `before_horizon` in commit
+    /// `D + K - 1`, the last commit whose horizon is below `D`, so validation
+    /// does not see the deletion and keeps them, and `at_horizon` in commit
+    /// `D + K`, which drops it because the deletion is at its horizon. Returns
+    /// the outcomes of commit `D` and the kept transactions of commit
+    /// `D + K - 1`, for the caller to execute.
+    pub async fn sequence_around_the_deletion_horizon<const N: usize, const M: usize>(
+        &mut self,
+        object_id: ObjectId,
+        at_deletion: [TransactionEnvelope; N],
+        before_horizon: [TransactionEnvelope; M],
+        at_horizon: TransactionEnvelope,
+    ) -> (
+        [(TransactionEffects, Option<ExecutionError>); N],
+        [(VerifiedExecutableTransaction, AssignedVersions); M],
+    ) {
+        let kept = self.sequence_kept(at_deletion).await;
+        let outcomes: Vec<_> = kept
+            .into_iter()
+            .map(|kept| self.execute_kept(kept))
+            .collect();
+        self.sequence_empty_commits(self.horizon_distance() - 2)
+            .await;
+        let before_horizon = self.sequence_kept(before_horizon).await;
+        self.sequence_dropped_at_the_horizon(object_id, at_horizon)
+            .await;
+        let outcomes = outcomes
+            .try_into()
+            .unwrap_or_else(|_| unreachable!("the commit kept every transaction"));
+        (outcomes, before_horizon)
+    }
+
+    /// Like [`Self::sequence_around_the_deletion_horizon`], but sequences
+    /// commits `D` and `D + K - 1` before anything executes and hands the
+    /// transactions of both to the execution scheduler together. Returns
+    /// their effects, commit `D` first.
+    pub async fn sequence_and_enqueue_around_the_deletion_horizon<
+        const N: usize,
+        const M: usize,
+    >(
+        &mut self,
+        object_id: ObjectId,
+        at_deletion: [TransactionEnvelope; N],
+        before_horizon: [TransactionEnvelope; M],
+        at_horizon: TransactionEnvelope,
+    ) -> Vec<TransactionEffects> {
+        let at_deletion = self.sequence_kept(at_deletion).await;
+        self.sequence_empty_commits(self.horizon_distance() - 2)
+            .await;
+        let before_horizon = self.sequence_kept(before_horizon).await;
+        let effects = self
+            .enqueue_kept_and_execute_all(at_deletion.into_iter().chain(before_horizon))
+            .await;
+        self.sequence_dropped_at_the_horizon(object_id, at_horizon)
+            .await;
+        effects
+    }
+
+    /// Sequences `at_horizon` in the next commit and checks that the commit
+    /// dropped it because `object_id` was deleted at its horizon.
+    async fn sequence_dropped_at_the_horizon(
+        &mut self,
+        object_id: ObjectId,
+        at_horizon: TransactionEnvelope,
+    ) {
+        let digest = *at_horizon.digest();
+        assert!(
+            self.sequence_user_transactions(&[at_horizon])
+                .await
+                .is_empty()
+        );
+        self.assert_dropped_at_the_commit(digest, object_id).await;
+    }
 }
 
 #[tokio::test]
@@ -753,6 +1021,55 @@ async fn test_delete_shared_object_immut_mut_mut_interleave() {
     );
 }
 
+/// The P-COOL counterpart of
+/// `test_delete_shared_object_immut_mut_mut_interleave`: the read-only
+/// deletion and the deletion are sequenced in one commit, a second deletion
+/// before the horizon is kept and fails, and a third one at the horizon is
+/// dropped.
+#[tokio::test]
+async fn test_delete_shared_object_immut_mut_mut_interleave_pcool_flow() {
+    let mut user1 = TestRunner::new("shared_object_deletion").await;
+    let effects = user1.create_shared_object().await;
+    let shared_obj = *effects.created()[0].reference();
+    let shared_obj_id = shared_obj.object_id;
+    let initial_shared_version = shared_obj.version;
+    let delete_obj_tx_immut = user1
+        .delete_shared_obj_tx_immut(shared_obj_id, initial_shared_version)
+        .await;
+    let delete_obj_tx = user1
+        .delete_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    let delete_obj_tx_2 = user1
+        .delete_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    let delete_obj_tx_3 = user1
+        .delete_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    user1.sequence_past_setup().await;
+
+    let ([(effects, _), (delete_effects, error)], [delete_2]) = user1
+        .sequence_around_the_deletion_horizon(
+            shared_obj_id,
+            [delete_obj_tx_immut, delete_obj_tx],
+            [delete_obj_tx_2],
+            delete_obj_tx_3,
+        )
+        .await;
+
+    assert!(matches!(
+        effects.status().clone().unwrap_err().0,
+        ExecutionFailureStatus::CommandArgumentError {
+            argument: 0,
+            kind: CommandArgumentError::InvalidObjectByValue
+        }
+    ));
+    assert!(error.is_none());
+    assert_deleted_shared_object(&mut user1, &delete_effects, shared_obj_id);
+
+    let (effects, _) = user1.execute_kept(delete_2);
+    assert_failed_on_a_deleted_shared_object(&effects, delete_effects.transaction_digest());
+}
+
 #[tokio::test]
 async fn test_delete_shared_object_immut_mut_immut_interleave() {
     let mut user1 = TestRunner::new("shared_object_deletion").await;
@@ -847,6 +1164,59 @@ async fn test_delete_shared_object_immut_mut_immut_interleave() {
     assert!(effects.status().is_failure());
 }
 
+/// The P-COOL counterpart of
+/// `test_delete_shared_object_immut_mut_immut_interleave`: the two read-only
+/// deletions are sequenced in one commit and the deletion in the next, so the
+/// second read-only deletion executes after it and fails. A third one at the
+/// horizon of the deletion is dropped.
+#[tokio::test]
+async fn test_delete_shared_object_immut_mut_immut_interleave_pcool_flow() {
+    let mut user1 = TestRunner::new("shared_object_deletion").await;
+    let effects = user1.create_shared_object().await;
+    let shared_obj = *effects.created()[0].reference();
+    let shared_obj_id = shared_obj.object_id;
+    let initial_shared_version = shared_obj.version;
+    let delete_obj_tx_immut1 = user1
+        .delete_shared_obj_tx_immut(shared_obj_id, initial_shared_version)
+        .await;
+    let delete_obj_tx_immut2 = user1
+        .delete_shared_obj_tx_immut(shared_obj_id, initial_shared_version)
+        .await;
+    let delete_obj_tx = user1
+        .delete_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    let delete_obj_tx_immut3 = user1
+        .delete_shared_obj_tx_immut(shared_obj_id, initial_shared_version)
+        .await;
+    user1.sequence_past_setup().await;
+    let [immut1, immut2] = user1
+        .sequence_kept([delete_obj_tx_immut1, delete_obj_tx_immut2])
+        .await;
+
+    let (effects, _) = user1.execute_kept(immut1);
+    assert!(matches!(
+        effects.status().clone().unwrap_err().0,
+        ExecutionFailureStatus::CommandArgumentError {
+            argument: 0,
+            kind: CommandArgumentError::InvalidObjectByValue
+        }
+    ));
+
+    let ([(effects, error)], []) = user1
+        .sequence_around_the_deletion_horizon(
+            shared_obj_id,
+            [delete_obj_tx],
+            [],
+            delete_obj_tx_immut3,
+        )
+        .await;
+    assert!(error.is_none());
+    assert_deleted_shared_object(&mut user1, &effects, shared_obj_id);
+
+    let (effects, _) = user1.execute_kept(immut2);
+    assert!(effects.status().is_failure());
+}
+
 #[tokio::test]
 async fn test_mutate_after_delete() {
     let mut user_1 = TestRunner::new("shared_object_deletion").await;
@@ -902,6 +1272,43 @@ async fn test_mutate_after_delete() {
     assert!(effects.dependencies().contains(digest));
 }
 
+/// The P-COOL counterpart of `test_mutate_after_delete`. A mutation sequenced
+/// while the deletion's commit is above the horizon is kept and fails with
+/// `InputObjectDeleted`; one sequenced once that commit is at the horizon is
+/// dropped at the commit.
+#[tokio::test]
+async fn test_mutate_after_delete_pcool_flow() {
+    let mut user_1 = TestRunner::new("shared_object_deletion").await;
+    let effects = user_1.create_shared_object().await;
+    let shared_obj = *effects.created()[0].reference();
+    let shared_obj_id = shared_obj.object_id;
+    let initial_shared_version = shared_obj.version;
+    let delete_obj_tx = user_1
+        .delete_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    let mutate_obj_tx = user_1
+        .mutate_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    let late_mutate_obj_tx = user_1
+        .mutate_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    user_1.sequence_past_setup().await;
+
+    let ([(delete_effects, _)], [mutate]) = user_1
+        .sequence_around_the_deletion_horizon(
+            shared_obj_id,
+            [delete_obj_tx],
+            [mutate_obj_tx],
+            late_mutate_obj_tx,
+        )
+        .await;
+    assert_deleted_shared_object(&mut user_1, &delete_effects, shared_obj_id);
+
+    let (effects, error) = user_1.execute_kept(mutate);
+    assert!(matches!(error.unwrap().kind(), InputObjectDeleted));
+    assert_failed_on_a_deleted_shared_object(&effects, delete_effects.transaction_digest());
+}
+
 #[tokio::test]
 async fn test_delete_after_delete() {
     let mut user_1 = TestRunner::new("shared_object_deletion").await;
@@ -955,6 +1362,43 @@ async fn test_delete_after_delete() {
     assert_eq!(effects.mutated().len(), 1);
 
     assert!(effects.dependencies().contains(digest));
+}
+
+/// The P-COOL counterpart of `test_delete_after_delete`. A deletion sequenced
+/// while the first deletion's commit is above the horizon is kept and fails
+/// with `InputObjectDeleted`; one sequenced once that commit is at the
+/// horizon is dropped at the commit.
+#[tokio::test]
+async fn test_delete_after_delete_pcool_flow() {
+    let mut user_1 = TestRunner::new("shared_object_deletion").await;
+    let effects = user_1.create_shared_object().await;
+    let shared_obj = *effects.created()[0].reference();
+    let shared_obj_id = shared_obj.object_id;
+    let initial_shared_version = shared_obj.version;
+    let delete_obj_tx0 = user_1
+        .delete_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    let delete_obj_tx1 = user_1
+        .delete_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    let delete_obj_tx2 = user_1
+        .delete_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    user_1.sequence_past_setup().await;
+
+    let ([(delete_effects, _)], [delete_1]) = user_1
+        .sequence_around_the_deletion_horizon(
+            shared_obj_id,
+            [delete_obj_tx0],
+            [delete_obj_tx1],
+            delete_obj_tx2,
+        )
+        .await;
+    assert_deleted_shared_object(&mut user_1, &delete_effects, shared_obj_id);
+
+    let (effects, error) = user_1.execute_kept(delete_1);
+    assert!(matches!(error.unwrap().kind(), InputObjectDeleted));
+    assert_failed_on_a_deleted_shared_object(&effects, delete_effects.transaction_digest());
 }
 
 #[tokio::test]
@@ -1035,86 +1479,61 @@ async fn test_shifting_mutate_and_deletes_multiple_objects() {
 
     let effects = runner.enqueue_all_and_execute_all(certs).await.unwrap();
 
-    // NB: effects and txs are zero indexed and txs are 1-indexed.
+    assert_shifting_mutate_and_deletes_effects(&txs, &effects);
+}
 
-    // Tx_1
-    {
-        let effects = &effects[0];
-        assert!(effects.status().is_success());
-    }
+/// The P-COOL counterpart of
+/// `test_shifting_mutate_and_deletes_multiple_objects`: the deletion is
+/// sequenced above the horizon of the other transactions' commit, so they are
+/// kept and scheduled. A transaction on the deleted object at the horizon is
+/// dropped.
+#[tokio::test]
+async fn test_shifting_mutate_and_deletes_multiple_objects_pcool_flow() {
+    let mut runner = TestRunner::new_without_congestion_control("shared_object_deletion").await;
+    let effects1 = runner.create_shared_object().await;
+    let effects2 = runner.create_shared_object().await;
+    let (so1, so1_isv) = {
+        let shared_obj = *effects1.created()[0].reference();
+        (shared_obj.object_id, shared_obj.version)
+    };
+    let (so2, so2_isv) = {
+        let shared_obj = *effects2.created()[0].reference();
+        (shared_obj.object_id, shared_obj.version)
+    };
+    let txs = [
+        runner.delete_shared_obj_tx(so1, so1_isv).await,
+        runner
+            .mutate_and_read((so1, so1_isv, false), (so2, so2_isv, true))
+            .await,
+        runner
+            .mutate_and_read((so1, so1_isv, true), (so2, so2_isv, false))
+            .await,
+        runner
+            .mutate_and_read((so1, so1_isv, false), (so2, so2_isv, false))
+            .await,
+        runner.read_shared_obj_tx(so2, so2_isv).await,
+        runner.mutate_shared_obj_tx(so2, so2_isv).await,
+        runner
+            .mutate_and_read((so1, so1_isv, true), (so2, so2_isv, true))
+            .await,
+        runner.mutate_shared_obj_tx(so2, so2_isv).await,
+    ];
+    let late_tx = runner
+        .mutate_and_read((so1, so1_isv, true), (so2, so2_isv, true))
+        .await;
+    runner.sequence_past_setup().await;
 
-    // Tx_2
-    {
-        let effects = &effects[1];
-        assert!(effects.status().is_failure());
-        assert_eq!(
-            effects.status().clone().unwrap_err().0,
-            ExecutionFailureStatus::InputObjectDeleted
-        );
-        assert!(effects.dependencies().contains(txs[0].digest()));
-    }
+    let [delete_tx, tx_2, tx_3, tx_4, tx_5, tx_6, tx_7, tx_8] = txs.clone();
+    let effects = runner
+        .sequence_and_enqueue_around_the_deletion_horizon(
+            so1,
+            [delete_tx],
+            [tx_2, tx_3, tx_4, tx_5, tx_6, tx_7, tx_8],
+            late_tx,
+        )
+        .await;
 
-    // Tx_3
-    {
-        let effects = &effects[2];
-        assert!(effects.status().is_failure());
-        assert_eq!(
-            effects.status().clone().unwrap_err().0,
-            ExecutionFailureStatus::InputObjectDeleted
-        );
-        assert!(effects.dependencies().contains(txs[0].digest()));
-        assert!(effects.dependencies().contains(txs[1].digest()));
-    }
-
-    // Tx_4
-    {
-        let effects = &effects[3];
-        assert!(effects.status().is_failure());
-        assert_eq!(
-            effects.status().clone().unwrap_err().0,
-            ExecutionFailureStatus::InputObjectDeleted
-        );
-        assert!(effects.dependencies().contains(txs[2].digest()));
-        assert!(effects.dependencies().contains(txs[1].digest()));
-        assert!(!effects.dependencies().contains(txs[0].digest()));
-    }
-
-    // Tx_5
-    {
-        let effects = &effects[4];
-        assert!(effects.status().is_success());
-        assert!(effects.dependencies().contains(txs[1].digest()));
-        assert!(!effects.dependencies().contains(txs[2].digest()));
-        assert!(!effects.dependencies().contains(txs[0].digest()));
-    }
-
-    // Tx_6
-    {
-        let effects = &effects[5];
-        assert!(effects.status().is_success());
-        assert!(effects.dependencies().contains(txs[1].digest()));
-        assert!(!effects.dependencies().contains(txs[2].digest()));
-        assert!(!effects.dependencies().contains(txs[0].digest()));
-    }
-
-    // Tx_7
-    {
-        let effects = &effects[6];
-        assert!(effects.status().is_failure());
-        assert_eq!(
-            effects.status().clone().unwrap_err().0,
-            ExecutionFailureStatus::InputObjectDeleted
-        );
-        assert!(effects.dependencies().contains(txs[2].digest()));
-        assert!(effects.dependencies().contains(txs[5].digest()));
-    }
-
-    // Tx_8
-    {
-        let effects = &effects[7];
-        assert!(effects.status().is_success());
-        assert!(effects.dependencies().contains(txs[6].digest()));
-    }
+    assert_shifting_mutate_and_deletes_effects(&txs, &effects);
 }
 
 #[tokio::test]
@@ -1199,6 +1618,44 @@ async fn test_mutate_after_delete_enqueued() {
     assert!(effects.dependencies().contains(digest));
 }
 
+/// The P-COOL counterpart of `test_mutate_after_delete_enqueued`: the two
+/// mutations are kept before the horizon of the deletion and scheduled, a
+/// third one at the horizon is dropped.
+#[tokio::test]
+async fn test_mutate_after_delete_enqueued_pcool_flow() {
+    let mut user_1 = TestRunner::new("shared_object_deletion").await;
+    let effects = user_1.create_shared_object().await;
+    let shared_obj = *effects.created()[0].reference();
+    let shared_obj_id = shared_obj.object_id;
+    let initial_shared_version = shared_obj.version;
+    let delete_obj_tx = user_1
+        .delete_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    let mutate_obj_tx = user_1
+        .mutate_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    let mutate_obj_tx_2 = user_1
+        .mutate_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    let mutate_obj_tx_3 = user_1
+        .mutate_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    user_1.sequence_past_setup().await;
+
+    let res = user_1
+        .sequence_and_enqueue_around_the_deletion_horizon(
+            shared_obj_id,
+            [delete_obj_tx],
+            [mutate_obj_tx, mutate_obj_tx_2],
+            mutate_obj_tx_3,
+        )
+        .await;
+
+    assert!(res[0].status().is_success());
+    assert_failed_on_a_deleted_shared_object(&res[1], res[0].transaction_digest());
+    assert_failed_on_a_deleted_shared_object(&res[2], res[1].transaction_digest());
+}
+
 #[tokio::test]
 async fn test_delete_after_delete_enqueued() {
     let mut user_1 = TestRunner::new("shared_object_deletion").await;
@@ -1279,6 +1736,44 @@ async fn test_delete_after_delete_enqueued() {
     assert_eq!(effects.mutated().len(), 1);
 
     assert!(effects.dependencies().contains(digest));
+}
+
+/// The P-COOL counterpart of `test_delete_after_delete_enqueued`: two later
+/// deletions are kept before the horizon of the first one and scheduled, a
+/// fourth one at the horizon is dropped.
+#[tokio::test]
+async fn test_delete_after_delete_enqueued_pcool_flow() {
+    let mut user_1 = TestRunner::new("shared_object_deletion").await;
+    let effects = user_1.create_shared_object().await;
+    let shared_obj = *effects.created()[0].reference();
+    let shared_obj_id = shared_obj.object_id;
+    let initial_shared_version = shared_obj.version;
+    let delete_obj_tx0 = user_1
+        .delete_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    let delete_obj_tx1 = user_1
+        .delete_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    let delete_obj_tx2 = user_1
+        .delete_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    let delete_obj_tx3 = user_1
+        .delete_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    user_1.sequence_past_setup().await;
+
+    let res = user_1
+        .sequence_and_enqueue_around_the_deletion_horizon(
+            shared_obj_id,
+            [delete_obj_tx0],
+            [delete_obj_tx1, delete_obj_tx2],
+            delete_obj_tx3,
+        )
+        .await;
+
+    assert!(res[0].status().is_success());
+    assert_failed_on_a_deleted_shared_object(&res[1], res[0].transaction_digest());
+    assert_failed_on_a_deleted_shared_object(&res[2], res[1].transaction_digest());
 }
 
 #[tokio::test]
@@ -1421,6 +1916,57 @@ async fn test_mutate_interleaved_read_only_enqueued_after_delete() {
     }
 }
 
+/// The P-COOL counterpart of
+/// `test_mutate_interleaved_read_only_enqueued_after_delete`: the reads and
+/// mutations are kept before the horizon of the deletion and scheduled, a
+/// read at the horizon is dropped.
+#[tokio::test]
+async fn test_mutate_interleaved_read_only_enqueued_after_delete_pcool_flow() {
+    let mut user_1 = TestRunner::new("shared_object_deletion").await;
+    let effects = user_1.create_shared_object().await;
+    let shared_obj = *effects.created()[0].reference();
+    let shared_obj_id = shared_obj.object_id;
+    let initial_shared_version = shared_obj.version;
+    let delete_obj_tx = user_1
+        .delete_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    let read_obj_tx_1 = user_1
+        .read_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    let mutate_obj_tx = user_1
+        .mutate_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    let read_obj_tx_2 = user_1
+        .read_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    let mutate_obj_tx_2 = user_1
+        .mutate_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    let read_obj_tx_3 = user_1
+        .read_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    user_1.sequence_past_setup().await;
+
+    let res = user_1
+        .sequence_and_enqueue_around_the_deletion_horizon(
+            shared_obj_id,
+            [delete_obj_tx],
+            [read_obj_tx_1, mutate_obj_tx, read_obj_tx_2, mutate_obj_tx_2],
+            read_obj_tx_3,
+        )
+        .await;
+
+    assert!(res[0].status().is_success());
+    let delete_digest = res[0].transaction_digest();
+    let first_mutate_digest = res[2].transaction_digest();
+    assert_failed_on_a_deleted_shared_object(&res[1], delete_digest);
+    assert_failed_on_a_deleted_shared_object(&res[2], delete_digest);
+    // The read after the first mutation depends on that mutation, and so does
+    // the second mutation, not on the read between them.
+    assert_failed_on_a_deleted_shared_object(&res[3], first_mutate_digest);
+    assert_failed_on_a_deleted_shared_object(&res[4], first_mutate_digest);
+}
+
 #[tokio::test]
 async fn test_delete_with_shared_after_mutate_enqueued() {
     let mut user_1 = TestRunner::new("shared_object_deletion").await;
@@ -1538,6 +2084,87 @@ async fn test_delete_with_shared_after_mutate_enqueued() {
 
     let third_mutate_effects = res.get(3).unwrap();
     assert!(third_mutate_effects.status().is_failure());
+}
+
+/// The P-COOL counterpart of `test_delete_with_shared_after_mutate_enqueued`:
+/// the three mutations are kept before the horizon of the deletion and
+/// scheduled, a mutation of the deleted object at the horizon is dropped.
+#[tokio::test]
+async fn test_delete_with_shared_after_mutate_enqueued_pcool_flow() {
+    let mut user_1 = TestRunner::new("shared_object_deletion").await;
+    let effects_0 = user_1.create_shared_object().await;
+    let shared_obj = *effects_0.created()[0].reference();
+    let shared_obj_id = shared_obj.object_id;
+    let initial_shared_version = shared_obj.version;
+    user_1
+        .mutate_n_times(3, shared_obj_id, initial_shared_version)
+        .await;
+
+    let effects_2 = user_1.create_shared_object().await;
+    let shared_obj_2 = *effects_2.created()[0].reference();
+    let shared_obj_id_2 = shared_obj_2.object_id;
+    let initial_shared_version_2 = shared_obj_2.version;
+
+    let second_object_effects = user_1.create_shared_object().await;
+    let second_shared_obj = *second_object_effects.created()[0].reference();
+    let second_shared_obj_id = second_shared_obj.object_id;
+    let second_initial_shared_version = second_shared_obj.version;
+    user_1
+        .mutate_n_times(10, second_shared_obj_id, second_initial_shared_version)
+        .await;
+    assert_eq!(user_1.get_object_latest_version(second_shared_obj_id), 15);
+
+    // Deletes the object with the higher version.
+    let delete_tx = user_1
+        .delete_shared_obj_with_shared_tx(
+            shared_obj_id_2,
+            initial_shared_version_2,
+            shared_obj_id,
+            initial_shared_version,
+        )
+        .await;
+    let mutate_tx = user_1
+        .mutate_shared_obj_tx(shared_obj_id_2, initial_shared_version_2)
+        .await;
+    let second_mutate_tx = user_1
+        .mutate_shared_obj_with_shared_tx(
+            second_shared_obj_id,
+            second_initial_shared_version,
+            shared_obj_id,
+            initial_shared_version,
+        )
+        .await;
+    let third_mutate_tx = user_1
+        .mutate_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    let late_mutate_tx = user_1
+        .mutate_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    user_1.sequence_past_setup().await;
+
+    let res = user_1
+        .sequence_and_enqueue_around_the_deletion_horizon(
+            shared_obj_id,
+            [delete_tx],
+            [mutate_tx, second_mutate_tx, third_mutate_tx],
+            late_mutate_tx,
+        )
+        .await;
+
+    assert!(res[0].status().is_success());
+    let deleted_obj_ver = res[0].deleted()[0].version;
+    assert!(
+        user_1
+            .object_exists_in_marker_table(&shared_obj_id, &deleted_obj_ver, 0)
+            .is_some()
+    );
+    assert!(res[1].status().is_success());
+    for effects in &res[2..] {
+        assert_eq!(
+            effects.status().clone().unwrap_err().0,
+            ExecutionFailureStatus::InputObjectDeleted
+        );
+    }
 }
 
 #[tokio::test]
@@ -1837,6 +2464,49 @@ async fn test_delete_before_two_mutations() {
     assert!(effects.dependencies().contains(mutate_digest));
 }
 
+/// The P-COOL counterpart of `test_delete_before_two_mutations`: both
+/// mutations are kept before the horizon of the deletion and fail, a third
+/// one at the horizon is dropped.
+#[tokio::test]
+async fn test_delete_before_two_mutations_pcool_flow() {
+    let mut user_1 = TestRunner::new("shared_object_deletion").await;
+    let effects = user_1.create_shared_object().await;
+    let shared_obj = *effects.created()[0].reference();
+    let shared_obj_id = shared_obj.object_id;
+    let initial_shared_version = shared_obj.version;
+    let delete_obj_tx = user_1
+        .delete_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    let tx_mutate_1 = user_1
+        .mutate_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    let tx_mutate_2 = user_1
+        .mutate_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    let tx_mutate_3 = user_1
+        .mutate_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    user_1.sequence_past_setup().await;
+
+    let ([(delete_effects, _)], [mutate_1, mutate_2]) = user_1
+        .sequence_around_the_deletion_horizon(
+            shared_obj_id,
+            [delete_obj_tx],
+            [tx_mutate_1, tx_mutate_2],
+            tx_mutate_3,
+        )
+        .await;
+    assert!(delete_effects.status().is_success());
+
+    let (effects, error) = user_1.execute_kept(mutate_1);
+    assert!(matches!(error.unwrap().kind(), InputObjectDeleted));
+    assert_failed_on_a_deleted_shared_object(&effects, delete_effects.transaction_digest());
+
+    let (effects_2, error) = user_1.execute_kept(mutate_2);
+    assert!(matches!(error.unwrap().kind(), InputObjectDeleted));
+    assert_failed_on_a_deleted_shared_object(&effects_2, effects.transaction_digest());
+}
+
 #[tokio::test]
 async fn test_object_lock_conflict() {
     let mut user_1 = TestRunner::new("shared_object_deletion").await;
@@ -1924,6 +2594,61 @@ async fn test_owned_object_version_increments_on_cert_denied() {
     assert_eq!(next_version, 5);
 }
 
+/// The P-COOL counterpart of
+/// `test_owned_object_version_increments_on_cert_denied`: a mutation kept
+/// before the horizon of the deletion fails and bumps the version of its owned
+/// input, one dropped at the horizon leaves its owned input alone.
+#[tokio::test]
+async fn test_owned_object_version_increments_on_deleted_shared_input_pcool_flow() {
+    let mut user_1 = TestRunner::new("shared_object_deletion").await;
+    let effects = user_1.create_shared_object().await;
+    let shared_obj = *effects.created()[0].reference();
+    let shared_obj_id = shared_obj.object_id;
+    let initial_shared_version = shared_obj.version;
+    let owned_effects = user_1.create_owned_object().await;
+    let owned_obj = *owned_effects.created()[0].reference();
+    let owned_obj_id = owned_obj.object_id;
+    let late_owned_effects = user_1.create_owned_object().await;
+    let late_owned_obj = *late_owned_effects.created()[0].reference();
+    let delete_obj_tx = user_1
+        .delete_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    let mutate_obj_tx = user_1
+        .mutate_shared_obj_with_owned_tx(owned_obj, shared_obj_id, initial_shared_version)
+        .await;
+    let late_mutate_obj_tx = user_1
+        .mutate_shared_obj_with_owned_tx(late_owned_obj, shared_obj_id, initial_shared_version)
+        .await;
+    user_1.sequence_past_setup().await;
+
+    let ([(delete_effects, _)], [mutate]) = user_1
+        .sequence_around_the_deletion_horizon(
+            shared_obj_id,
+            [delete_obj_tx],
+            [mutate_obj_tx],
+            late_mutate_obj_tx,
+        )
+        .await;
+    assert!(delete_effects.status().is_success());
+    assert_eq!(user_1.get_object_latest_version(owned_obj_id), 4);
+    assert_eq!(
+        user_1.get_object_latest_version(late_owned_obj.object_id),
+        late_owned_obj.version
+    );
+
+    let (effects, _) = user_1.execute_kept(mutate);
+    assert_eq!(
+        effects.status().clone().unwrap_err().0,
+        ExecutionFailureStatus::InputObjectDeleted
+    );
+    assert!(
+        effects
+            .dependencies()
+            .contains(delete_effects.transaction_digest())
+    );
+    assert_eq!(user_1.get_object_latest_version(owned_obj_id), 5);
+}
+
 #[tokio::test]
 async fn test_interspersed_mutations_with_delete() {
     let mut user_1 = TestRunner::new("shared_object_deletion").await;
@@ -1992,4 +2717,174 @@ async fn test_interspersed_mutations_with_delete() {
 
     // The gas coin gets mutated
     assert_eq!(effects.mutated().len(), 1);
+}
+
+/// The P-COOL counterpart of `test_interspersed_mutations_with_delete`: a
+/// mutation and the deletion are sequenced in one commit, a second mutation
+/// before the horizon is kept and fails, and a third one at the horizon is
+/// dropped.
+#[tokio::test]
+async fn test_interspersed_mutations_with_delete_pcool_flow() {
+    let mut user_1 = TestRunner::new("shared_object_deletion").await;
+    let effects = user_1.create_shared_object().await;
+    let shared_obj = *effects.created()[0].reference();
+    let shared_obj_id = shared_obj.object_id;
+    let initial_shared_version = shared_obj.version;
+    let tx_mutate_1 = user_1
+        .mutate_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    let delete_obj_tx = user_1
+        .delete_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    let tx_mutate_2 = user_1
+        .mutate_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    let tx_mutate_3 = user_1
+        .mutate_shared_obj_tx(shared_obj_id, initial_shared_version)
+        .await;
+    user_1.sequence_past_setup().await;
+
+    let ([(effects, _), (delete_effects, _)], [mutate_2]) = user_1
+        .sequence_around_the_deletion_horizon(
+            shared_obj_id,
+            [tx_mutate_1, delete_obj_tx],
+            [tx_mutate_2],
+            tx_mutate_3,
+        )
+        .await;
+    assert!(effects.status().is_success());
+    assert!(delete_effects.status().is_success());
+
+    let (effects, error) = user_1.execute_kept(mutate_2);
+    assert!(matches!(error.unwrap().kind(), InputObjectDeleted));
+    assert_failed_on_a_deleted_shared_object(&effects, delete_effects.transaction_digest());
+}
+
+/// Checks that `effects` deleted the shared object `object_id`, which
+/// `TestRunner::create_shared_object` created, and wrote its deletion marker.
+fn assert_deleted_shared_object(
+    runner: &mut TestRunner,
+    effects: &TransactionEffects,
+    object_id: ObjectId,
+) {
+    assert!(effects.status().is_success(), "{:?}", effects.status());
+    assert_eq!(effects.deleted().len(), 1);
+    assert_eq!(effects.deleted()[0].object_id, object_id);
+    let deleted_version = effects.deleted()[0].version;
+    assert_eq!(deleted_version, 4);
+    assert!(effects.created().is_empty());
+    assert!(effects.unwrapped_then_deleted().is_empty());
+    assert!(effects.wrapped().is_empty());
+    assert_eq!(
+        runner.object_exists_in_marker_table(&object_id, &deleted_version, 0),
+        Some(*effects.transaction_digest())
+    );
+}
+
+/// Checks that `effects` failed because a shared input was deleted, changed
+/// only the gas coin, and depend on `previous`.
+fn assert_failed_on_a_deleted_shared_object(
+    effects: &TransactionEffects,
+    previous: &TransactionDigest,
+) {
+    assert_eq!(
+        effects.status().clone().unwrap_err().0,
+        ExecutionFailureStatus::InputObjectDeleted,
+        "{:?}",
+        effects.status()
+    );
+    assert!(effects.deleted().is_empty());
+    assert!(effects.created().is_empty());
+    assert!(effects.unwrapped_then_deleted().is_empty());
+    assert!(effects.wrapped().is_empty());
+    assert_eq!(effects.mutated().len(), 1, "only the gas coin may change");
+    assert!(effects.dependencies().contains(previous));
+}
+
+/// Checks the effects of the transactions of
+/// `test_shifting_mutate_and_deletes_multiple_objects`, in the same order.
+fn assert_shifting_mutate_and_deletes_effects(
+    txs: &[TransactionEnvelope],
+    effects: &[TransactionEffects],
+) {
+    // NB: effects and txs are zero indexed and txs are 1-indexed.
+
+    // Tx_1
+    {
+        let effects = &effects[0];
+        assert!(effects.status().is_success());
+    }
+
+    // Tx_2
+    {
+        let effects = &effects[1];
+        assert!(effects.status().is_failure());
+        assert_eq!(
+            effects.status().clone().unwrap_err().0,
+            ExecutionFailureStatus::InputObjectDeleted
+        );
+        assert!(effects.dependencies().contains(txs[0].digest()));
+    }
+
+    // Tx_3
+    {
+        let effects = &effects[2];
+        assert!(effects.status().is_failure());
+        assert_eq!(
+            effects.status().clone().unwrap_err().0,
+            ExecutionFailureStatus::InputObjectDeleted
+        );
+        assert!(effects.dependencies().contains(txs[0].digest()));
+        assert!(effects.dependencies().contains(txs[1].digest()));
+    }
+
+    // Tx_4
+    {
+        let effects = &effects[3];
+        assert!(effects.status().is_failure());
+        assert_eq!(
+            effects.status().clone().unwrap_err().0,
+            ExecutionFailureStatus::InputObjectDeleted
+        );
+        assert!(effects.dependencies().contains(txs[2].digest()));
+        assert!(effects.dependencies().contains(txs[1].digest()));
+        assert!(!effects.dependencies().contains(txs[0].digest()));
+    }
+
+    // Tx_5
+    {
+        let effects = &effects[4];
+        assert!(effects.status().is_success());
+        assert!(effects.dependencies().contains(txs[1].digest()));
+        assert!(!effects.dependencies().contains(txs[2].digest()));
+        assert!(!effects.dependencies().contains(txs[0].digest()));
+    }
+
+    // Tx_6
+    {
+        let effects = &effects[5];
+        assert!(effects.status().is_success());
+        assert!(effects.dependencies().contains(txs[1].digest()));
+        assert!(!effects.dependencies().contains(txs[2].digest()));
+        assert!(!effects.dependencies().contains(txs[0].digest()));
+    }
+
+    // Tx_7
+    {
+        let effects = &effects[6];
+        assert!(effects.status().is_failure());
+        assert_eq!(
+            effects.status().clone().unwrap_err().0,
+            ExecutionFailureStatus::InputObjectDeleted
+        );
+        assert!(effects.dependencies().contains(txs[2].digest()));
+        assert!(effects.dependencies().contains(txs[5].digest()));
+    }
+
+    // Tx_8
+    {
+        let effects = &effects[7];
+        assert!(effects.status().is_success());
+        assert!(effects.dependencies().contains(txs[6].digest()));
+    }
 }

@@ -1288,7 +1288,7 @@
           "params": [
             {
               "name": "version",
-              "value": 40
+              "value": 41
             }
           ],
           "result": {
@@ -1314,6 +1314,7 @@
                 "congestion_limit_overshoot_in_gas_price_feedback_mechanism": true,
                 "consensus_batched_block_sync": true,
                 "consensus_block_restrictions": true,
+                "consensus_commit_transactions_once_traversed": true,
                 "consensus_commit_transactions_only_for_traversed_headers": true,
                 "consensus_dedup_only_recorded_messages": true,
                 "consensus_distributed_vote_scoring_strategy": true,

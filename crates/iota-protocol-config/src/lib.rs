@@ -283,7 +283,9 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Update the gas model version to 3.
 //             Enable validator attestation on devnet, with the checkpoint
 //             summary data version that certifies the verdicts.
-// Version 41: `ecdsa_r1::secp256r1_ecrecover` rejects a signature whose
+// Version 41: Commit a block's transactions once its header is traversed even
+//             if its acknowledgment quorum was reached first, outside Mainnet.
+//             `ecdsa_r1::secp256r1_ecrecover` rejects a signature whose
 //             restored x-coordinate is not below the field modulus.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -845,6 +847,11 @@ struct FeatureFlags {
     // shared-object scheduling.
     #[serde(skip_serializing_if = "is_false")]
     enable_validator_attestation: bool,
+
+    // If true, a block whose transactions reach their acknowledgment quorum
+    // before its header is traversed is committed once its header is traversed.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_commit_transactions_once_traversed: bool,
 
     // If true, `ecdsa_r1::secp256r1_ecrecover` rejects a signature whose
     // restored x-coordinate `r + n` is not below the field modulus, instead
@@ -2093,6 +2100,25 @@ impl ProtocolConfig {
     pub fn consensus_commit_transactions_only_for_traversed_headers(&self) -> bool {
         self.feature_flags
             .consensus_commit_transactions_only_for_traversed_headers
+    }
+
+    /// Whether a block whose transactions reached their acknowledgment quorum
+    /// before its header was traversed is committed once its header is
+    /// traversed.
+    ///
+    /// # Panics
+    ///
+    /// If the flag is set without
+    /// `consensus_commit_transactions_only_for_traversed_headers`.
+    pub fn consensus_commit_transactions_once_traversed(&self) -> bool {
+        let res = self
+            .feature_flags
+            .consensus_commit_transactions_once_traversed;
+        assert!(
+            !res || self.consensus_commit_transactions_only_for_traversed_headers(),
+            "consensus_commit_transactions_once_traversed requires consensus_commit_transactions_only_for_traversed_headers to be enabled"
+        );
+        res
     }
 
     /// Check whether congestion limit overshoot is enabled in the gas price
@@ -3953,6 +3979,14 @@ impl ProtocolConfig {
                     }
                 }
                 41 => {
+                    // Commit a block's transactions once its header is
+                    // traversed, also when their acknowledgment quorum came
+                    // first.
+                    if chain != Chain::Mainnet {
+                        cfg.feature_flags
+                            .consensus_commit_transactions_once_traversed = true;
+                    }
+
                     // `ecdsa_r1::secp256r1_ecrecover` rejects a signature
                     // whose restored x-coordinate is not below the field
                     // modulus.
@@ -4247,6 +4281,11 @@ impl ProtocolConfig {
             .consensus_commit_transactions_only_for_traversed_headers = val;
     }
 
+    pub fn set_consensus_commit_transactions_once_traversed_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .consensus_commit_transactions_once_traversed = val;
+    }
+
     pub fn set_congestion_limit_overshoot_in_gas_price_feedback_mechanism_for_testing(
         &mut self,
         val: bool,
@@ -4539,6 +4578,20 @@ mod test {
                 assert_yaml_snapshot!(
                     format!("{}version_{}", chain_str, cur.as_u64()),
                     ProtocolConfig::get_for_version(cur, *chain_id)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn commit_transactions_once_traversed_activation() {
+        for chain in [Chain::Unknown, Chain::Mainnet, Chain::Testnet] {
+            for version in MIN_PROTOCOL_VERSION..=MAX_PROTOCOL_VERSION {
+                let config = ProtocolConfig::get_for_version(ProtocolVersion::new(version), chain);
+                assert_eq!(
+                    config.consensus_commit_transactions_once_traversed(),
+                    version >= 41 && chain != Chain::Mainnet,
+                    "unexpected activation for {chain:?} at version {version}"
                 );
             }
         }

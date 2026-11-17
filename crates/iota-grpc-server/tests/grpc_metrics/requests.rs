@@ -124,6 +124,7 @@ async fn a_request_that_traffic_control_refuses_is_counted() {
         Some(Arc::new(TrafficController::init_for_test(policy_config))),
         Some(client_id_source),
         Some(GrpcServerMetrics::new(&registry)),
+        None,
         |_| {},
     )
     .await;

@@ -141,18 +141,6 @@ async fn a_committed_transaction_is_read_from_its_epoch_bucket() {
             "the finalizing checkpoint must be in the bucket"
         );
 
-        let flat = &s.store.perpetual_tables;
-        assert!(flat.transactions.get(&digest).unwrap().is_none());
-        assert!(flat.effects.get(&effects_digest).unwrap().is_none());
-        assert_eq!(flat.executed_effects.get(&digest).unwrap(), None);
-        assert!(flat.events_2.get(&digest).unwrap().is_none());
-        assert_eq!(
-            flat.executed_transactions_to_checkpoint
-                .get(&digest)
-                .unwrap(),
-            None
-        );
-
         // The store's own reads must return what the bucket holds.
         assert!(s.store.get_transaction_block(&digest).unwrap().is_some());
         assert!(

@@ -156,6 +156,7 @@ pub enum OwnedVerdict {
 /// and is shared at the declared initial version is checked, never its
 /// contents.
 #[must_use]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SharedVerdict {
     /// Live and shared at the declared initial version. Holds no object:
     /// execution reads it at the version consensus assigns.
@@ -172,6 +173,7 @@ pub enum SharedVerdict {
 /// The reader's result for one package input. A denied package is reported
 /// by the deny check, so a package input never drops here.
 #[must_use]
+#[derive(Clone, Debug)]
 pub enum PackageVerdict {
     /// Published at or below the horizon, or before this epoch. Holds the
     /// package, for the input loader and the deny check.
