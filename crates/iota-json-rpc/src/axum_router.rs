@@ -146,6 +146,12 @@ pub async fn json_rpc_handler<L: Logger>(
         Ok(client) => client,
         Err(refused_response) => return ok_response(refused_response.into_result()),
     };
+    // Before the check, so that the rules and every policy apply to the user
+    // a forwarder names rather than to the forwarder.
+    let client = match &service.traffic_controller {
+        Some(traffic_controller) => traffic_controller.forwarded_client(client, &headers),
+        None => client,
+    };
     // Check whether the client may be served before reading the body, so a
     // refused client's body is neither read nor parsed.
     let access = match &service.traffic_controller {
