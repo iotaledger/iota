@@ -5529,13 +5529,7 @@ impl AuthorityPerEpochStore {
         let initial_transaction_debts = if has_transaction_dependencies {
             self.consensus_quarantine
                 .read()
-                .load_initial_transaction_debts(
-                    self,
-                    consensus_commit_info.round,
-                    sequenced_transactions
-                        .iter()
-                        .chain(sequenced_randomness_transactions.iter()),
-                )?
+                .load_initial_transaction_debts(self, consensus_commit_info.round, &dependencies)?
         } else {
             Vec::new()
         };

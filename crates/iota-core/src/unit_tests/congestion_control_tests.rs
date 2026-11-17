@@ -1368,6 +1368,107 @@ async fn test_transaction_dependency_bookkeeping_follows_the_protocol_flag() {
     }
 }
 
+/// A transaction running past its commit's budget makes a dependent at a later
+/// commit start when the debt it left runs out, aged by the budget of every
+/// commit in between.
+#[tokio::test]
+async fn test_dependent_at_a_later_commit_starts_after_its_dependency_ends() {
+    telemetry_subscribers::init_for_testing();
+    let budget = TEST_ONLY_GAS_UNIT * TEST_ONLY_GAS_PRICE;
+    let test_setup = TestSetup::new(true, budget, 3 * budget).await;
+    let dependency_object = test_setup.create_shared_object().await;
+    let dependent_object = test_setup.create_shared_object().await;
+    let owned_object = test_setup.create_owned_object().await;
+    let genesis_objects = test_setup
+        .create_genesis_objects_for_new_authority_state(&[
+            dependency_object.object_id,
+            dependent_object.object_id,
+            owned_object.object_id,
+        ])
+        .await;
+    let mut protocol_config = test_setup.protocol_config.clone();
+    protocol_config.set_enable_transaction_dependencies_for_testing(true);
+    let authority_state = TestAuthorityBuilder::new()
+        .with_reference_gas_price(TEST_ONLY_GAS_PRICE)
+        .with_protocol_config(protocol_config)
+        .build()
+        .await;
+    authority_state.insert_genesis_objects(&genesis_objects);
+    let epoch_store = authority_state.epoch_store_for_testing();
+    let owned_object_ref = || {
+        authority_state
+            .get_object(&owned_object.object_id)
+            .unwrap()
+            .object_ref()
+    };
+
+    // Commit 1: ends at four budgets.
+    let (dependency, effects) = commit_and_execute_transaction(
+        test_setup.pcool,
+        &authority_state,
+        &test_setup.package,
+        &test_setup.sender,
+        &test_setup.sender_key,
+        &test_setup.gas_object_id,
+        &[(dependency_object.object_id, dependency_object.version)],
+        &owned_object_ref(),
+        4 * TEST_ONLY_GAS_UNIT,
+    )
+    .await;
+    assert!(effects.status().is_success());
+    assert_eq!(
+        epoch_store.load_stored_transaction_debts_for_testing(&[*dependency.digest()]),
+        vec![Some((1, 3 * budget))]
+    );
+
+    // Commit 2.
+    let (_, effects) = commit_and_execute_transaction(
+        test_setup.pcool,
+        &authority_state,
+        &test_setup.package,
+        &test_setup.sender,
+        &test_setup.sender_key,
+        &test_setup.gas_object_id,
+        &[],
+        &owned_object_ref(),
+        TEST_ONLY_GAS_UNIT,
+    )
+    .await;
+    assert!(effects.status().is_success());
+
+    // Commit 3: the dependent starts at two budgets and ends at three.
+    let mut builder = ProgrammableTransactionBuilder::new();
+    let shared = builder
+        .obj(CallArg::Shared(SharedObjectReference::new(
+            dependent_object.object_id,
+            dependent_object.version,
+            true,
+        )))
+        .unwrap();
+    let owned = builder
+        .obj(CallArg::ImmutableOrOwned(owned_object_ref()))
+        .unwrap();
+    move_call! {
+        builder,
+        (test_setup.package.object_id)::congestion_control::increment_two(owned, shared)
+    };
+    let gas = authority_state
+        .get_object(&test_setup.gas_object_id)
+        .unwrap();
+    let dependent =
+        TestTransactionBuilder::new(test_setup.sender, gas.object_ref(), TEST_ONLY_GAS_PRICE)
+            .with_gas_budget(budget)
+            .programmable(builder.finish())
+            .with_transaction_dependency(*dependency.digest(), epoch_store.epoch())
+            .build_and_sign(&test_setup.sender_key);
+    let (_, effects) = send_user_transaction_and_execute(&authority_state, dependent.clone()).await;
+    assert!(effects.status().is_success());
+    assert_eq!(
+        epoch_store.load_stored_transaction_debts_for_testing(&[*dependent.digest()]),
+        vec![Some((3, 2 * budget))]
+    );
+}
+
 // An owned-object-only transaction that cannot be scheduled within the
 // execution-worker limit is deferred and, once past the deferral limit,
 // cancelled: it is still executed, charged gas, and produces failure effects
