@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, num::NonZeroUsize, str::FromStr};
+use std::{collections::BTreeMap, num::NonZeroUsize, str::FromStr, sync::OnceLock};
 
 use async_trait::async_trait;
 use futures::future::join_all;
@@ -262,6 +262,8 @@ pub struct RemoteFetcher {
     pub latest_object_cache: RwLock<LruCache<ObjectId, Object>>,
     /// Cache epoch info
     pub epoch_info_cache: RwLock<LruCache<u64, (u64, u64)>>,
+    /// Cache the chain identifier
+    chain_identifier_cache: OnceLock<ChainIdentifier>,
 }
 
 impl Clone for RemoteFetcher {
@@ -291,6 +293,7 @@ impl Clone for RemoteFetcher {
             versioned_object_cache: RwLock::new(versioned),
             latest_object_cache: RwLock::new(latest),
             epoch_info_cache: RwLock::new(ep),
+            chain_identifier_cache: self.chain_identifier_cache.clone(),
         }
     }
 }
@@ -308,6 +311,7 @@ impl RemoteFetcher {
             epoch_info_cache: RwLock::new(LruCache::new(
                 EPOCH_INFO_CACHE_CAPACITY.expect("Cache size must be non zero"),
             )),
+            chain_identifier_cache: OnceLock::new(),
         }
     }
 
@@ -671,13 +675,17 @@ impl DataFetcher for RemoteFetcher {
     }
 
     async fn get_chain_identifier(&self) -> Result<ChainIdentifier, ReplayEngineError> {
+        if let Some(chain_identifier) = self.chain_identifier_cache.get() {
+            return Ok(*chain_identifier);
+        }
         let genesis_checkpoint = self
             .rpc_client
             .read_api()
             .get_checkpoint(CheckpointId::SequenceNumber(0))
             .await
             .map_err(|e| ReplayEngineError::UnableToGetChainId { err: e.to_string() })?;
-        Ok(ChainIdentifier::from(genesis_checkpoint.digest))
+        let chain_identifier = ChainIdentifier::from(genesis_checkpoint.digest);
+        Ok(*self.chain_identifier_cache.get_or_init(|| chain_identifier))
     }
 }
 
