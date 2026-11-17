@@ -2849,8 +2849,8 @@ fn transaction_with_dependency_input(
     };
     let mut transaction =
         Transaction::new_with_gas_data(TransactionKind::new_programmable(pt), sender, gas_data);
-    if let (Some(epoch), Transaction::V1(v1)) = (epoch, &mut transaction) {
-        v1.expiration = TransactionExpiration::Epoch(epoch);
+    if let Some(epoch) = epoch {
+        *transaction.expiration_mut_for_testing() = TransactionExpiration::Epoch(epoch);
     }
     transaction
 }

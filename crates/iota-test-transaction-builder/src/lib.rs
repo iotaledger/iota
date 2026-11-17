@@ -351,12 +351,13 @@ impl TestTransactionBuilder {
             }
         }
         if let Some((dependency, epoch)) = transaction_dependency {
-            if let TransactionKind::Programmable(pt) = data.kind_mut() {
-                pt.inputs.push(Input::TransactionDependency(dependency));
+            match data.kind_mut() {
+                TransactionKind::Programmable(pt) => {
+                    pt.inputs.push(Input::TransactionDependency(dependency));
+                }
+                _ => panic!("with_transaction_dependency requires a programmable transaction"),
             }
-            if let Transaction::V1(v1) = &mut data {
-                v1.expiration = TransactionExpiration::Epoch(epoch);
-            }
+            *data.expiration_mut_for_testing() = TransactionExpiration::Epoch(epoch);
         }
         data
     }
