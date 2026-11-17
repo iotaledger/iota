@@ -13,7 +13,8 @@ use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
 use super::{
-    authority_per_epoch_store::PreviouslyDeferredTransactions, transaction_deferral::DeferralKey,
+    authority_per_epoch_store::{PreviouslyDeferredTransactions, deferred_from_round},
+    transaction_deferral::DeferralKey,
 };
 use crate::{
     authority::authority_per_epoch_store::CongestionControlParameters,
@@ -690,22 +691,14 @@ impl SharedObjectCongestionTracker {
             }
         }
 
-        let deferral_key = if let Some(previous_key_suggested_gas_price_pair) =
-            previously_deferred_tx_digests.get(transaction.digest())
-        {
-            // This transaction has been deferred in previous consensus commit. Use its
-            // previous deferred_from_round.
-            DeferralKey::new_for_consensus_round(
-                commit_round + 1,
-                previous_key_suggested_gas_price_pair
-                    .0
-                    .deferred_from_round(),
-            )
-        } else {
-            // This transaction has not been deferred before. Use the current commit round
-            // as the deferred_from_round.
-            DeferralKey::new_for_consensus_round(commit_round + 1, commit_round)
-        };
+        let deferral_key = DeferralKey::new_for_consensus_round(
+            commit_round + 1,
+            deferred_from_round(
+                previously_deferred_tx_digests,
+                transaction.digest(),
+                commit_round,
+            ),
+        );
 
         // Waiting for the dependency alone pushes the transaction past the
         // limit: it is deferred for that, not for congestion, since a higher

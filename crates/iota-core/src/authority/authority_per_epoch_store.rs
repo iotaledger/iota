@@ -413,6 +413,21 @@ impl CongestionControlParameters {
     }
 }
 
+/// The round from which the transaction `digest` was first deferred, or
+/// `commit_round` when it was not deferred before. Every deferral keeps it, so
+/// the deferral limit counts from the first deferral.
+pub(crate) fn deferred_from_round(
+    previously_deferred_tx_digests: &PreviouslyDeferredTransactions,
+    digest: &TransactionDigest,
+    commit_round: CommitRound,
+) -> CommitRound {
+    previously_deferred_tx_digests
+        .get(digest)
+        .map_or(commit_round, |(deferral_key, _)| {
+            deferral_key.deferred_from_round()
+        })
+}
+
 /// An alias type for a collection used to hold previously deferred
 /// transactions, where `Option<u64>` is used to hold suggested gas
 /// price for transactions deferred due to shared object congestion
@@ -429,8 +444,6 @@ pub(crate) struct CommitDependencyState {
     /// Scheduled or cancelled at this commit so far, the roots, each with
     /// whether it executes in the randomness phase.
     scheduled: HashMap<TransactionDigest, bool>,
-    /// Deferred at this commit so far.
-    deferred: HashSet<TransactionDigest>,
 }
 
 impl CommitDependencyState {
@@ -449,7 +462,6 @@ impl CommitDependencyState {
                     .filter_map(|tx| tx.0.transaction.executable_transaction_digest())
                     .collect(),
                 scheduled: HashMap::new(),
-                deferred: HashSet::new(),
             })
     }
 }
@@ -3453,16 +3465,12 @@ impl AuthorityPerEpochStore {
         // round. Don't defer if DKG has failed or timed out for this commit; in
         // that case we need to ignore.
         if !dkg_failed && !generating_randomness && transaction.uses_randomness() {
-            let deferred_from_round = previously_deferred_tx_digests
-                .get(transaction.digest())
-                .map(|previous_key_suggested_gas_price_pair| {
-                    previous_key_suggested_gas_price_pair
-                        .0
-                        .deferred_from_round()
-                })
-                .unwrap_or(commit_round);
             let result = SchedulingResult::Defer(
-                DeferralKey::new_for_randomness(deferred_from_round),
+                DeferralKey::new_for_randomness(deferred_from_round(
+                    previously_deferred_tx_digests,
+                    transaction.digest(),
+                    commit_round,
+                )),
                 DeferralReason::RandomnessNotReady,
             );
 
@@ -3495,18 +3503,14 @@ impl AuthorityPerEpochStore {
                     .is_some_and(|&in_randomness_phase| {
                         !in_randomness_phase || transaction.uses_randomness()
                     });
-            let dependency_pending = dependency_state.deferred.contains(&dependency)
-                || dependency_state.batch.contains(&dependency)
+            let dependency_pending = dependency_state.batch.contains(&dependency)
                 || self.is_deferred_transaction(&dependency);
             if !dependency_is_root && dependency_pending {
-                let deferred_from_round = previously_deferred_tx_digests
-                    .get(transaction.digest())
-                    .map(|previous_key_suggested_gas_price_pair| {
-                        previous_key_suggested_gas_price_pair
-                            .0
-                            .deferred_from_round()
-                    })
-                    .unwrap_or(commit_round);
+                let deferred_from_round = deferred_from_round(
+                    previously_deferred_tx_digests,
+                    transaction.digest(),
+                    commit_round,
+                );
                 debug!(
                     ?dependency,
                     "deferring the transaction until its dependency is scheduled"
@@ -6326,12 +6330,6 @@ impl AuthorityPerEpochStore {
                         .entry(deferral_key)
                         .or_default()
                         .push(DeferredTransaction::new(tx.clone(), suggested_gas_price));
-                    if let (Some(dependency_state), Some(digest)) = (
-                        &mut dependency_state,
-                        tx.0.transaction.executable_transaction_digest(),
-                    ) {
-                        dependency_state.deferred.insert(digest);
-                    }
                     filter_roots = true;
                     if tx.0.transaction.is_executable_transaction() {
                         // Notify consensus adapter that the consensus handler has received the
