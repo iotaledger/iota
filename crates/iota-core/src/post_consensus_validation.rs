@@ -216,9 +216,10 @@ type ValidatedCopy<'a> = (
 /// The decision for every candidate is saved before returning, including keeps that the caller
 /// then defers, and a commit replayed after a restart repeats the saved decisions; step 3 of the
 /// module docs says which transactions are validated again. Panics if the saved decisions are
-/// incomplete, the candidates differ from the saved ones, or a saved keep is now dropped. Once the
-/// switch to executing synced checkpoints after commit `L` is saved, also panics for a commit
-/// above `L`, or for a commit at or below `L` without saved decisions.
+/// incomplete, the candidates differ from the saved ones, a saved keep is now dropped, or a
+/// transaction dependency that is a root of the horizon or of an earlier commit has no effects.
+/// Once the switch to executing synced checkpoints after commit `L` is saved, also panics for a
+/// commit above `L`, or for a commit at or below `L` without saved decisions.
 ///
 /// Non-`UserTransactionV1` transactions pass through unchanged.
 ///
@@ -1176,6 +1177,11 @@ enum DependencyVerdict {
 /// consulted for a digest that is not a root of this epoch: whether a
 /// transaction of an earlier epoch is still there depends on each node's
 /// pruning, so a dependency has to be a root of the current epoch.
+///
+/// # Panics
+///
+/// Panics if the dependency is a root of the horizon or of an earlier commit
+/// but has no effects.
 fn dependency_verdict(
     dependency: TransactionDigest,
     commit_index: CommitIndex,
