@@ -2156,23 +2156,24 @@ impl AuthorityState {
         transaction.split_input_objects_into_groups_for_reading(input_objects)
     }
 
-    /// The final outcome of the transaction named by `transaction`'s
+    /// Checks the outcome of the transaction named by `transaction`'s
     /// dependency input, when this node knows one: an error if the dependency
-    /// failed, was cancelled, or executed in an earlier epoch, `Ok` if it
-    /// succeeded in the current epoch or has not executed here yet.
+    /// failed, was cancelled, or executed in an earlier epoch. Returns the
+    /// dependency's digest when it has not executed here yet, `None` when it
+    /// has or `transaction` has no dependency input.
     pub fn check_transaction_dependency_known_outcome(
         &self,
         transaction: &Transaction,
         current_epoch: EpochId,
-    ) -> IotaResult<()> {
+    ) -> IotaResult<Option<TransactionDigest>> {
         let Some(digest) = transaction.transaction_dependency() else {
-            return Ok(());
+            return Ok(None);
         };
         let Some(effects) = self
             .get_transaction_cache_reader()
             .try_get_executed_effects(&digest)?
         else {
-            return Ok(());
+            return Ok(Some(digest));
         };
         if !effects.status().is_success() {
             return Err(UserInputError::TransactionDependencyFailed { digest }.into());
@@ -2184,7 +2185,7 @@ impl AuthorityState {
             }
             .into());
         }
-        Ok(())
+        Ok(None)
     }
 
     /// Checks the transaction named by `transaction`'s dependency input before
@@ -2197,15 +2198,11 @@ impl AuthorityState {
         transaction: &VerifiedTransaction,
         epoch_store: &AuthorityPerEpochStore,
     ) -> IotaResult<()> {
-        let data = transaction.data().transaction();
-        self.check_transaction_dependency_known_outcome(data, epoch_store.epoch())?;
-        if let Some(digest) = data.transaction_dependency() {
-            if !self
-                .get_transaction_cache_reader()
-                .try_is_tx_already_executed(&digest)?
-            {
-                return Err(UserInputError::TransactionDependencyNotFound { digest }.into());
-            }
+        if let Some(digest) = self.check_transaction_dependency_known_outcome(
+            transaction.data().transaction(),
+            epoch_store.epoch(),
+        )? {
+            return Err(UserInputError::TransactionDependencyNotFound { digest }.into());
         }
         Ok(())
     }

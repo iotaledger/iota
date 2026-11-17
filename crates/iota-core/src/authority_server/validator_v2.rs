@@ -26,8 +26,7 @@ use iota_types::{
     },
     traffic_control::Weight,
     transaction::{
-        InputObjectKind, SenderSignedTransactionAPI, TransactionAPI, TransactionEnvelope,
-        VerifiedTransaction,
+        InputObjectKind, SenderSignedTransactionAPI, TransactionEnvelope, VerifiedTransaction,
     },
 };
 use starfish_core::TransactionSubmissionLimits;
@@ -136,15 +135,14 @@ fn check_transaction_dependency_for_submission(
     soft_locks: &PreConsensusSoftLocks,
     transaction: &VerifiedTransaction,
 ) -> IotaResult<()> {
-    let data = transaction.data().transaction();
-    let Some(digest) = data.transaction_dependency() else {
+    let Some(digest) = state.check_transaction_dependency_known_outcome(
+        transaction.data().transaction(),
+        epoch_store.epoch(),
+    )?
+    else {
         return Ok(());
     };
-    state.check_transaction_dependency_known_outcome(data, epoch_store.epoch())?;
-    if state
-        .get_transaction_cache_reader()
-        .try_is_tx_already_executed(&digest)?
-        || epoch_store.root_commit_of(&digest)?.is_some()
+    if epoch_store.root_commit_of(&digest)?.is_some()
         || epoch_store.is_deferred_transaction(&digest)
         || epoch_store.is_pending_consensus_user_transaction(&digest)?
         || soft_locks.check_in_flight(&digest)
