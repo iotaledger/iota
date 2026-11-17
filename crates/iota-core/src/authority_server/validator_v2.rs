@@ -476,7 +476,10 @@ impl ValidatorService {
         // With validator attestation enabled, `attest_transaction` runs the
         // deny checks, object loading, input checks, coin deny list and a full
         // dry run in one call and produces the attestation payload; otherwise
-        // the validation-only function runs.
+        // the validation-only function runs. The attestation takes the soft
+        // locks itself before its dry run, once the transaction's signers have
+        // authorized it.
+        let mut soft_lock = None;
         let (attestation_data, owned_objects, verified_tx, permit) = if !checks_admitted_inputs() {
             (None, Vec::new(), verified_tx, None)
         } else if epoch_store.protocol_config().enable_validator_attestation() {
@@ -495,6 +498,8 @@ impl ValidatorService {
             let state_for_attest = state.clone();
             let epoch_store_for_attest = epoch_store.clone();
             let governance_for_attest = governance_rules.clone();
+            let soft_locks_for_attest = soft_locks.clone();
+            let metrics_for_attest = metrics.clone();
             let join_result = tokio::task::spawn_blocking(move || {
                 // Built inside the closure: `DenyRuleUnion` borrows, and
                 // `spawn_blocking` requires `'static` captures.
@@ -510,18 +515,29 @@ impl ValidatorService {
                     }
                     None => local_deny_config,
                 };
+                let mut lock_before_dry_run = None;
                 let result = state_for_attest.attest_transaction(
                     &verified_tx,
                     &epoch_store_for_attest,
                     deny_config,
+                    |owned_objects| {
+                        let guard = soft_locks_for_attest
+                            .try_acquire_guard(tx_digest, owned_objects)
+                            .inspect_err(|error| {
+                                count_soft_lock_refusal(&metrics_for_attest, error)
+                            })?;
+                        lock_before_dry_run = Some(guard);
+
+                        Ok(())
+                    },
                 );
                 // The permit comes back with the result, so the admission holds
                 // it until its soft locks are taken. A dry run that panics, or
                 // whose submission was dropped, frees it when it ends.
-                (result, verified_tx, permit)
+                (result, verified_tx, permit, lock_before_dry_run)
             })
             .await;
-            let (result, verified_tx, permit) = match join_result {
+            let (result, verified_tx, permit, lock_before_dry_run) = match join_result {
                 Ok(dry_run) => dry_run,
                 Err(join_err) => {
                     // A panic in the dry run reaches this point only where
@@ -539,7 +555,11 @@ impl ValidatorService {
                 }
             };
             match result {
-                Ok((data, objs)) => (Some(data), objs, verified_tx, Some(permit)),
+                Ok((data, objs)) => {
+                    soft_lock = lock_before_dry_run;
+
+                    (Some(data), objs, verified_tx, Some(permit))
+                }
                 Err(e) => {
                     let weight = normalize(&e);
                     return (TxStatusUpdate::Rejected { error: e }, weight);
@@ -629,14 +649,15 @@ impl ValidatorService {
         // accepts. The consensus adapter refuses such a transaction as well,
         // but only after the soft locks below are taken, so it is
         // rejected here. The rejection weighs: the dry run has already run, and
-        // with no soft lock taken, the in-flight check does not stop a resend.
+        // with no soft lock kept, the in-flight check does not stop a resend.
         if let Err(error) =
             check_consensus_transaction_size(&consensus_tx, epoch_store.protocol_config())
         {
             return (TxStatusUpdate::Rejected { error }, Weight::one());
         }
 
-        // Soft-lock owned objects to prevent conflicting transactions.
+        // Soft-lock owned objects to prevent conflicting transactions, unless
+        // the attestation took the locks before its dry run.
         // Same-digest resubmission while in flight → rejected (duplicate).
         // Different-digest conflict on same objects → rejected.
         // Placed after the reconfig and size checks so we never acquire locks
@@ -644,14 +665,17 @@ impl ValidatorService {
         // here on drops the guard, which releases the locks. A refusal after
         // the dry run means that another submission on the same objects passed
         // both checks for conflicts at the same time as this one.
-        let soft_lock = match soft_locks.try_acquire_guard(tx_digest, &owned_objects) {
-            Ok(soft_lock) => soft_lock,
-            Err(error) => {
-                count_soft_lock_refusal(metrics, &error);
-                let weight = weigh_sender_rejection(&error, after_dry_run);
+        let soft_lock = match soft_lock {
+            Some(soft_lock) => soft_lock,
+            None => match soft_locks.try_acquire_guard(tx_digest, &owned_objects) {
+                Ok(soft_lock) => soft_lock,
+                Err(error) => {
+                    count_soft_lock_refusal(metrics, &error);
+                    let weight = weigh_sender_rejection(&error, after_dry_run);
 
-                return (TxStatusUpdate::Rejected { error }, weight);
-            }
+                    return (TxStatusUpdate::Rejected { error }, weight);
+                }
+            },
         };
         // Freed only now, so that a submission on the same objects that gets
         // this permit next finds these locks in its check for conflicts.

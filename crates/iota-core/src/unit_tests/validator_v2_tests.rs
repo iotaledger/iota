@@ -658,6 +658,50 @@ async fn wait_until_queued(validator: &TestValidator, count: i64) {
     .expect("the submissions should wait for a dry run");
 }
 
+/// Submits `first` and `second`, which use the same coin, at the same time on
+/// `validator`. Asserts that one is submitted to consensus, that the other is
+/// refused for the soft lock conflict at no weight, and that only one dry run
+/// ran.
+async fn assert_conflicting_submissions_get_one_dry_run(
+    validator: &TestValidator,
+    first: TransactionEnvelope,
+    second: TransactionEnvelope,
+) {
+    let submissions = [first, second].map(|transaction| {
+        let validator = validator.clone();
+
+        tokio::spawn(async move { validator.submit(transaction).await })
+    });
+    let mut results = Vec::new();
+    for submission in submissions {
+        results.push(submission.await.unwrap());
+    }
+
+    let submitted = results
+        .iter()
+        .filter(|(update, _)| matches!(update, TxStatusUpdate::Submitted))
+        .count();
+    let refused: Vec<_> = results
+        .iter()
+        .filter(|(update, _)| {
+            matches!(
+                update,
+                TxStatusUpdate::Rejected {
+                    error: IotaError::ObjectLockConflict { .. }
+                }
+            )
+        })
+        .collect();
+    assert_eq!(submitted, 1);
+    assert_eq!(refused.len(), 1);
+    assert_eq!(
+        refused[0].1.value(),
+        0.0,
+        "a refusal before the dry run weighs nothing"
+    );
+    assert_eq!(validator.state.metrics.attestation_dry_runs_total.get(), 1);
+}
+
 fn assert_overload_rejection((update, weight): &(TxStatusUpdate, Weight)) {
     assert!(
         matches!(
@@ -971,15 +1015,15 @@ async fn dry_run_permit_is_held_until_soft_locks_are_taken() {
 }
 
 /// A transaction whose inputs another transaction locks after its two checks
-/// for conflicts is refused when it takes its own locks, and the refusal weighs
-/// one: the validator ran the dry run for nothing. Not under the simulator: it
-/// has no blocking pool to fill and cannot build a runtime of its own.
+/// for conflicts is refused when it takes its own locks, before its dry run,
+/// and the refusal weighs nothing. Not under the simulator: it has no blocking
+/// pool to fill and cannot build a runtime of its own.
 #[cfg(not(msim))]
 #[test]
-fn lock_refused_after_dry_run_weighs_one() {
-    // The dry run needs a thread of the blocking pool. The pool gets one
-    // thread, and the test holds it, so the dry run cannot start before the
-    // test has taken the conflicting lock.
+fn lock_taken_after_both_checks_refuses_transaction_before_dry_run() {
+    // Validation and the dry run need a thread of the blocking pool. The pool
+    // gets one thread, and the test holds it, so the transaction cannot take
+    // its locks before the test has taken the conflicting one.
     let runtime = tokio::runtime::Builder::new_current_thread()
         .max_blocking_threads(1)
         .enable_all()
@@ -1011,10 +1055,11 @@ fn lock_refused_after_dry_run_weighs_one() {
             async move { validator.submit(tx).await }
         });
         // A submission holds its permit from before its second check for
-        // conflicts until its locks are taken, and it awaits only its dry run
-        // in between. The submission's task shares the test's single thread,
-        // so once the count rises, the submission has passed both checks and
-        // waits for its dry run.
+        // conflicts until its dry run has ended. In between, it awaits only
+        // the blocking task that validates it, takes its locks and runs its
+        // dry run. The submission's task shares the test's single thread, so
+        // once the count rises, the submission has passed both checks and its
+        // blocking task waits for the pool's thread.
         tokio::time::timeout(Duration::from_secs(30), async {
             while validator.state.metrics.attestations_in_progress.get() < 1 {
                 tokio::task::yield_now().await;
@@ -1041,13 +1086,47 @@ fn lock_refused_after_dry_run_weighs_one() {
         );
         assert_eq!(
             weight.value(),
-            1.0,
-            "a refusal after the dry run weighs one"
+            0.0,
+            "a refusal before the dry run weighs nothing"
         );
-        assert_eq!(validator.state.metrics.attestation_dry_runs_total.get(), 1);
+        assert_eq!(validator.state.metrics.attestation_dry_runs_total.get(), 0);
         assert_eq!(validator.soft_locks.lock_count(), 1);
         assert!(submitted.try_recv().is_err());
     });
+}
+
+/// Two transactions that pay with the same coin and arrive together get one
+/// dry run between them, also when each can have a permit. Whichever passes
+/// validation first takes the locks before its dry run. The other is refused,
+/// at one of its checks for conflicts or when it tries to take the locks.
+#[tokio::test]
+async fn conflicting_submissions_get_one_dry_run_with_two_permits() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = enable_attestation();
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let (ids, objects) = objects_owned_by(sender, 3);
+    let (validator, _submitted) = TestValidator::new(&objects, dry_run_limits(2, 0)).await;
+    let gas = ids[2];
+    let first = transfer(&validator.state, sender, &sender_key, ids[0], gas);
+    let second = transfer(&validator.state, sender, &sender_key, ids[1], gas);
+
+    assert_conflicting_submissions_get_one_dry_run(&validator, first, second).await;
+}
+
+/// Like [`conflicting_submissions_get_one_dry_run_with_two_permits()`], for
+/// two transactions of a Move account, which takes its locks once its
+/// authenticators have passed their own run.
+#[tokio::test]
+async fn conflicting_move_account_submissions_get_one_dry_run_with_two_permits() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = enable_attestation();
+
+    let mut env = AbstractAccountTestEnv::new_with_overload_config(dry_run_limits(2, 0)).await;
+    let (first, second) = env.account_transactions_on_one_coin();
+    let (validator, _submitted) = TestValidator::from_state(env.authority.clone());
+
+    assert_conflicting_submissions_get_one_dry_run(&validator, first, second).await;
 }
 
 /// The check of the owned inputs' versions also fails when the validator
