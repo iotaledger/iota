@@ -978,12 +978,9 @@ async fn historical_reader_rejects_a_manifest_whose_files_leave_a_gap() {
     }
 }
 
-/// The local reader does not send a checkpoint whose sequence number differs from its file name
-/// and keeps running.
-#[tokio::test]
-async fn local_reader_does_not_send_a_checkpoint_with_the_wrong_sequence_number() {
+/// Writes `0.chk` holding checkpoint 0 and `1.chk` also holding checkpoint 0.
+fn write_local_file_with_wrong_content() -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
-    // Both files hold checkpoint 0, so the content of `1.chk` is behind its file name.
     for file_number in [0, 1] {
         std::fs::write(
             dir.path().join(format!("{file_number}.chk")),
@@ -991,6 +988,13 @@ async fn local_reader_does_not_send_a_checkpoint_with_the_wrong_sequence_number(
         )
         .unwrap();
     }
+    dir
+}
+
+/// The local reader stops when a file holds a checkpoint other than the one in its name.
+#[tokio::test]
+async fn local_reader_stops_on_a_file_with_the_wrong_checkpoint() {
+    let dir = write_local_file_with_wrong_content();
     let config = CheckpointReaderConfig {
         reader_options: ReaderOptions {
             tick_interval_ms: 10,
@@ -1000,13 +1004,33 @@ async fn local_reader_does_not_send_a_checkpoint_with_the_wrong_sequence_number(
         remote_store_url: None,
     };
     let mut reader = CheckpointReader::new(0, config.into()).await.unwrap();
-    let checkpoint = reader.checkpoint().await.unwrap();
-    assert_eq!(checkpoint.checkpoint_summary.sequence_number, 0);
-    // A panic in the reader task closes the channel and ends this wait early.
-    assert!(
-        timeout(Duration::from_secs(2), reader.checkpoint())
-            .await
-            .is_err()
-    );
+    let checkpoint = timeout(Duration::from_secs(10), reader.checkpoint())
+        .await
+        .unwrap();
+    assert!(checkpoint.is_none());
     reader.shutdown().await.unwrap();
+}
+
+/// The executor shuts its worker pools down and fails when the reader stops.
+#[tokio::test]
+async fn executor_fails_when_the_reader_stops() {
+    let mut bundle = create_executor_bundle().await;
+    add_worker_pool(&mut bundle.executor, TestWorker, 5)
+        .await
+        .unwrap();
+    let dir = write_local_file_with_wrong_content();
+    let result = timeout(
+        Duration::from_secs(10),
+        run(
+            bundle.executor,
+            dir.path().to_path_buf(),
+            None,
+            bundle.token,
+        ),
+    )
+    .await
+    .unwrap();
+    assert!(
+        matches!(result,  Err(IngestionError::Channel(msg)) if msg == "checkpoint reader stopped")
+    );
 }

@@ -113,8 +113,15 @@ pub(crate) trait LocalRead {
         let files = self.list_unprocessed_checkpoint_files()?;
         debug!("unprocessed local files {files:?}");
         let mut checkpoints = LocalCheckpoints::new(self.current_checkpoint_number());
-        for (_, filename) in files.iter().take(MAX_CHECKPOINTS_IN_PROGRESS) {
+        for (sequence_number, filename) in files.iter().take(MAX_CHECKPOINTS_IN_PROGRESS) {
             let checkpoint = self.read_checkpoint_file(filename)?;
+            if checkpoint.checkpoint_summary.sequence_number != *sequence_number {
+                return Err(IngestionError::Verification(format!(
+                    "checkpoint file {} holds checkpoint {}, restart with a remote source only",
+                    filename.display(),
+                    checkpoint.checkpoint_summary.sequence_number
+                )));
+            }
             if self.exceeds_capacity(checkpoint.checkpoint_summary.sequence_number) {
                 break;
             }
@@ -133,9 +140,12 @@ pub(crate) trait LocalRead {
     async fn read_local_files_with_retry(&self) -> IngestionResult<LocalCheckpoints> {
         let backoff = backoff::ExponentialBackoff::default();
         backoff::future::retry(backoff, || async {
-            self.read_local_files().map_err(|err| {
-                info!("transient local read error {err:?}");
-                backoff::Error::transient(err)
+            self.read_local_files().map_err(|err| match err {
+                IngestionError::Verification(_) => backoff::Error::permanent(err),
+                err => {
+                    info!("transient local read error {err:?}");
+                    backoff::Error::transient(err)
+                }
             })
         })
         .await

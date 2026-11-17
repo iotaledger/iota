@@ -519,6 +519,11 @@ impl CheckpointReaderActor {
 
     /// Sync from either local or remote source new checkpoints to be processed
     /// by the executor.
+    ///
+    /// # Errors
+    ///
+    /// Fails if the local files can't be read or sending to the channel fails. Errors from a remote
+    /// source are treated as transient, so they are retried and never returned.
     async fn sync(&mut self) -> IngestionResult<()> {
         let mut remote_source = ReadSource::Local;
         let checkpoints = self.read_local_files_with_retry().await?;
@@ -560,7 +565,9 @@ impl CheckpointReaderActor {
                     self.gc_processed_files(watermark).expect("failed to clean the directory");
                 }
                 Ok(Some(_)) | Err(_) = timeout(Duration::from_millis(self.reader_options.tick_interval_ms), inotify_rx.recv())  => {
-                    self.sync().await.expect("failed to read checkpoint files");
+                    if let Err(err) = self.sync().await {
+                        break error!("checkpoint reader stopped: {err}");
+                    }
                 }
             }
         }
