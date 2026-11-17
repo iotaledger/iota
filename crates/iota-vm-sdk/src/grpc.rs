@@ -4,7 +4,7 @@
 //! gRPC-backed store (`feature = "grpc"`, native only); see [`GrpcStore`].
 
 use iota_grpc_client::GrpcClient;
-use iota_sdk_types::{CheckpointDigest, Digest, ObjectId, Version};
+use iota_sdk_types::{CheckpointDigest, ObjectId, Version};
 use iota_types::{digests::ChainIdentifier, object::Object};
 
 use crate::{
@@ -62,7 +62,8 @@ impl GrpcStore {
     /// # Errors
     ///
     /// Returns [`VmSdkError::Store`] if the epoch or service-info RPC fails or
-    /// can't be decoded.
+    /// can't be decoded, including when the service info has no chain
+    /// identifier.
     pub async fn fetch_chain_context(&self) -> Result<ChainContext, VmSdkError> {
         let client = &self.cache.fetcher().client;
         let (epoch_response, service_info_response) =
@@ -86,20 +87,16 @@ impl GrpcStore {
         let chain_identifier = service_info_response
             .map_err(|e| StoreError::new("fetch service info", e))?
             .body()
-            .chain_id
-            .as_ref()
-            .and_then(|d| Digest::try_from(d).ok())
-            .map(|digest| ChainIdentifier::from(CheckpointDigest::from(digest)));
-        let chain = chain_identifier
-            .map(|id| id.chain())
-            .unwrap_or(iota_protocol_config::Chain::Unknown);
+            .chain_identifier()
+            .map(|digest| ChainIdentifier::from(CheckpointDigest::from(digest)))
+            .map_err(|e| StoreError::new("service info chain identifier", e))?;
         Ok(ChainContext {
             protocol_version: iota_protocol_config::ProtocolVersion::new(protocol_version),
             reference_gas_price,
             epoch_id,
             epoch_timestamp_ms,
-            chain,
-            chain_identifier: chain_identifier.unwrap_or_default(),
+            chain: chain_identifier.chain(),
+            chain_identifier,
         })
     }
 }
