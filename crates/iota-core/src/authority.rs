@@ -2178,7 +2178,7 @@ impl AuthorityState {
         if !effects.status().is_success() {
             return Err(UserInputError::TransactionDependencyFailed { digest }.into());
         }
-        if effects.epoch() != current_epoch {
+        if effects.epoch() < current_epoch {
             return Err(UserInputError::TransactionDependencyNotInCurrentEpoch {
                 digest,
                 executed_epoch: effects.epoch(),

@@ -37,8 +37,9 @@ struct Setup {
     key: AccountPrivateKey,
     gas: Vec<Object>,
     shared: Object,
-    /// Enables transaction dependencies for as long as the setup lives.
-    _config_guard: OverrideGuard,
+    /// Enables transaction dependencies until the setup is dropped or
+    /// reconfigured.
+    _config_guard: Option<OverrideGuard>,
 }
 
 async fn setup() -> Setup {
@@ -58,11 +59,19 @@ async fn setup() -> Setup {
         key,
         gas,
         shared,
-        _config_guard: config_guard,
+        _config_guard: Some(config_guard),
     }
 }
 
 impl Setup {
+    /// Moves the authority to the next epoch, which keeps transaction
+    /// dependencies enabled.
+    async fn reconfigure(&mut self) {
+        // Reconfiguration applies its own override of the protocol config.
+        self._config_guard = None;
+        self.authority.reconfigure_for_testing().await;
+    }
+
     /// A transfer of `amount` paid with gas coin `gas_index`. `u64::MAX` fails
     /// at execution. With `with_shared`, the shared object is a mutable input
     /// that no command uses.
@@ -232,6 +241,51 @@ async fn dependent_cancelled_at_sequencing_does_not_read_its_dependency() {
         "{error:?}"
     );
     assert!(!effects.dependencies().contains(&dependency));
+}
+
+#[tokio::test]
+async fn only_a_dependency_of_an_earlier_epoch_is_rejected() {
+    let mut setup = setup().await;
+    setup.reconfigure().await;
+    let epoch_store = setup.authority.epoch_store_for_testing().clone();
+    let dependency = setup.transfer(0, 1_000, None, false);
+    let dependency_digest = *dependency.digest();
+    // `Setup::execute` certifies for epoch 0, so the dependency executes as
+    // checkpoint content of epoch 1 instead.
+    let dependency = VerifiedExecutableTransaction::new_from_checkpoint(
+        epoch_store.verify_transaction(dependency).unwrap(),
+        epoch_store.epoch(),
+        1,
+    );
+    epoch_store.assign_to_a_new_commit_for_testing(&[dependency.key()]);
+    let (effects, _) = setup
+        .authority
+        .try_execute_immediately(&dependency, ExecutionEnv::new(), &epoch_store)
+        .unwrap();
+    assert!(effects.status().is_success());
+    let dependent = setup.transfer(1, 1_000, Some(dependency_digest), false);
+    let dependent = dependent.data().transaction();
+
+    // As for a caller still holding the previous epoch's store.
+    let result = setup
+        .authority
+        .check_transaction_dependency_known_outcome(dependent, 0);
+    assert!(result.is_ok(), "{result:?}");
+    let result = setup
+        .authority
+        .check_transaction_dependency_known_outcome(dependent, 2);
+    assert!(
+        matches!(
+            &result,
+            Err(IotaError::UserInput {
+                error: UserInputError::TransactionDependencyNotInCurrentEpoch {
+                    digest,
+                    executed_epoch: 1,
+                }
+            }) if *digest == dependency_digest
+        ),
+        "{result:?}"
+    );
 }
 
 #[tokio::test]
