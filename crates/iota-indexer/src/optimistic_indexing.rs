@@ -24,8 +24,7 @@ use crate::{
     errors::IndexerError,
     ingestion::{
         common::{
-            orchestration::OperationalLevel,
-            persist::{CommitterWatermark, OptimisticIndexingTables},
+            orchestration::OperationalLevel, persist::OptimisticIndexingTables,
             prepare::extract_df_kind,
         },
         primary::{
@@ -37,6 +36,7 @@ use crate::{
     models::{
         display::StoredDisplay,
         transactions::{OptimisticTransaction, StoredTransaction},
+        watermarks::WatermarkUpperBounds,
     },
     read::{IndexerReader, InputObjectsStatus},
     store::{IndexerStore, PgIndexerStore, diesel_macro::spawn_blocking_task},
@@ -153,10 +153,10 @@ impl OptimisticTransactionExecutor {
         optimistic_tx: Option<&OptimisticTransaction>,
     ) -> Result<(), IndexerError> {
         if let Some(tx) = optimistic_tx {
-            let watermark = CommitterWatermark {
-                current_epoch: epoch,
+            let watermark = WatermarkUpperBounds {
+                current_epoch: epoch as i64,
                 max_committed_cp: 0,
-                max_committed_tx: tx.optimistic_sequence_number as u64,
+                max_committed_tx: tx.optimistic_sequence_number,
             };
             self.store
                 .update_watermarks_upper_bound(OptimisticIndexingTables::iter(), watermark)
