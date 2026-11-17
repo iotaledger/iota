@@ -360,7 +360,7 @@ where
                 transaction.data().transaction(),
                 epoch_store.epoch(),
             )
-            .map_err(QuorumDriverError::InvalidTransaction)?;
+            .map_err(map_dependency_check_error_to_qd)?;
 
         let (mut response, seq) =
             match (self.select_driver(&epoch_store)?, wait_for_local_execution) {
@@ -755,7 +755,7 @@ where
                 transaction.data().transaction(),
                 epoch_store.epoch(),
             )
-            .map_err(QuorumDriverError::InvalidTransaction)?;
+            .map_err(map_dependency_check_error_to_qd)?;
 
         match self.select_driver(&epoch_store)? {
             Driver::Transaction(td) => {
@@ -1635,6 +1635,16 @@ fn map_overload_to_qd(e: &TransactionDriverError) -> Option<QuorumDriverError> {
     )
 }
 
+/// Maps an error of `check_transaction_dependency_known_outcome`: a known
+/// outcome of the dependency makes the transaction invalid, a failed read of
+/// its effects does not.
+fn map_dependency_check_error_to_qd(error: IotaError) -> QuorumDriverError {
+    match error {
+        IotaError::UserInput { .. } => QuorumDriverError::InvalidTransaction(error),
+        _ => QuorumDriverError::QuorumDriverInternal(error),
+    }
+}
+
 fn count_validator_attempts(errors: &AggregatedRequestErrors) -> u32 {
     errors
         .errors
@@ -2497,5 +2507,22 @@ mod tests {
             "{last_error}"
         );
         assert_eq!(qd_error.reason(), "timeout_before_finality");
+    }
+
+    #[test]
+    fn map_dependency_check_errors() {
+        use iota_types::error::UserInputError;
+
+        let digest = TransactionDigest::random();
+        assert!(matches!(
+            map_dependency_check_error_to_qd(
+                UserInputError::TransactionDependencyFailed { digest }.into()
+            ),
+            QuorumDriverError::InvalidTransaction(_)
+        ));
+        assert!(matches!(
+            map_dependency_check_error_to_qd(IotaError::Storage("read failed".to_string())),
+            QuorumDriverError::QuorumDriverInternal(_)
+        ));
     }
 }
