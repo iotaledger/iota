@@ -603,10 +603,12 @@ pub async fn start_simulacrum_grpc_with_write_indexer(
     database_name: Option<&str>,
     db_init_hook: Option<DBInitHook>,
     operational_level: OperationalLevel,
+    reset_db: bool,
 ) -> (
     GrpcServerHandle,
     PgIndexerStore,
     JoinHandle<Result<(), IndexerError>>,
+    CancellationToken,
 ) {
     let address = server_url.unwrap_or_else(new_local_tcp_socket_for_testing);
 
@@ -620,9 +622,9 @@ pub async fn start_simulacrum_grpc_with_write_indexer(
         .unwrap();
 
     // Starts indexer
-    let (pg_store, pg_handle, _) = start_test_indexer_on_level(
+    let (pg_store, pg_handle, cancel) = start_test_indexer_on_level(
         db_url(database_name.unwrap_or(DEFAULT_DB)),
-        true,
+        reset_db,
         db_init_hook,
         format!("http://{address}"),
         IndexerTypeConfig::writer_mode(None),
@@ -630,7 +632,7 @@ pub async fn start_simulacrum_grpc_with_write_indexer(
         operational_level,
     )
     .await;
-    (server_handle, pg_store, pg_handle)
+    (server_handle, pg_store, pg_handle, cancel)
 }
 
 pub async fn start_simulacrum_grpc_with_read_write_indexer(
@@ -644,13 +646,14 @@ pub async fn start_simulacrum_grpc_with_read_write_indexer(
     HttpClient,
 ) {
     let simulacrum_server_url = new_local_tcp_socket_for_testing();
-    let (server_handle, pg_store, pg_handle) = start_simulacrum_grpc_with_write_indexer(
+    let (server_handle, pg_store, pg_handle, _) = start_simulacrum_grpc_with_write_indexer(
         sim,
         data_ingestion_path.clone(),
         Some(simulacrum_server_url),
         database_name,
         None,
         OperationalLevel::default(),
+        true,
     )
     .await;
 

@@ -42,7 +42,7 @@ use crate::{
 
 #[tokio::test]
 pub async fn checkpoint_objects_ingestion() -> Result<(), IndexerError> {
-    let sim = TestSim::new(OperationalLevel::default(), "ingestion_checkpoint_objects");
+    let mut sim = TestSim::new(OperationalLevel::default(), "ingestion_checkpoint_objects");
     let pg_store = sim.start_indexer(None).await;
 
     let checkpoint_objects = (0..1000)
@@ -139,7 +139,7 @@ impl IngestionTest for ObjectType {
         level: OperationalLevel,
         database_name: &str,
     ) -> (PgIndexerStore, Self::ExpectedState) {
-        let sim = TestSim::new(level, database_name);
+        let mut sim = TestSim::new(level, database_name);
         let (transaction, ..) = sim.execute_transfer();
         sim.inner.create_checkpoint();
 
@@ -188,7 +188,7 @@ impl IngestionTest for CheckpointObjectsAreFinalized {
         level: OperationalLevel,
         database_name: &str,
     ) -> (PgIndexerStore, Self::ExpectedState) {
-        let sim = TestSim::new(level, database_name);
+        let mut sim = TestSim::new(level, database_name);
         sim.execute_transfer();
         sim.inner.create_checkpoint();
 
@@ -235,7 +235,7 @@ impl IngestionTest for CheckpointedObjectsMatchObjects {
         level: OperationalLevel,
         database_name: &str,
     ) -> (PgIndexerStore, Self::ExpectedState) {
-        let sim = TestSim::new(level, database_name);
+        let mut sim = TestSim::new(level, database_name);
         // Execute several transfers to create mutations on the gas object.
         for _ in 0..3 {
             sim.execute_transfer();
@@ -386,7 +386,7 @@ impl IngestionTest for BackwardHistoryIngestion {
         level: OperationalLevel,
         database_name: &str,
     ) -> (PgIndexerStore, Self::ExpectedState) {
-        let sim = TestSim::new(level, database_name);
+        let mut sim = TestSim::new(level, database_name);
         // --- checkpoint 1: TWO transfers in the same checkpoint ---
         // This exercises the case where multiple transactions produce backward
         // history entries for the same checkpoint, and where the same object
@@ -524,7 +524,7 @@ impl IngestionTest for ObjectVersionsIngestion {
         level: OperationalLevel,
         database_name: &str,
     ) -> (PgIndexerStore, Self::ExpectedState) {
-        let sim = TestSim::new(level, database_name);
+        let mut sim = TestSim::new(level, database_name);
         // checkpoint 1: gas mutated twice + two coins created
         let mut cp1_expected = [
             sim.execute_transfer_version_rows(1),
@@ -574,7 +574,7 @@ impl IngestionTest for ObjectsVersionIngestionWrapsAndRemovals {
         level: OperationalLevel,
         database_name: &str,
     ) -> (PgIndexerStore, Self::ExpectedState) {
-        let sim = TestSim::new(level, database_name);
+        let mut sim = TestSim::new(level, database_name);
         let sender = sim.sender();
         let rgp = sim.inner.reference_gas_price();
 
