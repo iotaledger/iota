@@ -398,5 +398,6 @@ ecdsa_k1_secp256k1_validate_pubkey_cost_base: 52
 ecdsa_r1_secp256r1_validate_pubkey_cost_base: 52
 multisig_multisig_validate_pubkey_cost_base: 52
 public_key_to_iota_address_impl_cost_base: 52
+tx_context_chain_identifier_cost_base: 30
 claim_account_max_computation_units: 5000
 claim_account_storage_bytes_bound: 2000

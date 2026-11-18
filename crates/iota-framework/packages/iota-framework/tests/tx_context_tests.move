@@ -49,3 +49,27 @@ fun test_tx_context_returned_refs_consistency() {
     // the created reference to the first digest should still be valid and unchanged
     assert_eq!(*digest_ref1, digest1);
 }
+
+#[test]
+fun test_chain_identifier() {
+    use std::unit_test::assert_eq;
+
+    // the unit test default
+    let mut ctx = tx_context::dummy();
+    assert_eq!(ctx.chain_identifier(), vector::tabulate!(32, |_| 0u8));
+
+    let chain_identifier = x"0102030405060708091011121314151617181920212223242526272829303132";
+    ctx.set_chain_identifier_for_testing(chain_identifier);
+    assert_eq!(ctx.chain_identifier(), chain_identifier);
+
+    // a new context keeps the chain identifier
+    let ctx = tx_context::new(@0x1, b"11111111111111111111111111111111", 7, 0, 0);
+    assert_eq!(ctx.chain_identifier(), chain_identifier);
+}
+
+#[test]
+#[expected_failure(abort_code = tx_context::EBadChainIdentifierLength)]
+fun test_set_chain_identifier_bad_length() {
+    let mut ctx = tx_context::dummy();
+    ctx.set_chain_identifier_for_testing(x"01");
+}

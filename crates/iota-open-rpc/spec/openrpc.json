@@ -2247,6 +2247,9 @@
                 "transfer_transfer_internal_cost_base": {
                   "u64": "52"
                 },
+                "tx_context_chain_identifier_cost_base": {
+                  "u64": "30"
+                },
                 "tx_context_derive_id_cost_base": {
                   "u64": "52"
                 },

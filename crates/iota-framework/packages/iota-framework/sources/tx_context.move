@@ -12,6 +12,15 @@ const TX_HASH_LENGTH: u64 = 32;
 /// Expected an tx hash of length 32, but found a different length
 const EBadTxHashLength: u64 = 0;
 
+#[test_only]
+/// Number of bytes in a chain identifier
+const CHAIN_IDENTIFIER_LENGTH: u64 = 32;
+
+// Not 1: the native `last_created_id` aborts with 1 in this module.
+#[test_only]
+/// Expected a chain identifier of length 32, but found a different length
+const EBadChainIdentifierLength: u64 = 2;
+
 #[allow(unused_field)]
 /// Information about the transaction currently being executed.
 /// This cannot be constructed by a transaction. It is a privileged object created by
@@ -60,6 +69,13 @@ native fun native_epoch_timestamp_ms(): u64;
 public fun sponsor(_self: &TxContext): Option<address> {
     option_sponsor()
 }
+
+/// Return the chain identifier: the 32-byte digest of the chain's genesis checkpoint.
+/// It is all zeros while genesis runs, as that checkpoint doesn't exist yet.
+public fun chain_identifier(_self: &TxContext): vector<u8> {
+    native_chain_identifier()
+}
+native fun native_chain_identifier(): vector<u8>;
 
 /// Create an `address` that has not been used. As it is an object address, it will never
 /// occur as the address for a user.
@@ -247,6 +263,18 @@ native fun replace(
     gas_budget: u64,
     sponsor: vector<address>,
 );
+
+#[test_only]
+/// Set the chain identifier returned by `chain_identifier`. A test has one chain
+/// identifier: every `TxContext` of the test reads the new value, including those
+/// created before the call.
+public fun set_chain_identifier_for_testing(_self: &mut TxContext, chain_identifier: vector<u8>) {
+    assert!(chain_identifier.length() == CHAIN_IDENTIFIER_LENGTH, EBadChainIdentifierLength);
+    replace_chain_identifier(chain_identifier);
+}
+
+#[test_only]
+native fun replace_chain_identifier(chain_identifier: vector<u8>);
 
 #[allow(unused_function)]
 /// Native function for deriving an ID via hash(tx_hash || ids_created)
