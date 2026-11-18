@@ -425,11 +425,11 @@ impl ValidatorService {
     /// consensus once attested, for a Move authentication that failed while
     /// the transaction's dependency has not executed here, and for a changed
     /// owned input or a refused soft lock after the attestation's dry run
-    /// (the locks are taken after the dry run only when the transaction's
-    /// Move authenticators did not run on their own first); `Weight::zero()`
-    /// for a rejection because the validator is overloaded and for a
-    /// successful submission; and `normalize(&error)` for any other rejection
-    /// (signature/epoch errors weigh, others don't).
+    /// (the locks are taken after the dry run only when the transaction has
+    /// Move authenticators); `Weight::zero()` for a rejection because the
+    /// validator is overloaded and for a successful submission; and
+    /// `normalize(&error)` for any other rejection (signature/epoch errors
+    /// weigh, others don't).
     async fn submit_single_tx(
         state: &Arc<AuthorityState>,
         consensus_adapter: &Arc<ConsensusAdapter>,
@@ -796,8 +796,7 @@ impl ValidatorService {
 
         // Soft-lock owned objects to prevent conflicting transactions. With
         // attestation, `attest_transaction()` took the locks before its dry
-        // run, except when the transaction's Move authenticators did not run
-        // on their own first.
+        // run, except when the transaction has Move authenticators.
         // Same-digest resubmission while in flight → rejected (duplicate).
         // Different-digest conflict on same objects → rejected.
         // A rejection after the locks are taken drops the guard, which

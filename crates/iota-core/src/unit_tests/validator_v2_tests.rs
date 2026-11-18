@@ -1173,11 +1173,15 @@ async fn conflicting_submissions_get_one_dry_run_with_two_permits() {
     assert_conflicting_submissions_get_one_dry_run(&validator, first, second).await;
 }
 
-/// Like [`conflicting_submissions_get_one_dry_run_with_two_permits()`], for
-/// two transactions of a Move account, which takes its locks once its
-/// authenticators have passed their own run.
+/// Two transactions of a Move account that pay with the same coin and arrive
+/// together, with a permit each. A Move account authorizes a transaction only
+/// in the dry run, so it takes its locks after it: both can get a dry run, and
+/// the one that takes the locks second is refused. That refusal weighs one,
+/// because its dry run ran. If the first has taken its locks before the second
+/// reaches its checks for conflicts, the second gets no dry run and its
+/// refusal weighs nothing.
 #[tokio::test]
-async fn conflicting_move_account_submissions_get_one_dry_run_with_two_permits() {
+async fn conflicting_move_account_submissions_lock_after_their_dry_runs() {
     telemetry_subscribers::init_for_testing();
     let _guard = enable_attestation();
 
@@ -1185,7 +1189,40 @@ async fn conflicting_move_account_submissions_get_one_dry_run_with_two_permits()
     let (first, second) = env.account_transactions_on_one_coin();
     let (validator, _submitted) = TestValidator::from_state(env.authority.clone());
 
-    assert_conflicting_submissions_get_one_dry_run(&validator, first, second).await;
+    let submissions = [first, second].map(|transaction| {
+        let validator = validator.clone();
+
+        tokio::spawn(async move { validator.submit(transaction).await })
+    });
+    let mut results = Vec::new();
+    for submission in submissions {
+        results.push(submission.await.unwrap());
+    }
+
+    let submitted = results
+        .iter()
+        .filter(|(update, _)| matches!(update, TxStatusUpdate::Submitted))
+        .count();
+    let refused: Vec<_> = results
+        .iter()
+        .filter(|(update, _)| {
+            matches!(
+                update,
+                TxStatusUpdate::Rejected {
+                    error: IotaError::ObjectLockConflict { .. }
+                }
+            )
+        })
+        .collect();
+    assert_eq!(submitted, 1);
+    assert_eq!(refused.len(), 1);
+    let dry_runs = validator.state.metrics.attestation_dry_runs_total.get();
+    let expected_weight = match dry_runs {
+        2 => 1.0,
+        1 => 0.0,
+        _ => panic!("expected one or two dry runs, got {dry_runs}"),
+    };
+    assert_eq!(refused[0].1.value(), expected_weight);
 }
 
 /// The check of the owned inputs' versions also fails when the validator

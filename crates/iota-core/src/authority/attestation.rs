@@ -28,7 +28,6 @@ use iota_types::{
     deny_rule_governance::DenyRuleConfig,
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult, UserInputError},
-    gas::IotaGasStatus,
     inner_temporary_store::InnerTemporaryStore,
     messages_checkpoint::CheckpointSummaryExt,
     move_authenticator::MoveAuthenticatorExt,
@@ -69,10 +68,9 @@ impl AuthorityState {
     /// `lock_owned_objects` is called with the owned objects among the
     /// transaction's inputs before the dry run, once they pass validation and
     /// the signers have authorized the transaction; its error is returned
-    /// without running the dry run. A Move account has authorized the
-    /// transaction once its authenticators pass their own run. If they do not
-    /// run on their own, `lock_owned_objects` is not called: only the dry run
-    /// then shows that the account authorized the transaction.
+    /// without running the dry run. A transaction with Move authenticators is
+    /// authorized only by the dry run, so `lock_owned_objects` is not called
+    /// for it.
     pub(crate) fn attest_transaction(
         &self,
         transaction: &VerifiedTransaction,
@@ -137,67 +135,26 @@ impl AuthorityState {
             units_despite_failed_authentication.set(Some(units))
         });
 
-        // The dry run meters authentication and body against the whole budget,
-        // as execution does (the authenticators at most `max_auth_gas` of it),
-        // and a failed authentication is refused unpaid. So the authenticators first run on
-        // their own at the signing cap, as at admission: one that fails or
-        // exceeds `max_auth_gas` is refused before budget-sized work is done on
-        // it.
-        let authenticators_run_on_their_own =
-            !move_authenticators.is_empty() && units_despite_failed_authentication.get().is_none();
-        if authenticators_run_on_their_own {
-            let function_refs = extract_auth_fun_refs(signer, gas_data.owner, |address| {
-                move_authenticators
-                    .iter()
-                    .zip(per_authenticator_checked_inputs.iter())
-                    .find(|(move_authenticator, _)| move_authenticator.address() == address)
-                    .map(|(_, (_, auth_fun_ref))| auth_fun_ref.clone())
-            });
-            let authenticators = move_authenticators
-                .iter()
-                .zip(per_authenticator_checked_inputs.iter())
-                .map(|(move_authenticator, (input_objects, function_ref))| {
-                    (
-                        (*move_authenticator).to_owned(),
-                        function_ref.clone(),
-                        CheckedInputObjects::new_with_checked_transaction_inputs(
-                            input_objects.inner().clone(),
-                        ),
-                    )
-                })
-                .collect();
-            let capped_gas_status = IotaGasStatus::new(
-                protocol_config.max_auth_gas(),
-                gas_data.price,
-                epoch_store.reference_gas_price(),
-                protocol_config,
-            )?;
-            self.authenticate_before_consensus(
-                epoch_store,
-                transaction,
-                capped_gas_status,
-                authenticators,
-                function_refs,
-            )?;
-        }
-
-        // Validation checked that the signers own these objects, and by now
-        // the signers have authorized the transaction: signatures made with
-        // keys are verified, and the authenticators of a Move account have
-        // passed their own run. So the locks cannot hold anyone else's object,
-        // and a second transaction on the same objects is refused before it
-        // gets a dry run of its own.
-        if move_authenticators.is_empty() || authenticators_run_on_their_own {
+        // Validation checked that the signers own these objects. Signatures
+        // made with keys are verified, so the signers have authorized the
+        // transaction, and a second transaction on the same objects is refused
+        // before it gets a dry run of its own. A Move account authorizes the
+        // transaction only in the dry run, so its locks are taken after it.
+        if move_authenticators.is_empty() {
             lock_owned_objects(&owned_objects)?;
         }
 
         self.metrics.attestation_dry_runs_total.inc();
 
+        // The dry run limits the Move authenticators to `max_auth_gas`, as
+        // execution does, so a transaction it refuses costs the attestor at
+        // most that.
+        //
         // Capture the `InnerTemporaryStore` from the dry-run: its object maps are the
         // source of truth for the input versions the attestor observed. The account
         // objects are read outside the store, so their observed versions are captured
         // separately.
-        let (inner_temp_store, effects, authentication_failed, account_object_refs) =
+        let (inner_temp_store, effects, authentication_error, account_object_refs) =
             if move_authenticators.is_empty() {
                 // No Move authentication, execute directly.
                 let (inner_temp_store, _, effects, _, _) =
@@ -218,7 +175,7 @@ impl AuthorityState {
                         &mut None,
                     );
                 // This branch has no Move authentication, so it can never fail auth.
-                (inner_temp_store, effects, false, Vec::new())
+                (inner_temp_store, effects, None, Vec::new())
             } else {
                 // Recover the `AuthenticatorFunctionRefForExecution` for each authenticator and
                 // run auth + execution in one pass.
@@ -322,31 +279,29 @@ impl AuthorityState {
                 (
                     inner_temp_store,
                     effects,
-                    authentication_error.is_some(),
+                    authentication_error,
                     account_object_refs,
                 )
             };
 
         // Build `AttestationData`. The claim is in gas units, independent
         // of the gas price the user chose.
-        let computation_units = if authentication_failed {
+        let computation_units = match authentication_error {
             // Refuse to attest a transaction when its Move authentication did
-            // not succeed. Any other failure (out-of-gas or a Move abort in the
-            // transaction body) is the issuer's responsibility and is still
-            // attested, sequenced and charged as a failed transaction under
-            // the normal flow.
-            units_despite_failed_authentication.get().ok_or_else(|| {
+            // not succeed, with the error admission reports for it. Any other
+            // failure (out-of-gas or a Move abort in the transaction body) is
+            // the issuer's responsibility and is still attested, sequenced and
+            // charged as a failed transaction under the normal flow.
+            Some(error) => units_despite_failed_authentication.get().ok_or_else(|| {
                 self.authentication_failure(
                     tx,
                     epoch_store.epoch(),
-                    IotaError::Execution(format!(
-                        "refusing to attest transaction with failed Move authentication: {:?}",
-                        effects.status()
-                    )),
+                    IotaError::MoveAuthenticatorExecutionFailure {
+                        error: error.to_string(),
+                    },
                 )
-            })?
-        } else {
-            attestation::computation_units(effects.gas_cost_summary(), tx.gas_price())
+            })?,
+            None => attestation::computation_units(effects.gas_cost_summary(), tx.gas_price()),
         };
 
         // Tests register the `attest-object-versions` fail point to make a
