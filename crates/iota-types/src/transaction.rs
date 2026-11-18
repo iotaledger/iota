@@ -3571,7 +3571,8 @@ impl InputObjects {
     }
 
     /// The transaction named by the dependency input when it did not execute
-    /// successfully, so this transaction must be cancelled before running.
+    /// successfully. This transaction then fails with
+    /// `TransactionDependencyFailed` without running its commands.
     pub fn failed_transaction_dependency(&self) -> Option<TransactionDigest> {
         self.transaction_dependency
             .filter(|dependency| !dependency.succeeded)
