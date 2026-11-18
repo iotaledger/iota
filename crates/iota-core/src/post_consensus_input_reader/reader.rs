@@ -19,7 +19,7 @@ use iota_types::{
         AuthenticatorFunctionRef, authenticator_function_ref_v1_from_dynamic_field_object,
         derive_authenticator_function_ref_v1_dynamic_field_id,
     },
-    deny_list_v1::coin_deny_list_v1_denial,
+    deny_list_v1::{coin_deny_list_v1_denial, coin_type_of_object_for_denylist_check},
     error::{IotaError, IotaResult, UserInputError},
     object::Object,
     storage::{
@@ -63,7 +63,7 @@ pub fn horizon(protocol_config: &ProtocolConfig, commit_index: CommitIndex) -> C
 /// Reads inputs as of one consensus commit. Built once per commit and passed
 /// to every transition that touches a store. A shared input, a package input
 /// or a dynamic field read a second time at the commit gets the first read's
-/// result.
+/// result, and so does the coin type of a shared input.
 pub struct CommitIndexedReader {
     pub(super) cache: Arc<dyn ObjectCacheRead>,
     pub(super) epoch_store: Arc<AuthorityPerEpochStore>,
@@ -77,12 +77,16 @@ pub struct CommitIndexedReader {
     shared_verdicts: Verdicts<(ObjectId, Version), SharedVerdict>,
     package_verdicts: Verdicts<ObjectId, PackageVerdict>,
     dynamic_fields: Verdicts<ObjectId, DynamicFieldAtHorizon>,
+    /// Only the type is kept, never the object it was read from: that
+    /// object is the store's latest version, not an answer as of the horizon.
+    shared_coin_types: Verdicts<(ObjectId, Version), Option<String>>,
 }
 
-/// The result of each read so far at a commit: the verdict of an input, or a
-/// dynamic field as of the horizon. One caller reads a key and every other
-/// caller of it, on any thread, waits for that read and gets its result. A
-/// read that fails is not kept, so a later caller reads again.
+/// The result of each read so far at a commit: the verdict of an input, a
+/// dynamic field as of the horizon, or the coin type of a shared input. One
+/// caller reads a key and every other caller of it, on any thread, waits for
+/// that read and gets its result. A read that fails is not kept, so a later
+/// caller reads again.
 struct Verdicts<K, V> {
     results: Mutex<HashMap<K, Arc<OnceCell<V>>>>,
     /// Counts the calls answered without a read.
@@ -129,6 +133,7 @@ impl CommitIndexedReader {
             shared_verdicts: Verdicts::new(reused("shared")),
             package_verdicts: Verdicts::new(reused("package")),
             dynamic_fields: Verdicts::new(reused("dynamic_field")),
+            shared_coin_types: Verdicts::new(reused("shared_coin_type")),
             cache,
             epoch_store,
             horizon,
@@ -439,11 +444,36 @@ impl CommitIndexedReader {
         })
     }
 
+    /// The coin type of the shared input `id` declared at
+    /// `initial_shared_version`, as
+    /// [`coin_type_of_object_for_denylist_check`] gives it. The input must be
+    /// one [`Self::read_shared`] kept at this commit. The answer holds for
+    /// the rest of the commit.
+    ///
+    /// # Errors
+    ///
+    /// Storage errors, and an input with neither a live object nor the
+    /// version its deletion replaced.
+    pub fn read_shared_coin_type(
+        &self,
+        id: ObjectId,
+        initial_shared_version: Version,
+    ) -> IotaResult<Option<String>> {
+        // Reuse is correct because an object's type never changes, not
+        // because of the horizon: the object is read at whatever version the
+        // store holds.
+        self.shared_coin_types
+            .get_or_read((id, initial_shared_version), || {
+                let object = self.read_shared_object_for_type(id, initial_shared_version)?;
+                Ok(coin_type_of_object_for_denylist_check(&object))
+            })
+    }
+
     /// An object of the kept shared input `id` declared at
     /// `initial_shared_version`, for its type. Storage errors propagate, and
     /// so does an input with neither a live object nor the version its
     /// deletion replaced.
-    pub fn read_shared_object_for_type(
+    fn read_shared_object_for_type(
         &self,
         id: ObjectId,
         initial_shared_version: Version,

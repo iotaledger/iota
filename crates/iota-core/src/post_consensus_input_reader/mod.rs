@@ -120,10 +120,13 @@
 //! then the rows again, as explained under "Why the store answer for an id
 //! with no row is the epoch-start state" above.
 //!
-//! The coin deny check also needs the type of a kept shared input, whose
-//! object the shared reader does not read. That read takes the latest store
+//! The coin deny check also needs the type of a kept shared input. The shared
+//! reader reads that input's object only to check that it exists and is
+//! shared, and does not return it. The type read takes the latest store
 //! object even when rows exist, because an object's type never changes, and
-//! once the object is gone, the version its deletion replaced.
+//! once the object is gone, the version its deletion replaced. The reader
+//! keeps the type for the rest of the commit, and only the type: the object
+//! it came from is not an answer as of the horizon.
 
 use iota_sdk_types::{ObjectReference, TransactionDigest, Version};
 use iota_types::{
