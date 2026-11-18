@@ -27,7 +27,7 @@ use iota_types::{
     committee::Committee,
     deny_rule_governance::DenyRuleConfig,
     effects::TransactionEffectsAPI,
-    error::{IotaError, IotaResult},
+    error::{IotaError, IotaResult, UserInputError},
     gas::IotaGasStatus,
     inner_temporary_store::InnerTemporaryStore,
     messages_checkpoint::CheckpointSummaryExt,

@@ -459,7 +459,7 @@ async fn admission_results(
     let deny_config = &env.authority.config.transaction_deny_config;
     let attested = env
         .authority
-        .attest_transaction(&verified, &epoch_store, deny_config)
+        .attest_transaction(&verified, &epoch_store, deny_config, |_| Ok(()))
         .map(|_| ());
     let validated = env
         .authority
