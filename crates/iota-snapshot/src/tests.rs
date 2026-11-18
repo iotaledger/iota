@@ -24,7 +24,10 @@ use futures::{StreamExt, future::AbortHandle, stream::BoxStream};
 use indicatif::MultiProgress;
 use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use iota_core::{
-    authority::authority_store_tables::AuthorityPerpetualTables,
+    authority::{
+        AuthorityStore,
+        authority_store_tables::{AuthorityPerpetualTables, LiveObject},
+    },
     checkpoints::CheckpointStore,
     epoch_end_db_snapshot::EpochEndDbSnapshotRequest,
     global_state_hasher::GlobalStateHasher,
@@ -2339,11 +2342,11 @@ fn restore_with_indexes_inserts_on_the_blocking_pool() -> Result<(), anyhow::Err
         file_compression: FileCompression::None,
         sha3_digest: unchecked_file_digest,
     };
-    let mut hasher = Sha3_256::default();
-    for live_object in snapshot.source_db.iter_live_object_set() {
-        hasher.update(live_object?.object_reference().digest.bytes());
-    }
-    let partition_checksum = hasher.finalize().digest;
+    let live_objects: Vec<_> = snapshot
+        .source_db
+        .iter_live_object_set()
+        .collect::<Result<_, _>>()?;
+    let partition_checksum = partition_checksum_of(&live_objects);
 
     let restored_db = Arc::new(AuthorityPerpetualTables::open(
         &dir.path().join("restored_db"),
@@ -2583,6 +2586,52 @@ fn a_failed_restore_stops_the_state_hash_computation() -> Result<(), anyhow::Err
         );
         Ok(())
     })
+}
+
+/// The checksum of a partition that holds `live_objects`: the sha3 hash of
+/// their object digests, in their order.
+fn partition_checksum_of<'a>(live_objects: impl IntoIterator<Item = &'a LiveObject>) -> [u8; 32] {
+    let mut hasher = Sha3_256::default();
+    for live_object in live_objects {
+        hasher.update(live_object.object_reference().digest.bytes());
+    }
+    hasher.finalize().digest
+}
+
+/// A partition whose objects do not match the expected checksum is an error,
+/// and nothing of it is written: no object and no live owned object marker.
+#[tokio::test]
+async fn a_partition_with_a_wrong_checksum_is_an_error_and_writes_nothing()
+-> Result<(), anyhow::Error> {
+    let dir = iota_common::tempdir();
+    let db = AuthorityPerpetualTables::open(&dir.path().join("db"), None);
+    let live_objects: Vec<_> =
+        std::iter::successors(Some(ObjectId::ZERO), |id| Some(id.next_lexicographical()))
+            .take(3)
+            .map(|id| LiveObject {
+                object: Object::with_id_owner_for_testing(id, Address::from_u16(7)),
+                previous_transaction_checkpoint: Some(0),
+            })
+            .collect();
+    let checksum = partition_checksum_of(&live_objects);
+    let mut wrong_checksum = checksum;
+    wrong_checksum[0] ^= 1;
+
+    AuthorityStore::bulk_insert_live_objects(
+        &db,
+        live_objects.clone().into_iter(),
+        &wrong_checksum,
+    )
+    .expect_err("a wrong checksum must be an error");
+    assert_eq!(db.iter_live_object_set().count(), 0);
+    assert!(db.live_owned_object_markers_test_only()?.is_empty());
+
+    // The same objects with their checksum are written, so the error above
+    // comes from the checksum.
+    AuthorityStore::bulk_insert_live_objects(&db, live_objects.into_iter(), &checksum)?;
+    assert_eq!(db.iter_live_object_set().count(), 3);
+    assert_eq!(db.live_owned_object_markers_test_only()?.len(), 3);
+    Ok(())
 }
 
 /// The restore must give every live object that is not a child object a live
