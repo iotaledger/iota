@@ -568,9 +568,12 @@ fun verify_personal_message_signature_rejects_another_message() {
 }
 
 #[test]
-fun verify_personal_message_signature_rejects_transaction_intent() {
+fun verify_personal_message_signature_rejects_transaction_intent_signature() {
     let public_key = public_key::create(signature_scheme::ed25519(), PM_ED25519_PUBLIC_KEY);
 
+    // The same key signs the same bytes of `PM_MESSAGE`, but with the transaction intent instead
+    // of the personal message intent: a check that also accepted the transaction intent would
+    // return `true` here and pass every other test.
     assert_eq(
         verify_pm_message(&public_key, PM_ED25519_TRANSACTION_INTENT_SIGNATURE),
         false,
