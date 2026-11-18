@@ -283,9 +283,9 @@ impl LocalVm {
     /// metered at the signing gas cap (`max_auth_gas`); commits nothing.
     ///
     /// Complements [`execute_signed`](Self::execute_signed), which models the
-    /// post-consensus path, where the authenticators get the full budget unless
-    /// the protocol also limits them to `max_auth_gas` at execution; a
-    /// transaction is accepted on-chain only if it passes both. See
+    /// post-consensus path, where the authenticators get the full budget, or at
+    /// most `max_auth_gas` of it with validator attestation; a transaction is
+    /// accepted on-chain only if it passes both. See
     /// `docs/execution-model.md` for the full phase/budget mapping.
     ///
     /// Standard-scheme signatures are verified cryptographically first, as at

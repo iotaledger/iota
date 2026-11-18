@@ -10,15 +10,15 @@ The node runs a transaction in two phases, and the gas budget depends on whether
 `MoveAuthenticator`s are present. `max_auth_gas` is a protocol-config value; it
 **caps** the budget in the pre-consensus signing phase. Post-consensus the
 check function gets it only to enforce the "Move authentication is enabled"
-precondition and meters at the full budget; from the protocol version with
-`limit_move_authentication_gas_at_execution`, the execution engine itself holds
-the authenticators to `max_auth_gas` of that budget, and the body gets the rest.
+precondition and meters at the full budget; with validator attestation
+(`enable_validator_attestation`), the execution engine itself holds the
+authenticators to `max_auth_gas` of that budget, and the body gets the rest.
 
-| Node phase                                     | Check function                                   | budget arg     | `is_execute_...` | resulting `IotaGasStatus` budget | engine call                                        | who runs                                                                                                                |
-| ---------------------------------------------- | ------------------------------------------------ | -------------- | ---------------- | -------------------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Pre-consensus signing (with authenticators)    | `check_transaction_input`                        | `max_auth_gas` | `false`          | **`max_auth_gas`** (capped)      | `authenticate_transaction`                         | filtered set — sponsor-only if sponsored and the flag is on, else all — sharing one `max_auth_gas` budget               |
-| Post-consensus cert exec (with authenticators) | `check_certificate_and_move_authenticator_input` | `max_auth_gas` | `true`           | **full tx budget**               | `authenticate_then_execute_transaction_to_effects` | all authenticators + body share the full tx budget, the authenticators at most `max_auth_gas` of it when the flag is on |
-| Post-consensus cert exec (no authenticators)   | `check_certificate_input`                        | `0`            | `true`           | **full tx budget**               | `execute_transaction_to_effects`                   | body only                                                                                                               |
+| Node phase                                     | Check function                                   | budget arg     | `is_execute_...` | resulting `IotaGasStatus` budget | engine call                                        | who runs                                                                                                             |
+| ---------------------------------------------- | ------------------------------------------------ | -------------- | ---------------- | -------------------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Pre-consensus signing (with authenticators)    | `check_transaction_input`                        | `max_auth_gas` | `false`          | **`max_auth_gas`** (capped)      | `authenticate_transaction`                         | filtered set — sponsor-only if sponsored and the flag is on, else all — sharing one `max_auth_gas` budget            |
+| Post-consensus cert exec (with authenticators) | `check_certificate_and_move_authenticator_input` | `max_auth_gas` | `true`           | **full tx budget**               | `authenticate_then_execute_transaction_to_effects` | all authenticators + body share the full tx budget, the authenticators at most `max_auth_gas` of it with attestation |
+| Post-consensus cert exec (no authenticators)   | `check_certificate_input`                        | `0`            | `true`           | **full tx budget**               | `execute_transaction_to_effects`                   | body only                                                                                                            |
 
 The gas-coin **balance** is always checked against the full transaction budget,
 in every phase. Every phase applies `InputCheckRules::STRICT`: `check_transaction_input`
@@ -84,9 +84,9 @@ separately:
 
 - `execute_signed` runs the authenticators and body to effects under the
   per-mode budget — the **post-consensus** path. The authenticators are held
-  to `max_auth_gas` of it only when `limit_move_authentication_gas_at_execution`
-  is on; without it, `execute_signed` on its own accepts an authenticator that
-  would exceed `max_auth_gas` at signing. Authenticators that run out of
+  to `max_auth_gas` of it only with validator attestation; without it,
+  `execute_signed` on its own accepts an authenticator that would exceed
+  `max_auth_gas` at signing. Authenticators that run out of
   `max_auth_gas` fail with `InsufficientGas`, the status of a gas budget that
   is too low; the source of `ExecutionResult::execution_error` names
   `max_auth_gas` to tell the two apart.

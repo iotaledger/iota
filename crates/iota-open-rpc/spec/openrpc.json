@@ -1346,7 +1346,6 @@
                 "enable_vdf": true,
                 "hardened_otw_check": true,
                 "limit_groth16_pvk_inputs": true,
-                "limit_move_authentication_gas_at_execution": true,
                 "max_ptb_value_size_v2": true,
                 "metadata_in_module_bytes": true,
                 "meter_instantiation_loops": true,

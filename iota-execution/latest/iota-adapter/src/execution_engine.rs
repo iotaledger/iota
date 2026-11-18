@@ -304,8 +304,8 @@ mod checked {
     /// It combines the input objects from both the authentication and
     /// transaction.
     ///
-    /// The authenticators and the body are metered on `gas_status`. Under the
-    /// protocol feature flag `limit_move_authentication_gas_at_execution`, the
+    /// The authenticators and the body are metered on `gas_status`. With
+    /// validator attestation (`enable_validator_attestation`), the
     /// authenticators share at most `max_auth_gas` of it, as before consensus.
     /// When they run out of it, the status is `InsufficientGas`, as when the
     /// budget runs out, and the source of the error returned names
@@ -470,7 +470,7 @@ mod checked {
                 // consensus; the rest of the budget is there again to charge
                 // for a failure or to run the body.
                 let auth_gas_limit = protocol_config
-                    .limit_move_authentication_gas_at_execution()
+                    .enable_validator_attestation()
                     .then(|| protocol_config.max_auth_gas());
                 let ((authentication_result, gas_owner_authorized), gas_limited) = gas_charger
                     .with_gas_limit(auth_gas_limit, |gas_charger| {

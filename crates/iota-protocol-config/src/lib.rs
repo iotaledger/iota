@@ -285,8 +285,6 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             summary data version that certifies the verdicts.
 // Version 41: Commit a block's transactions once its header is traversed even
 //             if its acknowledgment quorum was reached first, outside Mainnet.
-//             The Move authenticators run at execution get at most
-//             `max_auth_gas`, as before consensus, on devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -844,7 +842,9 @@ struct FeatureFlags {
     // If true, the block-proposing validator attests each received user transaction
     // before sending it to consensus. The attestor certifies that Move authentication
     // passed and the attestation carries a computation cost estimate for
-    // shared-object scheduling.
+    // shared-object scheduling. The Move authenticators run at execution, and
+    // in the attestor's dry run, then share at most `max_auth_gas`; the
+    // transaction body gets the rest of the budget.
     #[serde(skip_serializing_if = "is_false")]
     enable_validator_attestation: bool,
 
@@ -852,16 +852,6 @@ struct FeatureFlags {
     // before its header is traversed is committed once its header is traversed.
     #[serde(skip_serializing_if = "is_false")]
     consensus_commit_transactions_once_traversed: bool,
-
-    // If true, the Move authenticators run at execution share at most
-    // `max_auth_gas`, as before consensus; the transaction body gets the rest
-    // of the budget.
-    //
-    // To be turned on only together with `enable_validator_attestation`: the
-    // attestor's dry run meters the authenticators as execution does, so it
-    // refuses a transaction that goes over the limit before consensus.
-    #[serde(skip_serializing_if = "is_false")]
-    limit_move_authentication_gas_at_execution: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2446,11 +2436,6 @@ impl ProtocolConfig {
     pub fn enable_validator_attestation(&self) -> bool {
         self.feature_flags.enable_validator_attestation
     }
-
-    pub fn limit_move_authentication_gas_at_execution(&self) -> bool {
-        self.feature_flags
-            .limit_move_authentication_gas_at_execution
-    }
 }
 
 #[cfg(not(msim))]
@@ -3991,12 +3976,6 @@ impl ProtocolConfig {
                         cfg.feature_flags
                             .consensus_commit_transactions_once_traversed = true;
                     }
-
-                    if chain != Chain::Mainnet && chain != Chain::Testnet {
-                        // The Move authenticators run at execution get at most
-                        // `max_auth_gas`, as before consensus, on devnet.
-                        cfg.feature_flags.limit_move_authentication_gas_at_execution = true;
-                    }
                 }
                 // Use this template when making changes:
                 //
@@ -5036,27 +5015,6 @@ mod test {
         });
         let config = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
         assert!(!config.enable_pcool_flow());
-    }
-
-    /// The attestor's dry run meters the Move authenticators as execution
-    /// does, so it refuses a transaction that goes over the limit before
-    /// consensus. Admission alone can leave out the sender's authenticator of
-    /// a sponsored transaction, which would then fail at execution at the
-    /// sponsor's expense. So no version of a network may turn the limit on
-    /// without attestation.
-    #[test]
-    fn move_authenticators_are_limited_at_execution_only_with_attestation() {
-        for chain in [Chain::Unknown, Chain::Mainnet, Chain::Testnet] {
-            for version in MIN_PROTOCOL_VERSION..=MAX_PROTOCOL_VERSION {
-                let config = ProtocolConfig::get_for_version(ProtocolVersion::new(version), chain);
-                assert!(
-                    !config.limit_move_authentication_gas_at_execution()
-                        || config.enable_validator_attestation(),
-                    "version {version} on {chain:?} limits the Move authenticators at execution \
-                     without validator attestation"
-                );
-            }
-        }
     }
 
     #[test]

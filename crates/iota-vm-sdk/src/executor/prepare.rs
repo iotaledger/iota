@@ -164,7 +164,7 @@ pub(super) fn prepare_transaction(
     // authenticator and body together to effects, which is the node's
     // post-consensus path, where they share the full transaction budget
     // (the execution engine itself holds the authenticators to
-    // `max_auth_gas` when the protocol limits them there). A `0` budget makes
+    // `max_auth_gas` with validator attestation). A `0` budget makes
     // `check_transaction_input` meter at the full transaction budget, as
     // `check_certificate_input` does. (Move-authentication support is
     // verified before preparation, so the precondition a non-zero budget
