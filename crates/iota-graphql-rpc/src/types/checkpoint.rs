@@ -437,20 +437,18 @@ impl Checkpoint {
         checkpoint_viewed_at: u64,
     ) -> Result<CheckpointConnection, Error> {
         let oldest_available_checkpoint = Self::oldest_available_checkpoint(db);
-        let empty_page =
-            || Connection::with_additional_fields(false, false, oldest_available_checkpoint.into());
 
         let cursor_viewed_at = page.validate_cursor_consistency()?;
         let checkpoint_viewed_at = cursor_viewed_at.unwrap_or(checkpoint_viewed_at);
 
         if page.limit() == 0 {
-            return Ok(empty_page());
+            return Ok(empty_page(oldest_available_checkpoint));
         }
 
         let Some((absolute_lo_incl, absolute_hi_incl)) =
             Self::pagination_range(db, filter, checkpoint_viewed_at).await?
         else {
-            return Ok(empty_page());
+            return Ok(empty_page(oldest_available_checkpoint));
         };
 
         // Without a fallback, anything below the pruning watermark is unreachable
@@ -468,7 +466,7 @@ impl Checkpoint {
         let Some(page_range) =
             page.narrow_to_available_range(&available_range, oldest_available_checkpoint)?
         else {
-            return Ok(empty_page());
+            return Ok(empty_page(oldest_available_checkpoint));
         };
 
         // Take `limit` sequence numbers from the appropriate end of the page range.
@@ -524,6 +522,11 @@ impl Checkpoint {
 
         Ok(conn)
     }
+}
+
+/// A page without checkpoints, reporting `oldest_available_checkpoint`.
+fn empty_page(oldest_available_checkpoint: OldestAvailableCheckpoint) -> CheckpointConnection {
+    Connection::with_additional_fields(false, false, oldest_available_checkpoint.into())
 }
 
 impl Target<Cursor> for StoredCheckpoint {
