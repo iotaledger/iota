@@ -1399,7 +1399,8 @@ impl AuthorityState {
     }
 
     /// Runs `authenticators` on their own, metered by `gas_status`, and fails
-    /// as admission does when one rejects the transaction or runs out of gas.
+    /// as admission does when one rejects the transaction or runs out of gas,
+    /// with the error of [`Self::authentication_failure`].
     /// `function_refs` are the sender's and the gas owner's authenticator
     /// functions, resolved over every authenticator of the transaction.
     fn authenticate_before_consensus(
@@ -1456,8 +1457,14 @@ impl AuthorityState {
             auth_context_data,
             &mut None,
         );
-        result.map_err(|error| IotaError::MoveAuthenticatorExecutionFailure {
-            error: error.to_string(),
+        result.map_err(|error| {
+            self.authentication_failure(
+                tx,
+                epoch_store.epoch(),
+                IotaError::MoveAuthenticatorExecutionFailure {
+                    error: error.to_string(),
+                },
+            )
         })
     }
 
@@ -2186,6 +2193,25 @@ impl AuthorityState {
             .into());
         }
         Ok(None)
+    }
+
+    /// The error to report when `transaction`'s Move authentication failed at
+    /// admission with `error`: the error of
+    /// [`Self::check_transaction_dependency_known_outcome`] if it returns one;
+    /// the retriable `TransactionDependencyNotFound` while the dependency has
+    /// not executed here, since the authenticators ran without its writes;
+    /// `error` otherwise.
+    fn authentication_failure(
+        &self,
+        transaction: &Transaction,
+        current_epoch: EpochId,
+        error: IotaError,
+    ) -> IotaError {
+        match self.check_transaction_dependency_known_outcome(transaction, current_epoch) {
+            Ok(Some(digest)) => UserInputError::TransactionDependencyNotFound { digest }.into(),
+            Ok(None) => error,
+            Err(dependency_error) => dependency_error,
+        }
     }
 
     /// Checks the transaction named by `transaction`'s dependency input before

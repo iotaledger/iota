@@ -447,3 +447,76 @@ async fn move_account_pays_nothing_for_a_dependent_it_did_not_authorize() {
     assert_dependency_failed(&effects, failing_digest);
     assert_eq!(effects.gas_cost_summary(), &GasCostSummary::default());
 }
+
+/// The results of admitting `transaction` on `env`'s authority with the
+/// attestor's dry run and with the validation checks alone.
+async fn admission_results(
+    env: &AbstractAccountTestEnv,
+    transaction: &TransactionEnvelope,
+) -> [IotaResult<()>; 2] {
+    let epoch_store = env.authority.epoch_store_for_testing();
+    let verified = epoch_store.verify_transaction(transaction.clone()).unwrap();
+    let deny_config = &env.authority.config.transaction_deny_config;
+    let attested = env
+        .authority
+        .attest_transaction(&verified, &epoch_store, deny_config)
+        .map(|_| ());
+    let validated = env
+        .authority
+        .handle_transaction_validation_checks(&verified, &epoch_store, deny_config)
+        .await
+        .map(|_| ());
+    [attested, validated]
+}
+
+/// A dependent signed with the key its dependency rotates the account to
+/// fails authentication until the dependency executes. Until then admission
+/// reports the retriable `TransactionDependencyNotFound`; afterwards it admits
+/// the dependent, and reports a failed authentication as such.
+#[tokio::test]
+async fn failed_authentication_of_a_dependent_is_retriable_until_its_dependency_executes() {
+    let _guard = move_account_config(true);
+    let mut env = AbstractAccountTestEnv::new().await;
+    let (_, new_key): (_, AccountPrivateKey) = get_key_pair();
+    let rotation = env.rotate_owner_key_transaction(&new_key);
+    let rotation_digest = *rotation.digest();
+    let dependent = env.dependent_account_transaction_signed_with(rotation_digest, &new_key);
+    let (_, unrelated_key): (_, AccountPrivateKey) = get_key_pair();
+    let unauthorized =
+        env.dependent_account_transaction_signed_with(rotation_digest, &unrelated_key);
+
+    for result in admission_results(&env, &dependent).await {
+        assert!(
+            matches!(
+                &result,
+                Err(IotaError::UserInput {
+                    error: UserInputError::TransactionDependencyNotFound { digest }
+                }) if *digest == rotation_digest
+            ),
+            "{result:?}"
+        );
+    }
+
+    let attestation = env.attest(&rotation);
+    let effects = env.submit(rotation, Some(attestation)).await;
+    assert!(effects.status().is_success(), "{effects:?}");
+
+    for result in admission_results(&env, &dependent).await {
+        assert!(result.is_ok(), "{result:?}");
+    }
+    let [attested, validated] = admission_results(&env, &unauthorized).await;
+    assert!(
+        matches!(
+            &attested,
+            Err(IotaError::MoveAuthenticatorExecutionFailure { .. })
+        ),
+        "{attested:?}"
+    );
+    assert!(
+        matches!(
+            &validated,
+            Err(IotaError::MoveAuthenticatorExecutionFailure { .. })
+        ),
+        "{validated:?}"
+    );
+}

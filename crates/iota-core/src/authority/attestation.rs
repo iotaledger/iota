@@ -336,10 +336,14 @@ impl AuthorityState {
             // attested, sequenced and charged as a failed transaction under
             // the normal flow.
             units_despite_failed_authentication.get().ok_or_else(|| {
-                IotaError::Execution(format!(
-                    "refusing to attest transaction with failed Move authentication: {:?}",
-                    effects.status()
-                ))
+                self.authentication_failure(
+                    tx,
+                    epoch_store.epoch(),
+                    IotaError::Execution(format!(
+                        "refusing to attest transaction with failed Move authentication: {:?}",
+                        effects.status()
+                    )),
+                )
             })?
         } else {
             attestation::computation_units(effects.gas_cost_summary(), tx.gas_price())
