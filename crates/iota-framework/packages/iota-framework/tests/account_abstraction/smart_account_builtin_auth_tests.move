@@ -17,9 +17,9 @@ use std::ascii;
 // === Fixtures ===
 //
 // Ed25519 signatures of IOTA personal messages, in `UserSignature` wire format, made with
-// `iota-sdk-crypto`. `key_proof_tests.rs` in `iota-types` makes the same bytes and signatures.
-// Each signs a `KeyProofMessage` with the chain identifier these tests see, `TX_NONCE` and
-// `VALID_UNTIL_EPOCH`.
+// `iota-sdk-crypto` (`sign_personal_message`) by the keys `StdRng::from_seed([0; 32])` gives
+// first and second. Each signs the key proof text for the chain identifier these tests see,
+// `TX_NONCE` and `VALID_UNTIL_EPOCH`.
 
 /// The raw Ed25519 key K.
 const PUBLIC_KEY: vector<u8> = x"b9c6ee1630ef3e711144a648db06bbb2284f7274cfbee53ffcee503cc1a49200";
@@ -35,21 +35,21 @@ const TX_NONCE: vector<u8> = x"6e6f6e63656e6f6e63656e6f6e63656e6f6e63656e6f6e636
 const ACCOUNT: address = @0x034401905bebdf8c04f3cd5f04f442a39372c8dc321c29edfb4f9cb30b23ab96;
 
 /// What the holder of a key signs to attach it to a new account created by `@0x0`.
-const NEW_ACCOUNT_KEY_PROOF_BYTES: vector<u8> =
-    x"6d303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030323a3a736d6172745f6163636f756e745f6275696c74696e5f617574683a3a4b657950726f6f664d657373616765200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001206e6f6e63656e6f6e63656e6f6e63656e6f6e63656e6f6e63656e6f6e63656e6f0500000000000000";
+const NEW_ACCOUNT_KEY_PROOF_MESSAGE: vector<u8> =
+    b"check: 0x2::smart_account_builtin_auth::verify_key_proof\nnetwork: 0000000000000000000000000000000000000000000000000000000000000000\naccount: 0x0000000000000000000000000000000000000000000000000000000000000000\nnew account: true\nnonce: 6e6f6e63656e6f6e63656e6f6e63656e6f6e63656e6f6e63656e6f6e63656e6f\nvalid until epoch: 5";
 
 /// K's proof for a new account created by `@0x0`.
 const NEW_ACCOUNT_SIGNATURE: vector<u8> =
-    x"00e6e96c42782e06b1117c2bb80e8a580d5fb0e53b1fc353e37bd5b2e55945fe36fbc91111fc0bc54e3ef1d53273c6068dcb5a789ec9b642af6dcd646db1f0aa0fb9c6ee1630ef3e711144a648db06bbb2284f7274cfbee53ffcee503cc1a49200";
+    x"007c0472624dc80860931677c30e55293066e3e23d783e3d06e607b2e3c263a9a11c9b973db99845e41d796ce9b1c9daed9748f18f6272e34cd53e73efded15309b9c6ee1630ef3e711144a648db06bbb2284f7274cfbee53ffcee503cc1a49200";
 /// K's proof for the existing account `ACCOUNT`.
 const ACCOUNT_SIGNATURE: vector<u8> =
-    x"00d960bc4aa80853cf25313b435c6ee9cae0d9a4f2c16dbaaaac740820c029d8b46cf0645ba09125f407e373a23ef6912697b13e856a82acc6c187d96ba20c590bb9c6ee1630ef3e711144a648db06bbb2284f7274cfbee53ffcee503cc1a49200";
+    x"001a2873125a7a0e2e992b5d42937492ce282e3995bf85ae854b1e475c2f3cda84d0234160c1b7537994587bdc1349cc117041744c770e84a943dbc6e9e2cfb90db9c6ee1630ef3e711144a648db06bbb2284f7274cfbee53ffcee503cc1a49200";
 /// K2's proof for the existing account `ACCOUNT`.
 const OTHER_KEY_ACCOUNT_SIGNATURE: vector<u8> =
-    x"00387dfe109083bd7c9639f4ea9e7d49eb0c61d9ff9d6c13738273bfaf3237873ad6826bd7732f1c7f380c9183f97ea2cf863f6cda1470eeb7e8d65ca2f5dd180eaef3f4a4b8eca1dfc343361bf8e436bd42de9259c04b8314eb8e2054dd6e82ab";
+    x"00cf26fe79c2e58746b41563509a8a0025c989d074ff6e9bc7087e3ffa37aa6422fe519749054cdec397867ec9625a7fb254cdab806a111f8371b7abc9d7c8ca02aef3f4a4b8eca1dfc343361bf8e436bd42de9259c04b8314eb8e2054dd6e82ab";
 /// K2's proof for a new account created by `ACCOUNT`.
 const OTHER_KEY_NEW_ACCOUNT_SIGNATURE: vector<u8> =
-    x"004c9050a8579131ead5e9b576fb36bcb343cf868e4f144c9124cd8f02a0afc29f125b0e0eff24065dcca9d79b2a6b6e474d35b8ffae02aa7749421773059a8b0caef3f4a4b8eca1dfc343361bf8e436bd42de9259c04b8314eb8e2054dd6e82ab";
+    x"0097ff8299e4866f7242e470bb5d0bad2e07847bf91031143056c1007bf5396689a44cfdfa4d71d4ec474b580b33f96e627536cdc5cda6c454d6f896270669a60caef3f4a4b8eca1dfc343361bf8e436bd42de9259c04b8314eb8e2054dd6e82ab";
 
 // === builder_v1 ===
 
@@ -170,21 +170,6 @@ fun builder_v1_aborts_for_a_changed_signature() {
         .build_v1();
 }
 
-#[test]
-fun key_proof_bytes_are_the_type_name_and_the_bcs_message() {
-    let ctx = ctx_in_epoch(@0x0, 0);
-
-    assert_eq(
-        smart_account_builtin_auth::key_proof_bytes_for_testing(
-            @0x0,
-            true,
-            VALID_UNTIL_EPOCH,
-            &ctx,
-        ),
-        NEW_ACCOUNT_KEY_PROOF_BYTES,
-    );
-}
-
 // === key_proof_message ===
 
 /// The example of the design: values read from testnet, and the text they give.
@@ -194,6 +179,22 @@ const EXAMPLE_ACCOUNT: address = @0xf9e4f7f66304ca332d20636b5358b0b9297afbc7428b
 const EXAMPLE_NONCE: vector<u8> = x"dbf7a1f60789ef83fe154a99c04c583785f44a74760105e17a8e7338c77c6cd1";
 const EXAMPLE_MESSAGE: vector<u8> =
     b"check: 0x2::smart_account_builtin_auth::verify_key_proof\nnetwork: 2304aa976b1765b020886e8b5c7369e169bc779154b9c3efb4dd15c6039c0679\naccount: 0xf9e4f7f66304ca332d20636b5358b0b9297afbc7428bc107fc5dbc64fb204125\nnew account: true\nnonce: dbf7a1f60789ef83fe154a99c04c583785f44a74760105e17a8e7338c77c6cd1\nvalid until epoch: 730";
+
+#[test]
+fun key_proof_message_is_the_text_for_the_transaction() {
+    let ctx = ctx_in_epoch(@0x0, 0);
+
+    assert_eq(
+        smart_account_builtin_auth::key_proof_message(
+            ctx.chain_identifier(),
+            @0x0,
+            true,
+            ctx.tx_nonce(),
+            VALID_UNTIL_EPOCH,
+        ),
+        NEW_ACCOUNT_KEY_PROOF_MESSAGE,
+    );
+}
 
 #[test]
 fun key_proof_message_matches_the_example_of_the_design() {

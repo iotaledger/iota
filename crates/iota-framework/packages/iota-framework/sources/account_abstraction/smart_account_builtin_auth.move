@@ -20,24 +20,31 @@
 /// without the built-in authenticator.
 ///
 /// `builder_v1`, `rotate_to_builtin_auth_v1` and `rotate_public_key` attach a key only with its
-/// holder's proof: a signature by the key, as an IOTA personal message, over
-/// `bcs(type name of KeyProofMessage) || bcs(KeyProofMessage)`. The type name is taken with
-/// original IDs. The message names the network, the account the key goes to, whether that account
-/// is new, the transaction's nonce, and the last epoch in which the proof is valid. A proof is
-/// accepted only in the one executed transaction whose nonce it names, and in that transaction by
-/// every check for the same account. A MultiSig key can't sign the proof, so it reaches a
-/// `SmartAccount` only through `ClaimAccount`.
+/// holder's proof: a signature by the key, as an IOTA personal message, over a text that names
+/// the network, the account the key goes to, whether that account is new, the transaction's
+/// nonce, and the last epoch in which the proof is valid. For example:
+///
+/// ```
+/// check: 0x2::smart_account_builtin_auth::verify_key_proof
+/// network: 2304aa976b1765b020886e8b5c7369e169bc779154b9c3efb4dd15c6039c0679
+/// account: 0xf9e4f7f66304ca332d20636b5358b0b9297afbc7428bc107fc5dbc64fb204125
+/// new account: true
+/// nonce: dbf7a1f60789ef83fe154a99c04c583785f44a74760105e17a8e7338c77c6cd1
+/// valid until epoch: 730
+/// ```
+///
+/// A proof is accepted only in the one executed transaction whose nonce it names, and in that
+/// transaction by every check for the same account. A MultiSig key can't sign the proof, so it
+/// reaches a `SmartAccount` only through `ClaimAccount`.
 ///
 /// Claiming an existing address through the `ClaimAccount` transaction kind drives the private
 /// `claim_account_v1` below. It needs no proof: the key signs that transaction.
 module iota::smart_account_builtin_auth;
 
 use iota::authenticator_function::AuthenticatorFunctionRefV1;
-use iota::bcs;
 use iota::builtin_authenticator_functions::{Self, builtin_authenticator_function_ref_v1};
 use iota::public_key::PublicKey;
 use iota::smart_account::{Self, SmartAccount, SmartAccountBuilder};
-use std::type_name;
 
 // === Errors ===
 
@@ -53,23 +60,6 @@ const EAuthenticatorIsBuiltin: vector<u8> =
 const EKeyProofExpired: vector<u8> = b"The key proof has expired.";
 #[error(code = 4)]
 const EInvalidKeyProof: vector<u8> = b"The key proof is not a valid signature by the key.";
-
-// === Structs ===
-
-/// The message a key holder signs to approve attaching the key to a `SmartAccount`.
-public struct KeyProofMessage has drop {
-    /// The 32-byte chain identifier of the network.
-    chain_identifier: vector<u8>,
-    /// The account the key is attached to. For a new account, the transaction sender, since the
-    /// new account's address is not known before signing.
-    account: address,
-    /// `true` for a new account, `false` for an existing one.
-    new_account: bool,
-    /// The nonce of the transaction.
-    nonce: vector<u8>,
-    /// The last epoch in which the proof is valid.
-    valid_until_epoch: u64,
-}
 
 // === Public Functions ===
 
@@ -280,41 +270,17 @@ fun verify_key_proof(
 ) {
     assert!(ctx.epoch() <= valid_until_epoch, EKeyProofExpired);
 
-    let message = key_proof_bytes(account, new_account, valid_until_epoch, ctx);
+    let message = key_proof_message(
+        ctx.chain_identifier(),
+        account,
+        new_account,
+        ctx.tx_nonce(),
+        valid_until_epoch,
+    );
     assert!(public_key.verify_personal_message_signature(signature, &message), EInvalidKeyProof);
 }
 
-/// Returns the bytes a key holder signs: `bcs(type name of KeyProofMessage) || bcs(message)`.
-fun key_proof_bytes(
-    account: address,
-    new_account: bool,
-    valid_until_epoch: u64,
-    ctx: &TxContext,
-): vector<u8> {
-    let message = KeyProofMessage {
-        chain_identifier: ctx.chain_identifier(),
-        account,
-        new_account,
-        nonce: ctx.tx_nonce(),
-        valid_until_epoch,
-    };
-    let mut bytes = bcs::to_bytes(&type_name::get_with_original_ids<KeyProofMessage>());
-    bytes.append(bcs::to_bytes(&message));
-    bytes
-}
-
 // === Test Functions ===
-
-#[test_only]
-/// Returns the bytes a key holder signs to attach a key to `account` in the transaction of `ctx`.
-public fun key_proof_bytes_for_testing(
-    account: address,
-    new_account: bool,
-    valid_until_epoch: u64,
-    ctx: &TxContext,
-): vector<u8> {
-    key_proof_bytes(account, new_account, valid_until_epoch, ctx)
-}
 
 /// Test-only entry to `claim_account_v1`, which is private so that only the node's
 /// `ClaimAccount` pipeline can reach it.
