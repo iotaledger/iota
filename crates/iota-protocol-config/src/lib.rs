@@ -290,8 +290,9 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Ed25519, Secp256k1, Secp256r1, and MultiSig signature schemes,
 //             deriving IOTA addresses from public keys, and verifying a
 //             signature of a personal message by a public key.
-//             Introduce the Move native function that returns the nonce of the
-//             transaction.
+//             Introduce the Move native functions that return the nonce of the
+//             transaction and the text a key holder signs to approve attaching
+//             their key to a SmartAccount.
 //             Set the gas costs of those natives and of the built-in Move
 //             authenticators on all networks.
 //             Add `tx_context::chain_identifier`, which returns the digest of
@@ -1451,6 +1452,10 @@ pub struct ProtocolConfig {
     tx_context_replace_cost_base: Option<u64>,
     // Cost param for the Move native function `tx_context::native_tx_nonce(): vector<u8>`
     tx_context_tx_nonce_cost_base: Option<u64>,
+    // Cost param for the Move native function
+    // `smart_account_builtin_auth::key_proof_message(chain_identifier: vector<u8>, account:
+    // address, new_account: bool, nonce: vector<u8>, valid_until_epoch: u64): vector<u8>`
+    smart_account_builtin_auth_key_proof_message_cost_base: Option<u64>,
 
     // Types
     // Cost params for the Move native function `is_one_time_witness<T: drop>(_: &T): bool`
@@ -2943,6 +2948,7 @@ impl ProtocolConfig {
             tx_context_ids_created_cost_base: None,
             tx_context_replace_cost_base: None,
             tx_context_tx_nonce_cost_base: None,
+            smart_account_builtin_auth_key_proof_message_cost_base: None,
 
             // `types` module
             // Cost params for the Move native function `is_one_time_witness<T: drop>(_: &T): bool`
@@ -4084,6 +4090,7 @@ impl ProtocolConfig {
                         Some(2);
                     cfg.tx_context_chain_identifier_cost_base = Some(30);
                     cfg.tx_context_tx_nonce_cost_base = Some(30);
+                    cfg.smart_account_builtin_auth_key_proof_message_cost_base = Some(52);
                 }
                 // Use this template when making changes:
                 //

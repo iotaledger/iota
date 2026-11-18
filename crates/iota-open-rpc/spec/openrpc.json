@@ -2214,6 +2214,9 @@
                 "scorer_version": {
                   "u16": "2"
                 },
+                "smart_account_builtin_auth_key_proof_message_cost_base": {
+                  "u64": "52"
+                },
                 "storage_gas_price": {
                   "u64": "76"
                 },
