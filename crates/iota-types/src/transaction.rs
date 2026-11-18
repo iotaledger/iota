@@ -710,8 +710,8 @@ pub trait ProgrammableTransactionExt: Sized + programmable_transaction_ext::Seal
     fn receiving_objects(&self) -> Vec<ObjectReference>;
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
     fn validate_argument_indices(&self) -> UserInputResult;
-    /// The index of the first transaction dependency input, if any.
-    fn dependency_input_index(&self) -> Option<usize>;
+    /// The index and digest of the first transaction dependency input, if any.
+    fn dependency_input(&self) -> Option<(usize, TransactionDigest)>;
     /// The digest named by the transaction dependency input, if any.
     fn transaction_dependency(&self) -> Option<TransactionDigest>;
     /// Checks that at most one input is a transaction dependency and that no
@@ -825,23 +825,23 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
         Ok(())
     }
 
-    fn dependency_input_index(&self) -> Option<usize> {
+    fn dependency_input(&self) -> Option<(usize, TransactionDigest)> {
         self.inputs
             .iter()
-            .position(|input| matches!(input, CallArg::TransactionDependency(_)))
-    }
-
-    fn transaction_dependency(&self) -> Option<TransactionDigest> {
-        self.dependency_input_index()
-            .map(|i| match &self.inputs[i] {
-                CallArg::TransactionDependency(digest) => *digest,
-                _ => unreachable!(),
+            .enumerate()
+            .find_map(|(index, input)| match input {
+                CallArg::TransactionDependency(digest) => Some((index, *digest)),
+                _ => None,
             })
     }
 
+    fn transaction_dependency(&self) -> Option<TransactionDigest> {
+        self.dependency_input().map(|(_, digest)| digest)
+    }
+
     fn validate_transaction_dependency_inputs(&self) -> UserInputResult {
-        let dep_index = match self.dependency_input_index() {
-            Some(i) => i,
+        let dep_index = match self.dependency_input() {
+            Some((index, _)) => index,
             None => return Ok(()),
         };
         // At most one dependency input.
