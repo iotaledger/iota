@@ -59,51 +59,54 @@ const EXAMPLES_SUBDIR: &str = "../../examples/move/abstract_iota_accounts";
 /// its own `TestCluster` because the `ProtocolConfig` override is global —
 /// reusing a cluster across budgets would leak the previous override into
 /// the next iteration.
+///
+/// Apart from the testnet and mainnet value, the budgets lie between the
+/// minimum transaction cost and a quarter of the maximum computation cost,
+/// both at a gas price of 1000.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum MaxAuthGas {
-    /// 10_000 — extremely tight; only the cheapest authenticators fit.
-    G10k,
-    /// 20_000 — still very tight.
+    /// 20_000 — the value on testnet and mainnet.
     G20k,
-    /// 30_000 — fills the gap between the two tightest budgets and 50k.
-    G30k,
-    /// 40_000 — fills the gap between the two tightest budgets and 50k.
-    G40k,
-    /// 50_000 — small but more comfortable.
-    G50k,
-    /// 250_000 — fixed numeric budget.
-    G250k,
-    /// 1_000_000 — generous; heavy authenticators that don't rely on Groth16
-    /// should fit here.
+    /// 1_000_000 — the minimum transaction cost, and the value on devnet.
     G1m,
+    /// 5_000_000.
+    G5m,
+    /// 25_000_000.
+    G25m,
+    /// 125_000_000.
+    G125m,
+    /// 625_000_000.
+    G625m,
+    /// 1_250_000_000 — a quarter of the maximum computation cost.
+    G1250m,
 }
 
 impl MaxAuthGas {
     /// Fixed budgets matching the `max_auth_gas` values currently configured
     /// for live IOTA networks.
-    const NETWORKS: &'static [MaxAuthGas] = &[MaxAuthGas::G20k, MaxAuthGas::G250k];
+    const NETWORKS: &'static [MaxAuthGas] = &[MaxAuthGas::G20k, MaxAuthGas::G1m];
 
     /// Every fixed numeric budget the test sweeps over.
     const ALL: &'static [MaxAuthGas] = &[
-        MaxAuthGas::G10k,
         MaxAuthGas::G20k,
-        MaxAuthGas::G30k,
-        MaxAuthGas::G40k,
-        MaxAuthGas::G50k,
-        MaxAuthGas::G250k,
         MaxAuthGas::G1m,
+        MaxAuthGas::G5m,
+        MaxAuthGas::G25m,
+        MaxAuthGas::G125m,
+        MaxAuthGas::G625m,
+        MaxAuthGas::G1250m,
     ];
 
     /// Resolve the numeric `max_auth_gas` budget for this variant.
     fn as_u64(self) -> u64 {
         match self {
-            MaxAuthGas::G10k => 10_000,
             MaxAuthGas::G20k => 20_000,
-            MaxAuthGas::G30k => 30_000,
-            MaxAuthGas::G40k => 40_000,
-            MaxAuthGas::G50k => 50_000,
-            MaxAuthGas::G250k => 250_000,
             MaxAuthGas::G1m => 1_000_000,
+            MaxAuthGas::G5m => 5_000_000,
+            MaxAuthGas::G25m => 25_000_000,
+            MaxAuthGas::G125m => 125_000_000,
+            MaxAuthGas::G625m => 625_000_000,
+            MaxAuthGas::G1250m => 1_250_000_000,
         }
     }
 }
@@ -116,7 +119,7 @@ impl MaxAuthGas {
 /// scenario runs `authenticate_super_heavy` once per value, where the
 /// Move function performs `N` ed25519 verifications. Use this to probe
 /// how many verifications fit inside each `max_auth_gas` budget.
-const NUM_OF_CYCLES: &[u64] = &[1, 20, 50, 100];
+const NUM_OF_CYCLES: &[u64] = &[1, 200, 1_000, 5_000];
 
 // Fixture data for the `lean_imt_account` example. The Groth16 verifying
 // key, proof points and leaf are tied to a specific account address, and
@@ -175,11 +178,10 @@ struct Expectation {
 
 /// Expected `authenticate` outcome per `(package, max_auth_gas)` pair.
 ///
-/// A few cells of the matrix depend on which test runner is used:
-/// the same authenticator that aborts with `OUT_OF_GAS` under
-/// `cargo simtest` may pass under plain `cargo nextest`, because the
-/// two runners drive the validators through different code paths.
-/// Those cells are gated on `cfg!(msim)` below.
+/// The budget only applies under `cargo simtest`. The `max_auth_gas`
+/// override is kept per thread, and only the simulator runs the validators
+/// on the test's thread; under plain `cargo nextest` they use the devnet
+/// value, so every budget is expected to behave as [`MaxAuthGas::G1m`].
 ///
 /// To extend or correct this matrix:
 /// 1. Add the new package's arm here (or adjust an existing one).
@@ -190,7 +192,7 @@ fn expected_outcome(name: &str, budget: MaxAuthGas) -> Expectation {
     use MaxAuthGas::*;
     use Outcome::{Fail, Pass};
 
-    let simtest = cfg!(msim);
+    let budget = if cfg!(msim) { budget } else { G1m };
 
     let authenticate = match name {
         // Plain ed25519 authenticators — pass under every budget.
@@ -204,15 +206,8 @@ fn expected_outcome(name: &str, budget: MaxAuthGas) -> Expectation {
         // Signature-driven gas sponsor. The sponsor authenticator builds a
         // ~140-byte message (tx digest + sender auth digest + bcs of the
         // sender's authenticator function info) and runs ed25519_verify over
-        // it — the vector-append + bcs::to_bytes + per-byte verify cost
-        // doesn't fit the tightest budget under simtest.
-        "sponsorship_ed25519" => {
-            if simtest && matches!(budget, G10k) {
-                Fail
-            } else {
-                Pass
-            }
-        }
+        // it, which fits every budget.
+        "sponsorship_ed25519" => Pass,
 
         // Policy-driven gas sponsor. The sponsor's authenticator reads
         // `expected_package_addr` from the account's cached `package_addr`
@@ -220,9 +215,9 @@ fn expected_outcome(name: &str, budget: MaxAuthGas) -> Expectation {
         // the module/function names against byte constants, so the per-call
         // PTB scan never calls `type_name::get` or `address::from_ascii_bytes`.
         // Even so, the PTB scan plus the upstream whitelist / allowance checks
-        // overrun the tightest budget under simtest — only G10k is too tight.
+        // overrun the tightest budget, G20k.
         "whitelist_sponsorship" => {
-            if simtest && matches!(budget, G10k) {
+            if budget == G20k {
                 Fail
             } else {
                 Pass
@@ -230,19 +225,19 @@ fn expected_outcome(name: &str, budget: MaxAuthGas) -> Expectation {
         }
 
         // ed25519 + keccak Merkle walk. Heavier than the plain variants;
-        // under simtest it runs out of gas at the tighter budgets.
+        // it runs out of gas at the tightest budget.
         "onesig" => {
-            if simtest && matches!(budget, G10k | G20k | G30k) {
+            if budget == G20k {
                 Fail
             } else {
                 Pass
             }
         }
 
-        // ed25519 + BN254 Groth16. Under simtest the proof verification
-        // overruns every tight budget — only G250k and above fit.
+        // ed25519 + BN254 Groth16. The proof verification overruns the
+        // tightest budget.
         "lean_imt_account" => {
-            if simtest && matches!(budget, G10k | G20k | G30k | G40k | G50k) {
+            if budget == G20k {
                 Fail
             } else {
                 Pass
@@ -268,19 +263,19 @@ fn expected_outcome(name: &str, budget: MaxAuthGas) -> Expectation {
 /// Maximum number of authentication cycles each `max_auth_gas` budget
 /// can absorb before `authenticate_super_heavy` aborts with
 /// `OUT_OF_GAS`. The values are measured rather than computed because
-/// the per-cycle cost is not strictly linear across budgets.
+/// the per-cycle cost is not strictly linear across budgets: the cost of an
+/// instruction grows with the number of instructions executed. Above G1m
+/// only the counts in [`NUM_OF_CYCLES`] were tried, so the value is the
+/// largest of those that fits.
 fn expected_super_heavy(cycles: u64, budget: MaxAuthGas) -> Outcome {
     use MaxAuthGas::*;
     use Outcome::{Fail, Pass};
 
     let max_cycles: u64 = match budget {
-        G10k => 3,
         G20k => 7,
-        G30k => 10,
-        G40k => 14,
-        G50k => 17,
-        G250k => 89,
         G1m => 209,
+        G5m | G25m | G125m => 200,
+        G625m | G1250m => 1_000,
     };
     if cycles <= max_cycles { Pass } else { Fail }
 }
