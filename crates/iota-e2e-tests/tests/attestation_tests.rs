@@ -39,6 +39,7 @@ use iota_types::{
     attestation::{AttestationTotals, AttestationVerdict},
     base_types::AuthorityName,
     effects::TransactionEffectsAPI,
+    error::IotaError,
     messages_checkpoint::{CheckpointSummaryExt, VerifiedCheckpoint},
     messages_grpc::TxStatusUpdate,
     move_package,
@@ -214,20 +215,24 @@ async fn test_aa_tx_with_authentication_over_max_auth_gas_is_refused() -> Result
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
     let aa_tx = TransactionEnvelope::from_user_sig_data(tx_data, signatures);
 
-    match test_env.submit_tx_v2(aa_tx).await {
-        Ok(results) => {
-            let (_, status) = results.first().expect("expected one status update");
-            assert!(
-                matches!(status, TxStatusUpdate::Rejected { .. }),
-                "an authentication over max_auth_gas must be refused, got: {status:?}"
-            );
-        }
-        // A validator/transport-level error is also an acceptable outcome: the
-        // transaction was not attested or accepted.
-        Err(e) => {
-            tracing::info!("over-budget authentication errored as expected: {e:?}");
-        }
-    }
+    let results = test_env.submit_tx_v2(aa_tx).await?;
+    let [(_, TxStatusUpdate::Rejected { error })] = results.as_slice() else {
+        panic!("an authentication over max_auth_gas must be refused, got: {results:?}");
+    };
+    // The refusal is the one admission gives: the failed authentication's
+    // status and what caused it, here the dry run's limit for the
+    // authenticators.
+    let IotaError::MoveAuthenticatorExecutionFailure { error } = error else {
+        panic!("the refusal must be a failed Move authentication, got: {error:?}");
+    };
+    assert!(
+        error.contains("Insufficient Gas") && error.contains("caused by"),
+        "the authentication must be refused for running out of gas, got: {error}"
+    );
+    assert!(
+        error.contains("ran out of max_auth_gas"),
+        "the dry run must refuse it at its limit for the authenticators, got: {error}"
+    );
 
     Ok(())
 }

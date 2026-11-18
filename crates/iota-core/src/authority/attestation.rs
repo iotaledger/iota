@@ -27,7 +27,7 @@ use iota_types::{
     committee::Committee,
     deny_rule_governance::DenyRuleConfig,
     effects::TransactionEffectsAPI,
-    error::{IotaError, IotaResult, UserInputError},
+    error::{ExecutionError, IotaError, IotaResult, UserInputError},
     inner_temporary_store::InnerTemporaryStore,
     messages_checkpoint::CheckpointSummaryExt,
     move_authenticator::MoveAuthenticatorExt,
@@ -255,27 +255,36 @@ impl AuthorityState {
                     sponsor_authenticator_function_ref,
                 };
 
-                let (inner_temp_store, _, effects, _, _, authentication_error) = epoch_store
-                    .executor()
-                    .authenticate_then_execute_transaction_to_effects(
-                        backing_store.as_ref(),
-                        protocol_config,
-                        self.metrics.limits_metrics.clone(),
-                        false, // expensive_checks
-                        self.config.certificate_deny_config.certificate_deny_set(),
-                        &epoch_id,
-                        epoch_start_timestamp,
-                        gas_data,
-                        gas_status,
-                        MoveAuthenticatorsForExecution::Resolved(authenticators_for_exec),
-                        auth_and_tx_checked,
-                        None, // gas_owner_pays
-                        kind,
-                        signer,
-                        tx_digest,
-                        auth_context_data,
-                        &mut None,
-                    );
+                let (inner_temp_store, _, effects, _, execution_result, authentication_error) =
+                    epoch_store
+                        .executor()
+                        .authenticate_then_execute_transaction_to_effects(
+                            backing_store.as_ref(),
+                            protocol_config,
+                            self.metrics.limits_metrics.clone(),
+                            false, // expensive_checks
+                            self.config.certificate_deny_config.certificate_deny_set(),
+                            &epoch_id,
+                            epoch_start_timestamp,
+                            gas_data,
+                            gas_status,
+                            MoveAuthenticatorsForExecution::Resolved(authenticators_for_exec),
+                            auth_and_tx_checked,
+                            None, // gas_owner_pays
+                            kind,
+                            signer,
+                            tx_digest,
+                            auth_context_data,
+                            &mut None,
+                        );
+                // The error of the dry run is that of the failed
+                // authentication, with its source, unless another failure of
+                // the dry run took its place; then only the kind is left.
+                let authentication_error =
+                    authentication_error.map(|kind| match execution_result {
+                        Err(error) if *error.kind() == kind => error,
+                        _ => ExecutionError::from_kind(kind),
+                    });
                 (
                     inner_temp_store,
                     effects,
