@@ -87,6 +87,23 @@ impl AuthorityState {
             per_authenticator_checked_inputs,
         } = self.run_validation_checks(transaction, epoch_store, deny_config, true)?;
 
+        // `aggregate_authenticator_input_objects()` asserts that the sets it
+        // combines hold the same read result for every object they share, and
+        // a failed assert stops the validator. It is called in
+        // `authenticate_before_consensus()` and again before the dry run, so
+        // the sets are compared before both: if two of them differ, the
+        // transaction is rejected with an error.
+        if !move_authenticators.is_empty() {
+            let checked_input_sets: Vec<_> = std::iter::once(&tx_checked_input_objects)
+                .chain(
+                    per_authenticator_checked_inputs
+                        .iter()
+                        .map(|(inputs, _)| inputs),
+                )
+                .collect();
+            check_input_read_consistency(&checked_input_sets)?;
+        }
+
         let owned_objects = tx_checked_input_objects.inner().filter_owned_objects();
 
         let epoch_id = epoch_store.epoch_start_config().epoch_data().epoch_id();
@@ -227,12 +244,6 @@ impl AuthorityState {
                     std::iter::once(&tx_checked_input_objects)
                         .chain(per_authenticator_checked_inputs.iter().map(|(c, _)| c))
                         .collect();
-                // Returns an error if two of these sets hold different read
-                // results for one object, and the transaction is rejected.
-                // `aggregate_authenticator_input_objects()` asserts that the
-                // results are the same, and a failed assert stops the
-                // validator.
-                check_input_read_consistency(&checked_for_union)?;
                 let auth_and_tx_checked =
                     iota_transaction_checks::aggregate_authenticator_input_objects(
                         &checked_for_union,
