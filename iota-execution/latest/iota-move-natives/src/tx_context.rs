@@ -4,9 +4,12 @@
 
 use std::collections::VecDeque;
 
-use iota_sdk_types::{ObjectId, TransactionDigest};
-use move_binary_format::errors::PartialVMResult;
-use move_core_types::{account_address::AccountAddress, gas_algebra::InternalGas};
+use iota_sdk_types::{CheckpointDigest, ObjectId, TransactionDigest};
+use iota_types::digests::ChainIdentifier;
+use move_binary_format::errors::{PartialVMError, PartialVMResult};
+use move_core_types::{
+    account_address::AccountAddress, gas_algebra::InternalGas, vm_status::StatusCode,
+};
 use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};
 use move_vm_types::{
     loaded_data::runtime_types::Type, natives::function::NativeResult, pop_arg, values::Value,
@@ -14,7 +17,8 @@ use move_vm_types::{
 use smallvec::smallvec;
 
 use crate::{
-    NativesCostTable, object_runtime::ObjectRuntime, transaction_context::TransactionContext,
+    NativesCostTable, legacy_test_cost, object_runtime::ObjectRuntime,
+    transaction_context::TransactionContext,
 };
 
 /// Abort code of `iota::tx_context::EBadTxHashLength`. The Move constant is
@@ -281,6 +285,44 @@ pub fn sponsor(
 }
 
 #[derive(Clone)]
+pub struct TxContextChainIdentifierCostParams {
+    pub tx_context_chain_identifier_cost_base: Option<InternalGas>,
+}
+/// Implementation of the Move native function
+/// `fun native_chain_identifier(): vector<u8>`
+///
+/// Returns the 32 bytes of the chain identifier.
+///
+/// gas cost: tx_context_chain_identifier_cost_base
+pub fn chain_identifier(
+    context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    debug_assert!(ty_args.is_empty());
+    debug_assert!(args.is_empty());
+
+    let cost_base = context
+        .extensions()
+        .get::<NativesCostTable>()?
+        .tx_context_chain_identifier_cost_params
+        .tx_context_chain_identifier_cost_base
+        .ok_or_else(|| {
+            PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+                .with_message("Gas cost for chain_identifier not available".to_string())
+        })?;
+    native_charge_gas_early_exit!(context, cost_base);
+
+    let transaction_context: &mut TransactionContext = context.extensions_mut().get_mut()?;
+    let chain_identifier = transaction_context.chain_identifier();
+
+    Ok(NativeResult::ok(
+        context.gas_used(),
+        smallvec![Value::vector_u8(chain_identifier.into_bytes())],
+    ))
+}
+
+#[derive(Clone)]
 pub struct TxContextRGPCostParams {
     pub tx_context_rgp_cost_base: InternalGas,
 }
@@ -488,6 +530,33 @@ pub fn replace(
     )?;
 
     Ok(NativeResult::ok(context.gas_used(), smallvec![]))
+}
+
+/// Implementation of the Move test-only native function
+/// `fun replace_chain_identifier(chain_identifier: vector<u8>)`
+///
+/// `chain_identifier` must be 32 bytes.
+///
+/// gas cost: none, as the function is test only
+pub fn replace_chain_identifier(
+    context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    mut args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    debug_assert!(ty_args.is_empty());
+    debug_assert!(args.len() == 1);
+
+    let chain_identifier: Vec<u8> = pop_arg!(args, Vec<u8>);
+    let chain_identifier = <[u8; CheckpointDigest::LENGTH]>::try_from(chain_identifier)
+        .map(|bytes| ChainIdentifier::from(CheckpointDigest::new(bytes)))
+        .map_err(|_| {
+            PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+                .with_message("a chain identifier must be 32 bytes".to_string())
+        })?;
+    let transaction_context: &mut TransactionContext = context.extensions_mut().get_mut()?;
+    transaction_context.set_chain_identifier(chain_identifier)?;
+
+    Ok(NativeResult::ok(legacy_test_cost(), smallvec![]))
 }
 
 // Attempt to get the most recent created object ID when none has been created.
