@@ -2515,10 +2515,16 @@ raw_bytes
 to_iota_address
 	public fun
 	0x2::public_key
+verify_personal_message_signature
+	public(package) fun
+	0x2::public_key
 validate_public_key
 	fun
 	0x2::public_key
 to_iota_address_impl
+	fun
+	0x2::public_key
+verify_personal_message_signature_impl
 	fun
 	0x2::public_key
 PublicKeyAttached

@@ -108,6 +108,34 @@ public fun to_iota_address(self: &PublicKey): address {
 
 // === Package Functions ===
 
+/// Returns `true` if `signature` is a valid signature, by `self`, of `message` signed as an IOTA
+/// personal message, using the signature scheme of `self`.
+///
+/// `signature` is in the flag-prefixed wire format of the key's scheme:
+///
+/// ```
+/// Ed25519:   0x00 || sig[64B] || pk[32B]                (97 bytes total)
+/// Secp256k1: 0x01 || sig[64B] || pk[33B]                (98 bytes total)
+/// Secp256r1: 0x02 || sig[64B] || pk[33B]                (98 bytes total)
+/// Passkey:   0x06 || <PasskeyAuthenticator wire bytes>  (variable length)
+/// ```
+///
+/// The signed bytes are `Blake2b256(IntentMessage(Intent::personal_message(),
+/// PersonalMessage(message)))`. For a Passkey, this hash is the challenge embedded in
+/// `clientDataJSON`.
+///
+/// Returns `false` if `self` is a MultiSig key, or if `signature` is malformed or of another
+/// scheme than `self`.
+///
+/// The gas cost grows with the length of `message` and of `signature`.
+public(package) fun verify_personal_message_signature(
+    self: &PublicKey,
+    signature: &vector<u8>,
+    message: &vector<u8>,
+): bool {
+    verify_personal_message_signature_impl(self, signature, message)
+}
+
 // === Private Functions ===
 
 fun validate_public_key(scheme: SignatureScheme, raw_bytes: &vector<u8>) {
@@ -139,6 +167,14 @@ fun validate_public_key(scheme: SignatureScheme, raw_bytes: &vector<u8>) {
 ///
 /// Aborts if `flag` is not a recognized scheme or `raw_bytes` is not a valid public key for it.
 native fun to_iota_address_impl(flag: u8, raw_bytes: &vector<u8>): address;
+
+/// Returns `true` if `signature` is a valid signature, by `public_key`, of `message` signed as an
+/// IOTA personal message. See `verify_personal_message_signature`.
+native fun verify_personal_message_signature_impl(
+    public_key: &PublicKey,
+    signature: &vector<u8>,
+    message: &vector<u8>,
+): bool;
 
 // === Test Functions ===
 
