@@ -1415,6 +1415,7 @@ impl AuthorityState {
             self.get_backing_store().as_ref(),
             epoch_store.protocol_config(),
             self.metrics.limits_metrics.clone(),
+            epoch_store.get_chain_identifier(),
             &epoch_store.epoch_start_config().epoch_data().epoch_id(),
             epoch_store
                 .epoch_start_config()
@@ -2573,6 +2574,7 @@ impl AuthorityState {
                         .expensive_safety_check_config
                         .enable_deep_per_tx_iota_conservation_check(),
                     self.config.certificate_deny_config.certificate_deny_set(),
+                    epoch_store.get_chain_identifier(),
                     &epoch_id,
                     epoch_start_timestamp,
                     tx_checked_input_objects,
@@ -2682,6 +2684,7 @@ impl AuthorityState {
                         executor: epoch_store.executor().as_ref(),
                         protocol_config,
                         metrics: self.metrics.limits_metrics.clone(),
+                        chain_identifier: epoch_store.get_chain_identifier(),
                         epoch_id,
                         epoch_timestamp_ms: epoch_start_timestamp,
                         reference_gas_price,
@@ -2835,6 +2838,7 @@ impl AuthorityState {
                         .expensive_safety_check_config
                         .enable_deep_per_tx_iota_conservation_check(),
                     self.config.certificate_deny_config.certificate_deny_set(),
+                    epoch_store.get_chain_identifier(),
                     &epoch_id,
                     epoch_start_timestamp,
                     gas_data,
@@ -3106,6 +3110,7 @@ impl AuthorityState {
             self.metrics.limits_metrics.clone(),
             false, // expensive_checks
             self.config.certificate_deny_config.certificate_deny_set(),
+            epoch_store.get_chain_identifier(),
             &epoch_store.epoch_start_config().epoch_data().epoch_id(),
             epoch_store
                 .epoch_start_config()

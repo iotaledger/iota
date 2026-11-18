@@ -253,6 +253,7 @@ impl SingleValidator {
                 self.get_validator().metrics.limits_metrics.clone(),
                 false,
                 &HashSet::new(),
+                self.epoch_store.get_chain_identifier(),
                 &self.epoch_store.epoch(),
                 0,
                 input_objects,
