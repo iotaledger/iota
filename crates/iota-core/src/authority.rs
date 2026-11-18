@@ -385,7 +385,8 @@ pub struct AuthorityMetrics {
     /// their attestor is cut off for the rest of the epoch.
     pub(crate) consensus_handler_validation_attestor_cut_off_transactions: IntCounter,
     /// Attested transactions that were cancelled for congestion, by attestor's
-    /// hostname and by whether the gas owner was charged.
+    /// hostname and by whether the gas owner was charged. A transaction this
+    /// validator executes from a checkpoint is not counted.
     pub(crate) cancelled_attested_transactions: IntCounterVec,
     /// Number of user transactions dropped during a consensus commit by
     /// post-consensus load shedding, i.e. probabilistically rejected at the
@@ -900,7 +901,7 @@ impl AuthorityMetrics {
             ).unwrap(),
             cancelled_attested_transactions: register_int_counter_vec_with_registry!(
                 "cancelled_attested_transactions",
-                "Number of attested transactions cancelled for congestion, by attestor's hostname and by whether the gas owner was charged",
+                "Number of attested transactions cancelled for congestion, by attestor's hostname and by whether the gas owner was charged. A transaction this validator executes from a checkpoint is not counted.",
                 &["authority", "charged"],
                 registry;
                 MetricLevel::Warn,
