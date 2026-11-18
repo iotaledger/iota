@@ -39,6 +39,7 @@ use iota_types::{
         AccountPrivateKey, AggregateAuthorityPublicKey, AuthorityKeyPair, AuthoritySignInfo,
         get_key_pair, random_committee_key_pairs_of_size,
     },
+    digests::ChainIdentifier,
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     effects::{TestEffectsBuilder, TransactionEffectsAPI, TransactionEffectsExt},
     epoch_data::EpochData,
@@ -2030,6 +2031,7 @@ async fn test_publish_dependent_module_ok() {
         gas_price,
         gas_budget,
         None,
+        ChainIdentifier::default(),
         protocol_config,
     )
     .fresh_id();
@@ -2088,6 +2090,7 @@ async fn test_publish_module_no_dependencies_ok() {
         gas_price,
         gas_budget,
         None,
+        ChainIdentifier::default(),
         protocol_config,
     )
     .fresh_id();
