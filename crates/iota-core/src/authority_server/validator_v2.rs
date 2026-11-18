@@ -339,10 +339,12 @@ impl ValidatorService {
     /// consensus. Returns the terminal status together with the per-item
     /// traffic weight derived from the outcome: `Weight::one()` for an
     /// already-executed duplicate (spam-like), for a transaction too large for
-    /// consensus once attested, and for a refused soft lock or a changed owned
-    /// input after the attestation's dry run; `Weight::zero()` for a rejection
-    /// because the validator is overloaded and for a successful submission;
-    /// and `normalize(&error)` for any other rejection (signature/epoch errors
+    /// consensus once attested, and for a changed owned input or a refused
+    /// soft lock after the attestation's dry run (the locks are taken after
+    /// the dry run only when the transaction's Move authenticators did not
+    /// run on their own first); `Weight::zero()` for a rejection because the
+    /// validator is overloaded and for a successful submission; and
+    /// `normalize(&error)` for any other rejection (signature/epoch errors
     /// weigh, others don't).
     async fn submit_single_tx(
         state: &Arc<AuthorityState>,
@@ -647,24 +649,26 @@ impl ValidatorService {
         // objects the dry run loaded, after the transaction passed its own size
         // check, so a valid transaction can become larger than consensus
         // accepts. The consensus adapter refuses such a transaction as well,
-        // but only after the soft locks below are taken, so it is
-        // rejected here. The rejection weighs: the dry run has already run, and
-        // with no soft lock kept, the in-flight check does not stop a resend.
+        // but its refusal weighs nothing. A rejection by
+        // `check_consensus_transaction_size()` weighs one: the dry run has
+        // already run, and with no soft lock kept, the in-flight check does
+        // not stop a resend.
         if let Err(error) =
             check_consensus_transaction_size(&consensus_tx, epoch_store.protocol_config())
         {
             return (TxStatusUpdate::Rejected { error }, Weight::one());
         }
 
-        // Soft-lock owned objects to prevent conflicting transactions, unless
-        // the attestation took the locks before its dry run.
+        // Soft-lock owned objects to prevent conflicting transactions. With
+        // attestation, `attest_transaction()` took the locks before its dry
+        // run, except when the transaction's Move authenticators did not run
+        // on their own first.
         // Same-digest resubmission while in flight → rejected (duplicate).
         // Different-digest conflict on same objects → rejected.
-        // Placed after the reconfig and size checks so we never acquire locks
-        // that would need releasing on their rejection paths. A rejection from
-        // here on drops the guard, which releases the locks. A refusal after
-        // the dry run means that another submission on the same objects passed
-        // both checks for conflicts at the same time as this one.
+        // A rejection after the locks are taken drops the guard, which
+        // releases them. A lock refused after the dry run means that another
+        // submission on the same objects passed both checks for conflicts at
+        // the same time as this one.
         let soft_lock = match soft_lock {
             Some(soft_lock) => soft_lock,
             None => match soft_locks.try_acquire_guard(tx_digest, &owned_objects) {
