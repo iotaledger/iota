@@ -260,8 +260,8 @@ mod tests {
         .expect("the submissions should be queued");
     }
 
-    #[test]
-    fn unset_limits_take_their_defaults() {
+    #[tokio::test]
+    async fn unset_limits_take_their_defaults() {
         let metrics = AuthorityMetrics::new(&Registry::new());
         let semaphore = AttestationSemaphore::new(&AuthorityOverloadConfig::default(), &metrics);
 
