@@ -2985,3 +2985,40 @@ async fn test_regular_dependent_of_a_randomness_dependency_is_deferred_with_two_
     assert_eq!(assigned_version(&assigned, &dependent, common.id()), None);
     assert_eq!(sequencing.dependency_deferrals(), 1);
 }
+
+/// A transaction that waits for its dependency records no suggested gas
+/// price: its own objects are not congested.
+#[tokio::test]
+async fn test_dependency_wait_records_no_suggested_gas_price() {
+    telemetry_subscribers::init_for_testing();
+    let sequencing = SharedObjectSequencing::new(2, 2, None).await;
+    let epoch_store = sequencing.authority.epoch_store_for_testing();
+    let rgp = TEST_ONLY_GAS_PRICE;
+    let common = sequencing.shared_object();
+    let other = sequencing.shared_object();
+    let dependency = sequencing.transaction(0, &[&common], rgp, None, true);
+    let dependent = sequencing.transaction(1, &[&other], rgp, Some(*dependency.digest()), false);
+
+    // The dependency uses randomness, which this commit does not generate, so
+    // it is deferred and the dependent waits for it.
+    sequencing
+        .sequence(
+            vec![sequenced(&dependent)],
+            vec![sequenced(&dependency)],
+            PreviouslyDeferredTransactions::default(),
+            1,
+            None,
+        )
+        .await;
+    assert_eq!(sequencing.dependency_deferrals(), 1);
+    let next_key = DeferralKey::new_for_consensus_round(2, 1);
+    let deferred = epoch_store.get_all_deferred_transactions_for_test();
+    let (_, deferred_dependent) = deferred.iter().find(|(key, _)| *key == next_key).unwrap();
+    assert_eq!(
+        deferred_dependent
+            .iter()
+            .map(|tx| tx.suggested_gas_price())
+            .collect::<Vec<_>>(),
+        vec![None]
+    );
+}

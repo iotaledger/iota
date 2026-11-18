@@ -83,11 +83,16 @@ impl DeferralKey {
 pub enum DeferralReason {
     RandomnessNotReady,
 
-    // The list of objects are congested objects. It is empty when no single
-    // object is the cause: when the execution-worker pool is congested, or
-    // when the transaction waits for the transaction named by its transaction
-    // dependency input.
-    Congestion(Vec<ObjectId>),
+    Congestion {
+        // The congested objects. It is empty when no single object is the
+        // cause: when the execution-worker pool is congested, or when the
+        // transaction waits for the transaction named by its transaction
+        // dependency input.
+        congested_objects: Vec<ObjectId>,
+        // Whether the transaction waits for its transaction dependency. Such
+        // a deferral records no suggested gas price of its own.
+        for_dependency: bool,
+    },
 }
 
 pub fn transaction_deferral_within_limit(

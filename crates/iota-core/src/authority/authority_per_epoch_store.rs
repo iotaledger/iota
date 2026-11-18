@@ -431,7 +431,8 @@ pub(crate) fn deferred_from_round(
 /// An alias type for a collection used to hold previously deferred
 /// transactions, where `Option<u64>` is used to hold suggested gas
 /// price for transactions deferred due to shared object congestion
-/// (`None` for transactions deferred due to "randomness not available").
+/// (`None` for transactions deferred due to "randomness not available",
+/// or only for their transaction dependency).
 pub(crate) type PreviouslyDeferredTransactions =
     HashMap<TransactionDigest, (DeferralKey, Option<u64>)>;
 
@@ -476,7 +477,7 @@ pub struct DeferredTransaction {
     /// Suggested gas price is `Some(u64)` for transactions deferred due
     /// to shared object congestion if gas price feedback is enabled, and
     /// it is `None` otherwise and for transactions deferred due to
-    /// "randomness not available".
+    /// "randomness not available", or only for their transaction dependency.
     suggested_gas_price: Option<u64>,
 }
 
@@ -3518,8 +3519,13 @@ impl AuthorityPerEpochStore {
                 let deferral_key =
                     DeferralKey::new_for_consensus_round(commit_round + 1, deferred_from_round);
                 self.count_dependency_deferral(&deferral_key, authority_metrics);
-                let result =
-                    SchedulingResult::Defer(deferral_key, DeferralReason::Congestion(Vec::new()));
+                let result = SchedulingResult::Defer(
+                    deferral_key,
+                    DeferralReason::Congestion {
+                        congested_objects: Vec::new(),
+                        for_dependency: true,
+                    },
+                );
                 tracing::Span::current()
                     .record("scheduling_result", tracing::field::debug(&result));
                 return result;
@@ -3544,7 +3550,10 @@ impl AuthorityPerEpochStore {
                 SequencingResult::Defer(deferral_key, congested_objects) => {
                     SchedulingResult::Defer(
                         deferral_key,
-                        DeferralReason::Congestion(congested_objects),
+                        DeferralReason::Congestion {
+                            congested_objects,
+                            for_dependency: false,
+                        },
                     )
                 }
                 SequencingResult::DeferForDependency(deferral_key, dependency) => {
@@ -3554,7 +3563,13 @@ impl AuthorityPerEpochStore {
                          budget"
                     );
                     self.count_dependency_deferral(&deferral_key, authority_metrics);
-                    SchedulingResult::Defer(deferral_key, DeferralReason::Congestion(Vec::new()))
+                    SchedulingResult::Defer(
+                        deferral_key,
+                        DeferralReason::Congestion {
+                            congested_objects: Vec::new(),
+                            for_dependency: true,
+                        },
+                    )
                 }
                 SequencingResult::Schedule(start_time) => SchedulingResult::Schedule(start_time),
             }
@@ -7139,12 +7154,27 @@ impl AuthorityPerEpochStore {
                             suggested_gas_price: None,
                         }
                     }
-                    DeferralReason::Congestion(congested_objects) => {
+                    DeferralReason::Congestion {
+                        congested_objects,
+                        for_dependency,
+                    } => {
                         authority_metrics
                             .consensus_handler_congested_transactions
                             .inc();
 
-                        let suggested_gas_price = if self
+                        let within_limit = transaction_deferral_within_limit(
+                            &deferral_key,
+                            self.protocol_config()
+                                .max_deferral_rounds_for_congestion_control(),
+                        );
+                        let suggested_gas_price = if for_dependency && within_limit {
+                            // The transaction waits for its dependency, not for its own
+                            // objects, so this deferral records no price of its own. It
+                            // keeps the one an earlier deferral recorded, if any.
+                            previously_deferred_tx_digests
+                                .get(verified_executable_tx.digest())
+                                .and_then(|(_, suggested_gas_price)| *suggested_gas_price)
+                        } else if self
                             .protocol_config
                             .congestion_control_gas_price_feedback_mechanism()
                         {
@@ -7176,11 +7206,7 @@ impl AuthorityPerEpochStore {
                             None
                         };
 
-                        if transaction_deferral_within_limit(
-                            &deferral_key,
-                            self.protocol_config()
-                                .max_deferral_rounds_for_congestion_control(),
-                        ) {
+                        if within_limit {
                             ConsensusTransactionResult::Deferred {
                                 deferral_key,
                                 suggested_gas_price,
