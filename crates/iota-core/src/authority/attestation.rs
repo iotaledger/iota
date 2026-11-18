@@ -61,11 +61,20 @@ impl AuthorityState {
     /// `authenticate_then_execute_transaction_to_effects` so that Move
     /// authentication and transaction execution run together and produce full
     /// `TransactionEffects` including the accurate `computation_cost`.
+    ///
+    /// `lock_owned_objects` is called with the owned objects among the
+    /// transaction's inputs before the dry run, once they pass validation and
+    /// the signers have authorized the transaction; its error is returned
+    /// without running the dry run. A Move account has authorized the
+    /// transaction once its authenticators pass their own run. If they do not
+    /// run on their own, `lock_owned_objects` is not called: only the dry run
+    /// then shows that the account authorized the transaction.
     pub(crate) fn attest_transaction(
         &self,
         transaction: &VerifiedTransaction,
         epoch_store: &Arc<AuthorityPerEpochStore>,
         deny_config: &dyn DenyRuleConfig,
+        lock_owned_objects: impl FnOnce(&[ObjectReference]) -> IotaResult,
     ) -> IotaResult<(AttestationData, Vec<ObjectReference>)> {
         let protocol_config = epoch_store.protocol_config();
         let tx = transaction.data().transaction();
@@ -104,7 +113,9 @@ impl AuthorityState {
         // the authenticators first run on their own at the signing cap, as at
         // admission: one that fails or exceeds `max_auth_gas` is refused before
         // budget-sized work is done on it.
-        if !move_authenticators.is_empty() && units_despite_failed_authentication.get().is_none() {
+        let authenticators_run_on_their_own =
+            !move_authenticators.is_empty() && units_despite_failed_authentication.get().is_none();
+        if authenticators_run_on_their_own {
             let function_refs = extract_auth_fun_refs(signer, gas_data.owner, |address| {
                 move_authenticators
                     .iter()
@@ -139,6 +150,18 @@ impl AuthorityState {
                 function_refs,
             )?;
         }
+
+        // Validation checked that the signers own these objects, and by now
+        // the signers have authorized the transaction: signatures made with
+        // keys are verified, and the authenticators of a Move account have
+        // passed their own run. So the locks cannot hold anyone else's object,
+        // and a second transaction on the same objects is refused before it
+        // gets a dry run of its own.
+        if move_authenticators.is_empty() || authenticators_run_on_their_own {
+            lock_owned_objects(&owned_objects)?;
+        }
+
+        self.metrics.attestation_dry_runs_total.inc();
 
         // Capture the `InnerTemporaryStore` from the dry-run: its object maps are the
         // source of truth for the input versions the attestor observed. The account

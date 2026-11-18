@@ -11,6 +11,7 @@
 use std::{path::PathBuf, sync::Arc};
 
 use fastcrypto::encoding::{Encoding, Hex};
+use iota_config::node::AuthorityOverloadConfig;
 use iota_move_build::BuildConfig;
 use iota_sdk_crypto::{Signer, ed25519::Ed25519PrivateKey};
 use iota_sdk_types::{
@@ -79,11 +80,16 @@ impl AbstractAccountTestEnv {
     /// Publishes the account package, creates a shared account authenticated by
     /// a fresh ed25519 key, and funds it.
     pub async fn new() -> Self {
+        Self::new_with_overload_config(AuthorityOverloadConfig::default()).await
+    }
+
+    /// Like [`Self::new()`], for a validator that uses `overload_config`.
+    pub async fn new_with_overload_config(overload_config: AuthorityOverloadConfig) -> Self {
         let (funder, funder_key): (_, AccountPrivateKey) = get_key_pair();
         let (_, owner_key): (_, AccountPrivateKey) = get_key_pair();
         let gas_ids = (0..8).map(|_| ObjectId::random()).collect();
 
-        Self::new_with(funder, funder_key, owner_key, gas_ids).await
+        Self::new_with(funder, funder_key, owner_key, gas_ids, overload_config).await
     }
 
     /// Two environments built from the same keys and objects through the same
@@ -99,9 +105,17 @@ impl AbstractAccountTestEnv {
             funder_key.clone(),
             owner_key.clone(),
             gas_ids.clone(),
+            AuthorityOverloadConfig::default(),
         )
         .await;
-        let second = Self::new_with(funder, funder_key, owner_key, gas_ids).await;
+        let second = Self::new_with(
+            funder,
+            funder_key,
+            owner_key,
+            gas_ids,
+            AuthorityOverloadConfig::default(),
+        )
+        .await;
 
         (first, second)
     }
@@ -111,6 +125,7 @@ impl AbstractAccountTestEnv {
         funder_key: AccountPrivateKey,
         owner_key: Ed25519PrivateKey,
         gas_ids: Vec<ObjectId>,
+        overload_config: AuthorityOverloadConfig,
     ) -> Self {
         let objects: Vec<Object> = gas_ids
             .iter()
@@ -118,6 +133,7 @@ impl AbstractAccountTestEnv {
             .collect();
         let authority = TestAuthorityBuilder::new()
             .with_starting_objects(&objects)
+            .with_authority_overload_config(overload_config)
             .build()
             .await;
 
@@ -359,6 +375,21 @@ impl AbstractAccountTestEnv {
         self.sign_with_move_authenticator(pt, signing_key)
     }
 
+    /// Two transactions sent by the account that pay with the same coin, so at
+    /// most one of them can execute.
+    pub fn account_transactions_on_one_coin(
+        &mut self,
+    ) -> (TransactionEnvelope, TransactionEnvelope) {
+        let gas = self.take_account_gas();
+        let owner_key = self.owner_key.clone();
+        let first = self.add_field_transaction();
+        let first = self.sign_with_move_authenticator_paying_with(first, &owner_key, gas);
+        let second = self.add_field_transaction();
+        let second = self.sign_with_move_authenticator_paying_with(second, &owner_key, gas);
+
+        (first, second)
+    }
+
     /// Like [`Self::account_transaction_signed_with()`], but sponsored by the
     /// funder, which signs with its key and pays with a coin of its own: the
     /// gas owner authorized the transaction whatever the account's
@@ -416,6 +447,17 @@ impl AbstractAccountTestEnv {
         signing_key: &Ed25519PrivateKey,
     ) -> TransactionEnvelope {
         let gas = self.take_account_gas();
+
+        self.sign_with_move_authenticator_paying_with(pt, signing_key, gas)
+    }
+
+    /// Like [`Self::sign_with_move_authenticator()`], but pays with `gas`.
+    fn sign_with_move_authenticator_paying_with(
+        &self,
+        pt: ProgrammableTransaction,
+        signing_key: &Ed25519PrivateKey,
+        gas: ObjectReference,
+    ) -> TransactionEnvelope {
         let tx_data = Transaction::new_programmable(
             self.account_address,
             vec![gas],
