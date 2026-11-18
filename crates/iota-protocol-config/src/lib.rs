@@ -291,6 +291,9 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             and deriving IOTA addresses from public keys.
 //             Set the gas costs of those natives and of the built-in Move
 //             authenticators on all networks.
+//             Add `tx_context::chain_identifier`, which returns the digest of
+//             the genesis checkpoint, and set the gas cost of its native on
+//             all networks.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
