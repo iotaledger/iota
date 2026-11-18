@@ -107,9 +107,9 @@ fn assert_executed_successfully(outcome: &Outcome) -> &TransactionEffects {
 }
 
 /// The dependent of a failed transaction is rejected before execution or
-/// executed as cancelled, depending on how far it got before the failure was
+/// fails at execution, depending on how far it got before the failure was
 /// known; it never succeeds.
-fn assert_cancelled(outcome: &Outcome, dependency: TransactionDigest) {
+fn assert_dependency_failed(outcome: &Outcome, dependency: TransactionDigest) {
     match outcome {
         Outcome::Executed(effects) => {
             let ExecutionStatus::Failure { error, command } = effects.status() else {
@@ -281,12 +281,12 @@ async fn pipelined_dependent_of_a_failed_transaction_never_succeeds(pcool: bool)
         panic!("the failing transaction was rejected instead of executed");
     };
     assert!(!failing_effects.status().is_success());
-    assert_cancelled(&dependent_outcome, failing_digest);
+    assert_dependency_failed(&dependent_outcome, failing_digest);
 
     let mut executed = vec![failing_effects];
     if let Outcome::Executed(effects) = dependent_outcome {
-        // Cancelled with effects: the gas coin moves on, so the sender can
-        // reuse it.
+        // Failed with effects: the gas coin moves on, so the sender can reuse
+        // it.
         assert!(effects.gas_object().reference().version > dependent_gas.version);
         executed.push(effects);
     }
@@ -354,7 +354,7 @@ async fn wait_until_sequenced(validators: &[iota_node::IotaNodeHandle], digest: 
 /// override reaches the validators only there.
 #[cfg(msim)]
 #[sim_test]
-async fn dependent_sequenced_before_its_dependency_fails_is_cancelled_at_execution() {
+async fn dependent_sequenced_before_its_dependency_fails_then_fails_at_execution() {
     use std::sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
