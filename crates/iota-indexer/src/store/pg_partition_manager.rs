@@ -180,14 +180,13 @@ impl PgPartitionManager {
         table_name: &str,
         data: &EpochPartitionData,
     ) -> Option<(u64, u64)> {
-        match self.get_strategy(table_name) {
-            PgPartitionStrategy::Epoch(EpochPartitionKey::CheckpointSequenceNumber) => {
+        match self.get_strategy(table_name).epoch()? {
+            EpochPartitionKey::CheckpointSequenceNumber => {
                 Some((data.last_epoch_start_cp, data.next_epoch_start_cp))
             }
-            PgPartitionStrategy::Epoch(EpochPartitionKey::TxSequenceNumber) => {
+            EpochPartitionKey::TxSequenceNumber => {
                 Some((data.last_epoch_start_tx, data.next_epoch_start_tx))
             }
-            PgPartitionStrategy::ObjectId => None,
         }
     }
 
