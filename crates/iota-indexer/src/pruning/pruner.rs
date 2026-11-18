@@ -583,7 +583,8 @@ async fn update_watermarks_lower_bounds(
             && watermark.min_available_epoch < watermark.current_epoch
         {
             // we don't want `min_available_epoch` to exceed `current_epoch`
-            // in order to maintain the table semantics
+            // in order to maintain the semantics of `current_epoch` as the latest
+            // epoch for which the table contains some data
             let new_min_available_epoch = (latest_epoch)
                 .saturating_sub(*epochs_to_keep - 1)
                 .min(watermark.current_epoch as u64);
