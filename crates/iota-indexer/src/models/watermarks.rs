@@ -79,14 +79,4 @@ impl StoredWatermark {
     pub fn entity(&self) -> Option<PrunableTable> {
         PrunableTable::from_str(&self.entity).ok()
     }
-
-    /// Determine whether to set a new minimum available epoch based on the
-    /// retention policy.
-    pub fn new_min_available_epoch(&self, retention: u64) -> Option<u64> {
-        if self.min_available_epoch as u64 + retention <= self.current_epoch as u64 {
-            Some((self.current_epoch as u64).saturating_sub(retention - 1))
-        } else {
-            None
-        }
-    }
 }
