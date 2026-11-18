@@ -52,6 +52,23 @@ pub struct StoredEpochInfo {
     pub first_optimistic_sequence_number: i64,
 }
 
+/// Lower bounds of the sequence numbers of one epoch.
+#[derive(Queryable, Selectable, Debug, Clone, Default)]
+#[diesel(table_name = epochs)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct EpochLowerBounds {
+    /// The epoch of these bounds.
+    pub epoch: i64,
+    /// First checkpoint sequence number of this epoch.
+    pub first_checkpoint_id: i64,
+    /// First transaction sequence number of this epoch.
+    pub first_tx_sequence_number: i64,
+    /// First `optimistic_sequence_number` value belonging to this epoch.
+    ///
+    /// Assigned by the column default when the epoch row is inserted.
+    pub first_optimistic_sequence_number: i64,
+}
+
 /// Extracts the indexed epoch-info facts from a transaction's events.
 ///
 /// Returns `None` when no `SystemEpochInfoEvent` is present, as on a safe-mode
