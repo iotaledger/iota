@@ -16,6 +16,7 @@ const EBadTxHashLength: u64 = 0;
 /// Number of bytes in a chain identifier
 const CHAIN_IDENTIFIER_LENGTH: u64 = 32;
 
+// Not 1: the native `last_created_id` aborts with 1 in this module.
 #[test_only]
 /// Expected a chain identifier of length 32, but found a different length
 const EBadChainIdentifierLength: u64 = 2;
