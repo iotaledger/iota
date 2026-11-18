@@ -403,9 +403,10 @@ enum FaultType {
     /// peer sent the block (stream order) rather than in the block itself.
     /// Charged to the sending peer, not the claimed author.
     Unprovable,
-    /// Relayed bundle part (framing, metadata, or shard) that is corrupt,
+    /// Relayed bundle part (additional header or shard) that is corrupt,
     /// invalid, or one the peer had no right to relay, and isn't tied to a
-    /// verified author. Charged to the sending peer.
+    /// verified author. Charged to the sending peer. Errors in the bundle's
+    /// framing and metadata are unprovable faults of the peer.
     BundlePart,
     /// Not counted as misbehavior.
     Untracked,
@@ -423,7 +424,9 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         // with an entry larger than any valid one, or with commits after its
         // transactions. So is a commit-sync response an honest server never
         // sends: it serves only the certified commit chain it stores, with the
-        // first commit's transactions whole.
+        // first commit's transactions whole. So is a reply to the last-own-header
+        // probe with another author's header: the server returns only the
+        // headers asked for.
         ConsensusError::WrongEpoch { .. }
         | ConsensusError::UnexpectedGenesisHeader
         | ConsensusError::UnexpectedAuthority(..)
@@ -432,7 +435,6 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::MalformedTransactions(_)
         | ConsensusError::MalformedSignature(_)
         | ConsensusError::SignatureVerificationFailure(_)
-        | ConsensusError::SerializationFailure(_)
         | ConsensusError::DeserializationFailure(_)
         | ConsensusError::SerializedTransactionsTooLarge { .. }
         | ConsensusError::TransactionCommitmentFailure { .. }
@@ -451,11 +453,12 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::UnexpectedCommitSequence { .. }
         | ConsensusError::NotEnoughCommitVotes { .. }
         | ConsensusError::FetchedTransactionsMismatch { .. }
-        | ConsensusError::TooManyCommitSyncEntries { .. } => FaultType::Unprovable,
+        | ConsensusError::TooManyCommitSyncEntries { .. }
+        | ConsensusError::UnexpectedLastOwnHeader { .. } => FaultType::Unprovable,
 
-        // Relayed bundle parts that are corrupt or invalid (framing,
-        // additional-header round, shard structure/proof) or that the peer had
-        // no right to relay (a second shard for one slot). We know which peer
+        // Relayed bundle parts that are corrupt or invalid (additional-header
+        // round, shard author, structure or proof) or that the peer had no
+        // right to relay (a second shard for one slot). We know which peer
         // relayed them but can't tie them to a verified author.
         ConsensusError::MalformedShard(_)
         | ConsensusError::TooBigHeaderRoundInABundle { .. }
@@ -463,6 +466,7 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::IncorrectShardProof { .. }
         | ConsensusError::UnrequestedHeaderOutOfWindow { .. }
         | ConsensusError::SerializedShardTooLarge { .. }
+        | ConsensusError::InvalidShardAuthor { .. }
         | ConsensusError::SecondShardForSlot { .. } => FaultType::BundlePart,
 
         // Checks that run only after the author's signature is verified, so the
@@ -475,6 +479,7 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::AncestorRoundTooOld { .. }
         | ConsensusError::AcknowledgmentRoundTooOld { .. }
         | ConsensusError::InvalidGenesisAncestor(_)
+        | ConsensusError::InvalidReferenceAuthority { .. }
         | ConsensusError::DuplicatedAncestorsAuthority(_)
         | ConsensusError::InvalidOverlapIndices { .. }
         | ConsensusError::TooManyAcknowledgments { .. }
@@ -499,7 +504,8 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         // than a faulty peer.
         | ConsensusError::UnexpectedGenesisRequested { .. }
         | ConsensusError::NotEnoughHeadersFetched { .. }
-        | ConsensusError::UnexpectedLastOwnHeader { .. }
+        // Raised only when this node encodes its own data.
+        | ConsensusError::SerializationFailure(_)
         // Transaction faults recorded against the serving peer where they are
         // detected, via `record_faulty_transactions` — deliberately not
         // tracked again here.
@@ -1492,6 +1498,10 @@ mod tests {
                 block: 10,
                 gc_depth: 3,
             },
+            ConsensusError::InvalidReferenceAuthority {
+                index: AuthorityIndex::new_for_test(4),
+                max: 4,
+            },
             ConsensusError::InvalidStrongVoteAuthority {
                 index: AuthorityIndex::new_for_test(3),
                 max: 4,
@@ -1576,6 +1586,11 @@ mod tests {
                 expected: 3,
                 received: 1,
             },
+            // Another author's header in a reply to the last-own-header probe.
+            ConsensusError::UnexpectedLastOwnHeader {
+                index: AuthorityIndex::new_for_test(0),
+                block_ref: BlockRef::MIN,
+            },
         ];
         for e in cases {
             let (prov, unprov, bundle) = classify_via_record(e);
@@ -1612,6 +1627,11 @@ mod tests {
                 peer: AuthorityIndex::new_for_test(0),
                 size: 100,
                 limit: 50,
+            },
+            ConsensusError::InvalidShardAuthor {
+                peer: AuthorityIndex::new_for_test(0),
+                index: AuthorityIndex::new_for_test(4),
+                max: 4,
             },
             ConsensusError::SecondShardForSlot {
                 peer: AuthorityIndex::new_for_test(0),
@@ -1654,6 +1674,8 @@ mod tests {
             // Version mismatch may be a benign upgrade misconfiguration, so it
             // is not charged as misbehavior.
             ConsensusError::WrongShardVersion { actual: "V1" },
+            // Raised only when this node encodes its own data.
+            ConsensusError::SerializationFailure(bcs::Error::Custom("bad".to_string())),
         ];
         for e in cases {
             let (prov, unprov, bundle) = classify_via_record(e);

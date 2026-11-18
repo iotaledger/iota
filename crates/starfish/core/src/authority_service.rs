@@ -486,6 +486,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .bundles_with_invalid_parts
                     .with_label_values(&[peer_hostname, "shard", e.name()])
                     .inc();
+                self.misbehavior_store.record_faulty_block(peer, None, &e);
                 info!("Invalid shard from {}: {}", peer, e);
                 return Err(e);
             }
@@ -1331,10 +1332,10 @@ pub(crate) fn check_shard_transaction_author(
 ) -> ConsensusResult<()> {
     let index = shard.author();
     if !context.committee.is_valid_index(index) {
-        return Err(ConsensusError::InvalidAuthorityIndexRequested {
+        return Err(ConsensusError::InvalidShardAuthor {
+            peer,
             index,
             max: context.committee.size(),
-            peer,
         });
     }
     Ok(())
@@ -6118,10 +6119,10 @@ mod tests {
         let result = check_shard_transaction_author(&shard, peer, &context);
         assert!(matches!(
             result,
-            Err(ConsensusError::InvalidAuthorityIndexRequested {
+            Err(ConsensusError::InvalidShardAuthor {
+                peer: err_peer,
                 index,
                 max: 4,
-                peer: err_peer,
             }) if index == invalid_author && err_peer == peer
         ));
 
@@ -6233,6 +6234,34 @@ mod tests {
             matches!(result, Err(ConsensusError::IncorrectShardProof { .. })),
             "a maximum-length shard must pass the size gate, got {result:?}"
         );
+
+        // A shard whose author is outside the committee is charged to the peer.
+        let bundle_parts_before = misbehavior_store.snapshot_totals()[peer.value()]
+            .as_v2()
+            .invalid_bundle_parts;
+        let outside = AuthorityIndex::new_for_test(context.committee.size() as u8);
+        let shard = crate::block_header::ShardWithProof::new(
+            vec![],
+            vec![],
+            BlockRef::new(4, outside, BlockHeaderDigest::default()),
+            TransactionsCommitment::default(),
+        );
+        let result = authority_service.extract_shards_from_bundle(
+            peer,
+            &context.committee.authority(peer).hostname.clone(),
+            vec![Bytes::from(bcs::to_bytes(&shard).unwrap())],
+            carrier_ref,
+        );
+        assert!(matches!(
+            result,
+            Err(ConsensusError::InvalidShardAuthor { .. })
+        ));
+        let totals = misbehavior_store.snapshot_totals();
+        assert_eq!(
+            totals[peer.value()].as_v2().invalid_bundle_parts,
+            bundle_parts_before + 1
+        );
+        assert_eq!(totals[peer.value()].as_v2().faulty_blocks_unprovable, 0);
     }
 
     /// A server whose batch size exceeds the requester's still stops at twice
