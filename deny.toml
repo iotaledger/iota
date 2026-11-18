@@ -106,6 +106,10 @@ ignore = [
   # `snowflake-api` -> `reqwest-retry` 0.7 in `iota-analytics-indexer`. The
   # latest `snowflake-api` still requires `reqwest-retry` 0.7.
   "RUSTSEC-2026-0441",
+  # `chrono` is unmaintained, and so is `humantime` because it wraps it. Both
+  # come in through `diesel`, `arrow`, `async-graphql` and `object_store`.
+  "RUSTSEC-2026-0543",
+  "RUSTSEC-2026-0542",
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
 # lower than the range specified will be ignored. Note that ignored advisories
