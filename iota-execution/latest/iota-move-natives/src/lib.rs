@@ -72,10 +72,11 @@ use self::{
         TransferFreezeObjectCostParams, TransferInternalCostParams, TransferShareObjectCostParams,
     },
     tx_context::{
-        TxContextDeriveIdCostParams, TxContextEpochCostParams, TxContextEpochTimestampMsCostParams,
-        TxContextFreshIdCostParams, TxContextGasBudgetCostParams, TxContextGasPriceCostParams,
-        TxContextIdsCreatedCostParams, TxContextRGPCostParams, TxContextReplaceCostParams,
-        TxContextSenderCostParams, TxContextSponsorCostParams,
+        TxContextChainIdentifierCostParams, TxContextDeriveIdCostParams, TxContextEpochCostParams,
+        TxContextEpochTimestampMsCostParams, TxContextFreshIdCostParams,
+        TxContextGasBudgetCostParams, TxContextGasPriceCostParams, TxContextIdsCreatedCostParams,
+        TxContextRGPCostParams, TxContextReplaceCostParams, TxContextSenderCostParams,
+        TxContextSponsorCostParams,
     },
     types::TypesIsOneTimeWitnessCostParams,
     validator::ValidatorValidateMetadataBcsCostParams,
@@ -168,6 +169,7 @@ pub struct NativesCostTable {
     pub tx_context_gas_budget_cost_params: TxContextGasBudgetCostParams,
     pub tx_context_ids_created_cost_params: TxContextIdsCreatedCostParams,
     pub tx_context_replace_cost_params: TxContextReplaceCostParams,
+    pub tx_context_chain_identifier_cost_params: TxContextChainIdentifierCostParams,
 
     // AuthContext
     pub auth_context_digest_cost_params: AuthContextDigestCostParams,
@@ -515,6 +517,11 @@ impl NativesCostTable {
                 } else {
                     DEFAULT_UNUSED_TX_CONTEXT_ENTRY_COST.into()
                 },
+            },
+            tx_context_chain_identifier_cost_params: TxContextChainIdentifierCostParams {
+                tx_context_chain_identifier_cost_base: protocol_config
+                    .tx_context_chain_identifier_cost_base_as_option()
+                    .map(Into::into),
             },
             auth_context_digest_cost_params: AuthContextDigestCostParams {
                 auth_context_digest_cost_base: protocol_config
@@ -1374,6 +1381,16 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             make_native!(tx_context::ids_created),
         ),
         ("tx_context", "replace", make_native!(tx_context::replace)),
+        (
+            "tx_context",
+            "native_chain_identifier",
+            make_native!(tx_context::chain_identifier),
+        ),
+        (
+            "tx_context",
+            "replace_chain_identifier",
+            make_native!(tx_context::replace_chain_identifier),
+        ),
         (
             "types",
             "is_one_time_witness",
