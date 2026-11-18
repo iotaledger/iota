@@ -187,9 +187,8 @@ impl AttestationVerdictContext<'_> {
 
         // An invariant violation is an internal error, so nobody is at fault.
         // A cancellation was decided at the consensus commit before any
-        // authenticator ran. No validator spent authentication work on the
-        // transaction, and judging it would mean running the authenticator
-        // only to charge for that run.
+        // authenticator ran. No validator ran one at execution, and judging
+        // the transaction would mean running one only to charge for that run.
         if is_cancellation(kind) || is_any_invariant_violation(kind) {
             return AuthenticationFailureBlame::Nobody;
         }
