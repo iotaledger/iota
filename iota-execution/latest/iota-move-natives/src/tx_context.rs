@@ -17,7 +17,8 @@ use move_vm_types::{
 use smallvec::smallvec;
 
 use crate::{
-    NativesCostTable, object_runtime::ObjectRuntime, transaction_context::TransactionContext,
+    NativesCostTable, legacy_test_cost, object_runtime::ObjectRuntime,
+    transaction_context::TransactionContext,
 };
 
 /// Abort code of `iota::tx_context::EBadTxHashLength`. The Move constant is
@@ -536,7 +537,7 @@ pub fn replace(
 ///
 /// `chain_identifier` must be 32 bytes.
 ///
-/// gas cost: tx_context_replace_cost_base
+/// gas cost: none, as the function is test only
 pub fn replace_chain_identifier(
     context: &mut NativeContext,
     ty_args: Vec<Type>,
@@ -544,16 +545,6 @@ pub fn replace_chain_identifier(
 ) -> PartialVMResult<NativeResult> {
     debug_assert!(ty_args.is_empty());
     debug_assert!(args.len() == 1);
-
-    let tx_context_replace_cost_params = context
-        .extensions_mut()
-        .get::<NativesCostTable>()?
-        .tx_context_replace_cost_params
-        .clone();
-    native_charge_gas_early_exit!(
-        context,
-        tx_context_replace_cost_params.tx_context_replace_cost_base
-    );
 
     let chain_identifier: Vec<u8> = pop_arg!(args, Vec<u8>);
     let chain_identifier = <[u8; CheckpointDigest::LENGTH]>::try_from(chain_identifier)
@@ -565,7 +556,7 @@ pub fn replace_chain_identifier(
     let transaction_context: &mut TransactionContext = context.extensions_mut().get_mut()?;
     transaction_context.set_chain_identifier(chain_identifier)?;
 
-    Ok(NativeResult::ok(context.gas_used(), smallvec![]))
+    Ok(NativeResult::ok(legacy_test_cost(), smallvec![]))
 }
 
 // Attempt to get the most recent created object ID when none has been created.
