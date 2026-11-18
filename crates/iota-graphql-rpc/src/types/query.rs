@@ -71,8 +71,11 @@ impl Query {
             .extend()
     }
 
-    /// Range of checkpoints that the RPC has data available for (for data
-    /// that can be tied to a particular checkpoint).
+    /// Range of checkpoints that consistent object queries (objects, coins,
+    /// balances, dynamic fields and name registrations) can be viewed at. A
+    /// query paginated with a cursor is viewed at the checkpoint the cursor
+    /// was issued at, so the cursor expires once that checkpoint leaves the
+    /// range.
     async fn available_range(&self, ctx: &Context<'_>) -> Result<AvailableRange> {
         let Watermark { checkpoint, .. } = *ctx.data()?;
         AvailableRange::query(ctx.data_unchecked(), checkpoint)

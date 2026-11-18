@@ -135,8 +135,9 @@ enum AddressTransactionBlockRelationship {
 }
 
 """
-Range of checkpoints that the RPC is guaranteed to produce a consistent
-response for.
+Range of checkpoints that consistent object queries can be viewed at. A
+query paginated with a cursor is viewed at the checkpoint the cursor was
+issued at, so the cursor expires once that checkpoint leaves the range.
 """
 type AvailableRange {
 	first: Checkpoint
@@ -3568,8 +3569,11 @@ type Query {
 	"""
 	chainIdentifier: String!
 	"""
-	Range of checkpoints that the RPC has data available for (for data
-	that can be tied to a particular checkpoint).
+	Range of checkpoints that consistent object queries (objects, coins,
+	balances, dynamic fields and name registrations) can be viewed at. A
+	query paginated with a cursor is viewed at the checkpoint the cursor
+	was issued at, so the cursor expires once that checkpoint leaves the
+	range.
 	"""
 	availableRange: AvailableRange!
 	"""
