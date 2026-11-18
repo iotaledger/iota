@@ -1155,7 +1155,7 @@ enum DependencyVerdict {
     /// outcome yet: it was kept earlier in this commit, it is deferred, or it
     /// is a root of a commit later than the horizon. The execution scheduler
     /// makes the dependent wait for the dependency's effects, and the
-    /// dependent is cancelled at execution if they report a failure.
+    /// dependent fails at execution if they report a failure.
     Pending,
     /// The dependency's effects report a failure, a cancellation at
     /// sequencing included, or the dependency was dropped for good earlier in
