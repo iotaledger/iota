@@ -901,7 +901,7 @@ impl AuthorityMetrics {
             cancelled_attested_transactions: register_int_counter_vec_with_registry!(
                 "cancelled_attested_transactions",
                 "Number of executed attested transactions cancelled for congestion, by attestor",
-                &["attestor"],
+                &["hostname"],
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),
@@ -979,6 +979,7 @@ impl AuthorityMetrics {
         self.validator_scoreboard_scores.reset();
         self.invalid_misbehavior_reports_by_authority.reset();
         self.consensus_committed_user_transactions.reset();
+        self.cancelled_attested_transactions.reset();
     }
 }
 
@@ -2250,13 +2251,29 @@ impl AuthorityState {
             },
         ) = (&attestation_record, effects.status())
         {
-            self.metrics
-                .cancelled_attested_transactions
-                .with_label_values(&[&record.attestor.to_string()])
-                .inc();
+            // The index is the attestor's position in this epoch's committee,
+            // so it does not name the same validator across epochs.
+            let hostname = epoch_store
+                .committee()
+                .authority_by_index(u32::from(record.attestor))
+                .and_then(|name| {
+                    epoch_store
+                        .epoch_start_state()
+                        .committee_validators()
+                        .iter()
+                        .find(|validator| validator.authority_name() == *name)
+                })
+                .map(|validator| validator.hostname.as_str());
+            if let Some(hostname) = hostname {
+                self.metrics
+                    .cancelled_attested_transactions
+                    .with_label_values(&[hostname])
+                    .inc();
+            }
             debug!(
                 ?tx_digest,
                 attestor = record.attestor,
+                ?hostname,
                 "attested transaction cancelled for congestion"
             );
         }

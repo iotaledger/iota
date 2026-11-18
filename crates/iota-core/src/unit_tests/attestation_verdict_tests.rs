@@ -26,6 +26,7 @@ use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
     execution::is_cancellation,
+    iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
     object::Object,
     transaction::{TransactionAPI, TransactionEnvelope},
 };
@@ -449,11 +450,16 @@ async fn cancelled_attested_transaction_charges_nobody_and_is_recorded_valid() {
     let gas_coin_after = env.object(&gas_coin_before.id());
     assert_not_charged(&effects, &gas_coin_before, &gas_coin_after);
     assert_record(&env, &effects, AttestationVerdict::Valid);
+    let epoch_store = env.authority.epoch_store_for_testing();
+    let attestor = epoch_store.committee().authority_by_index(0).unwrap();
+    let hostnames = epoch_store
+        .epoch_start_state()
+        .get_authority_names_to_hostnames();
     assert_eq!(
         env.authority
             .metrics
             .cancelled_attested_transactions
-            .with_label_values(&["0"])
+            .with_label_values(&[&hostnames[attestor]])
             .get(),
         1
     );
