@@ -10,8 +10,9 @@ import { getFullnodeUrl, IotaClient } from "@iota/iota-sdk/client";
 import { Transaction } from "@iota/iota-sdk/transactions";
 import PRESETS from "./presets.json";
 
-// `chain` is the wasm VM's chain id (mainnet / testnet); devnet and localnet
-// have no dedicated variant and run with it unset.
+// `chain` names mainnet or testnet for the wasm VM. Devnet and localnet have no
+// `chain`, so they pass the digest of their genesis checkpoint as
+// `chain_identifier` instead (see `chainParams`).
 type NetName = "testnet" | "mainnet" | "devnet" | "localnet";
 interface Network {
   rpc: string;
@@ -54,6 +55,7 @@ type Mode = "dev-inspect" | "dry-run";
 
 interface Params {
   chain?: string;
+  chain_identifier?: string;
   protocol_version: number;
   reference_gas_price: number;
   epoch_id: number;
@@ -337,19 +339,26 @@ async function doSimulate(
   out.output.append(jsonNode(result, null));
 }
 
-async function chainParams() {
-  const [sys, gasPrice] = await Promise.all([
+// Mainnet and testnet are named by `chain`, so they don't depend on the node
+// still serving checkpoint 0.
+async function chainParams(): Promise<Params> {
+  const chain = NETWORKS[netName].chain;
+  const [sys, gasPrice, chainFields] = await Promise.all([
     client.getLatestIotaSystemState(),
     client.getReferenceGasPrice(),
+    chain
+      ? { chain }
+      : client
+        .getCheckpoint({ id: "0" })
+        .then((genesis) => ({ chain_identifier: genesis.digest })),
   ]);
-  const params = {
+  return {
+    ...chainFields,
     protocol_version: Number(sys.protocolVersion),
     reference_gas_price: Number(gasPrice),
     epoch_id: Number(sys.epoch),
     epoch_timestamp_ms: Number(sys.epochStartTimestampMs),
   };
-  const chain = NETWORKS[netName].chain;
-  return chain ? { chain, ...params } : params;
 }
 
 // --- Bootstrap --------------------------------------------------------------

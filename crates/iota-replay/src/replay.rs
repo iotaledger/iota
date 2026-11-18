@@ -797,6 +797,7 @@ impl LocalExec {
                 metrics.clone(),
                 expensive_checks,
                 &certificate_deny_set,
+                tx_info.chain_identifier,
                 &tx_info.executed_epoch,
                 tx_info.epoch_start_timestamp,
                 CheckedInputObjects::new_for_replay(input_objects.clone()),
@@ -893,6 +894,7 @@ impl LocalExec {
                     metrics.clone(),
                     expensive_checks,
                     &certificate_deny_set,
+                    tx_info.chain_identifier,
                     &tx_info.executed_epoch,
                     tx_info.epoch_start_timestamp,
                     gas_data,
@@ -972,6 +974,7 @@ impl LocalExec {
                             metrics,
                             expensive_checks,
                             &HashSet::new(),
+                            tx_info.chain_identifier,
                             &tx_info.executed_epoch,
                             tx_info.epoch_start_timestamp,
                             CheckedInputObjects::new_for_replay(input_objects),
@@ -1078,6 +1081,7 @@ impl LocalExec {
                 Arc::new(LimitsMetrics::new(&Registry::new())),
                 true,
                 &HashSet::new(),
+                pre_run_sandbox.transaction_info.chain_identifier,
                 &executed_epoch,
                 epoch_start_timestamp,
                 input_objects,
@@ -1224,6 +1228,7 @@ impl LocalExec {
                     Arc::new(LimitsMetrics::new(&Registry::new())),
                     true,
                     &HashSet::new(),
+                    pre_run_sandbox.transaction_info.chain_identifier,
                     &executed_epoch,
                     epoch_start_timestamp,
                     gas_data,
@@ -1792,6 +1797,7 @@ impl LocalExec {
 
         let epoch_id = effects.executed_epoch;
         let chain = chain_from_chain_id(self.fetcher.get_chain_id().await?.as_str());
+        let chain_identifier = self.fetcher.get_chain_identifier().await?;
         // Find the protocol version for this epoch
         // This assumes we already initialized the protocol version table
         // `protocol_version_epoch_table`
@@ -1867,6 +1873,7 @@ impl LocalExec {
             sender_signed_data: orig_tx.clone(),
             reference_gas_price,
             chain,
+            chain_identifier,
         })
     }
 
@@ -1892,6 +1899,7 @@ impl LocalExec {
         let epoch_id = dp.node_state_dump.executed_epoch;
 
         let chain = chain_from_chain_id(self.fetcher.get_chain_id().await?.as_str());
+        let chain_identifier = self.fetcher.get_chain_identifier().await?;
 
         let protocol_config =
             ProtocolConfig::get_for_version(dp.node_state_dump.protocol_version.into(), chain);
@@ -1960,6 +1968,7 @@ impl LocalExec {
             sender_signed_data: orig_tx.clone(),
             reference_gas_price,
             chain,
+            chain_identifier,
         })
     }
 

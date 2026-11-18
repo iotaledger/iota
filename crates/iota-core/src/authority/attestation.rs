@@ -211,6 +211,7 @@ impl AuthorityState {
                 self.metrics.limits_metrics.clone(),
                 false, // expensive_checks
                 self.config.certificate_deny_config.certificate_deny_set(),
+                epoch_store.get_chain_identifier(),
                 &epoch_id,
                 epoch_start_timestamp,
                 tx_checked_input_objects,
@@ -300,6 +301,7 @@ impl AuthorityState {
                     self.metrics.limits_metrics.clone(),
                     false, // expensive_checks
                     self.config.certificate_deny_config.certificate_deny_set(),
+                    epoch_store.get_chain_identifier(),
                     &epoch_id,
                     epoch_start_timestamp,
                     gas_data,
