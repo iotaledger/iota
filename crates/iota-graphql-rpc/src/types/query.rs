@@ -26,7 +26,7 @@ use crate::{
         address::Address,
         available_range::AvailableRange,
         chain_identifier::ChainIdentifierCache,
-        checkpoint::{self, Checkpoint, CheckpointId},
+        checkpoint::{self, Checkpoint, CheckpointConnection, CheckpointId},
         coin::Coin,
         coin_metadata::CoinMetadata,
         cursor::Page,
@@ -459,7 +459,7 @@ impl Query {
         after: Option<checkpoint::Cursor>,
         last: Option<u64>,
         before: Option<checkpoint::Cursor>,
-    ) -> Result<Connection<String, Checkpoint>> {
+    ) -> Result<CheckpointConnection> {
         let Watermark { checkpoint, .. } = *ctx.data()?;
 
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;

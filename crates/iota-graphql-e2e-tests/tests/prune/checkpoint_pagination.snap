@@ -3,7 +3,7 @@ source: external-crates/move/crates/move-transactional-test-runner/src/framework
 ---
 processed 21 tasks
 
-task 1, lines 14-17:
+task 1, lines 15-18:
 //# publish
 created: object(1,0)
 mutated: object(0,0)
@@ -14,43 +14,43 @@ gas summary:
 ├── Storage Rebate: 0
 └── Non-Refundable Storage Fee: 0
 
-task 2, line 19:
+task 2, line 20:
 //# create-checkpoint
 Checkpoint created: 1
 
-task 3, line 21:
+task 3, line 22:
 //# advance-epoch
 Epoch advanced: 1
 
-task 4, line 23:
+task 4, line 24:
 //# create-checkpoint
 Checkpoint created: 3
 
-task 5, line 25:
+task 5, line 26:
 //# advance-epoch
 Epoch advanced: 2
 
-task 6, line 27:
+task 6, line 28:
 //# create-checkpoint
 Checkpoint created: 5
 
-task 7, line 29:
+task 7, line 30:
 //# advance-epoch
 Epoch advanced: 3
 
-task 8, line 31:
+task 8, line 32:
 //# create-checkpoint
 Checkpoint created: 7
 
-task 9, line 33:
+task 9, line 34:
 //# create-checkpoint
 Checkpoint created: 8
 
-task 10, line 35:
+task 10, line 36:
 //# create-checkpoint
 Checkpoint created: 9
 
-task 11, lines 37-47:
+task 11, lines 38-49:
 //# run-graphql --wait-for-checkpoint-pruned 6
 Response: {
   "data": {
@@ -66,6 +66,7 @@ Response: {
           "sequenceNumber": 9
         }
       ],
+      "oldestAvailableCheckpoint": 7,
       "pageInfo": {
         "hasNextPage": false,
         "hasPreviousPage": false
@@ -74,7 +75,7 @@ Response: {
   }
 }
 
-task 12, lines 49-58:
+task 12, lines 51-61:
 //# run-graphql
 Response: {
   "data": {
@@ -87,6 +88,7 @@ Response: {
           "sequenceNumber": 8
         }
       ],
+      "oldestAvailableCheckpoint": 7,
       "pageInfo": {
         "hasNextPage": true,
         "hasPreviousPage": false
@@ -95,7 +97,7 @@ Response: {
   }
 }
 
-task 13, lines 60-70:
+task 13, lines 63-74:
 //# run-graphql --cursors {"c":9,"s":2}
 Response: {
   "data": null,
@@ -119,7 +121,7 @@ Response: {
   ]
 }
 
-task 14, lines 72-81:
+task 14, lines 76-86:
 //# run-graphql --cursors {"c":9,"s":42}
 Response: {
   "data": null,
@@ -142,7 +144,7 @@ Response: {
   ]
 }
 
-task 15, lines 83-92:
+task 15, lines 88-98:
 //# run-graphql --cursors {"c":9,"s":7}
 Response: {
   "data": {
@@ -155,6 +157,7 @@ Response: {
           "sequenceNumber": 9
         }
       ],
+      "oldestAvailableCheckpoint": 7,
       "pageInfo": {
         "hasNextPage": false,
         "hasPreviousPage": true
@@ -163,7 +166,7 @@ Response: {
   }
 }
 
-task 16, lines 94-102:
+task 16, lines 100-108:
 //# run-graphql
 Response: {
   "data": {
@@ -171,7 +174,7 @@ Response: {
   }
 }
 
-task 17, lines 104-110:
+task 17, lines 110-116:
 //# run-graphql
 Response: {
   "data": {
@@ -181,7 +184,7 @@ Response: {
   }
 }
 
-task 18, lines 112-125:
+task 18, lines 118-132:
 //# run-graphql
 Response: {
   "data": {
@@ -210,7 +213,7 @@ Response: {
   ]
 }
 
-task 19, lines 127-137:
+task 19, lines 134-145:
 //# run-graphql
 Response: {
   "data": {
@@ -227,6 +230,7 @@ Response: {
             "sequenceNumber": 9
           }
         ],
+        "oldestAvailableCheckpoint": 7,
         "pageInfo": {
           "hasNextPage": false,
           "hasPreviousPage": false
@@ -237,7 +241,7 @@ Response: {
   }
 }
 
-task 20, lines 139-150:
+task 20, lines 147-159:
 //# run-graphql --cursors {"c":9,"s":2}
 Response: {
   "data": {
