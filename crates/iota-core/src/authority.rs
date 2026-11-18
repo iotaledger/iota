@@ -385,7 +385,7 @@ pub struct AuthorityMetrics {
     /// their attestor is cut off for the rest of the epoch.
     pub(crate) consensus_handler_validation_attestor_cut_off_transactions: IntCounter,
     /// Attested transactions that were cancelled for congestion, by attestor's
-    /// hostname.
+    /// hostname and by whether the gas owner was charged.
     pub(crate) cancelled_attested_transactions: IntCounterVec,
     /// Number of user transactions dropped during a consensus commit by
     /// post-consensus load shedding, i.e. probabilistically rejected at the
@@ -900,8 +900,8 @@ impl AuthorityMetrics {
             ).unwrap(),
             cancelled_attested_transactions: register_int_counter_vec_with_registry!(
                 "cancelled_attested_transactions",
-                "Number of attested transactions cancelled for congestion, by attestor's hostname",
-                &["hostname"],
+                "Number of attested transactions cancelled for congestion, by attestor's hostname and by whether the gas owner was charged",
+                &["authority", "charged"],
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),
@@ -2251,8 +2251,9 @@ impl AuthorityState {
             },
         ) = (&attestation_record, effects.status())
         {
-            // The index is the attestor's position in this epoch's committee,
-            // so it does not name the same validator across epochs.
+            // The attestor is an authority index, which does not name the same
+            // validator across epochs. `committee_validators()` is not in that
+            // order, so the validator is found by its name.
             let hostname = epoch_store
                 .committee()
                 .authority_by_index(u32::from(record.attestor))
@@ -2264,16 +2265,18 @@ impl AuthorityState {
                         .find(|validator| validator.authority_name() == *name)
                 })
                 .map(|validator| validator.hostname.as_str());
+            let charged = effects.gas_cost_summary().gas_used() > 0;
             if let Some(hostname) = hostname {
                 self.metrics
                     .cancelled_attested_transactions
-                    .with_label_values(&[hostname])
+                    .with_label_values(&[hostname, &charged.to_string()])
                     .inc();
             }
             debug!(
                 ?tx_digest,
                 attestor = record.attestor,
                 ?hostname,
+                charged,
                 "attested transaction cancelled for congestion"
             );
         }

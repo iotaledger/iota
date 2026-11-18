@@ -459,7 +459,7 @@ async fn cancelled_attested_transaction_charges_nobody_and_is_recorded_valid() {
         env.authority
             .metrics
             .cancelled_attested_transactions
-            .with_label_values(&[&hostnames[attestor]])
+            .with_label_values(&[hostnames[attestor].as_str(), "false"])
             .get(),
         1
     );
