@@ -26,7 +26,7 @@ use crate::{
     errors::{Context, IndexerError},
     ingestion::{
         common::{
-            persist::CommitterWatermark,
+            persist::{CommitterTables, CommitterWatermark},
             prepare::{
                 CheckpointObjectChanges, LiveObject, RemovedObject,
                 retain_latest_objects_from_checkpoint_batch,
@@ -1111,11 +1111,15 @@ impl PgIndexerStore {
         &self,
         last_epoch: EndOfEpochUpdate,
         new_epoch: StartOfEpochUpdate,
+        ingested_tables: Vec<CommitterTables>,
     ) -> Result<(), IndexerError> {
         let epoch_partition_data =
             self.compose_epoch_partition_data(last_epoch.epoch, new_epoch)?;
         let table_partitions = self.partition_manager.get_table_partitions()?;
         for (table, (_, last_partition)) in table_partitions {
+            if !ingested_tables.iter().any(|t| t.as_ref() == table) {
+                continue;
+            }
             // Only advance epoch partition for epoch partitioned tables.
             if !self
                 .partition_manager
@@ -2047,9 +2051,12 @@ impl IndexerStore for PgIndexerStore {
         &self,
         last_epoch: EndOfEpochUpdate,
         new_epoch: StartOfEpochUpdate,
+        ingested_tables: Vec<CommitterTables>,
     ) -> Result<(), IndexerError> {
-        self.execute_in_blocking_worker(move |this| this.advance_epoch(last_epoch, new_epoch))
-            .await
+        self.execute_in_blocking_worker(move |this| {
+            this.advance_epoch(last_epoch, new_epoch, ingested_tables)
+        })
+        .await
     }
 
     async fn get_network_total_transactions_by_end_of_epoch(

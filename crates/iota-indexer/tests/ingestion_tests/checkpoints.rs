@@ -55,13 +55,13 @@ pub async fn watermarks_table(
         .await
 }
 
+#[rstest]
 #[tokio::test]
-pub async fn epoch_partitioned_tables() -> Result<(), IndexerError> {
+pub async fn epoch_partitioned_tables(
+    #[values(Basic, ObjectsHistory, FilteredQueries, CombinedEventFilters)] level: OperationalLevel,
+) -> Result<(), IndexerError> {
     EpochPartitionedTables
-        .run(
-            OperationalLevel::CombinedEventFilters,
-            "ingestion_epoch_partitioned_tables",
-        )
+        .run(level, "ingestion_epoch_partitioned_tables")
         .await
 }
 
@@ -169,20 +169,20 @@ impl IngestionTest for WatermarksTable {
             .map(|watermark| (watermark.entity, watermark.max_committed_cp))
             .collect::<HashMap<_, _>>();
 
-        assert_watermarks(&max_committed_cps, CommitterTables::basic(), true);
+        assert_watermarks(&max_committed_cps, CommitterTables::BASIC, true);
         assert_watermarks(
             &max_committed_cps,
-            CommitterTables::objects_history(),
+            CommitterTables::OBJECTS_HISTORY,
             level.includes(ObjectsHistory),
         );
         assert_watermarks(
             &max_committed_cps,
-            CommitterTables::filtered_queries(),
+            CommitterTables::FILTERED_QUERIES,
             level.includes(FilteredQueries),
         );
         assert_watermarks(
             &max_committed_cps,
-            CommitterTables::combined_event_filters(),
+            CommitterTables::COMBINED_EVENT_FILTERS,
             level.includes(CombinedEventFilters),
         );
         Ok(())
@@ -209,8 +209,8 @@ fn assert_watermarks(
 struct EpochPartitionedTables;
 
 impl IngestionTest for EpochPartitionedTables {
-    /// The number of epochs advanced.
-    type ExpectedState = u64;
+    /// The level of the indexer and the number of epochs advanced.
+    type ExpectedState = (OperationalLevel, u64);
 
     async fn setup(
         &self,
@@ -226,13 +226,13 @@ impl IngestionTest for EpochPartitionedTables {
         sim.inner.create_checkpoint(); // checkpoint at epoch 4
         let pg_store = sim.start_indexer(None).await;
         indexer_wait_for_epoch(&pg_store, num_epochs).await;
-        (pg_store, num_epochs)
+        (pg_store, (level, num_epochs))
     }
 
     async fn assert_ingested(
         &self,
         pg_store: &PgIndexerStore,
-        num_epochs: Self::ExpectedState,
+        (indexer_level, num_epochs): Self::ExpectedState,
     ) -> Result<(), IndexerError> {
         let connection_pool = pg_store.blocking_cp();
         let table_partitions = diesel_macro::spawn_blocking_task(|| {
@@ -250,10 +250,18 @@ impl IngestionTest for EpochPartitionedTables {
                 continue;
             }
             let new_partitions = last - first;
-            assert_eq!(
-                new_partitions, num_epochs,
-                "incorrect partitions for ingested {table}",
-            );
+            let committer_table: CommitterTables = table.parse().unwrap();
+            if indexer_level.includes(committer_table.level()) {
+                assert_eq!(
+                    new_partitions, num_epochs,
+                    "incorrect partitions for ingested {table}",
+                );
+            } else {
+                assert_eq!(
+                    new_partitions, 0,
+                    "added new partitions for non-ingested {table}",
+                );
+            }
         }
         Ok(())
     }

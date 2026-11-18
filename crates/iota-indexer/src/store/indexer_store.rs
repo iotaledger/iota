@@ -22,7 +22,7 @@ use crate::{
         transactions::{OptimisticTransaction, TxGlobalOrder},
         watermarks::StoredWatermark,
     },
-    pruning::pruner::PrunableTable,
+    pruning::{CommitterTables, pruner::PrunableTable},
     types::{EventIndex, IndexedCheckpoint, IndexedEvent, IndexedTransaction, TxIndex},
 };
 
@@ -79,6 +79,7 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         &self,
         last_epoch: EndOfEpochUpdate,
         new_epoch: StartOfEpochUpdate,
+        ingested_tables: Vec<CommitterTables>,
     ) -> Result<(), IndexerError>;
 
     async fn get_network_total_transactions_by_end_of_epoch(

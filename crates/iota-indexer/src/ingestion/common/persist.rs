@@ -7,7 +7,7 @@
 use iota_types::full_checkpoint_content::CheckpointData;
 use serde::{Deserialize, Serialize};
 
-use crate::types::IndexedCheckpoint;
+use crate::{ingestion::OperationalLevel, types::IndexedCheckpoint};
 
 pub(crate) const CHECKPOINT_COMMIT_BATCH_SIZE: usize = 100;
 
@@ -64,6 +64,7 @@ impl From<&CheckpointData> for CommitterWatermark {
     Serialize,
     Deserialize,
     Clone,
+    Copy,
 )]
 #[strum(serialize_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
@@ -103,52 +104,57 @@ pub enum CommitterTables {
 }
 
 impl CommitterTables {
-    pub fn basic() -> impl IntoIterator<Item = Self> {
-        [
-            Self::ChainIdentifier,
-            Self::Display,
-            Self::Epochs,
-            Self::FeatureFlags,
-            Self::Objects,
-            Self::ObjectsVersion,
-            Self::Packages,
-            Self::ProtocolConfigs,
-            Self::Transactions,
-            Self::TxGlobalOrder,
-            Self::Checkpoints,
-            Self::PrunerCpWatermark,
-        ]
-    }
+    pub const BASIC: [Self; 12] = [
+        Self::ChainIdentifier,
+        Self::Display,
+        Self::Epochs,
+        Self::FeatureFlags,
+        Self::Objects,
+        Self::ObjectsVersion,
+        Self::Packages,
+        Self::ProtocolConfigs,
+        Self::Transactions,
+        Self::TxGlobalOrder,
+        Self::Checkpoints,
+        Self::PrunerCpWatermark,
+    ];
 
-    pub fn objects_history() -> impl IntoIterator<Item = Self> {
-        [Self::ObjectsBackwardHistory]
-    }
+    pub const OBJECTS_HISTORY: [Self; 1] = [Self::ObjectsBackwardHistory];
 
-    pub fn filtered_queries() -> impl IntoIterator<Item = Self> {
-        [
-            Self::TxCallsPkg,
-            Self::TxCallsMod,
-            Self::TxCallsFun,
-            Self::TxChangedObjects,
-            Self::TxInputObjects,
-            Self::TxKinds,
-            Self::TxRecipients,
-            Self::TxSenders,
-            Self::TxWrappedOrDeletedObjects,
-            Self::Events,
-        ]
-    }
+    pub const FILTERED_QUERIES: [Self; 10] = [
+        Self::TxCallsPkg,
+        Self::TxCallsMod,
+        Self::TxCallsFun,
+        Self::TxChangedObjects,
+        Self::TxInputObjects,
+        Self::TxKinds,
+        Self::TxRecipients,
+        Self::TxSenders,
+        Self::TxWrappedOrDeletedObjects,
+        Self::Events,
+    ];
 
-    pub fn combined_event_filters() -> impl IntoIterator<Item = Self> {
-        [
-            Self::EventEmitPackage,
-            Self::EventEmitModule,
-            Self::EventSenders,
-            Self::EventStructInstantiation,
-            Self::EventStructModule,
-            Self::EventStructName,
-            Self::EventStructPackage,
-        ]
+    pub const COMBINED_EVENT_FILTERS: [Self; 7] = [
+        Self::EventEmitPackage,
+        Self::EventEmitModule,
+        Self::EventSenders,
+        Self::EventStructInstantiation,
+        Self::EventStructModule,
+        Self::EventStructName,
+        Self::EventStructPackage,
+    ];
+
+    /// Returns the lowest operational level that ingests this table.
+    pub fn level(self) -> OperationalLevel {
+        if Self::BASIC.contains(&self) {
+            OperationalLevel::Basic
+        } else if Self::OBJECTS_HISTORY.contains(&self) {
+            OperationalLevel::ObjectsHistory
+        } else if Self::FILTERED_QUERIES.contains(&self) {
+            OperationalLevel::FilteredQueries
+        } else {
+            OperationalLevel::CombinedEventFilters
+        }
     }
 }
 
@@ -183,11 +189,11 @@ mod tests {
 
     #[test]
     fn committer_table_groups_cover_all_tables_once() {
-        let grouped = CommitterTables::basic()
+        let grouped = CommitterTables::BASIC
             .into_iter()
-            .chain(CommitterTables::objects_history())
-            .chain(CommitterTables::filtered_queries())
-            .chain(CommitterTables::combined_event_filters())
+            .chain(CommitterTables::OBJECTS_HISTORY)
+            .chain(CommitterTables::FILTERED_QUERIES)
+            .chain(CommitterTables::COMBINED_EVENT_FILTERS)
             .collect::<Vec<_>>();
         let unique = grouped.iter().cloned().collect::<HashSet<_>>();
 
