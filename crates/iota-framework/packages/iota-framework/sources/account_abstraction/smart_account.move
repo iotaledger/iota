@@ -31,6 +31,7 @@ use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::builtin_authenticator_functions;
 use iota::claim;
 use iota::dynamic_field;
+use iota::protocol_config;
 use iota::public_key::PublicKey;
 
 // === Errors ===
@@ -38,6 +39,8 @@ use iota::public_key::PublicKey;
 #[error(code = 0)]
 const ETransactionSenderIsNotTheSmartAccount: vector<u8> =
     b"Transaction must be signed by the smart account.";
+#[error(code = 1)]
+const EBuiltinAuthenticatorsNotEnabled: vector<u8> = b"Built-in Move authenticators not enabled.";
 
 // === Structs ===
 
@@ -72,10 +75,17 @@ public struct SmartAccountBuilder {
 /// a public key and the built-in authenticator, use `smart_account_builtin_auth::builder_v1`:
 /// `build_v1` aborts for a builder made here with the built-in authenticator, since it has no
 /// key.
+///
+/// Aborts if `enable_builtin_move_authenticators` is not enabled in the protocol config.
 public fun builder_v1(
     authenticator: AuthenticatorFunctionRefV1<SmartAccount>,
     ctx: &mut TxContext,
 ): SmartAccountBuilder {
+    assert!(
+        protocol_config::is_feature_enabled(b"enable_builtin_move_authenticators"),
+        EBuiltinAuthenticatorsNotEnabled,
+    );
+
     SmartAccountBuilder {
         account: SmartAccount { id: object::new(ctx) },
         authenticator,

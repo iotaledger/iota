@@ -6,6 +6,7 @@ module iota::smart_account_tests;
 
 use iota::authenticator_function::{Self, AuthenticatorFunctionRefV1};
 use iota::builtin_authenticator_functions;
+use iota::protocol_config;
 use iota::smart_account::{Self, SmartAccount};
 use iota::test_scenario::{Self, Scenario};
 use iota::test_utils::{assert_eq, assert_ref_eq};
@@ -15,6 +16,7 @@ use std::ascii;
 
 #[test]
 fun builder_v1_builds_shared_account() {
+    protocol_config::set_feature_enabled_for_testing(b"enable_builtin_move_authenticators", true);
     let mut scenario = test_scenario::begin(@0x0);
 
     let authenticator = test_authenticator();
@@ -28,6 +30,17 @@ fun builder_v1_builds_shared_account() {
 
     test_scenario::return_shared(account);
     scenario.end();
+}
+
+#[test]
+#[expected_failure(abort_code = smart_account::EBuiltinAuthenticatorsNotEnabled)]
+fun builder_v1_aborts_without_builtin_authenticators() {
+    protocol_config::set_feature_enabled_for_testing(b"enable_builtin_move_authenticators", false);
+    let mut scenario = test_scenario::begin(@0x0);
+
+    smart_account::builder_v1(test_authenticator(), scenario.ctx()).build_v1();
+
+    abort
 }
 
 #[test]
