@@ -54,7 +54,7 @@ const EXAMPLE_CHAIN_IDENTIFIER: vector<u8> =
 const EXAMPLE_ACCOUNT: address = @0xf9e4f7f66304ca332d20636b5358b0b9297afbc7428bc107fc5dbc64fb204125;
 const EXAMPLE_NONCE: vector<u8> = x"dbf7a1f60789ef83fe154a99c04c583785f44a74760105e17a8e7338c77c6cd1";
 const EXAMPLE_MESSAGE: vector<u8> =
-    b"check: 0000000000000000000000000000000000000000000000000000000000000002::smart_account_builtin_auth::verify_key_proof\nnetwork: 2304aa976b1765b020886e8b5c7369e169bc779154b9c3efb4dd15c6039c0679\naccount: 0xf9e4f7f66304ca332d20636b5358b0b9297afbc7428bc107fc5dbc64fb204125\nnew account: true\nnonce: dbf7a1f60789ef83fe154a99c04c583785f44a74760105e17a8e7338c77c6cd1\nvalid until epoch: 730";
+    b"check: 0x2::smart_account_builtin_auth::verify_key_proof\nnetwork: 2304aa976b1765b020886e8b5c7369e169bc779154b9c3efb4dd15c6039c0679\naccount: 0xf9e4f7f66304ca332d20636b5358b0b9297afbc7428bc107fc5dbc64fb204125\nnew account: true\nnonce: dbf7a1f60789ef83fe154a99c04c583785f44a74760105e17a8e7338c77c6cd1\nvalid until epoch: 730";
 
 #[test]
 fun key_proof_message_matches_the_example_of_the_design() {
