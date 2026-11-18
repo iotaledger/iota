@@ -13,7 +13,7 @@ use iota_network::api::{
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{Address, ObjectId, ObjectReference, TransactionDigest, TransactionEffects};
 use iota_types::{
-    attestation::{Attestation, AttestedTransaction},
+    attestation::{Attestation, AttestationData, AttestedTransaction},
     deny_rule_governance::DenyRuleConfig,
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult, UserInputError},
@@ -25,7 +25,10 @@ use iota_types::{
         TxStatusUpdate, ValidatorHealthRequest, ValidatorHealthResponse,
     },
     traffic_control::Weight,
-    transaction::{InputObjectKind, SenderSignedTransactionAPI, TransactionEnvelope},
+    transaction::{
+        InputObjectKind, SenderSignedTransactionAPI, TransactionAPI, TransactionEnvelope,
+        VerifiedTransaction,
+    },
 };
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -129,6 +132,24 @@ fn checks_admitted_inputs() -> bool {
     let checks = std::cell::Cell::new(true);
     iota_macros::fail_point_if!("admit-without-input-checks", || checks.set(false));
     checks.get()
+}
+
+/// Returns the attestation of `transaction` from a validator that skips its
+/// input checks, see [`checks_admitted_inputs()`], while validator attestation
+/// is on. Without a dry run, it records no object versions, and it claims the
+/// most units the transaction can pay for, the upper bound that post-consensus
+/// validation allows. Only tests reach it, by registering the
+/// `admit-without-input-checks` fail point.
+fn attest_without_dry_run(transaction: &VerifiedTransaction) -> AttestationData {
+    let transaction = transaction.data().transaction();
+
+    AttestationData::V1 {
+        computation_units: transaction
+            .gas_budget()
+            .checked_div(transaction.gas_price())
+            .unwrap_or(u64::MAX),
+        object_versions: Vec::new(),
+    }
 }
 
 /// Whether the validator admits new user transactions in `reconfig_state`. It
@@ -483,7 +504,17 @@ impl ValidatorService {
         // authorized it.
         let mut soft_lock = None;
         let (attestation_data, owned_objects, verified_tx, permit) = if !checks_admitted_inputs() {
-            (None, Vec::new(), verified_tx, None)
+            // Only tests take this branch, through the fail point of
+            // `checks_admitted_inputs()`: the validator skips its input checks
+            // and the dry run, as a faulty one can. With validator attestation
+            // on, it attaches an attestation built without the dry run, since
+            // block verification refuses a transaction without one.
+            let attestation_data = epoch_store
+                .protocol_config()
+                .enable_validator_attestation()
+                .then(|| attest_without_dry_run(&verified_tx));
+
+            (attestation_data, Vec::new(), verified_tx, None)
         } else if epoch_store.protocol_config().enable_validator_attestation() {
             let permit = match state.acquire_attestation_permit().await {
                 Ok(permit) => permit,
