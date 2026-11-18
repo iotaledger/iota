@@ -909,7 +909,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 author: block_ref.author,
                 round: block_ref.round,
             };
-            misbehavior_store.record_faulty_block(peer_index, peer_index, &e);
+            misbehavior_store.record_faulty_block(peer_index, None, &e);
             metrics
                 .synchronizer_fetch_window_violations
                 .with_label_values(&[peer_hostname.as_str(), sync_method])
@@ -1065,7 +1065,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 .map_err(ConsensusError::MalformedHeader)
                 .inspect_err(|e| {
                     // Author is unknown when deserialization fails — blame the peer.
-                    misbehavior_store.record_faulty_block(peer_index, peer_index, e);
+                    misbehavior_store.record_faulty_block(peer_index, None, e);
                 })?;
 
             if already_verified {
@@ -1084,7 +1084,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                         .inc();
                     misbehavior_store.record_faulty_block(
                         peer_index,
-                        signed_block_header.author(),
+                        Some(signed_block_header.slot()),
                         &e,
                     );
                     warn!("Invalid block received from {}: {}", peer_index, e);
@@ -1264,7 +1264,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                                 // Author unknown when deserialization fails — blame the peer.
                                                 misbehavior_store.record_faulty_block(
                                                     authority_index,
-                                                    authority_index,
+                                                    None,
                                                     e,
                                                 );
                                             })?;
@@ -1278,7 +1278,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                                 .inc();
                                             misbehavior_store.record_faulty_block(
                                                 authority_index,
-                                                signed_block_header.author(),
+                                                Some(signed_block_header.slot()),
                                                 err,
                                             );
                                             warn!("Invalid block header received from {}: {}", authority_index, err);
