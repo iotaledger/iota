@@ -58,7 +58,6 @@ use std::fmt::Write;
 
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl};
 use iota_indexer::schema::checkpoints;
-use iota_json_rpc_types::IotaTransactionKind;
 
 use crate::{
     data::{Conn, DbConnection, pg::bytea_literal},
@@ -493,11 +492,11 @@ fn select_kind(
                 // neither programmable nor claim-account.
                 format!(
                     "tx_kind NOT IN ({}, {})",
-                    IotaTransactionKind::ProgrammableTransaction as i16,
-                    IotaTransactionKind::ClaimAccount as i16,
+                    TransactionBlockKindInput::ProgrammableTx as i16,
+                    TransactionBlockKindInput::ClaimAccount as i16,
                 )
             } else {
-                format!("tx_kind = {}", IotaTransactionKind::from(&kind) as i16)
+                format!("tx_kind = {}", kind as i16)
             }
         ),
     }

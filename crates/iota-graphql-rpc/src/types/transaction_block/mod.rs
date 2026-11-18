@@ -116,19 +116,19 @@ impl TransactionBlockInner {
 pub(crate) enum TransactionBlockKindInput {
     /// A system transaction can be one of several types of transactions.
     /// See [unions/transaction-block-kind] for more details.
-    SystemTx,
+    SystemTx = 0,
     /// A user submitted transaction block.
-    ProgrammableTx,
+    ProgrammableTx = 1,
     /// The genesis transaction block.
-    Genesis,
+    Genesis = 2,
     /// The consensus commit prologue transaction block.
-    ConsensusCommitPrologueV1,
+    ConsensusCommitPrologueV1 = 3,
     /// The randomness state update transaction block.
-    RandomnessStateUpdate,
+    RandomnessStateUpdate = 5,
     /// The end of epoch transaction block.
-    EndOfEpochTx,
+    EndOfEpochTx = 6,
     /// A claim of the sender's address as an account object.
-    ClaimAccount,
+    ClaimAccount = 8,
 }
 
 type Query<ST, GB> = data::Query<ST, transactions::table, GB>;
