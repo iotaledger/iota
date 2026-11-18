@@ -40,6 +40,7 @@ mod checked {
         base_types::TxContext,
         clock::CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME,
         committee::EpochId,
+        digests::ChainIdentifier,
         error::{ExecutionError, ExecutionErrorKind},
         execution::{
             AuthenticateThenExecuteOutput, ExecutionResults, ExecutionResultsV1, ExecutionTiming,
@@ -100,6 +101,7 @@ mod checked {
         transaction_signer: Address,
         transaction_digest: TransactionDigest,
         move_vm: &Arc<MoveVM>,
+        chain_identifier: ChainIdentifier,
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         protocol_config: &ProtocolConfig,
@@ -155,6 +157,7 @@ mod checked {
             gas_price,
             gas_data.budget,
             sponsor,
+            chain_identifier,
             protocol_config,
         );
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
@@ -334,6 +337,8 @@ mod checked {
         metrics: Arc<LimitsMetrics>,
         enable_expensive_checks: bool,
         certificate_deny_set: &HashSet<TransactionDigest>,
+        // Chain
+        chain_identifier: ChainIdentifier,
         // Epoch
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
@@ -410,6 +415,7 @@ mod checked {
             gas_price,
             gas_data.budget,
             sponsor,
+            chain_identifier,
             protocol_config,
         );
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
@@ -1012,6 +1018,8 @@ mod checked {
         // Configuration
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
+        // Chain
+        chain_identifier: ChainIdentifier,
         // Epoch
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
@@ -1056,6 +1064,7 @@ mod checked {
             gas_price,
             gas_data.budget,
             sponsor,
+            chain_identifier,
             protocol_config,
         );
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
