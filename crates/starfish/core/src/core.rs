@@ -791,6 +791,10 @@ impl Core {
         tracing::trace!(round = ?new_clock_round, "new_consensus_round_sent");
         self.signals.new_round(new_clock_round);
         self.last_signaled_round = new_clock_round;
+        // A restart that recovers a later round does not record it again.
+        if new_clock_round == 2 {
+            self.context.record_epoch_start_stage("round_2");
+        }
 
         // Report the threshold clock round
         self.context
@@ -1232,6 +1236,8 @@ impl Core {
                     )
                     .as_secs_f64(),
                 );
+        } else {
+            self.context.record_epoch_start_stage("first_own_block");
         }
 
         // Construct verified transactions to be used for storing and broadcasting
@@ -1399,6 +1405,12 @@ impl Core {
             let (subdags, missing_transactions_refs) = self
                 .commit_observer
                 .handle_committed_leaders(sequenced_leaders, source)?;
+            if subdags
+                .first()
+                .is_some_and(|subdag| subdag.base.commit_ref.index == 1)
+            {
+                self.context.record_epoch_start_stage("first_commit");
+            }
 
             // The same transaction ref can be missing on both sides of a leader
             // schedule change.
@@ -1475,6 +1487,11 @@ impl Core {
     /// Sets if there is 2f+1 subscriptions to the block stream.
     pub(crate) fn set_quorum_subscribers_exists(&mut self, exists: bool) {
         info!("A quorum of block subscribers exists: {exists}");
+        // Before the first own block, so a restart in the middle of the epoch
+        // does not record it.
+        if exists && self.last_proposed_round() == 0 {
+            self.context.record_epoch_start_stage("subscriber_quorum");
+        }
         self.quorum_subscribers_exists = exists;
     }
 

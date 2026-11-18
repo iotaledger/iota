@@ -899,6 +899,12 @@ impl ChannelPool {
                 Ok(channel) => return Ok(channel),
                 Err(e) => e,
             };
+            self.context
+                .metrics
+                .node_metrics
+                .subscriber_connect_failures
+                .with_label_values(&[self.context.authority_hostname(peer)])
+                .inc();
             let retry_at = tokio::time::Instant::now() + Duration::from_secs(1);
             if retry_at >= deadline {
                 return Err(error);

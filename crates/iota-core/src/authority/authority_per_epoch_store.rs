@@ -4110,9 +4110,8 @@ impl AuthorityPerEpochStore {
         self.mirrored_transaction_deny_rules.load_full()
     }
 
-    /// Test access to the epoch metrics.
-    #[cfg(any(test, msim))]
-    pub fn metrics_for_testing(&self) -> &Arc<EpochMetrics> {
+    /// Metrics shared by the epoch stores of all epochs.
+    pub fn epoch_metrics(&self) -> &Arc<EpochMetrics> {
         &self.metrics
     }
 
