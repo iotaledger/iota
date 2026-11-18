@@ -4,6 +4,7 @@
 
 use std::{time::Duration, vec};
 
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     ObjectId, Owner, RandomnessRound, SharedObjectReference, TransactionDigest,
     TransactionEffectsDigest, Version, VersionAssignment,
@@ -1456,4 +1457,39 @@ async fn transaction_manager_cancelled_dependent_does_not_wait() {
 
     transaction_manager.notify_commit(dependent.digest(), vec![], &state.epoch_store_for_testing());
     transaction_manager.check_empty_for_testing();
+}
+
+/// A transaction committed while an enqueue is between its availability
+/// checks is cached for that enqueue only when transaction dependencies are
+/// enabled.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn transaction_manager_caches_executed_transaction_during_enqueue_only_with_dependencies() {
+    for enabled in [false, true] {
+        let _config_guard = ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
+            config.set_enable_transaction_dependencies_for_testing(enabled);
+            config
+        });
+        let state = init_state_with_objects([]).await;
+        let (transaction_manager, _rx_ready_transactions) = make_transaction_manager(&state);
+        let digest = TransactionDigest::random();
+
+        transaction_manager
+            .inner
+            .read()
+            .write()
+            .available_objects_cache
+            .enable_unbounded_cache();
+        transaction_manager.notify_commit(&digest, vec![], &state.epoch_store_for_testing());
+
+        let reconfig_lock = transaction_manager.inner.read();
+        let mut inner = reconfig_lock.write();
+        assert_eq!(
+            inner
+                .available_objects_cache
+                .is_object_available(&InputKey::ExecutedTransaction { digest }),
+            enabled.then_some(true),
+            "enable_transaction_dependencies: {enabled}"
+        );
+        inner.available_objects_cache.disable_unbounded_cache();
+    }
 }

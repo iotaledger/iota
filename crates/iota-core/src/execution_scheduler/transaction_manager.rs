@@ -891,7 +891,10 @@ impl TransactionManager {
             // it rechecks the cache, so the key goes there meanwhile.
             let executed = InputKey::ExecutedTransaction { digest: *digest };
             if inner.missing_inputs.contains_key(&executed)
-                || inner.available_objects_cache.is_unbounded()
+                || (inner.available_objects_cache.is_unbounded()
+                    && epoch_store
+                        .protocol_config()
+                        .enable_transaction_dependencies())
             {
                 output_object_keys.push(executed);
             }
