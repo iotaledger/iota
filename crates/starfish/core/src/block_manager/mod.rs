@@ -610,6 +610,7 @@ impl BlockManager {
         }
         let dag_state = self.dag_state.read();
         let misbehavior_store = dag_state.misbehavior_store().clone();
+        let far_future_ceiling = dag_state.far_future_round_ceiling();
         let mut admitted_by_slot: BTreeMap<(Round, AuthorityIndex), BlockHeaderDigest> =
             BTreeMap::new();
         items
@@ -641,7 +642,11 @@ impl BlockManager {
                             source.as_str(),
                         ])
                         .inc();
-                    misbehavior_store.record_equivocating_slot(block_ref.author, block_ref.round);
+                    misbehavior_store.record_equivocating_slot(
+                        block_ref.author,
+                        block_ref.round,
+                        far_future_ceiling,
+                    );
                 }
                 admit
             })
