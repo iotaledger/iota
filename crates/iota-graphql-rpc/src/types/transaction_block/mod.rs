@@ -15,6 +15,7 @@ use diesel::{ExpressionMethods, OptionalExtension, QueryDsl};
 use fastcrypto::encoding::{Base58, Encoding};
 use iota_indexer::{
     apis::ReadApi,
+    ingestion::common::CommitterTables,
     models::transactions::{OptimisticTransaction, StoredTransaction},
     pruning::oldest_available_checkpoint::OldestAvailableCheckpoint,
     read::TransactionRead,
@@ -356,13 +357,44 @@ impl TransactionBlock {
         }
     }
 
+    /// The oldest available checkpoint for transactions looked up by digest.
+    pub(crate) fn oldest_available_checkpoint_by_digest(db: &Db) -> OldestAvailableCheckpoint {
+        OldestAvailableCheckpoint::for_tables(
+            &db.inner,
+            &[
+                CommitterTables::TxGlobalOrder,
+                CommitterTables::Transactions,
+            ],
+            true,
+        )
+    }
+
     /// Look up a `TransactionBlock` in the database, by its transaction digest
     /// or sequence number. Treats it as if it is being viewed at the
     /// `checkpoint_viewed_at` (e.g. the state of all relevant addresses
     /// will be at that checkpoint).
+    ///
+    /// Fails with `DATA_PRUNED` when the transaction is not found and may have
+    /// been pruned. Returns `None` when the requested transaction certainly
+    /// does not exist.
     pub(crate) async fn query(ctx: &Context<'_>, key: DigestKey) -> Result<Option<Self>, Error> {
         let DataLoader(loader) = ctx.data_unchecked();
-        loader.load_one(key).await
+        if let Some(block) = loader.load_one(key).await? {
+            return Ok(Some(block));
+        }
+
+        let oldest_available_checkpoint =
+            Self::oldest_available_checkpoint_by_digest(ctx.data_unchecked());
+        if oldest_available_checkpoint.has_full_history() {
+            return Ok(None);
+        }
+        Err(Error::DataPruned {
+            message: format!(
+                "transaction {} not found, it may have been pruned",
+                key.digest
+            ),
+            oldest_available_checkpoint,
+        })
     }
 
     /// Look up multiple `TransactionBlock`s by their digests. Returns a map

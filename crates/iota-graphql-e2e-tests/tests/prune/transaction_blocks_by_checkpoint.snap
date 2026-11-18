@@ -120,9 +120,25 @@ Response: {
 task 16, lines 61-71:
 //# run-graphql
 Response: {
-  "data": {
-    "checkpoint": null
-  }
+  "data": null,
+  "errors": [
+    {
+      "message": "Requested data has been pruned: checkpoint 1 has been pruned",
+      "locations": [
+        {
+          "line": 5,
+          "column": 3
+        }
+      ],
+      "path": [
+        "checkpoint"
+      ],
+      "extensions": {
+        "code": "DATA_PRUNED",
+        "oldestAvailableCheckpoint": 7
+      }
+    }
+  ]
 }
 
 task 17, lines 73-81:

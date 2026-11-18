@@ -268,8 +268,8 @@ impl CheckpointId {
 }
 
 impl Checkpoint {
-    /// The oldest checkpoint a page of checkpoints is available from: the
-    /// value reported on `DATA_PRUNED`.
+    /// The oldest available checkpoint for a checkpoint queried by sequence number or
+    /// digest, or a page of checkpoints.
     pub(crate) fn oldest_available_checkpoint(db: &Db) -> OldestAvailableCheckpoint {
         OldestAvailableCheckpoint::for_tables(&db.inner, &[CommitterTables::Checkpoints], true)
     }
@@ -290,6 +290,10 @@ impl Checkpoint {
     /// Look up a `Checkpoint` in the database, filtered by either sequence
     /// number or digest. If both filters are supplied they will both be
     /// applied. If none are supplied, the latest checkpoint is fetched.
+    ///
+    /// Fails with `DATA_PRUNED` when the checkpoint is not found and may have
+    /// been pruned. Returns `None` when the requested checkpoint certainly
+    /// does not exist.
     pub(crate) async fn query(
         ctx: &Context<'_>,
         filter: CheckpointId,
@@ -301,12 +305,27 @@ impl Checkpoint {
                 digest,
             } => {
                 let DataLoader(dl) = ctx.data_unchecked();
-                dl.load_one(SeqNumKey {
-                    sequence_number: sequence_number.into(),
-                    digest,
-                    checkpoint_viewed_at,
+                let sequence_number = u64::from(sequence_number);
+                if let Some(checkpoint) = dl
+                    .load_one(SeqNumKey {
+                        sequence_number,
+                        digest,
+                        checkpoint_viewed_at,
+                    })
+                    .await?
+                {
+                    return Ok(Some(checkpoint));
+                }
+
+                let oldest_available_checkpoint =
+                    Self::oldest_available_checkpoint(ctx.data_unchecked());
+                if sequence_number >= u64::from(oldest_available_checkpoint) {
+                    return Ok(None);
+                }
+                Err(Error::DataPruned {
+                    message: format!("checkpoint {sequence_number} has been pruned"),
+                    oldest_available_checkpoint,
                 })
-                .await
             }
 
             CheckpointId {
@@ -314,11 +333,25 @@ impl Checkpoint {
                 digest: Some(digest),
             } => {
                 let DataLoader(dl) = ctx.data_unchecked();
-                dl.load_one(DigestKey {
-                    digest,
-                    checkpoint_viewed_at,
+                if let Some(checkpoint) = dl
+                    .load_one(DigestKey {
+                        digest,
+                        checkpoint_viewed_at,
+                    })
+                    .await?
+                {
+                    return Ok(Some(checkpoint));
+                }
+
+                let oldest_available_checkpoint =
+                    Self::oldest_available_checkpoint(ctx.data_unchecked());
+                if oldest_available_checkpoint.has_full_history() {
+                    return Ok(None);
+                }
+                Err(Error::DataPruned {
+                    message: format!("checkpoint {digest} not found, it may have been pruned"),
+                    oldest_available_checkpoint,
                 })
-                .await
             }
 
             CheckpointId {
