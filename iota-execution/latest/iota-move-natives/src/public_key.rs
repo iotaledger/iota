@@ -4,7 +4,10 @@
 use std::collections::VecDeque;
 
 use iota_sdk_types::{Address as IotaAddress, SignatureScheme, crypto::MultisigCommittee};
-use iota_types::crypto::PublicKey;
+use iota_types::{
+    account_abstraction::{builtin_authenticator_functions, public_key::MovePublicKey},
+    crypto::PublicKey,
+};
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
     account_address::AccountAddress, gas_algebra::InternalGas, vm_status::StatusCode,
@@ -14,11 +17,11 @@ use move_vm_types::{
     loaded_data::runtime_types::Type,
     natives::function::NativeResult,
     pop_arg,
-    values::{Value, VectorRef},
+    values::{StructRef, Value, VectorRef},
 };
 use smallvec::smallvec;
 
-use crate::NativesCostTable;
+use crate::{NativesCostTable, get_extension, object_runtime::ObjectRuntime, utils};
 
 /// Raised when the `(flag, raw_bytes)` pair does not form a public key whose
 /// address can be derived. `public_key::create` validates keys before calling
@@ -84,4 +87,84 @@ pub fn to_iota_address_impl(
         ),
         None => NativeResult::err(cost, E_INVALID_PUBLIC_KEY),
     })
+}
+
+#[derive(Clone)]
+pub struct PublicKeyVerifyPersonalMessageSignatureImplCostParams {
+    /// Base cost for invoking the `verify_personal_message_signature_impl` function
+    pub public_key_verify_personal_message_signature_impl_cost_base: Option<InternalGas>,
+    /// Cost per byte of `message`
+    pub public_key_verify_personal_message_signature_impl_msg_cost_per_byte: Option<InternalGas>,
+    /// Cost per byte of `signature`
+    pub public_key_verify_personal_message_signature_impl_sig_cost_per_byte: Option<InternalGas>,
+}
+/// Implementation of the Move native function
+/// `public_key::verify_personal_message_signature_impl(public_key: &PublicKey,
+/// signature: &vector<u8>, message: &vector<u8>): bool`
+///
+/// Returns `true` if `signature` is a valid signature, by the public key, of
+/// `message` signed as an IOTA personal message, using the signature scheme of
+/// the public key. Returns `false` for a MultiSig public key.
+///
+/// gas cost: public_key_verify_personal_message_signature_impl_cost_base
+///     + public_key_verify_personal_message_signature_impl_msg_cost_per_byte * message.len()
+///     + public_key_verify_personal_message_signature_impl_sig_cost_per_byte * signature.len()
+pub fn verify_personal_message_signature_impl(
+    context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    mut args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    debug_assert!(ty_args.is_empty());
+    debug_assert!(args.len() == 3);
+
+    let cost_params = get_extension!(context, NativesCostTable)?
+        .public_key_verify_personal_message_signature_impl_cost_params
+        .clone();
+    let (Some(cost_base), Some(msg_cost_per_byte), Some(sig_cost_per_byte)) = (
+        cost_params.public_key_verify_personal_message_signature_impl_cost_base,
+        cost_params.public_key_verify_personal_message_signature_impl_msg_cost_per_byte,
+        cost_params.public_key_verify_personal_message_signature_impl_sig_cost_per_byte,
+    ) else {
+        return Err(
+            PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(
+                "Gas cost for verify_personal_message_signature_impl not available".to_string(),
+            ),
+        );
+    };
+    native_charge_gas_early_exit!(context, cost_base);
+
+    let message = pop_arg!(args, VectorRef);
+    let message_ref = message.as_bytes_ref();
+    let signature = pop_arg!(args, VectorRef);
+    let signature_ref = signature.as_bytes_ref();
+    let public_key: MovePublicKey = utils::from_value(
+        pop_arg!(args, StructRef).read_ref()?,
+        &MovePublicKey::layout(),
+    )?;
+
+    native_charge_gas_early_exit!(
+        context,
+        msg_cost_per_byte * (message_ref.len() as u64).into()
+    );
+    // Charged before the check decodes the signature, whose length the caller
+    // chooses.
+    native_charge_gas_early_exit!(
+        context,
+        sig_cost_per_byte * (signature_ref.len() as u64).into()
+    );
+
+    let protocol_config = get_extension!(context, ObjectRuntime)?.protocol_config;
+
+    let is_valid = builtin_authenticator_functions::verify_personal_message_signature(
+        protocol_config,
+        &public_key,
+        &signature_ref,
+        &message_ref,
+    )
+    .is_ok();
+
+    Ok(NativeResult::ok(
+        context.gas_used(),
+        smallvec![Value::bool(is_valid)],
+    ))
 }
