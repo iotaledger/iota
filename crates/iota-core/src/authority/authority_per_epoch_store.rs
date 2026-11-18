@@ -6355,7 +6355,7 @@ impl AuthorityPerEpochStore {
                 ConsensusTransactionResult::Cancelled((transaction, reason)) => {
                     notifications.push(key.clone());
                     // A cancelled transaction executes, so its dependents
-                    // can be scheduled: they are cancelled at execution.
+                    // can be scheduled: they fail at execution.
                     if let Some(dependency_state) = &mut dependency_state {
                         dependency_state
                             .scheduled
