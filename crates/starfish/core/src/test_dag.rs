@@ -141,13 +141,15 @@ fn strong_vote_for_leader(
     })
 }
 
-/// Builds `num_rounds` rounds in which every block links a random quorum of
-/// the previous round, and the leader of the previous round in
-/// `include_leader_percentage` percent of the rounds. Each block acknowledges
-/// each block of the previous round with `acknowledgment_percentage` percent
-/// chance, so lower values make strong votes blame leaders. In every round
-/// each authority in `equivocators` proposes `1 + equivocations` blocks with
-/// the same parents.
+/// Builds `num_rounds` rounds in which every block links its own previous
+/// block and a random quorum of the previous round. In
+/// `include_leader_percentage` percent of the rounds every block also links
+/// the leader of the previous round; in the other rounds it may still link it
+/// by chance. Each authority acknowledges each block of the previous round
+/// with `acknowledgment_percentage` percent chance, so lower values make
+/// strong votes blame leaders. In every round each authority in
+/// `equivocators` proposes `1 + equivocations` blocks with the same parents
+/// and acknowledgments.
 pub(crate) fn create_random_dag(
     seed: u64,
     include_leader_percentage: u64,
@@ -160,6 +162,10 @@ pub(crate) fn create_random_dag(
     assert!(
         (0..=100).contains(&include_leader_percentage),
         "include_leader_percentage must be in the range 0..100"
+    );
+    assert!(
+        acknowledgment_percentage <= 100,
+        "acknowledgment_percentage must be in the range 0..=100"
     );
     let max_faulty = (context.committee.size() - 1) / 3;
     assert!(

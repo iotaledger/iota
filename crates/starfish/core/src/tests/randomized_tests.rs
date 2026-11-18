@@ -2,20 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{env, sync::Arc};
+use std::{collections::HashSet, env, sync::Arc};
 
 use parking_lot::RwLock;
-use rand::{
-    RngExt, SeedableRng,
-    prelude::{IndexedRandom, SliceRandom},
-    rngs::StdRng,
-};
+use rand::{RngExt, SeedableRng, prelude::SliceRandom, rngs::StdRng};
 use starfish_config::AuthorityIndex;
 
 use crate::{
-    block_header::{BlockHeaderAPI, Slot},
+    block_header::{BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND, Round, Slot},
     block_manager::{BlockManager, block_suspender::tests::evaluate_block_headers},
-    commit::DecidedLeader,
+    commit::{CommitMetastate, DecidedLeader},
     context::Context,
     dag_state::{DagState, DataSource},
     leader_schedule::{LeaderSchedule, LeaderSwapTable},
@@ -33,7 +29,16 @@ const NUM_EQUIVOCATION_RUNS: u32 = 20;
 /// Honest authorities that each receive the blocks of a dag with
 /// equivocations in their own order.
 const NUM_EQUIVOCATION_OBSERVERS: usize = 3;
-const ACKNOWLEDGMENT_PERCENTAGES: [u64; 3] = [100, 90, 70];
+/// (percent of rounds whose blocks all link the leader, percent of blocks
+/// acknowledged) for the runs of the equivocation test.
+const EQUIVOCATION_SETTINGS: [(u64, u64); 6] = [
+    (100, 100),
+    (100, 90),
+    (100, 70),
+    (50, 100),
+    (50, 90),
+    (50, 70),
+];
 
 /// Test builds a randomized dag with the following conditions:
 /// - Links to 2f+1 minimum ancestors
@@ -59,6 +64,7 @@ async fn test_randomized_dag_all_direct_commit() {
             0,
             authority.context.clone(),
         );
+        assert_parents_follow_verifier(&dag_builder);
 
         dag_builder.persist_all_blocks(authority.dag_state.clone());
 
@@ -74,15 +80,21 @@ async fn test_randomized_dag_all_direct_commit() {
         for (i, leader_block) in sequence.iter().enumerate() {
             // First sequenced leader should be in round 1.
             let leader_round = i as u32 + 1;
-            if let DecidedLeader::Commit(ref block, _, _) = leader_block {
-                assert_eq!(block.round(), leader_round);
-                assert_eq!(
-                    block.author(),
-                    authority.committer.get_leaders(leader_round)[0]
-                );
-            } else {
-                panic!("Expected a committed leader")
-            };
+            assert_decision_is_valid(
+                &authority.committer,
+                &dag_builder,
+                leader_block,
+                leader_round,
+            );
+            // Every block links and acknowledges the whole previous round, so
+            // every leader gets a quorum of strong votes.
+            assert!(
+                matches!(
+                    leader_block,
+                    DecidedLeader::Commit(_, CommitMetastate::Optimistic, _)
+                ),
+                "expected an optimistic commit at round {leader_round}, got {leader_block:?}"
+            );
         }
     }
 }
@@ -116,6 +128,7 @@ async fn test_randomized_dag_and_decision_sequence() {
             0,
             Arc::new(Context::new_for_test(num_authorities).0),
         );
+        assert_parents_follow_verifier(&dag_builder);
 
         tracing::info!(
             "Running test with committee size {num_authorities} & {NUM_ROUNDS} rounds in the DAG..."
@@ -153,7 +166,7 @@ async fn test_randomized_dag_with_equivocations() {
     let mut random_test_setup = random_test_setup();
     let rng = &mut random_test_setup.seeded_rng;
 
-    for _ in 0..NUM_EQUIVOCATION_RUNS {
+    for run in 0..NUM_EQUIVOCATION_RUNS {
         let seed = rng.random_range(0..10000);
         let num_authorities = rng.random_range(4..10);
         let mut authorities = (0..num_authorities)
@@ -162,8 +175,9 @@ async fn test_randomized_dag_with_equivocations() {
         authorities.shuffle(rng);
         let (equivocators, honest) = authorities.split_at((num_authorities - 1) / 3);
         let equivocations = rng.random_range(1..=2);
-        let include_leader_percentage = *[50, 100].choose(rng).unwrap();
-        let acknowledgment_percentage = *ACKNOWLEDGMENT_PERCENTAGES.choose(rng).unwrap();
+        // Cycled rather than drawn, so every setting runs in every test run.
+        let (include_leader_percentage, acknowledgment_percentage) =
+            EQUIVOCATION_SETTINGS[run as usize % EQUIVOCATION_SETTINGS.len()];
 
         let context = Arc::new(Context::new_for_test(num_authorities).0);
         let dag_builder = create_random_dag(
@@ -175,6 +189,7 @@ async fn test_randomized_dag_with_equivocations() {
             equivocations,
             context,
         );
+        assert_parents_follow_verifier(&dag_builder);
 
         tracing::info!(
             "Running test with committee size {num_authorities}, equivocators {equivocators:?} \
@@ -191,13 +206,9 @@ async fn test_randomized_dag_with_equivocations() {
         for sequence in &sequences[1..] {
             assert_eq!(sequence, &sequences[0]);
         }
+        let sequence = &sequences[0];
 
         if include_leader_percentage == 100 {
-            let sequence = &sequences[0];
-            assert!(
-                !sequence.is_empty(),
-                "honest leaders linked by every block must be decided"
-            );
             for decision in sequence {
                 let slot = Slot::new(decision.round(), decision.authority());
                 if !equivocators.contains(&slot.authority) {
@@ -208,12 +219,143 @@ async fn test_randomized_dag_with_equivocations() {
                 }
             }
         }
+
+        if include_leader_percentage == 100 && acknowledgment_percentage == 100 {
+            // Every block links and fully acknowledges the previous leader, so
+            // every honest leader up to round NUM_ROUNDS - 2 is committed
+            // directly and optimistically. Leaders rotate, so every slot up to
+            // round NUM_ROUNDS - num_authorities - 4 has such a leader three to
+            // num_authorities + 2 rounds above it, which decides it.
+            let decided_floor = NUM_ROUNDS as usize - num_authorities - 4;
+            assert!(
+                sequence.len() >= decided_floor,
+                "{} leaders decided, expected at least {decided_floor}",
+                sequence.len()
+            );
+            for decision in sequence {
+                if !equivocators.contains(&decision.authority()) {
+                    assert!(
+                        matches!(
+                            decision,
+                            DecidedLeader::Commit(_, CommitMetastate::Optimistic, _)
+                        ),
+                        "honest leader at round {} was not committed optimistically",
+                        decision.round()
+                    );
+                }
+            }
+        }
     }
 }
 
+/// Asserts that every block of `dag_builder` follows the block verifier's
+/// parent rules: own previous block first, at most one block per author, all
+/// parents from earlier rounds of the dag, and a quorum by stake from the
+/// previous round.
+fn assert_parents_follow_verifier(dag_builder: &DagBuilder) {
+    let committee = &dag_builder.context.committee;
+    let genesis = dag_builder.genesis_block_refs();
+    for header in dag_builder.block_headers.values() {
+        if header.round() == GENESIS_ROUND {
+            continue;
+        }
+        let ancestors = header.ancestors();
+        assert_eq!(
+            ancestors.first().map(|parent| parent.author),
+            Some(header.author()),
+            "{} does not link its own previous block first",
+            header.reference()
+        );
+        let mut authors = HashSet::new();
+        let mut parent_stake = 0;
+        for parent in ancestors {
+            assert!(
+                authors.insert(parent.author),
+                "{} links two blocks of {}",
+                header.reference(),
+                parent.author
+            );
+            assert!(parent.round < header.round());
+            assert!(
+                dag_builder.block_headers.contains_key(parent) || genesis.contains(parent),
+                "{} links {parent}, which is not in the dag",
+                header.reference()
+            );
+            if parent.round + 1 == header.round() {
+                parent_stake += committee.stake(parent.author);
+            }
+        }
+        assert!(
+            committee.reached_quorum(parent_stake),
+            "{} links less than a quorum of the previous round",
+            header.reference()
+        );
+    }
+}
+
+/// Asserts that `decision` is for the leader of `round`, that a committed
+/// leader is a block of `dag_builder`, and that its strong voters match its
+/// commit kind: for an optimistic commit, authors with a quorum of stake that
+/// each have a block in the next round linking the leader; none otherwise. An
+/// author that equivocated in the next round can be listed once per block.
+fn assert_decision_is_valid(
+    committer: &UniversalCommitter,
+    dag_builder: &DagBuilder,
+    decision: &DecidedLeader,
+    round: Round,
+) {
+    let leader = committer.get_leaders(round)[0];
+    assert_eq!(
+        (decision.round(), decision.authority()),
+        (round, leader),
+        "decision {decision:?} is not for the leader of round {round}"
+    );
+    let DecidedLeader::Commit(block, metastate, strong_voters) = decision else {
+        return;
+    };
+    assert!(
+        dag_builder.block_headers.contains_key(&block.reference()),
+        "committed leader {} is not in the dag",
+        block.reference()
+    );
+    if *metastate != CommitMetastate::Optimistic {
+        assert!(
+            strong_voters.is_empty(),
+            "{metastate:?} commit of {} lists strong voters {strong_voters:?}",
+            block.reference()
+        );
+        return;
+    }
+    let committee = &dag_builder.context.committee;
+    let mut voters = HashSet::new();
+    let mut voter_stake = 0;
+    for voter in strong_voters {
+        if !voters.insert(*voter) {
+            continue;
+        }
+        voter_stake += committee.stake(*voter);
+        let voter_slot = BlockRef::new(round + 1, *voter, BlockHeaderDigest::MIN)
+            ..=BlockRef::new(round + 1, *voter, BlockHeaderDigest::MAX);
+        assert!(
+            dag_builder
+                .block_headers
+                .range(voter_slot)
+                .any(|(_, vote)| vote.ancestors().contains(&block.reference())),
+            "strong voter {voter} has no block linking {}",
+            block.reference()
+        );
+    }
+    assert!(
+        committee.reached_quorum(voter_stake),
+        "optimistic commit of {} has strong voters {strong_voters:?} below a quorum",
+        block.reference()
+    );
+}
+
 /// Feeds all blocks of `dag_builder` to a new authority `observer` in a random
-/// order and in random batches, checks the block manager after each batch,
-/// and returns the decided leaders with the strong voters cleared.
+/// order and in random batches, checks the block manager and every decision
+/// after each batch, and returns the decided leaders with the strong voters
+/// cleared.
 fn deliver_in_random_order(
     num_authorities: usize,
     observer: AuthorityIndex,
@@ -241,9 +383,14 @@ fn deliver_in_random_order(
             .try_accept_block_headers(chunk.to_vec(), DataSource::Test);
         let sequence = authority.committer.try_decide(last_finalized);
 
+        for decision in &sequence {
+            // One leader per round, decided in order starting at round 1.
+            let round = sequenced_leaders.len() as Round + 1;
+            assert_decision_is_valid(&authority.committer, dag_builder, decision, round);
+            sequenced_leaders.push(decision.clone());
+        }
         if let Some(leader_status) = sequence.last() {
             last_finalized = Slot::new(leader_status.round(), leader_status.authority());
-            sequenced_leaders.extend(sequence);
         }
 
         i += chunk_size;
@@ -252,6 +399,14 @@ fn deliver_in_random_order(
         assert_eq!(missing, authority.block_manager.blocks_to_fetch_refs());
     }
     assert!(authority.block_manager.is_empty());
+    // An empty block manager does not rule out a header dropped on the way.
+    let dag_state = authority.dag_state.read();
+    for block_ref in dag_builder.block_headers.keys() {
+        assert!(
+            dag_state.contains_block_header(block_ref),
+            "{block_ref} was never accepted"
+        );
+    }
 
     // The strong voters are the voters the deciding authority had accepted at
     // that point, so authorities that received blocks in different orders
