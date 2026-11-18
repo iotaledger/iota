@@ -536,6 +536,13 @@ mod tests {
             unreachable!("not read when loading shared inputs")
         }
 
+        fn try_multi_transactions_executed(
+            &self,
+            _: &[TransactionDigest],
+        ) -> IotaResult<Vec<bool>> {
+            unreachable!("not read when loading shared inputs")
+        }
+
         fn try_find_object_lt_or_eq_version(
             &self,
             _: ObjectId,

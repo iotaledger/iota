@@ -143,7 +143,7 @@ impl Setup {
         let epoch_store = self.authority.epoch_store_for_testing();
         let verified = epoch_store.verify_transaction(transaction)?;
         self.authority
-            .attest_transaction(&verified, &epoch_store, deny_config)
+            .attest_transaction(&verified, &epoch_store, deny_config, |_| Ok(()))
     }
 }
 
