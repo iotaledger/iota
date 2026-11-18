@@ -1,0 +1,9 @@
+[package]
+name = "tx_nonce"
+edition = "2024"
+
+[dependencies]
+Iota = { local = "../../../iota-framework/packages/iota-framework" }
+
+[addresses]
+tx_nonce = "0x0"

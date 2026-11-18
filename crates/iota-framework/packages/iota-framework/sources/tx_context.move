@@ -12,6 +12,14 @@ const TX_HASH_LENGTH: u64 = 32;
 /// Expected an tx hash of length 32, but found a different length
 const EBadTxHashLength: u64 = 0;
 
+#[test_only]
+/// Number of bytes in a transaction nonce
+const TX_NONCE_LENGTH: u64 = 32;
+
+#[test_only]
+/// Expected a transaction nonce of length 32, but found a different length
+const EBadTxNonceLength: u64 = 4;
+
 #[allow(unused_field)]
 /// Information about the transaction currently being executed.
 /// This cannot be constructed by a transaction. It is a privileged object created by
@@ -90,6 +98,16 @@ public fun gas_budget(_self: &TxContext): u64 {
 // native function to retrieve gas budget, currently not exposed
 native fun native_gas_budget(): u64;
 
+/// Return the nonce of this transaction: 32 bytes that at most one executed transaction has.
+/// Every call in the transaction returns the same value. The nonce does not name the network.
+///
+/// Aborts with code 3 if the transaction has no nonce, which is the case while authenticators
+/// run and for transactions without a gas coin.
+public fun tx_nonce(_self: &TxContext): vector<u8> {
+    native_tx_nonce()
+}
+native fun native_tx_nonce(): vector<u8>;
+
 // ==== test-only functions ====
 #[test_only]
 /// Return the number of id's created by the current transaction.
@@ -124,6 +142,7 @@ public fun create(
         gas_budget,
         sponsor.to_vec(),
     );
+    replace_tx_nonce(vector[]);
     TxContext {
         sender: @0x0,
         tx_hash: vector::empty(),
@@ -229,6 +248,15 @@ public fun increment_epoch_timestamp(self: &mut TxContext, delta_ms: u64) {
     );
 }
 
+#[test_only]
+/// Set the nonce of the transaction, or remove it if `nonce` is empty.
+///
+/// Aborts with `EBadTxNonceLength` if `nonce` is neither empty nor 32 bytes.
+public fun set_tx_nonce_for_testing(_self: &mut TxContext, nonce: vector<u8>) {
+    assert!(nonce.is_empty() || nonce.length() == TX_NONCE_LENGTH, EBadTxNonceLength);
+    replace_tx_nonce(nonce);
+}
+
 fun option_sponsor(): Option<address> {
     let sponsor = native_sponsor();
     if (sponsor.length() == 0) option::none() else option::some(sponsor[0])
@@ -247,6 +275,9 @@ native fun replace(
     gas_budget: u64,
     sponsor: vector<address>,
 );
+
+#[test_only]
+native fun replace_tx_nonce(nonce: vector<u8>);
 
 #[allow(unused_function)]
 /// Native function for deriving an ID via hash(tx_hash || ids_created)

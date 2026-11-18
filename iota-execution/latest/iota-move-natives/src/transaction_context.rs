@@ -115,6 +115,10 @@ impl TransactionContext {
         self.tx_context.borrow_mut().fresh_id()
     }
 
+    pub fn tx_nonce(&self) -> Option<[u8; 32]> {
+        self.tx_context.borrow().nonce()
+    }
+
     // Test only function: replace all fields of the wrapped TxContext.
     pub fn replace(
         &mut self,
@@ -150,6 +154,19 @@ impl TransactionContext {
         // data
         self.cached_digest = None;
 
+        Ok(())
+    }
+
+    // Test only function: replace the nonce of the wrapped TxContext.
+    pub fn replace_tx_nonce(&mut self, nonce: Option<[u8; 32]>) -> PartialVMResult<()> {
+        if !self.test_only {
+            return Err(
+                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(
+                    "`replace_tx_nonce` called on a non testing scenario".to_string(),
+                ),
+            );
+        }
+        self.tx_context.borrow_mut().set_nonce(nonce);
         Ok(())
     }
 }

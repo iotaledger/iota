@@ -75,7 +75,7 @@ use self::{
         TxContextDeriveIdCostParams, TxContextEpochCostParams, TxContextEpochTimestampMsCostParams,
         TxContextFreshIdCostParams, TxContextGasBudgetCostParams, TxContextGasPriceCostParams,
         TxContextIdsCreatedCostParams, TxContextRGPCostParams, TxContextReplaceCostParams,
-        TxContextSenderCostParams, TxContextSponsorCostParams,
+        TxContextSenderCostParams, TxContextSponsorCostParams, TxContextTxNonceCostParams,
     },
     types::TypesIsOneTimeWitnessCostParams,
     validator::ValidatorValidateMetadataBcsCostParams,
@@ -168,6 +168,7 @@ pub struct NativesCostTable {
     pub tx_context_gas_budget_cost_params: TxContextGasBudgetCostParams,
     pub tx_context_ids_created_cost_params: TxContextIdsCreatedCostParams,
     pub tx_context_replace_cost_params: TxContextReplaceCostParams,
+    pub tx_context_tx_nonce_cost_params: TxContextTxNonceCostParams,
 
     // AuthContext
     pub auth_context_digest_cost_params: AuthContextDigestCostParams,
@@ -473,6 +474,11 @@ impl NativesCostTable {
                 } else {
                     DEFAULT_UNUSED_TX_CONTEXT_ENTRY_COST.into()
                 },
+            },
+            tx_context_tx_nonce_cost_params: TxContextTxNonceCostParams {
+                tx_context_tx_nonce_cost_base: protocol_config
+                    .tx_context_tx_nonce_cost_base_as_option()
+                    .map(Into::into),
             },
             tx_context_sponsor_cost_params: TxContextSponsorCostParams {
                 tx_context_sponsor_cost_base: if protocol_config.move_native_tx_context() {
@@ -1374,6 +1380,16 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             make_native!(tx_context::ids_created),
         ),
         ("tx_context", "replace", make_native!(tx_context::replace)),
+        (
+            "tx_context",
+            "native_tx_nonce",
+            make_native!(tx_context::tx_nonce),
+        ),
+        (
+            "tx_context",
+            "replace_tx_nonce",
+            make_native!(tx_context::replace_tx_nonce),
+        ),
         (
             "types",
             "is_one_time_witness",
