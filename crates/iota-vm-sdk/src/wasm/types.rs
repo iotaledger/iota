@@ -21,9 +21,17 @@ pub struct SimulateRequest {
     /// Base-64 BCS [`Transaction`] to run.
     pub tx_b64: String,
     /// Chain the transaction targets: `"mainnet"`, `"testnet"`, or absent for
-    /// an unknown chain. Selects the chain-specific protocol configuration.
+    /// any other chain. Selects the chain-specific protocol configuration and,
+    /// when `chain_identifier` is absent, gives the chain identifier.
     #[serde(default)]
     pub chain: Option<String>,
+    /// Base-58 digest of the chain's genesis checkpoint (checkpoint 0), which
+    /// Move reads from the transaction context. Needed for chains other than
+    /// mainnet and testnet, such as devnet or a local network. When absent, the
+    /// identifier of `chain` is used, or all zeros if `chain` is absent too.
+    /// When both are set they must name the same chain.
+    #[serde(default)]
+    pub chain_identifier: Option<String>,
     /// Protocol version to configure the VM for.
     pub protocol_version: u64,
     /// Reference gas price for the epoch.

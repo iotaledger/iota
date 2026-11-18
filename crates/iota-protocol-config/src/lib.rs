@@ -292,6 +292,9 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             signature of a personal message by a public key.
 //             Set the gas costs of those natives and of the built-in Move
 //             authenticators on all networks.
+//             Add `tx_context::chain_identifier`, which returns the digest of
+//             the genesis checkpoint, and set the gas cost of its native on
+//             all networks.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -1873,6 +1876,9 @@ pub struct ProtocolConfig {
     public_key_verify_personal_message_signature_impl_cost_base: Option<u64>,
     public_key_verify_personal_message_signature_impl_msg_cost_per_byte: Option<u64>,
     public_key_verify_personal_message_signature_impl_sig_cost_per_byte: Option<u64>,
+    // Cost param for the Move native function `tx_context::native_chain_identifier():
+    // vector<u8>`
+    tx_context_chain_identifier_cost_base: Option<u64>,
 
     // Upper bound on the computation units a `ClaimAccount` is charged, after rounding.
     //
@@ -3226,6 +3232,7 @@ impl ProtocolConfig {
             public_key_verify_personal_message_signature_impl_cost_base: None,
             public_key_verify_personal_message_signature_impl_msg_cost_per_byte: None,
             public_key_verify_personal_message_signature_impl_sig_cost_per_byte: None,
+            tx_context_chain_identifier_cost_base: None,
 
             claim_account_max_computation_units: None,
             claim_account_storage_bytes_bound: None,
@@ -4070,6 +4077,7 @@ impl ProtocolConfig {
                         Some(2);
                     cfg.public_key_verify_personal_message_signature_impl_sig_cost_per_byte =
                         Some(2);
+                    cfg.tx_context_chain_identifier_cost_base = Some(30);
                 }
                 // Use this template when making changes:
                 //

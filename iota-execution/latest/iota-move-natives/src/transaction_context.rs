@@ -6,7 +6,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use better_any::{Tid, TidAble};
 use iota_sdk_types::{Address, ObjectId, TransactionDigest};
-use iota_types::{base_types::TxContext, committee::EpochId};
+use iota_types::{base_types::TxContext, committee::EpochId, digests::ChainIdentifier};
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
     account_address::AccountAddress, runtime_value::MoveTypeLayout, vm_status::StatusCode,
@@ -95,6 +95,10 @@ impl TransactionContext {
         self.tx_context.borrow().sponsor()
     }
 
+    pub fn chain_identifier(&self) -> ChainIdentifier {
+        self.tx_context.borrow().chain_identifier()
+    }
+
     pub fn rgp(&self) -> u64 {
         self.tx_context.borrow().rgp()
     }
@@ -150,6 +154,24 @@ impl TransactionContext {
         // data
         self.cached_digest = None;
 
+        Ok(())
+    }
+
+    // Test only function: replace the chain identifier of the wrapped TxContext.
+    pub fn set_chain_identifier(
+        &mut self,
+        chain_identifier: ChainIdentifier,
+    ) -> PartialVMResult<()> {
+        if !self.test_only {
+            return Err(
+                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(
+                    "`set_chain_identifier` called on a non testing scenario".to_string(),
+                ),
+            );
+        }
+        self.tx_context
+            .borrow_mut()
+            .set_chain_identifier(chain_identifier);
         Ok(())
     }
 }
