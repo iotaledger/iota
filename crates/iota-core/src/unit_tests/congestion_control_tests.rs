@@ -3,7 +3,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeSet, sync::Arc};
+use std::{collections::BTreeSet, sync::Arc, time::Duration};
 
 use iota_macros::{register_fail_point_arg, sim_test};
 use iota_protocol_config::{
@@ -40,8 +40,9 @@ use crate::{
             consensus_quarantine::ConsensusCommitOutput,
         },
         authority_test_utils::{
-            init_state_with_ids, init_state_with_objects, init_transfer_transaction,
-            send_batch_user_transactions_no_execution, send_user_transaction_and_execute,
+            drop_attestations, init_state_with_ids, init_state_with_objects,
+            init_transfer_transaction, send_batch_user_transactions_no_execution,
+            send_user_transaction_and_execute,
         },
         authority_tests::{
             build_programmable_transaction, certify_shared_obj_transaction_no_execution,
@@ -60,6 +61,9 @@ use crate::{
     checkpoints::CheckpointServiceNoop,
     consensus_handler::{
         ConsensusCommitInfo, SequencedConsensusTransaction, VerifiedSequencedConsensusTransaction,
+    },
+    execution_scheduler::{
+        ExecutionSchedulerAPI, transaction_manager::SchedulableAttestedTransaction,
     },
     move_call,
     test_utils::set_scheduler_env,
@@ -2280,6 +2284,23 @@ impl SharedObjectSequencing {
             .unwrap()
     }
 
+    /// A transfer without shared inputs at `gas_price`, paying with the gas
+    /// object at `gas_index`, depending on `dependency`.
+    fn transfer(
+        &self,
+        gas_index: usize,
+        gas_price: u64,
+        dependency: TransactionDigest,
+    ) -> VerifiedTransaction {
+        let gas = self.authority.get_object(&self.gas_ids[gas_index]).unwrap();
+        let epoch_store = self.authority.epoch_store_for_testing();
+        let transaction = TestTransactionBuilder::new(self.sender, gas.object_ref(), gas_price)
+            .transfer_iota(Some(1_000), Address::random())
+            .with_transaction_dependency(dependency, epoch_store.epoch())
+            .build_and_sign(&self.sender_key);
+        epoch_store.verify_transaction(transaction).unwrap()
+    }
+
     /// Sequences one commit, `regular` and `randomness` being the two lists
     /// in the order `process_consensus_transactions_and_commit_boundary` sorts
     /// them (with the combined tracker, everything is in `regular`), and
@@ -2293,6 +2314,32 @@ impl SharedObjectSequencing {
         round: u64,
         randomness_round: Option<RandomnessRound>,
     ) -> (Vec<TransactionDigest>, AssignedTxAndVersions) {
+        let (scheduled, assigned) = self
+            .sequence_for_execution(
+                regular,
+                randomness,
+                previously_deferred,
+                round,
+                randomness_round,
+            )
+            .await;
+        let scheduled = scheduled
+            .iter()
+            .filter_map(|schedulable| schedulable.as_tx().map(|tx| *tx.digest()))
+            .collect();
+        (scheduled, assigned)
+    }
+
+    /// Like [`Self::sequence`], but returns the scheduled transactions as the
+    /// consensus handler hands them to execution.
+    async fn sequence_for_execution(
+        &self,
+        regular: Vec<VerifiedSequencedConsensusTransaction>,
+        randomness: Vec<VerifiedSequencedConsensusTransaction>,
+        previously_deferred: PreviouslyDeferredTransactions,
+        round: u64,
+        randomness_round: Option<RandomnessRound>,
+    ) -> (Vec<SchedulableAttestedTransaction>, AssignedTxAndVersions) {
         let epoch_store = self.authority.epoch_store_for_testing();
         let mut output = ConsensusCommitOutput::new(round, round);
         let roots = |transactions: &[VerifiedSequencedConsensusTransaction]| {
@@ -2354,12 +2401,53 @@ impl SharedObjectSequencing {
             )
             .await
             .unwrap();
-        let scheduled = scheduled
+        (
+            scheduled.into_iter().chain(scheduled_randomness).collect(),
+            assigned,
+        )
+    }
+
+    /// Hands `scheduled` to the execution scheduler with the versions in
+    /// `assigned`, as the consensus handler does, and returns the effects in
+    /// the same order.
+    async fn execute(
+        &self,
+        scheduled: Vec<SchedulableAttestedTransaction>,
+        assigned: AssignedTxAndVersions,
+    ) -> Vec<TransactionEffects> {
+        let epoch_store = self.authority.epoch_store_for_testing();
+        let assigned = assigned.into_map();
+        let scheduled = drop_attestations(scheduled);
+        let digests: Vec<_> = scheduled
             .iter()
-            .chain(scheduled_randomness.iter())
-            .filter_map(|schedulable| schedulable.as_tx().map(|tx| *tx.digest()))
+            .map(|schedulable| *schedulable.as_tx().unwrap().digest())
             .collect();
-        (scheduled, assigned)
+        let keys: Vec<_> = scheduled.iter().map(Schedulable::key).collect();
+        epoch_store.assign_to_a_new_commit_for_testing(&keys);
+        let transactions = scheduled
+            .into_iter()
+            .map(|schedulable| {
+                let versions = assigned
+                    .get(&schedulable.key())
+                    .cloned()
+                    .unwrap_or_default();
+                (
+                    schedulable,
+                    ExecutionEnv::new().with_assigned_versions(versions),
+                )
+            })
+            .collect();
+        self.authority
+            .execution_scheduler()
+            .enqueue(transactions, &epoch_store);
+        tokio::time::timeout(
+            Duration::from_secs(10),
+            self.authority
+                .get_transaction_cache_reader()
+                .notify_read_executed_effects_for_testing("", &digests),
+        )
+        .await
+        .expect("the scheduled transactions must execute")
     }
 
     fn dependency_deferrals(&self) -> u64 {
@@ -2726,6 +2814,75 @@ async fn test_dependent_of_a_deferred_dependency_is_cancelled_past_the_deferral_
             rgp
         );
     }
+}
+
+/// A transaction without shared inputs, cancelled through its gas object once
+/// its deferral for a still deferred dependency would pass the limit, executes
+/// as cancelled while the dependency stays pending: it does not wait for the
+/// dependency and does not list it in its effects.
+#[tokio::test]
+async fn test_owned_object_only_dependent_cancelled_past_the_deferral_limit_executes() {
+    telemetry_subscribers::init_for_testing();
+    let sequencing = SharedObjectSequencing::new(2, 2, None).await;
+    let max_deferral_rounds = sequencing
+        .authority
+        .epoch_store_for_testing()
+        .protocol_config()
+        .max_deferral_rounds_for_congestion_control();
+    let rgp = TEST_ONLY_GAS_PRICE;
+    let shared = sequencing.shared_object();
+    let dependency = sequencing.transaction(0, &[&shared], rgp, None, true);
+    let dependent = sequencing.transfer(1, rgp, *dependency.digest());
+    let dependent_gas = dependent.data().transaction().gas()[0];
+
+    // Both were first deferred at round 1.
+    let round = max_deferral_rounds + 1;
+    let previously_deferred = [
+        (
+            *dependency.digest(),
+            (DeferralKey::new_for_randomness(1), None),
+        ),
+        (
+            *dependent.digest(),
+            (DeferralKey::new_for_consensus_round(round, 1), None),
+        ),
+    ]
+    .into_iter()
+    .collect();
+    let (scheduled, assigned) = sequencing
+        .sequence_for_execution(
+            vec![sequenced(&dependent)],
+            vec![sequenced(&dependency)],
+            previously_deferred,
+            round,
+            None,
+        )
+        .await;
+    let version = assigned_version(&assigned, &dependent, dependent_gas.object_id).unwrap();
+    assert!(version.is_congested(), "{version:?}");
+
+    let effects = sequencing.execute(scheduled, assigned).await;
+
+    let [effects] = effects.as_slice() else {
+        panic!("expected only the dependent to be scheduled: {effects:?}");
+    };
+    assert_eq!(effects.transaction_digest(), dependent.digest());
+    assert_eq!(
+        effects.status(),
+        &ExecutionStatus::Failure {
+            error: ExecutionError::ExecutionCanceledDueToExecutionWorkerCongestion {
+                suggested_gas_price: rgp
+            },
+            command: None,
+        }
+    );
+    assert!(!effects.dependencies().contains(dependency.digest()));
+    assert!(effects.gas_object().reference().version > dependent_gas.version);
+    assert!(
+        !sequencing
+            .authority
+            .is_tx_already_executed(dependency.digest())
+    );
 }
 
 /// With the combined tracker, a dependent outside the randomness phase is
