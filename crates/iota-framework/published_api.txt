@@ -3877,9 +3877,6 @@ uid
 uid_mut
 	public(package) fun
 	0x2::smart_account
-KeyProofMessage
-	public struct
-	0x2::smart_account_builtin_auth
 builder_v1
 	public fun
 	0x2::smart_account_builtin_auth
@@ -3911,9 +3908,6 @@ with_public_key
 	fun
 	0x2::smart_account_builtin_auth
 verify_key_proof
-	fun
-	0x2::smart_account_builtin_auth
-key_proof_bytes
 	fun
 	0x2::smart_account_builtin_auth
 IotaSystemAdminCap
