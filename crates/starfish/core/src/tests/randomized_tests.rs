@@ -5,7 +5,11 @@
 use std::{env, sync::Arc};
 
 use parking_lot::RwLock;
-use rand::{RngExt, SeedableRng, prelude::SliceRandom, rngs::StdRng};
+use rand::{
+    RngExt, SeedableRng,
+    prelude::{IndexedRandom, SliceRandom},
+    rngs::StdRng,
+};
 use starfish_config::AuthorityIndex;
 
 use crate::{
@@ -17,6 +21,7 @@ use crate::{
     leader_schedule::{LeaderSchedule, LeaderSwapTable},
     storage::mem_store::MemStore,
     test_dag::create_random_dag,
+    test_dag_builder::DagBuilder,
     universal_committer::{
         UniversalCommitter, universal_committer_builder::UniversalCommitterBuilder,
     },
@@ -24,6 +29,11 @@ use crate::{
 
 const NUM_RUNS: u32 = 100;
 const NUM_ROUNDS: u32 = 200;
+const NUM_EQUIVOCATION_RUNS: u32 = 20;
+/// Honest authorities that each receive the blocks of a dag with
+/// equivocations in their own order.
+const NUM_EQUIVOCATION_OBSERVERS: usize = 3;
+const ACKNOWLEDGMENT_PERCENTAGES: [u64; 3] = [100, 90, 70];
 
 /// Test builds a randomized dag with the following conditions:
 /// - Links to 2f+1 minimum ancestors
@@ -43,7 +53,10 @@ async fn test_randomized_dag_all_direct_commit() {
         let dag_builder = create_random_dag(
             seed,
             include_leader_percentage,
+            100,
             NUM_ROUNDS,
+            &[],
+            0,
             authority.context.clone(),
         );
 
@@ -93,112 +106,157 @@ async fn test_randomized_dag_and_decision_sequence() {
         let seed = random_test_setup.seeded_rng.random_range(0..10000);
         let num_authorities = random_test_setup.seeded_rng.random_range(4..10);
 
-        // Setup for Authority 1
-        let mut authority_1 = authority_setup(num_authorities, 1);
-
         let include_leader_percentage = 50;
         let dag_builder = create_random_dag(
             seed,
             include_leader_percentage,
+            100,
             NUM_ROUNDS,
-            authority_1.context.clone(),
+            &[],
+            0,
+            Arc::new(Context::new_for_test(num_authorities).0),
         );
 
         tracing::info!(
             "Running test with committee size {num_authorities} & {NUM_ROUNDS} rounds in the DAG..."
         );
 
-        let mut all_blocks = dag_builder
-            .block_headers
-            .values()
-            .cloned()
-            .collect::<Vec<_>>();
-        all_blocks.shuffle(&mut random_test_setup.seeded_rng);
-
-        let mut sequenced_leaders_1 = vec![];
-        let mut last_finalized = Slot::new(0, 0);
-        let mut i = 0;
-        let mut seen_so_far = vec![];
-        while i < all_blocks.len() {
-            let chunk_size = random_test_setup
-                .seeded_rng
-                .random_range(1..=(all_blocks.len() - i));
-            let chunk = &all_blocks[i..i + chunk_size];
-            seen_so_far.extend(chunk.iter().cloned());
-            let _ = authority_1
-                .block_manager
-                .try_accept_block_headers(chunk.to_vec(), DataSource::Test);
-            let sequence = authority_1.committer.try_decide(last_finalized);
-
-            if !sequence.is_empty() {
-                sequenced_leaders_1.extend(sequence.clone());
-                let leader_status = sequence.last().unwrap();
-                last_finalized = Slot::new(leader_status.round(), leader_status.authority());
-            }
-
-            i += chunk_size;
-            // Evaluate the seen blocks so far
-            let (suspended, missing) = evaluate_block_headers(&seen_so_far);
-            let authority1_suspended = authority_1.block_manager.suspended_blocks_refs();
-            let authority1_missing = authority_1.block_manager.blocks_to_fetch_refs();
-            assert_eq!(suspended, authority1_suspended);
-            assert_eq!(missing, authority1_missing);
-        }
-
-        assert!(authority_1.block_manager.is_empty());
-
-        // Setup for Authority 2
-        let mut authority_2 = authority_setup(num_authorities, 2);
-
-        let mut all_blocks = dag_builder
-            .block_headers
-            .values()
-            .cloned()
-            .collect::<Vec<_>>();
-        all_blocks.shuffle(&mut random_test_setup.seeded_rng);
-
-        let mut sequenced_leaders_2 = vec![];
-        let mut last_finalized = Slot::new(0, 0);
-        let mut i = 0;
-        let mut seen_so_far = vec![];
-        while i < all_blocks.len() {
-            let chunk_size = random_test_setup
-                .seeded_rng
-                .random_range(1..=(all_blocks.len() - i));
-            let chunk = &all_blocks[i..i + chunk_size];
-            seen_so_far.extend(chunk.iter().cloned());
-
-            let _ = authority_2
-                .block_manager
-                .try_accept_block_headers(chunk.to_vec(), DataSource::Test);
-            let sequence = authority_2.committer.try_decide(last_finalized);
-
-            if !sequence.is_empty() {
-                sequenced_leaders_2.extend(sequence.clone());
-                let leader_status = sequence.last().unwrap();
-                last_finalized = Slot::new(leader_status.round(), leader_status.authority());
-            }
-            // Evaluate the seen blocks so far
-            let (suspended, missing) = evaluate_block_headers(&seen_so_far);
-            let authority2_suspended = authority_2.block_manager.suspended_blocks_refs();
-            let authority2_missing = authority_2.block_manager.blocks_to_fetch_refs();
-            assert_eq!(suspended, authority2_suspended);
-            assert_eq!(missing, authority2_missing);
-            i += chunk_size;
-        }
-
-        assert!(authority_2.block_manager.is_empty());
+        let sequenced_leaders_1 = deliver_in_random_order(
+            num_authorities,
+            AuthorityIndex::new_for_test(1),
+            &dag_builder,
+            &mut random_test_setup.seeded_rng,
+        );
+        let sequenced_leaders_2 = deliver_in_random_order(
+            num_authorities,
+            AuthorityIndex::new_for_test(2),
+            &dag_builder,
+            &mut random_test_setup.seeded_rng,
+        );
 
         // Ensure despite the difference in when blocks were received eventually after
         // receiving all blocks both authorities should return the same sequence of
-        // blocks. The strong voters are left out of the comparison: they are the
-        // voters the deciding authority had accepted at that point, so the two
-        // authorities list different supersets of the quorum behind the commit.
-        assert_eq!(
-            decisions_without_strong_voters(&sequenced_leaders_1),
-            decisions_without_strong_voters(&sequenced_leaders_2)
-        );
+        // blocks.
+        assert_eq!(sequenced_leaders_1, sequenced_leaders_2);
     }
+}
+
+/// Test builds randomized dags in which up to f authorities propose several
+/// blocks with the same parents in every round, and blocks acknowledge all or
+/// only part of the previous round, so leaders are committed as optimistic or
+/// standard. Blocks are fed in different random orders to honest authorities,
+/// which must decide the same sequence, commit kinds included. When every
+/// block links the leader of the previous round, every honest leader must be
+/// committed.
+#[tokio::test]
+async fn test_randomized_dag_with_equivocations() {
+    let mut random_test_setup = random_test_setup();
+    let rng = &mut random_test_setup.seeded_rng;
+
+    for _ in 0..NUM_EQUIVOCATION_RUNS {
+        let seed = rng.random_range(0..10000);
+        let num_authorities = rng.random_range(4..10);
+        let mut authorities = (0..num_authorities)
+            .map(|index| AuthorityIndex::new_for_test(index as u8))
+            .collect::<Vec<_>>();
+        authorities.shuffle(rng);
+        let (equivocators, honest) = authorities.split_at((num_authorities - 1) / 3);
+        let equivocations = rng.random_range(1..=2);
+        let include_leader_percentage = *[50, 100].choose(rng).unwrap();
+        let acknowledgment_percentage = *ACKNOWLEDGMENT_PERCENTAGES.choose(rng).unwrap();
+
+        let context = Arc::new(Context::new_for_test(num_authorities).0);
+        let dag_builder = create_random_dag(
+            seed,
+            include_leader_percentage,
+            acknowledgment_percentage,
+            NUM_ROUNDS,
+            equivocators,
+            equivocations,
+            context,
+        );
+
+        tracing::info!(
+            "Running test with committee size {num_authorities}, equivocators {equivocators:?} \
+             proposing {} blocks per round, leader links in {include_leader_percentage}% of \
+             rounds, {acknowledgment_percentage}% of blocks acknowledged",
+            1 + equivocations
+        );
+
+        let sequences = honest
+            .iter()
+            .take(NUM_EQUIVOCATION_OBSERVERS)
+            .map(|observer| deliver_in_random_order(num_authorities, *observer, &dag_builder, rng))
+            .collect::<Vec<_>>();
+        for sequence in &sequences[1..] {
+            assert_eq!(sequence, &sequences[0]);
+        }
+
+        if include_leader_percentage == 100 {
+            let sequence = &sequences[0];
+            assert!(
+                !sequence.is_empty(),
+                "honest leaders linked by every block must be decided"
+            );
+            for decision in sequence {
+                let slot = Slot::new(decision.round(), decision.authority());
+                if !equivocators.contains(&slot.authority) {
+                    assert!(
+                        matches!(decision, DecidedLeader::Commit(..)),
+                        "honest leader {slot} linked by every block was not committed"
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// Feeds all blocks of `dag_builder` to a new authority `observer` in a random
+/// order and in random batches, checks the block manager after each batch,
+/// and returns the decided leaders with the strong voters cleared.
+fn deliver_in_random_order(
+    num_authorities: usize,
+    observer: AuthorityIndex,
+    dag_builder: &DagBuilder,
+    rng: &mut StdRng,
+) -> Vec<DecidedLeader> {
+    let mut authority = authority_setup(num_authorities, observer.value() as u8);
+    let mut all_blocks = dag_builder
+        .block_headers
+        .values()
+        .cloned()
+        .collect::<Vec<_>>();
+    all_blocks.shuffle(rng);
+
+    let mut sequenced_leaders = vec![];
+    let mut last_finalized = Slot::new(0, 0);
+    let mut i = 0;
+    let mut seen_so_far = vec![];
+    while i < all_blocks.len() {
+        let chunk_size = rng.random_range(1..=(all_blocks.len() - i));
+        let chunk = &all_blocks[i..i + chunk_size];
+        seen_so_far.extend(chunk.iter().cloned());
+        let _ = authority
+            .block_manager
+            .try_accept_block_headers(chunk.to_vec(), DataSource::Test);
+        let sequence = authority.committer.try_decide(last_finalized);
+
+        if let Some(leader_status) = sequence.last() {
+            last_finalized = Slot::new(leader_status.round(), leader_status.authority());
+            sequenced_leaders.extend(sequence);
+        }
+
+        i += chunk_size;
+        let (suspended, missing) = evaluate_block_headers(&seen_so_far);
+        assert_eq!(suspended, authority.block_manager.suspended_blocks_refs());
+        assert_eq!(missing, authority.block_manager.blocks_to_fetch_refs());
+    }
+    assert!(authority.block_manager.is_empty());
+
+    // The strong voters are the voters the deciding authority had accepted at
+    // that point, so authorities that received blocks in different orders
+    // list different supersets of the quorum behind the commit.
+    decisions_without_strong_voters(&sequenced_leaders)
 }
 
 /// The decisions with the strong voters cleared, leaving what every authority
