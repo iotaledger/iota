@@ -300,6 +300,20 @@ impl CheckpointReaderActor {
             .filter(|c| c.checkpoint_summary.sequence_number >= self.current_checkpoint_number)
             .collect::<Vec<CheckpointData>>();
 
+            // A file that fails to decode part way ends early, so check that it
+            // holds every checkpoint the manifest lists for it before sending any.
+            let expected = self.current_checkpoint_number..metadata.checkpoint_seq_range.end;
+            if !checkpoints
+                .iter()
+                .map(|c| c.checkpoint_summary.sequence_number)
+                .eq(expected.clone())
+            {
+                return Err(IngestionError::HistoryRead(format!(
+                    "checkpoint file {} does not hold checkpoints {expected:?}",
+                    metadata.file_path()
+                )));
+            }
+
             for checkpoint in checkpoints {
                 let size = bcs::serialized_size(&checkpoint)?;
                 self.data_limiter.add(&checkpoint, size);

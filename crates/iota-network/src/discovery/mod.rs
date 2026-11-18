@@ -13,13 +13,16 @@ use anemo::{
     Network, Peer, PeerId, ProbeOutcome, Request, Response,
     types::{PeerEvent, PeerInfo},
 };
-use fastcrypto::ed25519::{Ed25519PublicKey, Ed25519Signature};
 use futures::StreamExt;
 use iota_config::p2p::{AccessType, DiscoveryConfig, P2pConfig, SeedPeer};
 use iota_multiaddr::Multiaddr;
-use iota_sdk_types::{Digest, crypto::IntentScope};
+use iota_sdk_crypto::{Signer as _, Verifier as _, ed25519::Ed25519VerifyingKey};
+use iota_sdk_types::{
+    Digest,
+    crypto::{Ed25519Signature, IntentScope},
+};
 use iota_types::{
-    crypto::{NetworkKeyPair, Signer, ToFromBytes, VerifyingKey},
+    crypto::{NetworkKeyPair, NetworkPublicKey},
     message_envelope::{Envelope, Message, VerifiedEnvelope},
 };
 use serde::{Deserialize, Serialize};
@@ -426,7 +429,7 @@ impl DiscoveryEventLoop {
                     && !state.connected_peers.contains_key(&peer_id) // We're not already connected
                     && !self.pending_dials.contains_key(&peer_id) // There is no pending dial to this node
             })
-            .map(|(&peer_id, info)| (peer_id, info.clone()))
+            .map(|(&peer_id, info)| (peer_id, info))
             .collect();
 
         // No need to connect to any more peers if we're already connected to a bunch
@@ -599,7 +602,7 @@ impl std::hash::Hash for HashableSignedNodeInfo {
         self.0.addresses.hash(state);
         self.0.timestamp_ms.hash(state);
         state.write_isize(self.0.access_type as isize);
-        self.0.auth_sig().as_bytes().hash(state);
+        self.0.auth_sig().bytes().hash(state);
     }
 }
 
@@ -879,16 +882,18 @@ fn verify_peer_infos(
         }
 
         // Verify the signature
-        let Ok(public_key) = Ed25519PublicKey::from_bytes(&peer_info.peer_id.0) else {
+        let Ok(verifying_key) =
+            Ed25519VerifyingKey::new(&NetworkPublicKey::new(peer_info.peer_id.0))
+        else {
             debug!(
                 // This should never happen.
-                "Failed to convert anemo PeerId {:?} to Ed25519PublicKey",
+                "Failed to convert anemo PeerId {:?} to an ed25519 public key",
                 peer_info.peer_id
             );
             continue;
         };
         let msg = bcs::to_bytes(peer_info.data()).expect("BCS serialization should not fail");
-        if let Err(e) = public_key.verify(&msg, peer_info.auth_sig()) {
+        if let Err(e) = verifying_key.verify(&msg, peer_info.auth_sig()) {
             debug!(
                 "Discovery failed to verify signature for NodeInfo for peer {:?}: {e:?}",
                 peer_info.peer_id
@@ -1203,7 +1208,55 @@ async fn update_known_peers(
         for (verified_peer, _) in verified_peers {
             insert_or_update_peer(&mut state_guard, verified_peer, &metrics);
         }
+
+        evict_oldest_known_peers(
+            &mut state_guard,
+            config.max_known_peers(),
+            &allowlisted_peers,
+            &metrics,
+        );
     }
+}
+
+/// Removes the known peers with the oldest timestamps until at most
+/// `max_known_peers` remain. Connected and allowlisted peers are never removed,
+/// so the table can stay above the limit if those alone exceed it.
+fn evict_oldest_known_peers(
+    state: &mut State,
+    max_known_peers: usize,
+    allowlisted_peers: &HashMap<PeerId, Option<Multiaddr>>,
+    metrics: &Metrics,
+) {
+    let excess = state.known_peers.len().saturating_sub(max_known_peers);
+    if excess == 0 {
+        return;
+    }
+
+    let mut candidates: Vec<(u64, PeerId)> = state
+        .known_peers
+        .iter()
+        .filter(|(peer_id, _)| {
+            !state.connected_peers.contains_key(peer_id) && !allowlisted_peers.contains_key(peer_id)
+        })
+        .map(|(peer_id, info)| (info.timestamp_ms, *peer_id))
+        .collect();
+
+    let number_to_evict = excess.min(candidates.len());
+    if number_to_evict == 0 {
+        return;
+    }
+
+    candidates.select_nth_unstable(number_to_evict - 1);
+    for (_, peer_id) in &candidates[..number_to_evict] {
+        if let Some(removed) = state.known_peers.remove(peer_id) {
+            if !removed.addresses.is_empty() {
+                metrics.dec_num_peers_with_external_address();
+            }
+        }
+    }
+    debug!(
+        "Evicted {number_to_evict} oldest known peers to stay within the limit of {max_known_peers}"
+    );
 }
 
 /// Inserts or updates a peer in the known peers list.

@@ -193,8 +193,8 @@ pub struct BlockHeaderV1 {
     // references is a compressed vector that contains both the ancestors and acknowledgments
     // layout: |ancestors|overlap_without_ref0|acknowledgments|ref0?|
     references: Vec<BlockRef>,
-    overlap_start_index: u8, // bounded by committee size <=256
-    overlap_end_index: u8,   // bounded by committee size <=256
+    overlap_start_index: u8, // bounded by committee size <= 255
+    overlap_end_index: u8,   // bounded by committee size <= 255
     transactions_commitment: TransactionsCommitment,
     commit_votes: Vec<CommitVote>,
 }

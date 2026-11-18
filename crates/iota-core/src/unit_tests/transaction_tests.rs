@@ -7,7 +7,6 @@ use std::{
     ops::Deref,
 };
 
-use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
 use iota_protocol_config::{Chain, OverrideGuard, ProtocolConfig, ProtocolVersion};
 use iota_sdk_crypto::IotaSigner as _;
@@ -21,6 +20,7 @@ use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
     error::{IotaError, UserInputError},
     messages_grpc::HandleSoftBundleCertificatesRequestV1,
+    signature::VerifyParams,
     transaction::TransactionAPI,
     utils::to_sender_signed_transaction,
 };
@@ -396,11 +396,7 @@ async fn do_transaction_test_impl(
 
     let client = NetworkAuthorityClient::connect(
         server_handle.address(),
-        authority_state
-            .config
-            .network_key_pair()
-            .public()
-            .to_owned(),
+        authority_state.config.network_key_pair().public_key(),
     )
     .await
     .unwrap();
@@ -553,11 +549,7 @@ async fn test_oversized_txn() {
 
     let client = NetworkAuthorityClient::connect(
         server_handle.address(),
-        authority_state
-            .config
-            .network_key_pair()
-            .public()
-            .to_owned(),
+        authority_state.config.network_key_pair().public_key(),
     )
     .await
     .unwrap();
@@ -605,11 +597,7 @@ async fn test_very_large_certificate() {
 
     let client = NetworkAuthorityClient::connect(
         server_handle.address(),
-        authority_state
-            .config
-            .network_key_pair()
-            .public()
-            .to_owned(),
+        authority_state.config.network_key_pair().public_key(),
     )
     .await
     .unwrap();
@@ -695,11 +683,7 @@ async fn test_handle_certificate_errors() {
 
     let client = NetworkAuthorityClient::connect(
         server_handle.address(),
-        authority_state
-            .config
-            .network_key_pair()
-            .public()
-            .to_owned(),
+        authority_state.config.network_key_pair().public_key(),
     )
     .await
     .unwrap();
@@ -893,7 +877,7 @@ async fn test_handle_soft_bundle_certificates() {
     let server_handle = server.spawn_for_test().await.unwrap();
     let client = NetworkAuthorityClient::connect(
         server_handle.address(),
-        authority.config.network_key_pair().public().to_owned(),
+        authority.config.network_key_pair().public_key(),
     )
     .await
     .unwrap();
@@ -914,7 +898,10 @@ async fn test_handle_soft_bundle_certificates() {
             CertifiedTransaction::new(transaction.clone().into_message(), sigs.clone(), &committee)
         {
             return cert
-                .try_into_verified_for_testing(&committee, &Default::default())
+                .try_into_verified_for_testing(
+                    &committee,
+                    &VerifyParams::from_protocol_config(epoch_store.protocol_config()),
+                )
                 .unwrap();
         }
         panic!("Failed to create certificate");
@@ -1051,7 +1038,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
     let server_handle = server.spawn_for_test().await.unwrap();
     let client = NetworkAuthorityClient::connect(
         server_handle.address(),
-        authority.config.network_key_pair().public().to_owned(),
+        authority.config.network_key_pair().public_key(),
     )
     .await
     .unwrap();
@@ -1072,7 +1059,10 @@ async fn test_handle_soft_bundle_certificates_errors() {
             CertifiedTransaction::new(transaction.clone().into_message(), sigs.clone(), &committee)
         {
             return cert
-                .try_into_verified_for_testing(&committee, &Default::default())
+                .try_into_verified_for_testing(
+                    &committee,
+                    &VerifyParams::from_protocol_config(epoch_store.protocol_config()),
+                )
                 .unwrap();
         }
         panic!("Failed to create certificate");

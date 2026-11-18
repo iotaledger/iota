@@ -5,6 +5,7 @@
 use std::{
     sync::{Arc, Weak},
     thread,
+    time::Duration,
 };
 
 use futures::FutureExt;
@@ -18,6 +19,10 @@ use telemetry_subscribers::get_global_telemetry_config;
 use tracing::{info, trace};
 
 use super::node::RuntimeType;
+
+/// How long a stopping node gets to stop its background work and servers
+/// before its runtime is dropped.
+const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(2);
 
 #[derive(Debug)]
 pub(crate) struct Container {
@@ -112,6 +117,10 @@ impl Container {
                 // run until canceled
                 cancel_receiver.map(|_| ()).await;
 
+                // Bounded, as the node binary bounds it: a client that keeps a
+                // gRPC stream open holds the server's graceful shutdown, and in
+                // tests that client is often waiting for this node to stop.
+                let _ = tokio::time::timeout(SHUTDOWN_TIMEOUT, server.shutdown()).await;
                 trace!("cancellation received; shutting down thread");
             });
         }).unwrap();

@@ -25,7 +25,7 @@ use iota_types::{
         SubmitCertificateResponse, SystemStateRequest, TransactionInfoRequest,
         TransactionInfoResponse,
     },
-    traffic_control::{ClientIdSource, Weight},
+    traffic_control::Weight,
     transaction::*,
 };
 use nonempty::{NonEmpty, nonempty};
@@ -644,14 +644,11 @@ impl ValidatorService {
             .into()
         );
 
-        let client_addr = if let Some(client_id_source) = &self.client_id_source {
-            ValidatorService::get_client_ip_addr(&self.metrics, &request, client_id_source)
-        } else {
-            ValidatorService::get_client_ip_addr(
-                &self.metrics,
-                &request,
-                &ClientIdSource::SocketAddr,
-            )
+        let client_addr = match &self.client_id_source {
+            Some(client_id_source) => {
+                ValidatorService::get_client_ip_addr(&self.metrics, &request, client_id_source)?
+            }
+            None => request.remote_addr().map(|addr| addr.ip()),
         };
 
         let request = request.into_inner();

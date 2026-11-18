@@ -5,7 +5,6 @@
 use std::{ops::Range, path::PathBuf, sync::Arc};
 
 use anyhow::{Result, anyhow, bail};
-use arrow_array::Int32Array;
 use clap::*;
 use gcp_bigquery_client::{
     Client,
@@ -24,6 +23,7 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 use object_store::path::Path;
 use serde::{Deserialize, Serialize};
 use snowflake_api::{QueryResult, SnowflakeApi};
+use snowflake_arrow_array::{Int32Array, RecordBatch};
 use strum::EnumIter;
 use tracing::info;
 
@@ -202,6 +202,9 @@ impl MaxCheckpointReader for SnowflakeMaxCheckpointReader {
         let res = self.api.exec(&self.query).await?;
         match res {
             QueryResult::Arrow(a) => {
+                // Fails to compile if `snowflake-arrow-array` stops matching
+                // `snowflake-api`'s arrow, instead of the downcast panicking.
+                let a: Vec<RecordBatch> = a;
                 if let Some(record_batch) = a.first() {
                     let col = record_batch.column(0);
                     let col_array = col

@@ -13,6 +13,7 @@ use iota_types::{
 };
 
 use crate::{
+    authority::historic_objects::{self, HistoricObjects},
     checkpoints::checkpoint_executor::{CheckpointExecutionData, CheckpointTransactionData},
     execution_cache::TransactionCacheRead,
 };
@@ -21,6 +22,7 @@ pub(crate) fn load_checkpoint_data(
     checkpoint_exec_data: &CheckpointExecutionData,
     checkpoint_tx_data: &CheckpointTransactionData,
     object_store: &dyn ObjectStore,
+    historic_objects: &HistoricObjects,
     transaction_cache_reader: &dyn TransactionCacheRead,
 ) -> IotaResult<CheckpointData> {
     let event_tx_digests = checkpoint_tx_data
@@ -52,10 +54,10 @@ pub(crate) fn load_checkpoint_data(
                 .expect("event was already checked to be present")
         });
 
-        let input_objects = iota_types::storage::get_transaction_input_objects(object_store, fx)
-            .map_err(|e| IotaError::Unknown(e.to_string()))?;
-        let output_objects = iota_types::storage::get_transaction_output_objects(object_store, fx)
-            .map_err(|e| IotaError::Unknown(e.to_string()))?;
+        let input_objects =
+            historic_objects::get_transaction_input_objects(object_store, historic_objects, fx)?;
+        let output_objects =
+            historic_objects::get_transaction_output_objects(object_store, historic_objects, fx)?;
 
         let full_transaction = CheckpointTransaction {
             transaction: (*tx).clone().into_unsigned().into(),
@@ -86,6 +88,7 @@ pub(crate) fn load_epoch_boundary_data(
     checkpoint_exec_data: &CheckpointExecutionData,
     checkpoint_tx_data: &CheckpointTransactionData,
     object_store: &dyn ObjectStore,
+    historic_objects: &HistoricObjects,
     transaction_cache_reader: &dyn TransactionCacheRead,
 ) -> IotaResult<CheckpointData> {
     // The epoch-change transaction is always ordered last in the checkpoint.
@@ -109,12 +112,16 @@ pub(crate) fn load_epoch_boundary_data(
                 None => None,
             };
 
-            let input_objects =
-                iota_types::storage::get_transaction_input_objects(object_store, fx)
-                    .map_err(|e| IotaError::Unknown(e.to_string()))?;
-            let output_objects =
-                iota_types::storage::get_transaction_output_objects(object_store, fx)
-                    .map_err(|e| IotaError::Unknown(e.to_string()))?;
+            let input_objects = historic_objects::get_transaction_input_objects(
+                object_store,
+                historic_objects,
+                fx,
+            )?;
+            let output_objects = historic_objects::get_transaction_output_objects(
+                object_store,
+                historic_objects,
+                fx,
+            )?;
 
             vec![CheckpointTransaction {
                 transaction: (*tx).clone().into_unsigned().into(),

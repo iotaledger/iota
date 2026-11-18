@@ -207,6 +207,7 @@ impl From<Error> for RpcError {
                         RpcError::Call(error_object)
                     }
                     QuorumDriverError::TimeoutBeforeFinality
+                    | QuorumDriverError::TimeoutBeforeFinalityWithErrors { .. }
                     | QuorumDriverError::FailedWithTransientErrorAfterMaximumAttempts { .. }
                     | QuorumDriverError::SystemOverload { .. }
                     | QuorumDriverError::SystemOverloadRetryAfter { .. } => {
@@ -344,14 +345,12 @@ mod tests {
         }
 
         #[test]
-        fn test_invalid_transaction_vs_rejected_by_validators() {
-            // Same rendered code and message; only `data.reason` tells a
-            // locally proven invalid transaction apart from one rejected by
-            // the polled validators.
-            let inner = || IotaError::Unknown("Test rejection".to_string());
-
+        fn test_invalid_transaction() {
             let error_object = error_object_from_rpc(
-                Error::QuorumDriver(QuorumDriverError::InvalidTransaction(inner())).into(),
+                Error::QuorumDriver(QuorumDriverError::InvalidTransaction(IotaError::Unknown(
+                    "Test rejection".to_string(),
+                )))
+                .into(),
             );
             let expected_code = expect!["-32002"];
             expected_code.assert_eq(&error_object.code().to_string());
@@ -359,16 +358,39 @@ mod tests {
             expected_message.assert_eq(error_object.message());
             let expected_data = expect![[r#"{"reason":"invalid_transaction"}"#]];
             expected_data.assert_eq(&error_object.data().unwrap().to_string());
+        }
 
+        /// A rejection by the polled validators renders like the aggregator's
+        /// `NonRecoverableTransactionError` for the same reasons; only
+        /// `data.reason` tells the two flows apart.
+        #[test]
+        fn test_rejected_by_validators_renders_like_non_recoverable() {
+            let gas_too_low = UserInputError::GasBalanceTooLow {
+                gas_balance: 10,
+                needed_gas_amount: 100,
+            };
             let error_object = error_object_from_rpc(
-                Error::QuorumDriver(QuorumDriverError::RejectedByValidators(inner())).into(),
+                Error::QuorumDriver(QuorumDriverError::RejectedByValidators {
+                    errors: vec![gas_too_low.to_string()],
+                })
+                .into(),
             );
             let expected_code = expect!["-32002"];
             expected_code.assert_eq(&error_object.code().to_string());
-            let expected_message = expect!["Invalid transaction: unknown error: Test rejection"];
+            let expected_message = expect![
+                "Transaction execution failed due to issues with transaction inputs, please review the errors and try again:\n- Balance of gas object 10 is lower than the needed amount: 100"
+            ];
             expected_message.assert_eq(error_object.message());
             let expected_data = expect![[r#"{"reason":"rejected_by_validators"}"#]];
             expected_data.assert_eq(&error_object.data().unwrap().to_string());
+
+            let non_recoverable = error_object_from_rpc(
+                Error::QuorumDriver(QuorumDriverError::NonRecoverableTransactionError {
+                    errors: vec![(IotaError::UserInput { error: gas_too_low }, 3334, vec![])],
+                })
+                .into(),
+            );
+            assert_eq!(non_recoverable.message(), error_object.message());
         }
 
         #[test]
@@ -381,6 +403,25 @@ mod tests {
             let expected_code = expect!["-32050"];
             expected_code.assert_eq(&error_object.code().to_string());
             let expected_message = expect!["Transaction timed out before reaching finality"];
+            expected_message.assert_eq(error_object.message());
+            let expected_data = expect![[r#"{"reason":"timeout_before_finality"}"#]];
+            expected_data.assert_eq(&error_object.data().unwrap().to_string());
+        }
+
+        #[test]
+        fn test_timeout_before_finality_with_errors() {
+            let quorum_driver_error = QuorumDriverError::TimeoutBeforeFinalityWithErrors {
+                last_error: "Retriable errors: [Could not find the referenced object 0x1 at version 5 { k#1 } with 5000 stake]".to_string(),
+            };
+
+            let rpc_error: RpcError = Error::QuorumDriver(quorum_driver_error).into();
+
+            let error_object = error_object_from_rpc(rpc_error);
+            let expected_code = expect!["-32050"];
+            expected_code.assert_eq(&error_object.code().to_string());
+            let expected_message = expect![
+                "Transaction timed out before reaching finality. Last recorded retriable error: Retriable errors: [Could not find the referenced object 0x1 at version 5 { k#1 } with 5000 stake]"
+            ];
             expected_message.assert_eq(error_object.message());
             let expected_data = expect![[r#"{"reason":"timeout_before_finality"}"#]];
             expected_data.assert_eq(&error_object.data().unwrap().to_string());

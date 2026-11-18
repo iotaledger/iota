@@ -27,7 +27,7 @@
 //!   epoch. Commits from then on make no checkpoint and do not wait for the horizon to be fully
 //!   executed.
 
-use std::{path::PathBuf, str::FromStr, sync::Arc, time::Duration};
+use std::{collections::BTreeSet, path::PathBuf, str::FromStr, sync::Arc, time::Duration};
 
 use iota_config::verifier_signing_config::VerifierSigningConfig;
 use iota_macros::sim_test;
@@ -49,7 +49,10 @@ use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRefV1, derive_authenticator_function_ref_v1_dynamic_field_id,
     },
-    attestation::AttestedTransaction,
+    attestation::{
+        Attestation, AttestationData, AttestationRecord, AttestationVerdict, AttestedTransaction,
+    },
+    base_types::{EpochId, random_object_ref},
     crypto::{AccountPrivateKey, get_key_pair},
     deny_list_v1::{check_address_denied_by_config, get_per_type_coin_deny_list_v1},
     dynamic_field::{DynamicFieldInfo, get_dynamic_field_object_from_store},
@@ -66,7 +69,10 @@ use iota_types::{
         TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionAPI,
         TransactionEnvelope, TransactionKey, VerifiedTransaction,
     },
-    utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_optional_sponsor},
+    utils::{
+        make_move_authenticator_sig, to_sender_signed_transaction,
+        to_sender_signed_transaction_with_optional_sponsor,
+    },
 };
 
 use crate::{
@@ -81,6 +87,7 @@ use crate::{
                 handler_processed_upserts,
             },
         },
+        authority_test_utils::drop_attestations,
         authority_tests::{init_state_with_objects_and_object_basics, publish_object_basics},
         move_integration_tests::build_and_try_publish_test_package,
         shared_object_version_manager::{AssignedTxAndVersions, Schedulable},
@@ -91,7 +98,7 @@ use crate::{
         ConsensusCommitInfo, ExecutionWatcher, SequencedConsensusTransaction,
         VerifiedSequencedConsensusTransaction,
     },
-    execution_scheduler::ExecutionSchedulerAPI,
+    execution_scheduler::{ExecutionSchedulerAPI, transaction_manager::AttestationSource},
     post_consensus_input_reader::{
         DropKind, DynamicFieldAtHorizon, InputResolution, MissingKind, OwnedVerdict, SharedVerdict,
         ValidationAtCommit, reader::CommitIndexedReader,
@@ -127,6 +134,28 @@ fn make_user_tx_v1_verified(tx: VerifiedTransaction) -> VerifiedSequencedConsens
             tx.into(),
             None,
         ))),
+        tracking_id: Default::default(),
+    };
+    VerifiedSequencedConsensusTransaction::new_test(consensus_tx)
+}
+
+/// Wraps a `Transaction` in a `UserTransactionV1` consensus transaction
+/// attested by `authority_index` with `computation_units`.
+fn make_attested_user_tx(
+    tx: TransactionEnvelope,
+    authority_index: u8,
+    computation_units: u64,
+) -> VerifiedSequencedConsensusTransaction {
+    let attestation = Attestation::Authority {
+        payload: AttestationData::V1 {
+            computation_units,
+            object_versions: vec![],
+        },
+        authority_index,
+    };
+    let attested = AttestedTransaction::new(tx, Some(attestation));
+    let consensus_tx = ConsensusTransaction {
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(attested)),
         tracking_id: Default::default(),
     };
     VerifiedSequencedConsensusTransaction::new_test(consensus_tx)
@@ -176,7 +205,6 @@ async fn test_valid_user_transaction_passes() {
             &authority,
             &epoch_store,
             1,
-            false,
             &Default::default(),
             &mut transactions,
         )
@@ -245,7 +273,6 @@ async fn drop_error_for_gas_version_below_canceled_range(
             &authority,
             &epoch_store,
             1,
-            false,
             &Default::default(),
             &mut transactions,
         )
@@ -299,6 +326,102 @@ async fn test_gas_version_below_canceled_range_dropped_at_load_when_flag_disable
     );
 }
 
+/// Runs post-consensus validation on a transfer whose Move authenticator names
+/// `account` as a shared object, checks that it is dropped, and returns the
+/// error it was dropped with.
+///
+/// The drop keeps the transaction from execution, where the check of the
+/// authenticator inputs would reject the account with `NotSharedObject`: an
+/// error that halts the validator, not failure effects.
+async fn drop_error_for_account_named_as_shared(account: Object) -> IotaError {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    let sender: Address = account.id().into();
+    let gas_id = ObjectId::random();
+    let authority = TestAuthorityBuilder::new()
+        .with_starting_objects(&[account, Object::with_id_owner_for_testing(gas_id, sender)])
+        .build()
+        .await;
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
+    let tx = TestTransactionBuilder::new(sender, gas_ref, rgp)
+        .transfer_iota(None, Address::random())
+        .build();
+    let (authenticator, _) = make_move_authenticator_sig(sender);
+    let tx = TransactionEnvelope::from_user_sig_data(tx, vec![authenticator]);
+    let digest = *tx.digest();
+    let mut transactions = vec![make_user_tx_v1(tx)];
+
+    let (mut dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &authority,
+        &epoch_store,
+        1,
+        &Default::default(),
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+
+    assert!(transactions.is_empty(), "The transaction should be dropped");
+    assert!(locks.is_empty(), "A dropped transaction acquires no locks");
+    assert_eq!(dropped.len(), 1);
+    let (dropped_digest, error, _) = dropped.pop().unwrap();
+    assert_eq!(dropped_digest, digest);
+
+    error
+}
+
+/// An immutable account named as shared is dropped with an error that names
+/// the account.
+#[tokio::test]
+async fn test_immutable_account_named_as_shared_dropped() {
+    let account = Object::immutable_for_testing();
+    let account_id = account.id();
+
+    let error = drop_error_for_account_named_as_shared(account).await;
+
+    assert!(
+        matches!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::InputObjectNotAvailableAtCommit {
+                    object_id,
+                    version: None,
+                }
+            } if object_id == account_id
+        ),
+        "unexpected error: {error:?}"
+    );
+}
+
+/// An address-owned account named as shared is dropped with an error that
+/// names the account.
+#[tokio::test]
+async fn test_owned_account_named_as_shared_dropped() {
+    let account = Object::with_owner_for_testing(Address::random());
+    let account_id = account.id();
+
+    let error = drop_error_for_account_named_as_shared(account).await;
+
+    assert!(
+        matches!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::InputObjectNotAvailableAtCommit {
+                    object_id,
+                    version: None,
+                }
+            } if object_id == account_id
+        ),
+        "unexpected error: {error:?}"
+    );
+}
+
 /// Test that non-UserTransactionV1 transactions (e.g. EndOfPublish) pass
 /// through validation unchanged.
 #[sim_test]
@@ -313,7 +436,6 @@ async fn test_non_user_transaction_passes_through() {
             &authority,
             &epoch_store,
             1,
-            false,
             &Default::default(),
             &mut transactions,
         )
@@ -367,7 +489,6 @@ async fn test_duplicate_transaction_deduplicated() {
             &authority,
             &epoch_store,
             1,
-            false,
             &Default::default(),
             &mut transactions,
         )
@@ -437,7 +558,6 @@ async fn test_mixed_batch_filtering() {
             &authority,
             &epoch_store,
             1,
-            false,
             &Default::default(),
             &mut transactions,
         )
@@ -523,7 +643,6 @@ async fn test_simple_conflict() {
             &authority,
             &epoch_store,
             1,
-            false,
             &Default::default(),
             &mut transactions,
         )
@@ -558,8 +677,9 @@ async fn test_simple_conflict() {
 /// different versions, with the stale one ordered first (the scenario from
 /// issue #10922). Because owned-object locks are keyed by the full
 /// `ObjectReference`, the two never falsely conflict; the stale transaction is
-/// dropped by the version check in `handle_transaction_validation_checks`
-/// (Check #5) and the fresh transaction is kept and acquires the lock.
+/// dropped by the commit-indexed reader, for which the stale version is not
+/// live at the commit (Check #5), and the fresh transaction is kept and
+/// acquires the lock.
 #[sim_test]
 async fn test_stale_version_dropped_fresh_kept() {
     telemetry_subscribers::init_for_testing();
@@ -627,7 +747,6 @@ async fn test_stale_version_dropped_fresh_kept() {
             &authority,
             &epoch_store,
             1,
-            false,
             &Default::default(),
             &mut transactions,
         )
@@ -649,10 +768,10 @@ async fn test_stale_version_dropped_fresh_kept() {
         matches!(
             dropped_errors[0],
             IotaError::UserInput {
-                error: UserInputError::ObjectVersionUnavailableForConsumption { .. }
+                error: UserInputError::InputObjectNotAvailableAtCommit { .. }
             }
         ),
-        "Stale tx should be dropped because its version is unavailable, got {:?}",
+        "Stale tx should be dropped because its version is not available at the commit, got {:?}",
         dropped_errors[0]
     );
 
@@ -731,7 +850,6 @@ async fn test_no_conflict() {
             &authority,
             &epoch_store,
             1,
-            false,
             &Default::default(),
             &mut transactions,
         )
@@ -830,7 +948,6 @@ async fn test_chain_conflict() {
             &authority,
             &epoch_store,
             1,
-            false,
             &Default::default(),
             &mut transactions,
         )
@@ -952,7 +1069,6 @@ async fn test_multiple_conflicts_in_batch() {
             &authority,
             &epoch_store,
             1,
-            false,
             &Default::default(),
             &mut transactions,
         )
@@ -1042,7 +1158,6 @@ async fn test_gas_object_conflict() {
             &authority,
             &epoch_store,
             1,
-            false,
             &Default::default(),
             &mut transactions,
         )
@@ -1156,7 +1271,6 @@ async fn test_winner_blocks_multiple_losers() {
             &authority,
             &epoch_store,
             1,
-            false,
             &Default::default(),
             &mut transactions,
         )
@@ -1276,7 +1390,6 @@ async fn test_dropped_tx_does_not_acquire_locks() {
             &authority,
             &epoch_store,
             1,
-            false,
             &Default::default(),
             &mut transactions,
         )
@@ -1632,6 +1745,18 @@ impl LockTierSetup {
             .unwrap();
     }
 
+    /// Saves a keep for `verified_tx` at commit `index`, as the first run of
+    /// that commit did before a restart, so validating the commit again
+    /// repeats it.
+    fn save_keep(&self, index: CommitIndex, verified_tx: &VerifiedTransaction) {
+        self.epoch_store
+            .persist_post_consensus_decisions(
+                index,
+                &[(*verified_tx.digest(), SavedPostConsensusDecision::kept())],
+            )
+            .unwrap();
+    }
+
     /// Seeds `(self.object_ref, self.gas_ref) -> locker` into the requested
     /// tier. For `Persistent`, a signed-transaction row backing the lock is
     /// also written.
@@ -1718,7 +1843,6 @@ async fn run_different_digest_lock_drops_contender(tier: LockTier) {
         &s.authority,
         &s.epoch_store,
         1,
-        false,
         &Default::default(),
         &mut transactions,
     )
@@ -1737,9 +1861,9 @@ async fn run_different_digest_lock_drops_contender(tier: LockTier) {
     );
 }
 
-/// Body for the Check #1 retain case: an already-executed tx finding its OWN
-/// digest as the lock holder in the given tier must NOT be dropped and must
-/// NOT trigger `fatal!`.
+/// Body for the Check #1 retain case: an already-executed tx kept at the
+/// replayed commit, finding its OWN digest as the lock holder in the given
+/// tier, must NOT be dropped and must NOT trigger `fatal!`.
 async fn run_same_digest_lock_retains_already_executed(tier: LockTier) {
     let s = setup_lock_tier().await;
 
@@ -1751,13 +1875,13 @@ async fn run_same_digest_lock_retains_already_executed(tier: LockTier) {
     // `live_owned_object_markers` for its inputs are already consumed).
     s.seed_lock(tier, &tx);
     s.execute_in_an_earlier_commit(&tx);
+    s.save_keep(1, &tx);
 
     let mut transactions = vec![make_user_tx_v1_verified(tx)];
     let (dropped, _, all_digests) = post_consensus_validation::validate_and_resolve_conflicts(
         &s.authority,
         &s.epoch_store,
         1,
-        false,
         &Default::default(),
         &mut transactions,
     )
@@ -1783,27 +1907,24 @@ async fn run_same_digest_lock_retains_already_executed(tier: LockTier) {
     );
 }
 
-/// Body for the deferred-transaction self-lock case: a transaction that already
-/// holds its OWN lock in the given tier (from a prior consensus round in which
-/// it acquired owned-object locks and was then deferred for shared-object
-/// congestion) must NOT be dropped when it is reloaded and re-validated.
-/// Without the self-exemption in Check #4 it would conflict with its own lock,
-/// drop as `ObjectLockConflict`, and never execute.
+/// Body for the self-lock case: a transaction that finds its OWN digest as the
+/// holder of its inputs' locks in the given tier, from an earlier commit, must
+/// NOT be dropped. Without the self-exemption in Check #4 it would conflict
+/// with its own lock and drop as `ObjectLockConflict`.
 ///
 /// Unlike the already-executed case (Check #1), the transaction is NOT executed
 /// here, so it flows through the full validation pass (Check #2-#5) and must
 /// survive end-to-end and re-acquire its locks.
 ///
 /// Dedup by digest already runs upstream in Check #0, so a same-digest lock
-/// seen in Check #4 can only be this transaction's own prior-round lock (a
-/// deferred tx), never a same-commit duplicate.
-async fn run_self_lock_retains_deferred_tx(tier: LockTier) {
+/// seen in Check #4 is never a same-commit duplicate.
+async fn run_self_lock_is_not_a_conflict(tier: LockTier) {
     let setup = setup_lock_tier().await;
 
     let tx = setup.make_tx();
     let tx_digest = *tx.digest();
 
-    // Seed the tx's own lock into the tier, as round r would before deferral.
+    // Seed the tx's own lock into the tier, as an earlier commit would.
     setup.seed_lock(tier, &tx);
 
     let mut transactions = vec![make_user_tx_v1_verified(tx)];
@@ -1811,7 +1932,6 @@ async fn run_self_lock_retains_deferred_tx(tier: LockTier) {
         &setup.authority,
         &setup.epoch_store,
         1,
-        false,
         &Default::default(),
         &mut transactions,
     )
@@ -1820,34 +1940,30 @@ async fn run_self_lock_retains_deferred_tx(tier: LockTier) {
 
     assert!(
         dropped.is_empty(),
-        "deferred tx must not self-conflict on its own prior-round lock"
+        "tx must not self-conflict on its own lock from an earlier commit"
     );
-    assert_eq!(transactions.len(), 1, "deferred tx must be retained");
-    assert_eq!(
-        all_digests,
-        vec![tx_digest],
-        "deferred tx digest is reported"
-    );
+    assert_eq!(transactions.len(), 1, "tx must be retained");
+    assert_eq!(all_digests, vec![tx_digest], "tx digest is reported");
     assert_eq!(
         locks.get(&setup.object_ref),
         Some(&tx_digest),
-        "deferred tx must re-acquire its own object lock"
+        "tx must re-acquire its own object lock"
     );
     assert_eq!(
         locks.get(&setup.gas_ref),
         Some(&tx_digest),
-        "deferred tx must re-acquire its own gas lock"
+        "tx must re-acquire its own gas lock"
     );
 }
 
 #[tokio::test]
-async fn tier2_quarantine_self_lock_retains_deferred_tx() {
-    run_self_lock_retains_deferred_tx(LockTier::Quarantine).await;
+async fn tier2_quarantine_self_lock_is_not_a_conflict() {
+    run_self_lock_is_not_a_conflict(LockTier::Quarantine).await;
 }
 
 #[tokio::test]
-async fn tier3_persistent_self_lock_retains_deferred_tx() {
-    run_self_lock_retains_deferred_tx(LockTier::Persistent).await;
+async fn tier3_persistent_self_lock_is_not_a_conflict() {
+    run_self_lock_is_not_a_conflict(LockTier::Persistent).await;
 }
 
 #[tokio::test]
@@ -1870,8 +1986,9 @@ async fn tier3_persistent_same_digest_lock_retains_already_executed() {
     run_same_digest_lock_retains_already_executed(LockTier::Persistent).await;
 }
 
-/// Check #1 / `fatal!` invariant: when an already-executed transaction's owned
-/// input is locked by a DIFFERENT transaction digest,
+/// Check #1 / `fatal!` invariant: when an already-executed transaction kept at
+/// the replayed commit has an owned input locked by a DIFFERENT transaction
+/// digest,
 /// `validate_and_resolve_conflicts` must panic — the executed-but-out-locked
 /// state is a real consistency violation, not a recoverable conflict.
 ///
@@ -1885,6 +2002,7 @@ async fn already_executed_tx_locked_by_different_digest_is_fatal() {
     // The tx the committee actually executed (by an earlier commit on this node).
     let tx = s.make_tx();
     s.execute_in_an_earlier_commit(&tx);
+    s.save_keep(1, &tx);
 
     // Seed the quarantine with a lock on `tx`'s inputs held by a DIFFERENT
     // digest — simulates the consistency violation the `fatal!` guards against.
@@ -1898,11 +2016,632 @@ async fn already_executed_tx_locked_by_different_digest_is_fatal() {
         &s.authority,
         &s.epoch_store,
         1,
-        false,
         &Default::default(),
         &mut transactions,
     )
     .await;
+}
+
+/// An attested transaction whose `authority_index` matches the block's
+/// `certificate_author_index` (both `0`) passes attestor verification (Check
+/// #3) and is treated the same as an unattested one.
+#[tokio::test]
+async fn test_attested_tx_passes() {
+    let _guard = enable_validator_attestation();
+
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let recipient = get_key_pair::<AccountPrivateKey>().0;
+
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        Object::with_id_owner_for_testing(object_id, sender),
+        Object::with_id_owner_for_testing(gas_id, sender),
+    ])
+    .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let object_ref = authority.get_object(&object_id).unwrap().object_ref();
+    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
+    let tx =
+        make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
+    let digest = *tx.digest();
+
+    // authority_index 0 == certificate_author_index 0 set by new_test → match.
+    let protocol_config = epoch_store.protocol_config();
+    let min_units = protocol_config
+        .base_tx_cost_fixed()
+        .min(protocol_config.gas_rounding_step());
+    let mut transactions = vec![make_attested_user_tx(tx, 0, min_units)];
+
+    let (dropped, locks, user_tx_digests) =
+        post_consensus_validation::validate_and_resolve_conflicts(
+            &authority,
+            &epoch_store,
+            1,
+            &Default::default(),
+            &mut transactions,
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        transactions.len(),
+        1,
+        "an attested transaction with a matching attestor is kept"
+    );
+    assert!(dropped.is_empty(), "No errors expected");
+    assert_eq!(
+        locks.len(),
+        2,
+        "Locks for object and gas should be acquired"
+    );
+    assert_eq!(user_tx_digests, vec![digest]);
+}
+
+/// An attested transaction whose `authority_index` does not match the block's
+/// `certificate_author_index` is dropped via Check #3. Critically, its digest
+/// must still appear in `all_user_tx_digests` so the caller can release the
+/// pre-consensus soft lock — this is the invariant the loop restructure
+/// protects.
+#[tokio::test]
+async fn test_attested_tx_attestor_mismatch() {
+    let _guard = enable_validator_attestation();
+
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let recipient = get_key_pair::<AccountPrivateKey>().0;
+
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        Object::with_id_owner_for_testing(object_id, sender),
+        Object::with_id_owner_for_testing(gas_id, sender),
+    ])
+    .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let object_ref = authority.get_object(&object_id).unwrap().object_ref();
+    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
+    let tx =
+        make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
+    let digest = *tx.digest();
+
+    // authority_index 1 != certificate_author_index 0 → mismatch.
+    // Cost is also below the protocol floor (`min_units - 1`), so BOTH the
+    // mismatch and the floor checks would fire. This pins the check order:
+    // mismatch must be reported before the floor.
+    let protocol_config = epoch_store.protocol_config();
+    let min_units = protocol_config
+        .base_tx_cost_fixed()
+        .min(protocol_config.gas_rounding_step());
+    let mut transactions = vec![make_attested_user_tx(tx, 1, min_units - 1)];
+
+    let (dropped, locks, user_tx_digests) =
+        post_consensus_validation::validate_and_resolve_conflicts(
+            &authority,
+            &epoch_store,
+            1,
+            &Default::default(),
+            &mut transactions,
+        )
+        .await
+        .unwrap();
+
+    assert!(
+        transactions.is_empty(),
+        "a mismatched attestation removes the transaction from the batch"
+    );
+    assert_eq!(
+        dropped.len(),
+        1,
+        "Mismatch should produce one dropped entry"
+    );
+    assert!(
+        matches!(dropped[0].1, IotaError::AttestationAuthorMismatch { .. }),
+        "expected AttestationAuthorMismatch, got {:?}",
+        dropped[0].1,
+    );
+    assert!(
+        locks.is_empty(),
+        "No locks should be acquired for a dropped transaction"
+    );
+    // The digest must be in user_tx_digests even though the transaction was
+    // dropped — the caller needs it to release the pre-consensus soft lock.
+    assert_eq!(
+        user_tx_digests,
+        vec![digest],
+        "digest must be collected before Check #3 for soft-lock release",
+    );
+}
+
+/// An attested transaction whose attestation reports `computation_units` outside
+/// the valid range is malformed and dropped via Check #3:
+/// - below `min(base_tx_cost_fixed, gas_rounding_step)` → `AttestationUnitsBelowMinimum` (no honest
+///   dry-run meters below the bucketization floor);
+/// - above `gas_budget / gas_price` → `AttestationUnitsAboveBudget` (an honest dry-run cannot meter
+///   more computation than the tx can pay for).
+///
+/// In both cases the digest must still surface in `all_user_tx_digests` for
+/// soft-lock release.
+#[tokio::test]
+async fn test_attested_tx_cost_out_of_bounds() {
+    let _guard = enable_validator_attestation();
+
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        Object::with_id_owner_for_testing(object_id, sender),
+        Object::with_id_owner_for_testing(gas_id, sender),
+    ])
+    .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let object_ref = authority.get_object(&object_id).unwrap().object_ref();
+    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
+
+    let reference_tx = make_transfer_object_transaction(
+        object_ref,
+        gas_ref,
+        sender,
+        &sender_key,
+        Address::random(),
+        rgp,
+    );
+    let protocol_config = epoch_store.protocol_config();
+    let min_units = protocol_config
+        .base_tx_cost_fixed()
+        .min(protocol_config.gas_rounding_step());
+    let ref_data = reference_tx.data().transaction();
+    let max_units = ref_data.gas_budget() / ref_data.gas_price();
+
+    // One case just below the minimum, one just above the maximum, each a
+    // distinct transaction at a commit of its own.
+    for (commit_index, (attested_units, expect_below)) in
+        [(min_units - 1, true), (max_units + 1, false)]
+            .into_iter()
+            .enumerate()
+    {
+        let tx = make_transfer_object_transaction(
+            object_ref,
+            gas_ref,
+            sender,
+            &sender_key,
+            Address::random(),
+            rgp,
+        );
+        let digest = *tx.digest();
+        let mut transactions = vec![make_attested_user_tx(tx, 0, attested_units)];
+
+        let (dropped, locks, user_tx_digests) =
+            post_consensus_validation::validate_and_resolve_conflicts(
+                &authority,
+                &epoch_store,
+                commit_index as CommitIndex + 1,
+                &Default::default(),
+                &mut transactions,
+            )
+            .await
+            .unwrap();
+
+        assert!(
+            transactions.is_empty(),
+            "malformed units remove the transaction from the batch"
+        );
+        assert_eq!(
+            dropped.len(),
+            1,
+            "malformed cost should produce one dropped entry"
+        );
+        match &dropped[0].1 {
+            IotaError::AttestationUnitsBelowMinimum { actual, minimum } if expect_below => {
+                assert_eq!(*actual, min_units - 1);
+                assert_eq!(*minimum, min_units);
+            }
+            IotaError::AttestationUnitsAboveBudget { actual, maximum } if !expect_below => {
+                assert_eq!(*actual, max_units + 1);
+                assert_eq!(*maximum, max_units);
+            }
+            other => panic!("unexpected error for attested_units={attested_units}: {other:?}"),
+        }
+        assert!(
+            locks.is_empty(),
+            "no locks should be acquired for a dropped transaction"
+        );
+        assert_eq!(
+            user_tx_digests,
+            vec![digest],
+            "digest must be collected before Check #3 for soft-lock release",
+        );
+    }
+}
+
+/// An attested transaction whose declared gas price or budget is out of the
+/// protocol bounds is dropped post-consensus by the payload-only gas-bounds
+/// check, before version assignment. The balance check still runs at execution.
+/// Two representative cases: gas price below the reference gas price, and gas
+/// budget above the protocol maximum.
+#[tokio::test]
+async fn test_attested_tx_gas_bounds_out_of_range_dropped() {
+    let _guard = enable_validator_attestation();
+
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let recipient = get_key_pair::<AccountPrivateKey>().0;
+
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        Object::with_id_owner_for_testing(object_id, sender),
+        Object::with_id_owner_for_testing(gas_id, sender),
+    ])
+    .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    assert!(rgp > 0, "test requires a non-zero reference gas price");
+
+    let protocol_config = epoch_store.protocol_config();
+    let min_units = protocol_config
+        .base_tx_cost_fixed()
+        .min(protocol_config.gas_rounding_step());
+    let max_tx_gas = protocol_config.max_tx_gas();
+
+    let object_ref = authority.get_object(&object_id).unwrap().object_ref();
+    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
+
+    // Gas price below the reference gas price → `GasPriceUnderRGP`.
+    let price_under_rgp = make_transfer_object_transaction(
+        object_ref,
+        gas_ref,
+        sender,
+        &sender_key,
+        recipient,
+        rgp - 1,
+    );
+    // Gas budget above the protocol maximum → `GasBudgetTooHigh`.
+    let budget_too_high = to_sender_signed_transaction(
+        Transaction::new_transfer(recipient, object_ref, sender, gas_ref, max_tx_gas + 1, rgp),
+        &sender_key,
+    );
+
+    // Each transaction is paired with the error it must be dropped for; a matcher
+    // accepting either would pass even if both tripped the same bound. Each is
+    // validated at a commit of its own.
+    for (commit_index, (tx, expected_error)) in [
+        (
+            price_under_rgp,
+            UserInputError::GasPriceUnderRGP {
+                gas_price: rgp - 1,
+                reference_gas_price: rgp,
+            },
+        ),
+        (
+            budget_too_high,
+            UserInputError::GasBudgetTooHigh {
+                gas_budget: max_tx_gas + 1,
+                max_budget: max_tx_gas,
+            },
+        ),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let digest = *tx.digest();
+        let mut transactions = vec![make_attested_user_tx(tx, 0, min_units)];
+
+        let (dropped, locks, user_tx_digests) =
+            post_consensus_validation::validate_and_resolve_conflicts(
+                &authority,
+                &epoch_store,
+                commit_index as CommitIndex + 1,
+                &Default::default(),
+                &mut transactions,
+            )
+            .await
+            .unwrap();
+
+        assert!(
+            transactions.is_empty(),
+            "out-of-bounds gas drops the attested transaction"
+        );
+        assert_eq!(dropped.len(), 1, "one dropped entry expected");
+        assert_eq!(
+            dropped[0].1,
+            IotaError::UserInput {
+                error: expected_error
+            },
+            "unexpected drop reason",
+        );
+        assert!(
+            locks.is_empty(),
+            "no locks should be acquired for a dropped transaction"
+        );
+        assert_eq!(user_tx_digests, vec![digest]);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Input checks for attested transactions
+// ---------------------------------------------------------------------------
+
+/// The input of a transfer that its signer does not own.
+#[derive(Clone, Copy, Debug)]
+enum ForeignInput {
+    /// The transferred object.
+    Object,
+    /// The gas coin.
+    Gas,
+}
+
+/// Turns validator attestation on while the guard lives.
+fn enable_validator_attestation() -> OverrideGuard {
+    ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(true);
+        config.set_checkpoint_summary_version_specific_data_for_testing(2);
+        config
+    })
+}
+
+/// Turns validator attestation and the attestor cutoff on while the guard
+/// lives. One refuted attestation of 10 units, 100 squared, takes an
+/// attestor's whole score.
+fn enable_attestor_cutoff() -> OverrideGuard {
+    ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(true);
+        config.set_checkpoint_summary_version_specific_data_for_testing(2);
+        config.set_attestation_max_refuted_units_squared_for_testing(100);
+        config
+    })
+}
+
+/// A fresh authority holding `object` and `gas`, with their live references.
+async fn setup_transfer_inputs(
+    object: Object,
+    gas: Object,
+) -> (
+    Arc<crate::authority::AuthorityState>,
+    ObjectReference,
+    ObjectReference,
+) {
+    let (object_id, gas_id) = (object.id(), gas.id());
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![object, gas]).await;
+    let object_ref = authority.get_object(&object_id).unwrap().object_ref();
+    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
+    (authority, object_ref, gas_ref)
+}
+
+/// A transfer validly signed by its sender whose `foreign` input belongs to
+/// another address, referenced at its live version and digest.
+async fn setup_foreign_input(
+    foreign: ForeignInput,
+) -> (Arc<crate::authority::AuthorityState>, TransactionEnvelope) {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let other_owner = Address::random();
+    let (object_owner, gas_owner) = match foreign {
+        ForeignInput::Object => (other_owner, sender),
+        ForeignInput::Gas => (sender, other_owner),
+    };
+    let (authority, object_ref, gas_ref) = setup_transfer_inputs(
+        Object::with_id_owner_for_testing(ObjectId::random(), object_owner),
+        Object::with_id_owner_for_testing(ObjectId::random(), gas_owner),
+    )
+    .await;
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let tx = make_transfer_object_transaction(
+        object_ref,
+        gas_ref,
+        sender,
+        &sender_key,
+        Address::random(),
+        rgp,
+    );
+    (authority, tx)
+}
+
+/// `tx` attested by the block author of
+/// `SequencedConsensusTransaction::new_test` (index 0) with the minimum units
+/// Check #3 accepts.
+fn attested_by_block_author(
+    tx: TransactionEnvelope,
+    protocol_config: &ProtocolConfig,
+) -> ConsensusTransaction {
+    let computation_units = protocol_config
+        .base_tx_cost_fixed()
+        .min(protocol_config.gas_rounding_step());
+    ConsensusTransaction::new_attested_user_transaction(AttestedTransaction::new(
+        tx,
+        Some(Attestation::Authority {
+            payload: AttestationData::V1 {
+                computation_units,
+                object_versions: vec![],
+            },
+            authority_index: 0,
+        }),
+    ))
+}
+
+/// Runs one commit holding `consensus_tx` through the consensus handler and
+/// returns the error `digest` was dropped with. Fails if it was scheduled.
+async fn dropped_by_consensus_handler(
+    authority: &crate::authority::AuthorityState,
+    consensus_tx: ConsensusTransaction,
+    digest: TransactionDigest,
+) -> IotaError {
+    let epoch_store = authority.epoch_store_for_testing();
+    let (scheduled, _) = epoch_store
+        .process_consensus_transactions_for_tests(
+            vec![SequencedConsensusTransaction::new_test(consensus_tx)],
+            &Arc::new(CheckpointServiceNoop {}),
+            authority.get_object_cache_reader().as_ref(),
+            &authority.metrics,
+            // skip_consensus_commit_prologue_in_test
+            true,
+            authority,
+        )
+        .await
+        .unwrap();
+    assert!(
+        scheduled
+            .iter()
+            .all(|scheduled| scheduled.as_tx().is_none_or(|tx| *tx.digest() != digest)),
+        "transaction {digest:?} must not be scheduled"
+    );
+    tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        epoch_store.notify_read_dropped_digests(digest),
+    )
+    .await
+    .expect("a dropped transaction has its error recorded")
+}
+
+/// An attested transaction spending another address's object or gas coin is
+/// dropped post-consensus. At execution the same error is `fatal!`.
+#[tokio::test]
+async fn attested_tx_with_foreign_owned_input_is_dropped() {
+    let _guard = enable_validator_attestation();
+
+    for foreign in [ForeignInput::Object, ForeignInput::Gas] {
+        let (authority, tx) = setup_foreign_input(foreign).await;
+        let digest = *tx.digest();
+        let consensus_tx =
+            attested_by_block_author(tx, authority.epoch_store_for_testing().protocol_config());
+
+        let error = dropped_by_consensus_handler(&authority, consensus_tx, digest).await;
+
+        assert!(
+            matches!(
+                error,
+                IotaError::UserInput {
+                    error: UserInputError::IncorrectUserSignature { .. }
+                }
+            ),
+            "{foreign:?}: expected an ownership error, got {error:?}"
+        );
+    }
+}
+
+/// Without an attestation the same transactions are dropped by the
+/// `UserTransactionV1` checks, with the same error.
+#[tokio::test]
+async fn unattested_tx_with_foreign_owned_input_is_dropped() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    for foreign in [ForeignInput::Object, ForeignInput::Gas] {
+        let (authority, tx) = setup_foreign_input(foreign).await;
+        let digest = *tx.digest();
+
+        let error = dropped_by_consensus_handler(
+            &authority,
+            ConsensusTransaction::new_user_transaction(tx),
+            digest,
+        )
+        .await;
+
+        assert!(
+            matches!(
+                error,
+                IotaError::UserInput {
+                    error: UserInputError::IncorrectUserSignature { .. }
+                }
+            ),
+            "{foreign:?}: expected an ownership error, got {error:?}"
+        );
+    }
+}
+
+/// An attested transaction naming an input at its live version with another
+/// digest is dropped post-consensus by the reader, as an unattested one is.
+#[tokio::test]
+async fn attested_tx_with_mismatched_digest_is_dropped() {
+    let _guard = enable_validator_attestation();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let (authority, object_ref, gas_ref) = setup_transfer_inputs(
+        Object::with_id_owner_for_testing(ObjectId::random(), sender),
+        Object::with_id_owner_for_testing(ObjectId::random(), sender),
+    )
+    .await;
+    let mismatched_ref = ObjectReference::new(
+        object_ref.object_id,
+        object_ref.version,
+        random_object_ref().digest,
+    );
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let tx = make_transfer_object_transaction(
+        mismatched_ref,
+        gas_ref,
+        sender,
+        &sender_key,
+        Address::random(),
+        rgp,
+    );
+    let digest = *tx.digest();
+    let consensus_tx =
+        attested_by_block_author(tx, authority.epoch_store_for_testing().protocol_config());
+
+    let error = dropped_by_consensus_handler(&authority, consensus_tx, digest).await;
+
+    assert!(
+        matches!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::InputObjectNotAvailableAtCommit { .. }
+            }
+        ),
+        "expected the reader's drop, got {error:?}"
+    );
+}
+
+/// An attested transaction whose gas coin cannot cover its budget is dropped
+/// post-consensus.
+#[tokio::test]
+async fn attested_tx_with_underfunded_gas_is_dropped() {
+    let _guard = enable_validator_attestation();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let (authority, object_ref, gas_ref) = setup_transfer_inputs(
+        Object::with_id_owner_for_testing(ObjectId::random(), sender),
+        Object::with_id_owner_gas_for_testing(ObjectId::random(), sender, 1),
+    )
+    .await;
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let tx = make_transfer_object_transaction(
+        object_ref,
+        gas_ref,
+        sender,
+        &sender_key,
+        Address::random(),
+        rgp,
+    );
+    let digest = *tx.digest();
+    let consensus_tx =
+        attested_by_block_author(tx, authority.epoch_store_for_testing().protocol_config());
+
+    let error = dropped_by_consensus_handler(&authority, consensus_tx, digest).await;
+
+    assert!(
+        matches!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::GasBalanceTooLow { .. }
+            }
+        ),
+        "expected a balance error, got {error:?}"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1965,7 +2704,6 @@ async fn post_consensus_validation_uses_governance_rules() {
         &authority,
         &epoch_store,
         1,
-        false,
         &Default::default(),
         &mut transactions,
     )
@@ -2019,7 +2757,6 @@ async fn post_consensus_validation_keeps_non_denied_transactions() {
         &authority,
         &epoch_store,
         1,
-        false,
         &Default::default(),
         &mut transactions,
     )
@@ -2070,7 +2807,6 @@ async fn post_consensus_validation_applies_relaxed_rules() {
         &authority,
         &epoch_store,
         1,
-        false,
         &Default::default(),
         &mut transactions,
     )
@@ -2093,8 +2829,8 @@ async fn post_consensus_validation_applies_relaxed_rules() {
     let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
         &authority,
         &epoch_store,
-        1,
-        false,
+        // The next commit: commit 1 saved its decisions above.
+        2,
         &Default::default(),
         &mut transactions,
     )
@@ -2134,6 +2870,14 @@ struct ValidationResult {
     kept: Vec<TransactionDigest>,
     dropped: Vec<(TransactionDigest, IotaError)>,
     locks: std::collections::HashMap<ObjectReference, LockDetails>,
+}
+
+/// What one validation of attested copies decided: the digest and block
+/// author of each kept copy, and each drop with its decision.
+#[derive(Debug, PartialEq, Eq)]
+struct ValidatedCopies {
+    kept: Vec<(TransactionDigest, u32)>,
+    dropped: Vec<(TransactionDigest, IotaError, PostConsensusDecision)>,
 }
 
 async fn setup_handler_object_state(
@@ -2285,11 +3029,14 @@ impl HandlerObjectStateSetup {
     }
 
     /// A keyed read of `(id, version)` from the object store, the way
-    /// validation's content read would issue it; `None` for tombstones.
+    /// validation's content read would issue it, including the version the
+    /// commit moved into this epoch's historic objects bucket; `None` for
+    /// tombstones.
     fn store_object(&self, id: &ObjectId, version: Version) -> Option<Object> {
         self.authority
             .get_object_cache_reader()
-            .get_object_by_key(id, version)
+            .try_get_object_by_key_with_historic_fallback(id, version, self.epoch_store.epoch())
+            .unwrap()
     }
 
     /// Executes `tx` and checks that it succeeded. `new_from_checkpoint` is
@@ -2409,16 +3156,47 @@ impl HandlerObjectStateSetup {
     /// checkpoint executor does. `committed` must hold, oldest first, every
     /// uncommitted transaction that wrote the objects they touched.
     fn commit_outputs(&self, committed: &[TransactionDigest]) {
-        let epoch = self.epoch_store.epoch();
+        self.commit_outputs_in_epoch(self.epoch_store.epoch(), committed);
+    }
+
+    /// [`Self::commit_outputs`] in `epoch`, the one the transactions executed
+    /// in: the cache records the epoch a version was superseded in and expects
+    /// the commit to name the same one.
+    fn commit_outputs_in_epoch(&self, epoch: EpochId, committed: &[TransactionDigest]) {
         let cache_commit = self.authority.get_cache_commit();
         let batch = cache_commit.build_db_batch(epoch, 1, committed);
         cache_commit.commit_transaction_outputs(epoch, batch, committed);
     }
 
+    /// [`Self::commit_outputs`] of every executed transaction not committed
+    /// yet, oldest first and epoch by epoch, and clears the execution caches,
+    /// as after the checkpoints holding them executed and a restart.
+    fn commit_all_executed_and_clear_caches(&self) {
+        let cache = self.authority.get_transaction_cache_reader();
+        let mut uncommitted: Vec<_> = self
+            .authority
+            .uncommitted_transactions_for_testing()
+            .into_iter()
+            .map(|digest| {
+                let effects = cache
+                    .get_executed_effects(&digest)
+                    .expect("an uncommitted transaction was executed");
+                (effects.epoch(), effects.lamport_version(), digest)
+            })
+            .collect();
+        uncommitted.sort();
+        for (epoch, chunk) in uncommitted.chunk_by(|a, b| a.0 == b.0).map(|c| (c[0].0, c)) {
+            let digests: Vec<_> = chunk.iter().map(|(_, _, digest)| *digest).collect();
+            self.commit_outputs_in_epoch(epoch, &digests);
+        }
+        self.authority.clear_execution_caches_for_testing();
+    }
+
     /// [`Self::commit_outputs`] of `committed`, then removes every version
-    /// `consumer` consumed from the object store, as the pruner does once
-    /// the consumer's checkpoint is executed. `consumer` must be one of
-    /// `committed`.
+    /// `consumer` consumed from the epoch's historic objects bucket the
+    /// commit moved it to, as on a validator that lost those bytes. The
+    /// removal from the live table finds nothing left there. `consumer` must
+    /// be one of `committed`.
     async fn prune_versions_consumed_by(
         &self,
         committed: &[TransactionDigest],
@@ -2430,6 +3208,22 @@ impl HandlerObjectStateSetup {
             .prune_objects_immediately_for_testing(vec![consumer.clone()])
             .await
             .unwrap();
+        let bucket = self
+            .authority
+            .get_historic_objects()
+            .ensure(self.epoch_store.epoch())
+            .unwrap();
+        let mut batch = bucket.objects.batch();
+        batch
+            .delete_batch_tagged(
+                &bucket.objects,
+                consumer
+                    .modified_at_versions()
+                    .iter()
+                    .map(|modified| ObjectKey(*modified.object_id(), modified.version())),
+            )
+            .unwrap();
+        batch.write().unwrap();
         for modified in consumer.modified_at_versions() {
             self.authority
                 .evict_committed_object_for_testing(modified.object_id());
@@ -2705,7 +3499,13 @@ impl HandlerObjectStateSetup {
         commit_index: CommitIndex,
         tx: &VerifiedTransaction,
     ) -> InputResolution {
-        let kinds = tx.collect_all_input_object_kind_for_reading().unwrap();
+        let kinds = tx
+            .collect_all_input_object_kind_for_reading(
+                self.epoch_store
+                    .protocol_config()
+                    .move_authenticator_type_arg_packages_as_inputs(),
+            )
+            .unwrap();
         TransactionInputLoader::new(self.authority.get_object_cache_reader().clone())
             .read_objects_at_commit(&self.reader_at(commit_index), &kinds)
             .unwrap()
@@ -2732,6 +3532,7 @@ impl HandlerObjectStateSetup {
                         deleted_by: None,
                     },
                 )],
+                Default::default(),
             )
             .unwrap();
     }
@@ -2754,7 +3555,7 @@ impl HandlerObjectStateSetup {
         self.epoch_store
             .assign_commit_to_transactions(index, vec![]);
         self.epoch_store
-            .record_commit_fully_executed(index, &[row])
+            .record_commit_fully_executed(index, &[row], Default::default())
             .unwrap();
         self.authority.insert_genesis_object(object);
     }
@@ -2773,6 +3574,7 @@ impl HandlerObjectStateSetup {
                 &self.epoch_store,
                 deny_rules,
                 VerifierLimitsSource::ProtocolConfig,
+                false,
             )
     }
 
@@ -2887,7 +3689,7 @@ impl HandlerObjectStateSetup {
         self.epoch_store
             .assign_commit_to_transactions(index, vec![]);
         self.epoch_store
-            .record_commit_fully_executed(index, &[])
+            .record_commit_fully_executed(index, &[], Default::default())
             .unwrap();
     }
 
@@ -2975,7 +3777,6 @@ impl HandlerObjectStateSetup {
             &self.authority,
             &self.epoch_store,
             index,
-            true,
             &Default::default(),
             &mut sequenced,
         )
@@ -2991,6 +3792,67 @@ impl HandlerObjectStateSetup {
                 .map(|(digest, error, _)| (digest, error))
                 .collect(),
             locks,
+        }
+    }
+
+    /// `tx` attested by `author` in `author`'s block, with the minimum units
+    /// Check #3 accepts.
+    fn attested_copy(
+        &self,
+        tx: &VerifiedTransaction,
+        author: u8,
+    ) -> VerifiedSequencedConsensusTransaction {
+        let protocol_config = self.epoch_store.protocol_config();
+        let units = protocol_config
+            .base_tx_cost_fixed()
+            .min(protocol_config.gas_rounding_step());
+        let mut copy = make_attested_user_tx(tx.clone().into(), author, units);
+        copy.0.certificate_author_index = author.into();
+        copy
+    }
+
+    /// Executes `tx`, whose commit is assigned, the way execution from a
+    /// certified checkpoint does when the checkpoint records `attestor`'s
+    /// attestation of it as refuted with `units`.
+    fn execute_refuted(&self, tx: VerifiedTransaction, attestor: u8, units: u64) {
+        let attestation = AttestationSource::Certified(Some(AttestationRecord {
+            attestor,
+            verdict: AttestationVerdict::Refuted { units },
+        }));
+        let effects = self.execute_executable(
+            &self.executable(tx),
+            ExecutionEnv::new().with_attestation(attestation),
+        );
+        assert!(effects.status().is_success(), "{:?}", effects.status());
+    }
+
+    /// Validates the consensus `copies` at commit `index` with deterministic
+    /// validation on.
+    async fn validate_copies_at(
+        &self,
+        index: CommitIndex,
+        mut copies: Vec<VerifiedSequencedConsensusTransaction>,
+    ) -> ValidatedCopies {
+        let (dropped, _, _) = post_consensus_validation::validate_and_resolve_conflicts(
+            &self.authority,
+            &self.epoch_store,
+            index,
+            &Default::default(),
+            &mut copies,
+        )
+        .await
+        .unwrap();
+        ValidatedCopies {
+            kept: copies
+                .iter()
+                .map(|tx| {
+                    (
+                        tx.0.transaction.user_transaction_digest().unwrap(),
+                        tx.0.certificate_author_index,
+                    )
+                })
+                .collect(),
+            dropped,
         }
     }
 
@@ -3012,7 +3874,7 @@ impl HandlerObjectStateSetup {
             .flat_map(|effects| handler_processed_upserts(effects, index))
             .collect();
         self.epoch_store
-            .record_commit_fully_executed(index, &upserts)
+            .record_commit_fully_executed(index, &upserts, Default::default())
             .unwrap();
     }
 
@@ -3860,6 +4722,235 @@ async fn watcher_restores_rows_of_a_replayed_commit_after_restart() {
     }
 }
 
+/// An attestor whose refuted totals take its whole score is cut off from the
+/// commit whose horizon reaches them. Its attested copies drop as copies, so
+/// another author's copy of the same transaction is kept, and an attestor
+/// below the threshold is not cut off. After a restart the commit replays its
+/// saved decisions, and a later commit reads the totals back from the table.
+#[tokio::test]
+async fn cut_off_attestor_copies_drop_once_the_horizon_reaches_its_refuted_totals() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let inputs: Vec<(ObjectId, ObjectId)> = (0..5)
+        .map(|_| (ObjectId::random(), ObjectId::random()))
+        .collect();
+    let mut s = setup_handler_object_state_with_config_guard(
+        inputs
+            .iter()
+            .flat_map(|(object, gas)| [*object, *gas])
+            .map(|id| Object::with_id_owner_for_testing(id, sender))
+            .collect(),
+        Some(enable_attestor_cutoff()),
+    )
+    .await;
+    let transfer = |(object, gas): &(ObjectId, ObjectId)| {
+        s.build_transfer(object, gas, sender, &sender_key, Address::random())
+    };
+    let (refuted_0, refuted_2) = (transfer(&inputs[0]), transfer(&inputs[1]));
+    let (t1, t2, t3) = (
+        transfer(&inputs[2]),
+        transfer(&inputs[3]),
+        transfer(&inputs[4]),
+    );
+    let k = s.horizon_distance();
+
+    // Commit 1 refutes attestor 0 with 10 units, 100 squared, which takes its
+    // whole score, and attestor 2 with 9, 81 squared, which does not.
+    let watcher = s.start_execution_watcher();
+    let roots = vec![*refuted_0.digest(), *refuted_2.digest()];
+    s.epoch_store.assign_commit_to_transactions(
+        1,
+        roots
+            .iter()
+            .map(|digest| TransactionKey::Digest(*digest))
+            .collect(),
+    );
+    s.execute_refuted(refuted_0, 0, 10);
+    s.execute_refuted(refuted_2, 2, 9);
+    s.wait_for_fully_executed_commit(1).await;
+
+    // Commit `k` reads as of the horizon 0, before commit 1.
+    assert_eq!(
+        s.validate_copies_at(k, vec![s.attested_copy(&t1, 0)]).await,
+        ValidatedCopies {
+            kept: vec![(*t1.digest(), 0)],
+            dropped: vec![],
+        }
+    );
+
+    // Commit `k + 1` reads as of the horizon 1.
+    let copies = |s: &HandlerObjectStateSetup| {
+        vec![
+            s.attested_copy(&t1, 0),
+            s.attested_copy(&t2, 0),
+            s.attested_copy(&t2, 1),
+            s.attested_copy(&t3, 2),
+        ]
+    };
+    let cut_off = ValidatedCopies {
+        kept: vec![(*t2.digest(), 1), (*t3.digest(), 2)],
+        dropped: vec![(
+            *t1.digest(),
+            IotaError::AttestorCutOff { attestor: 0 },
+            PostConsensusDecision::DroppedCopy,
+        )],
+    };
+    assert_eq!(s.validate_copies_at(k + 1, copies(&s)).await, cut_off);
+    assert_eq!(
+        s.authority
+            .metrics
+            .consensus_handler_validation_attestor_cut_off_transactions
+            .get(),
+        2
+    );
+
+    // The node restarts once commit 1 has flushed.
+    s.epoch_store
+        .flush_commit_through_quarantine_for_testing(1, roots)
+        .unwrap();
+    drop(watcher);
+    s.restart_epoch_store().await;
+    assert_eq!(s.validate_copies_at(k + 1, copies(&s)).await, cut_off);
+    s.complete_empty_commit(2);
+    assert_eq!(
+        s.validate_copies_at(k + 2, vec![s.attested_copy(&t1, 0)])
+            .await,
+        ValidatedCopies {
+            kept: vec![],
+            dropped: cut_off.dropped,
+        }
+    );
+}
+
+/// The flush completes a commit with refuted roots before the watcher
+/// reaches it, deriving the commit's totals from the roots' records. The
+/// watcher reaching the commit afterwards must not count them again.
+#[tokio::test]
+async fn flush_records_refuted_totals_the_watcher_does_not_count_again() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj1_id = ObjectId::random();
+    let gas1_id = ObjectId::random();
+    let obj2_id = ObjectId::random();
+    let gas2_id = ObjectId::random();
+    let s = setup_handler_object_state_with_config_guard(
+        vec![
+            Object::with_id_owner_for_testing(obj1_id, sender),
+            Object::with_id_owner_for_testing(gas1_id, sender),
+            Object::with_id_owner_for_testing(obj2_id, sender),
+            Object::with_id_owner_for_testing(gas2_id, sender),
+        ],
+        Some(enable_attestor_cutoff()),
+    )
+    .await;
+
+    // Commit 1 refutes attestor 0 with 10 units, 100 squared, which takes its
+    // whole score, and attestor 2 with 8, 64 squared, which would only if
+    // counted twice. It flushes before any watcher runs.
+    let first = s.build_transfer(&obj1_id, &gas1_id, sender, &sender_key, Address::random());
+    let second = s.build_transfer(&obj2_id, &gas2_id, sender, &sender_key, Address::random());
+    let roots = vec![*first.digest(), *second.digest()];
+    s.epoch_store.assign_commit_to_transactions(
+        1,
+        roots
+            .iter()
+            .map(|digest| TransactionKey::Digest(*digest))
+            .collect(),
+    );
+    s.execute_refuted(first, 0, 10);
+    s.execute_refuted(second, 2, 8);
+    s.epoch_store
+        .flush_commit_through_quarantine_for_testing(1, roots)
+        .unwrap();
+    assert_eq!(
+        s.epoch_store.attestors_cut_off_as_of(1),
+        BTreeSet::from([0])
+    );
+
+    // The watcher now receives commit 1, then an empty commit 2.
+    let _watcher = s.start_execution_watcher();
+    s.epoch_store.assign_commit_to_transactions(2, vec![]);
+    s.wait_for_fully_executed_commit(2).await;
+    assert_eq!(
+        s.epoch_store.attestors_cut_off_as_of(2),
+        BTreeSet::from([0])
+    );
+}
+
+/// A commit the watcher completed before a crash, but that had not flushed,
+/// loses its refuted totals with the process. When the handler replays the
+/// commit, the watcher must restore them from the records on disk, on top of
+/// the totals the table holds for the flushed commits.
+#[tokio::test]
+async fn watcher_restores_refuted_totals_of_a_replayed_commit_after_restart() {
+    let (address_1, address_1_key): (Address, AccountPrivateKey) = get_key_pair();
+    let (address_2, address_2_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj1_id = ObjectId::random();
+    let gas1_id = ObjectId::random();
+    let obj2_id = ObjectId::random();
+    let gas2_id = ObjectId::random();
+    let s = setup_handler_object_state_with_config_guard(
+        vec![
+            Object::with_id_owner_for_testing(obj1_id, address_1),
+            Object::with_id_owner_for_testing(gas1_id, address_1),
+            Object::with_id_owner_for_testing(obj2_id, address_2),
+            Object::with_id_owner_for_testing(gas2_id, address_2),
+        ],
+        Some(enable_attestor_cutoff()),
+    )
+    .await;
+
+    // Attestor 0 is refuted with 6 units, 36 squared, in commit 1, which
+    // flushes, and with 8, 64 squared, in commit 2, whose output is still in
+    // the quarantine when the node crashes: 100 together, its whole score.
+    let watcher = s.start_execution_watcher();
+    let first = s.build_transfer(
+        &obj1_id,
+        &gas1_id,
+        address_1,
+        &address_1_key,
+        Address::random(),
+    );
+    let first_digest = *first.digest();
+    s.epoch_store
+        .assign_commit_to_transactions(1, vec![TransactionKey::Digest(first_digest)]);
+    s.execute_refuted(first, 0, 6);
+    s.wait_for_fully_executed_commit(1).await;
+    s.epoch_store
+        .flush_commit_through_quarantine_for_testing(1, vec![first_digest])
+        .unwrap();
+    let second = s.build_transfer(
+        &obj2_id,
+        &gas2_id,
+        address_2,
+        &address_2_key,
+        Address::random(),
+    );
+    let second_key = TransactionKey::Digest(*second.digest());
+    s.epoch_store
+        .assign_commit_to_transactions(2, vec![second_key]);
+    s.execute_refuted(second, 0, 8);
+    s.wait_for_fully_executed_commit(2).await;
+    assert_eq!(
+        s.epoch_store.attestors_cut_off_as_of(2),
+        BTreeSet::from([0])
+    );
+    drop(watcher);
+
+    let reopened = reopen(&s.authority, &s.epoch_store);
+    reopened.set_effects_store(s.authority.get_transaction_cache_reader().clone());
+    assert_eq!(reopened.attestors_cut_off_as_of(1), BTreeSet::new());
+
+    // The handler replays commit 2. Its transaction is not executed again.
+    let _watcher = ExecutionWatcher::start(reopened.clone());
+    reopened.assign_commit_to_transactions(2, vec![second_key]);
+    tokio::time::timeout(
+        Duration::from_secs(10),
+        reopened.wait_for_fully_executed_commit(2),
+    )
+    .await
+    .expect("the replayed commit must become fully executed");
+    assert_eq!(reopened.attestors_cut_off_as_of(2), BTreeSet::from([0]));
+}
+
 /// A checkpoint's rows are written to the table with the checkpoint, before
 /// its commit flushes: a restart in between finds every row on disk,
 /// although the rows held in memory are gone.
@@ -4328,12 +5419,15 @@ async fn reader_keeps_a_shared_deletion_from_its_tombstone_row_before_the_marker
             transaction: Arc::new(deletion),
             effects: deletion_effects.clone(),
             events: Default::default(),
+            superseded: vec![],
             markers: vec![],
             wrapped: vec![],
             deleted: vec![ObjectKey(shared_id, deletion_effects.lamport_version())],
             live_object_markers_to_delete: vec![],
             new_live_object_markers_to_init: vec![],
             written: Default::default(),
+            record_superseded_versions: false,
+            attestation_record: None,
         }),
     );
     assert!(s.authority.get_object(&shared_id).is_none());
@@ -4609,6 +5703,7 @@ async fn validation_at_commit_keeps_drops_and_reports_missing() {
             &s.epoch_store,
             deny_config,
             VerifierLimitsSource::ProtocolConfig,
+            false,
         )
         .unwrap()
     {
@@ -4635,6 +5730,7 @@ async fn validation_at_commit_keeps_drops_and_reports_missing() {
             &s.epoch_store,
             deny_config,
             VerifierLimitsSource::ProtocolConfig,
+            false,
         )
         .unwrap()
     {
@@ -4668,6 +5764,7 @@ async fn validation_at_commit_keeps_drops_and_reports_missing() {
             &s.epoch_store,
             deny_config,
             VerifierLimitsSource::ProtocolConfig,
+            false,
         )
         .unwrap()
     {
@@ -4720,6 +5817,7 @@ async fn denied_packages_leave_a_package_above_the_horizon_missing() {
             &s.epoch_store,
             &deny_config,
             VerifierLimitsSource::ProtocolConfig,
+            false,
         )
         .unwrap()
     {
@@ -4735,7 +5833,8 @@ async fn denied_packages_leave_a_package_above_the_horizon_missing() {
 /// without the sender check, so a kept one was live at the horizon on every
 /// validator and execution can always run it. A reference nobody can execute
 /// is never kept: the scheduler would wait on it forever and the commit would
-/// never complete. Receiving an input still rejects.
+/// never complete. Receiving an input still rejects. The same holds for an
+/// attested transaction.
 #[tokio::test]
 async fn validation_at_commit_reads_receiving_objects_through_the_reader() {
     use std::collections::HashSet;
@@ -4791,7 +5890,7 @@ async fn validation_at_commit_reads_receiving_objects_through_the_reader() {
     // `M1::receiver(parent_c, Receiving(receiving))`, with `extra_input`
     // appended as an unused input. Validation does not pair a child with its
     // parent, so the one untouched parent serves every case.
-    let validate = |receiving: ObjectReference, extra_input: Option<CallArg>| {
+    let validate = |receiving: ObjectReference, extra_input: Option<CallArg>, attested: bool| {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
             .move_call(
@@ -4824,112 +5923,122 @@ async fn validation_at_commit_reads_receiving_objects_through_the_reader() {
             &s.epoch_store,
             deny_config,
             VerifierLimitsSource::ProtocolConfig,
+            attested,
         )
     };
 
-    // Live at the horizon: kept, and not among the owned objects to lock.
-    match validate(child_c, None).unwrap() {
-        ValidationAtCommit::Keep(owned) => assert_eq!(owned, vec![parent_c, gas_ref]),
-        other => panic!("expected the receive of a live object to keep, got {other:?}"),
-    }
-
-    // Received at commit 6: the receive's row above the version drops it.
-    match validate(child_a, None).unwrap() {
-        ValidationAtCommit::Drop(InputObjectKind::ImmOrOwnedMoveObject(reference), reason) => {
-            assert_eq!(reference, child_a);
-            assert_eq!(reason.kind(), DropKind::HandlerRowSuperseded);
+    // An attested transaction's receiving objects take the same path, so
+    // every verdict holds for both.
+    for attested in [false, true] {
+        // Live at the horizon: kept, and not among the owned objects to lock.
+        match validate(child_c, None, attested).unwrap() {
+            ValidationAtCommit::Keep(owned) => assert_eq!(owned, vec![parent_c, gas_ref]),
+            other => panic!("expected the receive of a live object to keep, got {other:?}"),
         }
-        other => panic!("expected the receive of a consumed version to drop, got {other:?}"),
-    }
 
-    // Received at commit 11: kept, as on a validator that has not executed
-    // the receive. Execution fails it.
-    match validate(child_b, None).unwrap() {
-        ValidationAtCommit::Keep(owned) => assert_eq!(owned, vec![parent_c, gas_ref]),
-        other => panic!("expected the receive above the horizon to keep, got {other:?}"),
-    }
-
-    // A wrong digest at a live version drops.
-    let wrong_digest =
-        ObjectReference::new(child_c.object_id, child_c.version, ObjectDigest::random());
-    match validate(wrong_digest, None).unwrap() {
-        ValidationAtCommit::Drop(InputObjectKind::ImmOrOwnedMoveObject(reference), reason) => {
-            assert_eq!(reference, wrong_digest);
-            assert_eq!(reason.kind(), DropKind::HandlerRowDigestMismatch);
+        // Received at commit 6: the receive's row above the version drops it.
+        match validate(child_a, None, attested).unwrap() {
+            ValidationAtCommit::Drop(InputObjectKind::ImmOrOwnedMoveObject(reference), reason) => {
+                assert_eq!(reference, child_a);
+                assert_eq!(reason.kind(), DropKind::HandlerRowSuperseded);
+            }
+            other => panic!("expected the receive of a consumed version to drop, got {other:?}"),
         }
-        other => panic!("expected a wrong digest to drop, got {other:?}"),
-    }
 
-    // Never existed: missing, so not kept. The scheduler never finds such a
-    // key available, so a kept transaction would never execute.
-    let unseen = ObjectReference::new(ObjectId::random(), child_c.version, child_c.digest);
-    match validate(unseen, None).unwrap() {
-        ValidationAtCommit::Missing(InputObjectKind::ImmOrOwnedMoveObject(reference), reason) => {
-            assert_eq!(reference, unseen);
-            assert_eq!(reason.kind(), MissingKind::StoreNotFound);
+        // Received at commit 11: kept, as on a validator that has not executed
+        // the receive. Execution fails it.
+        match validate(child_b, None, attested).unwrap() {
+            ValidationAtCommit::Keep(owned) => assert_eq!(owned, vec![parent_c, gas_ref]),
+            other => panic!("expected the receive above the horizon to keep, got {other:?}"),
         }
-        other => panic!("expected the receive of an unseen object to be missing, got {other:?}"),
-    }
-    let unseen_key = InputKey::VersionedObject {
-        id: unseen.object_id,
-        version: unseen.version,
-    };
-    assert_eq!(
-        s.authority
-            .get_object_cache_reader()
-            .multi_input_objects_available(
-                &[unseen_key],
-                &HashSet::from([unseen_key]),
-                s.epoch_store.epoch(),
+
+        // A wrong digest at a live version drops.
+        let wrong_digest =
+            ObjectReference::new(child_c.object_id, child_c.version, ObjectDigest::random());
+        match validate(wrong_digest, None, attested).unwrap() {
+            ValidationAtCommit::Drop(InputObjectKind::ImmOrOwnedMoveObject(reference), reason) => {
+                assert_eq!(reference, wrong_digest);
+                assert_eq!(reason.kind(), DropKind::HandlerRowDigestMismatch);
+            }
+            other => panic!("expected a wrong digest to drop, got {other:?}"),
+        }
+
+        // Never existed: missing, so not kept. The scheduler never finds such a
+        // key available, so a kept transaction would never execute.
+        let unseen = ObjectReference::new(ObjectId::random(), child_c.version, child_c.digest);
+        match validate(unseen, None, attested).unwrap() {
+            ValidationAtCommit::Missing(
+                InputObjectKind::ImmOrOwnedMoveObject(reference),
+                reason,
+            ) => {
+                assert_eq!(reference, unseen);
+                assert_eq!(reason.kind(), MissingKind::StoreNotFound);
+            }
+            other => {
+                panic!("expected the receive of an unseen object to be missing, got {other:?}")
+            }
+        }
+        let unseen_key = InputKey::VersionedObject {
+            id: unseen.object_id,
+            version: unseen.version,
+        };
+        assert_eq!(
+            s.authority
+                .get_object_cache_reader()
+                .multi_input_objects_available(
+                    &[unseen_key],
+                    &HashSet::from([unseen_key]),
+                    s.epoch_store.epoch(),
+                ),
+            vec![false],
+            "the scheduler must never find the unseen receiving object available"
+        );
+
+        // A shared object's creation version drops from its creation row, as
+        // when it is named as an owned input.
+        match validate(shared, None, attested).unwrap() {
+            ValidationAtCommit::Drop(InputObjectKind::ImmOrOwnedMoveObject(reference), reason) => {
+                assert_eq!(reference, shared);
+                assert_eq!(reason.kind(), DropKind::HandlerRowSharedObject);
+            }
+            other => panic!("expected the receive of a shared object to drop, got {other:?}"),
+        }
+
+        // An immutable object and an object owned by another object are live at
+        // the horizon, and the receiving checks reject them from their bytes.
+        let result = validate(immutable, None, attested);
+        assert!(
+            matches!(
+                result,
+                Err(IotaError::UserInput {
+                    error: UserInputError::MutableParameterExpected { object_id }
+                }) if object_id == immutable.object_id
             ),
-        vec![false],
-        "the scheduler must never find the unseen receiving object available"
-    );
+            "receiving an immutable object must reject, got {result:?}"
+        );
+        let result = validate(object_owned, None, attested);
+        assert!(
+            matches!(
+                result,
+                Err(IotaError::UserInput {
+                    error: UserInputError::InvalidChildObjectArgument { child_id, .. }
+                }) if child_id == object_owned.object_id
+            ),
+            "receiving an object owned by an object must reject, got {result:?}"
+        );
 
-    // A shared object's creation version drops from its creation row, as
-    // when it is named as an owned input.
-    match validate(shared, None).unwrap() {
-        ValidationAtCommit::Drop(InputObjectKind::ImmOrOwnedMoveObject(reference), reason) => {
-            assert_eq!(reference, shared);
-            assert_eq!(reason.kind(), DropKind::HandlerRowSharedObject);
-        }
-        other => panic!("expected the receive of a shared object to drop, got {other:?}"),
+        // Receiving an input still rejects.
+        let result = validate(child_c, Some(CallArg::Receiving(parent_c)), attested);
+        assert!(
+            matches!(
+                result,
+                Err(IotaError::UserInput {
+                    error: UserInputError::DuplicateObjectRefInput
+                })
+            ),
+            "receiving an input must reject, got {result:?}"
+        );
     }
-
-    // An immutable object and an object owned by another object are live at
-    // the horizon, and the receiving checks reject them from their bytes.
-    let result = validate(immutable, None);
-    assert!(
-        matches!(
-            result,
-            Err(IotaError::UserInput {
-                error: UserInputError::MutableParameterExpected { object_id }
-            }) if object_id == immutable.object_id
-        ),
-        "receiving an immutable object must reject, got {result:?}"
-    );
-    let result = validate(object_owned, None);
-    assert!(
-        matches!(
-            result,
-            Err(IotaError::UserInput {
-                error: UserInputError::InvalidChildObjectArgument { child_id, .. }
-            }) if child_id == object_owned.object_id
-        ),
-        "receiving an object owned by an object must reject, got {result:?}"
-    );
-
-    // Receiving an input still rejects.
-    let result = validate(child_c, Some(CallArg::Receiving(parent_c)));
-    assert!(
-        matches!(
-            result,
-            Err(IotaError::UserInput {
-                error: UserInputError::DuplicateObjectRefInput
-            })
-        ),
-        "receiving an input must reject, got {result:?}"
-    );
 }
 
 /// A receive run through the handler's path at `commit`. When kept, it is
@@ -5077,9 +6186,17 @@ async fn receive_of_a_version_that_never_existed_is_not_kept() {
 /// is shared, as the consumption mutates an owned parent's version above the
 /// horizon, and another gas coin pays for the consumption, so every other
 /// input of the receive is live at the horizon.
+///
+/// With `committed`, the consumption's checkpoint has committed and the caches
+/// are cleared, so the received version is read from this epoch's bucket.
 #[tokio::test]
 async fn receive_of_a_version_consumed_above_the_horizon_is_kept_and_aborts() {
-    for consume in ["deleter", "wrapper"] {
+    for (consume, committed) in [
+        ("deleter", false),
+        ("deleter", true),
+        ("wrapper", false),
+        ("wrapper", true),
+    ] {
         let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
         let gas_id = ObjectId::random();
         let consumer_gas_id = ObjectId::random();
@@ -5104,10 +6221,22 @@ async fn receive_of_a_version_consumed_above_the_horizon_is_kept_and_aborts() {
             sender,
             &sender_key,
         );
+        let consumption_digest = *consumption.digest();
         s.epoch_store
-            .assign_commit_to_transactions(2, vec![TransactionKey::Digest(*consumption.digest())]);
+            .assign_commit_to_transactions(2, vec![TransactionKey::Digest(consumption_digest)]);
         s.execute_with_assigned_shared_versions(consumption);
         s.wait_for_fully_executed_commit(2).await;
+        if committed {
+            s.commit_outputs(&[*start_effects.transaction_digest(), consumption_digest]);
+            s.authority.clear_execution_caches_for_testing();
+            assert!(
+                s.authority
+                    .get_object_cache_reader()
+                    .get_object_by_key(&child.object_id, child.version)
+                    .is_none(),
+                "the commit moves the received version out of the live state"
+            );
+        }
 
         let commit = 1 + s.horizon_distance();
         assert!(
@@ -5383,13 +6512,7 @@ async fn validation_at_commit_drops_a_forbidden_system_object_input() {
 
         let error = s
             .authority
-            .handle_transaction_validation_checks(
-                &tx,
-                &s.epoch_store,
-                deny_config,
-                false,
-                VerifierLimitsSource::NodeConfig(&s.authority.config.verifier_signing_config),
-            )
+            .handle_transaction_validation_checks(&tx, &s.epoch_store, deny_config)
             .await
             .expect_err("a validator must reject the input before submission");
         assert_eq!(
@@ -5406,6 +6529,7 @@ async fn validation_at_commit_drops_a_forbidden_system_object_input() {
                 &s.epoch_store,
                 deny_config,
                 VerifierLimitsSource::ProtocolConfig,
+                false,
             )
             .expect_err("post-consensus validation must drop the input");
         assert_eq!(
@@ -5447,6 +6571,7 @@ async fn validation_at_commit_keeps_a_clock_declared_immutable() {
             &s.epoch_store,
             deny_config,
             VerifierLimitsSource::ProtocolConfig,
+            false,
         )
         .unwrap()
     {
@@ -5503,13 +6628,7 @@ async fn validation_at_commit_reports_an_object_that_is_not_an_account_missing()
     // the transaction.
     let error = s
         .authority
-        .handle_transaction_validation_checks(
-            &tx,
-            &s.epoch_store,
-            deny_config,
-            false,
-            VerifierLimitsSource::NodeConfig(&s.authority.config.verifier_signing_config),
-        )
+        .handle_transaction_validation_checks(&tx, &s.epoch_store, deny_config)
         .await
         .expect_err("a validator must reject an account without a function before submission");
     assert!(
@@ -5532,6 +6651,7 @@ async fn validation_at_commit_reports_an_object_that_is_not_an_account_missing()
             &s.epoch_store,
             deny_config,
             VerifierLimitsSource::ProtocolConfig,
+            false,
         )
         .unwrap()
     {
@@ -5545,8 +6665,9 @@ async fn validation_at_commit_reports_an_object_that_is_not_an_account_missing()
 
 /// A Move authenticator needs its account to be a shared object, but a
 /// transaction can still name an object owned by an address as its account.
-/// Post-consensus validation drops such a transaction when reading the account
-/// finds an object that is not shared, so it never reaches execution.
+/// A validator rejects such a transaction before submission, and
+/// post-consensus validation drops it when reading the account finds an object
+/// that is not shared, so it never reaches execution.
 #[tokio::test]
 async fn validation_at_commit_drops_an_account_owned_by_an_address() {
     let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -5574,6 +6695,21 @@ async fn validation_at_commit_drops_an_account_owned_by_an_address() {
         &sponsor_key,
     );
 
+    let error = s
+        .authority
+        .handle_transaction_validation_checks(&tx, &s.epoch_store, deny_config)
+        .await
+        .expect_err("a validator must reject an address-owned account before submission");
+    assert!(
+        matches!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::AccountObjectNotSupported { object_id }
+            } if object_id == account_id
+        ),
+        "{error:?}"
+    );
+
     match s
         .authority
         .handle_transaction_validation_checks_at_commit(
@@ -5582,6 +6718,7 @@ async fn validation_at_commit_drops_an_account_owned_by_an_address() {
             &s.epoch_store,
             deny_config,
             VerifierLimitsSource::ProtocolConfig,
+            false,
         )
         .unwrap()
     {
@@ -5624,13 +6761,7 @@ async fn validation_at_commit_drops_an_immutable_account() {
 
     let error = s
         .authority
-        .handle_transaction_validation_checks(
-            &tx,
-            &s.epoch_store,
-            deny_config,
-            false,
-            VerifierLimitsSource::NodeConfig(&s.authority.config.verifier_signing_config),
-        )
+        .handle_transaction_validation_checks(&tx, &s.epoch_store, deny_config)
         .await
         .expect_err("a validator must reject an immutable account before submission");
     assert!(
@@ -5651,6 +6782,7 @@ async fn validation_at_commit_drops_an_immutable_account() {
             &s.epoch_store,
             deny_config,
             VerifierLimitsSource::ProtocolConfig,
+            false,
         )
         .unwrap()
     {
@@ -5734,6 +6866,7 @@ async fn validation_at_commit_keeps_a_deleted_account_that_execution_rejects() {
             &s.epoch_store,
             deny_config,
             VerifierLimitsSource::ProtocolConfig,
+            false,
         )
         .unwrap()
     {
@@ -5879,13 +7012,7 @@ async fn validation_at_commit_checks_the_authenticator_package_against_the_deny_
         );
         let at_admission = s
             .authority
-            .handle_transaction_validation_checks(
-                &tx,
-                &s.epoch_store,
-                &deny_package(denied),
-                false,
-                VerifierLimitsSource::NodeConfig(&s.authority.config.verifier_signing_config),
-            )
+            .handle_transaction_validation_checks(&tx, &s.epoch_store, &deny_package(denied))
             .await
             .map(|_| ())
             .unwrap_err();
@@ -6168,13 +7295,7 @@ async fn validation_at_commit_checks_the_authenticator_package_of_a_move_account
     let at_commit = s.validate_at_commit_under(12, &tx, &deny_package(denied));
     let at_admission = s
         .authority
-        .handle_transaction_validation_checks(
-            &tx,
-            &s.epoch_store,
-            &deny_package(denied),
-            false,
-            VerifierLimitsSource::NodeConfig(&s.authority.config.verifier_signing_config),
-        )
+        .handle_transaction_validation_checks(&tx, &s.epoch_store, &deny_package(denied))
         .await
         .map(|_| ())
         .unwrap_err();
@@ -6201,6 +7322,74 @@ async fn validation_at_commit_does_not_check_the_authenticator_package_with_the_
     let (s, tx) = setup_account_with_authenticator_in_object_basics(Some(config_guard)).await;
 
     assert_kept(s.validate_at_commit_under(12, &tx, &deny_package(s.package_id)));
+}
+
+/// [`setup_account_with_authenticator_in_object_basics`], but the account's
+/// authenticator names a type of the `object_basics` package as its type
+/// argument, and the package's publish is recorded at commit 11. The transfer
+/// names no package itself.
+async fn setup_account_with_object_basics_type_arg_published_at_11(
+    config_guard: Option<OverrideGuard>,
+) -> (HandlerObjectStateSetup, VerifiedTransaction) {
+    let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let account_id = ObjectId::random();
+    let s = setup_handler_object_state_with_config_guard(
+        vec![
+            Object::with_id_owner_for_testing(gas_id, sponsor),
+            shared_object_with_id(account_id),
+        ],
+        config_guard,
+    )
+    .await;
+    s.authority
+        .insert_genesis_object(authenticator_function_ref_field(
+            account_id,
+            s.package_id,
+            Version::OBJECT_START,
+        ));
+    let authenticator = MoveAuthenticatorV1::new(
+        vec![],
+        vec![TypeTag::from_str(&format!("{}::object_basics::Object", s.package_id)).unwrap()],
+        SharedObjectReference::new(account_id, Version::OBJECT_START, false),
+    );
+    let tx = s.build_account_authenticated_transfer(authenticator, &gas_id, sponsor, &sponsor_key);
+    s.record_package_published_at(11);
+    (s, tx)
+}
+
+/// A package a Move authenticator's type arguments name is an input of the
+/// authenticator. Published above the horizon, it is missing at the commit, as
+/// the package of a call would be. Once the horizon reaches the publish, the
+/// transaction is kept.
+#[tokio::test]
+async fn validation_at_commit_reports_an_authenticator_type_arg_package_above_the_horizon_missing()
+{
+    let (s, tx) = setup_account_with_object_basics_type_arg_published_at_11(None).await;
+
+    match s.validate_at_commit_under(12, &tx, &DenyRuleSet::default()) {
+        Ok(ValidationAtCommit::Missing(InputObjectKind::MovePackage(id), reason)) => {
+            assert_eq!(id, s.package_id);
+            assert_eq!(reason.kind(), MissingKind::PackageAboveHorizon);
+        }
+        other => panic!("expected missing on the package, got {other:?}"),
+    }
+    assert_kept(s.validate_at_commit_under(15, &tx, &DenyRuleSet::default()));
+}
+
+/// With `move_authenticator_type_arg_packages_as_inputs` off, the packages a
+/// Move authenticator's type arguments name are not inputs, so one published
+/// above the horizon does not hold the transaction back.
+#[tokio::test]
+async fn validation_at_commit_does_not_read_authenticator_type_arg_packages_with_the_flag_off() {
+    let config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_move_authenticator_type_arg_packages_as_inputs_for_testing(false);
+        config
+    });
+    let (s, tx) =
+        setup_account_with_object_basics_type_arg_published_at_11(Some(config_guard)).await;
+
+    assert_kept(s.validate_at_commit_under(12, &tx, &DenyRuleSet::default()));
 }
 
 /// A Move authenticator naming a mutable shared object as a call argument is
@@ -6271,7 +7460,6 @@ async fn validation_loop_drops_a_mutable_shared_authenticator_argument_on_every_
             &s.authority,
             &s.epoch_store,
             18,
-            true,
             &Default::default(),
             &mut transactions,
         )
@@ -6374,6 +7562,7 @@ async fn validation_at_commit_drops_a_forbidden_shared_authenticator_input() {
                 &s.epoch_store,
                 deny_config,
                 VerifierLimitsSource::ProtocolConfig,
+                false,
             )
             .expect_err("post-consensus validation must drop the input");
         assert_eq!(
@@ -6461,7 +7650,6 @@ async fn validation_loop_at_a_commit_keeps_drops_and_reports_missing() {
         &s.authority,
         &s.epoch_store,
         12,
-        true,
         &Default::default(),
         &mut transactions,
     )
@@ -6612,7 +7800,6 @@ async fn later_copy_is_validated_after_a_copy_fails_on_its_authenticator() {
             &s.authority,
             &s.epoch_store,
             1,
-            true,
             &Default::default(),
             &mut transactions,
         )
@@ -6654,7 +7841,6 @@ async fn later_copy_is_validated_after_a_copy_fails_on_its_authenticator() {
         &s.authority,
         &s.epoch_store,
         2,
-        true,
         &Default::default(),
         &mut transactions,
     )
@@ -6802,7 +7988,6 @@ async fn decisions_retire_with_resume_progress_and_processed_state() {
         &s.authority,
         &s.epoch_store,
         1,
-        true,
         &Default::default(),
         &mut transactions,
     )
@@ -6975,7 +8160,11 @@ async fn executed_deferred_transaction_replays_both_occurrences() {
         .find(|effects| effects.transaction_digest() == first[0].digest())
         .unwrap();
     s.epoch_store
-        .record_commit_fully_executed(1, &handler_processed_upserts(first_effects, 1))
+        .record_commit_fully_executed(
+            1,
+            &handler_processed_upserts(first_effects, 1),
+            Default::default(),
+        )
         .unwrap();
     assert!(
         s.process_at(3, std::slice::from_ref(&deferred))
@@ -7304,7 +8493,6 @@ async fn previously_deferred_transaction_is_kept_without_checks() {
         &s.authority,
         &s.epoch_store,
         2,
-        true,
         &previously_deferred,
         &mut transactions,
     )
@@ -7324,7 +8512,6 @@ async fn previously_deferred_transaction_is_kept_without_checks() {
         &s.authority,
         &s.epoch_store,
         3,
-        true,
         &Default::default(),
         &mut transactions,
     )
@@ -7710,7 +8897,7 @@ async fn retry_after_retired_drop_matches_reopened_store() {
     assert_eq!(retry.dropped.len(), 1);
     normal
         .epoch_store
-        .record_commit_fully_executed(13, &[])
+        .record_commit_fully_executed(13, &[], Default::default())
         .unwrap();
     let accepted = normal
         .validate_at(17, std::slice::from_ref(&consumer))
@@ -7795,8 +8982,8 @@ async fn replay_of_an_executed_durable_unflushed_commit_repeats_its_decisions() 
     assert_eq!(saved(&s), decisions);
 }
 
-/// Commit 1 keeps a transfer, which executes. The pruner then removes the
-/// version it consumed, and the node crashes before commit 1 flushes. The
+/// Commit 1 keeps a transfer, which executes. The version it consumed then
+/// loses its bytes, and the node crashes before commit 1 flushes. The
 /// replay of commit 1 keeps the transfer again from its saved decision,
 /// without the consumed version's bytes, which a fresh read would need.
 #[tokio::test]
@@ -7982,7 +9169,6 @@ async fn saved_keep_without_effects_revalidates_and_rejects_disagreement() {
             &authority,
             &epoch_store,
             2,
-            true,
             &Default::default(),
             &mut vec![make_user_tx_v1_verified(tx)],
         )
@@ -8173,7 +9359,6 @@ async fn validation_loop_at_a_commit_checks_locks_before_the_reader() {
         &s.authority,
         &s.epoch_store,
         13,
-        true,
         &Default::default(),
         &mut transactions,
     )
@@ -8304,8 +9489,9 @@ async fn owned_row_horizon_follows_the_protocol_config_distance() {
 /// the child above that version decides: at or below the horizon the version
 /// drops, whether or not this validator still holds its bytes, and the
 /// loader drops a transaction naming it. Above the horizon it is kept, as on
-/// a validator that has not executed the receive. The pruning limit keeps its
-/// bytes; pruned by hand past that limit, the load fails with a storage error.
+/// a validator that has not executed the receive. This epoch's historic
+/// objects bucket keeps its bytes; removed by hand from there, the load fails
+/// with a storage error.
 #[tokio::test]
 async fn owned_received_version_drops_from_the_receive_row() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -8445,7 +9631,7 @@ async fn owned_dynamic_field_child_drops_from_the_row_of_its_removal() {
 
 /// Shared mutations write no rows, so a shared object's creation version
 /// named as owned drops from the creation row itself, before and after a
-/// mutation consumed it and the pruner removed it.
+/// mutation consumed it and its bytes were removed.
 #[tokio::test]
 async fn owned_read_of_a_shared_creation_version_drops() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -8643,6 +9829,18 @@ impl ImmutableInputSetup {
             .unwrap();
     }
 
+    /// Saves a keep for each of `txs` at commit 1, in that order, as the first
+    /// run of the commit did before a restart.
+    fn save_keeps(&self, txs: &[&VerifiedTransaction]) {
+        let decisions: Vec<_> = txs
+            .iter()
+            .map(|tx| (*tx.digest(), SavedPostConsensusDecision::kept()))
+            .collect();
+        self.epoch_store
+            .persist_post_consensus_decisions(1, &decisions)
+            .unwrap();
+    }
+
     async fn resolve(
         &self,
         transactions: &mut Vec<VerifiedSequencedConsensusTransaction>,
@@ -8654,7 +9852,6 @@ impl ImmutableInputSetup {
             &self.authority,
             &self.epoch_store,
             1,
-            false,
             &Default::default(),
             transactions,
         )
@@ -8700,6 +9897,43 @@ async fn test_immutable_object_input_not_locked() {
     );
 }
 
+/// The same for attested transactions: their lock set comes from the loaded
+/// objects as well, so an immutable input is never locked (issue #12809).
+#[tokio::test]
+async fn test_attested_tx_immutable_object_input_not_locked() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = enable_validator_attestation();
+    let s = setup_immutable_input().await;
+    let protocol_config = s.epoch_store.protocol_config();
+    let min_units = protocol_config
+        .base_tx_cost_fixed()
+        .min(protocol_config.gas_rounding_step());
+
+    let tx1 = s.read_immutable(s.gas1_ref);
+    let tx2 = s.read_immutable(s.gas2_ref);
+    let mut transactions = vec![
+        make_attested_user_tx(tx1.into_inner(), 0, min_units),
+        make_attested_user_tx(tx2.into_inner(), 0, min_units),
+    ];
+
+    let (dropped, locks) = s.resolve(&mut transactions).await;
+
+    assert!(
+        dropped.is_empty(),
+        "no attested transaction may be dropped over an immutable input: {dropped:?}"
+    );
+    assert_eq!(transactions.len(), 2, "both transactions must be kept");
+    assert!(
+        !locks.contains_key(&s.immutable_ref),
+        "immutable object must not be locked"
+    );
+    assert_eq!(
+        locks.len(),
+        2,
+        "only the two gas coins may be locked, got {locks:?}"
+    );
+}
+
 /// The already-executed branch locks the transaction's owned inputs and leaves
 /// the immutable input free. A later reader of the same immutable object is
 /// then kept instead of hitting the winner-out-locked `fatal!`.
@@ -8712,6 +9946,11 @@ async fn test_already_executed_tx_does_not_lock_immutable_input() {
     s.execute_in_an_earlier_commit(&executed);
 
     let later_reader = s.read_immutable(s.gas2_ref);
+    // The already-executed branch takes only a transaction with a keep saved
+    // at this commit. Every candidate of a replayed commit needs a saved
+    // decision, so the reader gets one too; not executed, it is validated
+    // again.
+    s.save_keeps(&[&executed, &later_reader]);
     let mut transactions = vec![
         make_user_tx_v1_verified(executed.clone()),
         make_user_tx_v1_verified(later_reader),
@@ -8800,8 +10039,6 @@ async fn assert_node_limits_reject(setup: &PublishSetup) {
             &VerifiedTransaction::new_unchecked(setup.tx.clone()),
             &epoch_store,
             &setup.authority.config.transaction_deny_config,
-            false,
-            VerifierLimitsSource::NodeConfig(&setup.authority.config.verifier_signing_config),
         )
         .await;
 
@@ -8831,7 +10068,6 @@ async fn post_consensus_validation_meters_packages_with_protocol_limits() {
         &setup.authority,
         &epoch_store,
         1,
-        false,
         &Default::default(),
         &mut transactions,
     )
@@ -8848,7 +10084,7 @@ async fn post_consensus_validation_meters_packages_with_protocol_limits() {
 }
 
 // ---------------------------------------------------------------------------
-// P-COOL deterministic validation waits for the horizon to be fully executed
+// P-COOL post-consensus validation waits for the horizon to be fully executed
 //
 // The horizon distance K is 4 here: commit C reads state as of commit C - 4
 // and waits until the highest fully executed commit has reached it.
@@ -8874,7 +10110,7 @@ async fn process_commit_at(
             &authority,
         )
         .await
-        .map(|(schedulables, ..)| schedulables)
+        .map(|(schedulables, ..)| drop_attestations(schedulables))
         .map_err(|error| match error {
             crate::epoch::randomness::AdvanceDkgError::Iota(error) => error,
             crate::epoch::randomness::AdvanceDkgError::RuntimeShutdown => {
@@ -9073,7 +10309,6 @@ async fn transaction_naming_a_version_a_failed_transaction_consumed_is_dropped_o
         &f.s.authority,
         &f.s.epoch_store,
         failed_at + f.s.horizon_distance(),
-        true,
         &Default::default(),
         &mut transactions,
     )
@@ -9174,7 +10409,6 @@ async fn gas_coin_of_an_unauthorized_transaction_moves_to_its_next_version() {
         &s.authority,
         &s.epoch_store,
         failed_at,
-        true,
         &Default::default(),
         &mut transactions,
     )
@@ -9211,7 +10445,6 @@ async fn gas_coin_of_an_unauthorized_transaction_moves_to_its_next_version() {
         &s.authority,
         &s.epoch_store,
         failed_at + s.horizon_distance(),
-        true,
         &Default::default(),
         &mut transactions,
     )
@@ -9328,7 +10561,7 @@ async fn already_executed_transaction_locks_the_gas_coin_it_names() {
 }
 
 // ---------------------------------------------------------------------------
-// P-COOL deterministic validation: nodes at different execution progress
+// P-COOL post-consensus validation: nodes at different execution progress
 // ---------------------------------------------------------------------------
 
 /// How the consumer in [`consumed_version_drops_the_same_whatever_the_consumer_execution`]
@@ -9641,7 +10874,7 @@ async fn crash_between_checkpoint_bookkeeping_and_outputs_keeps_every_read() {
 }
 
 // ---------------------------------------------------------------------------
-// P-COOL deterministic validation: execution progress and replays
+// P-COOL post-consensus validation: execution progress and replays
 // ---------------------------------------------------------------------------
 
 /// A regulated coin type, a shared zero coin of it, an address its deny list
@@ -10014,16 +11247,36 @@ async fn setup_validators_with_a_shared_regulated_coin(
 /// naming the shared regulated coin, on a validator that has executed the
 /// coin's deletion and on one that has not. `deleting_commit` is the commit
 /// the deletion is assigned to on the first validator, above the horizon.
+/// With `commit_the_deletion`, the deletion's outputs are committed there,
+/// which moves the coin's last version into this epoch's bucket, and the
+/// caches are cleared.
 async fn run_shared_coin_deletion_verdict_comparison(
     options: RegulatedCoinOptions,
     deleting_commit: CommitIndex,
+    commit_the_deletion: bool,
 ) {
     let (deleted, not_deleted, coin) = setup_validators_with_a_shared_regulated_coin(options).await;
     let transaction =
         coin.destroy_shared_coin(&deleted, coin.denied, &coin.denied_key, &coin.denied_gas);
+    let last_version = deleted
+        .authority
+        .get_object(&coin.coin_id)
+        .unwrap()
+        .version();
 
     coin.delete_shared_coin(&deleted, deleting_commit);
     assert!(not_deleted.authority.get_object(&coin.coin_id).is_some());
+    if commit_the_deletion {
+        deleted.commit_all_executed_and_clear_caches();
+        assert!(
+            deleted
+                .authority
+                .get_object_cache_reader()
+                .get_object_by_key(&coin.coin_id, last_version)
+                .is_none(),
+            "the commit moves the coin's last version out of the live state"
+        );
+    }
 
     let on_deleted = deleted
         .validate_at(14, std::slice::from_ref(&transaction))
@@ -10049,7 +11302,15 @@ async fn run_shared_coin_deletion_verdict_comparison(
 /// keep or drop it alike, whether or not it has executed the deletion.
 #[tokio::test]
 async fn shared_coin_deleted_above_the_horizon_gets_one_verdict_on_every_validator() {
-    run_shared_coin_deletion_verdict_comparison(RegulatedCoinOptions::default(), 11).await;
+    run_shared_coin_deletion_verdict_comparison(RegulatedCoinOptions::default(), 11, false).await;
+}
+
+/// As [`shared_coin_deleted_above_the_horizon_gets_one_verdict_on_every_validator`],
+/// with the deletion's checkpoint committed and the caches cleared: the type
+/// read of the coin's last version finds it in this epoch's bucket.
+#[tokio::test]
+async fn shared_coin_deleted_and_committed_above_the_horizon_gets_one_verdict_on_every_validator() {
+    run_shared_coin_deletion_verdict_comparison(RegulatedCoinOptions::default(), 11, true).await;
 }
 
 /// A validator validates commit 12 after executing the deletion of a shared
@@ -10094,7 +11355,6 @@ async fn run_shared_coin_deletion_replay(options: RegulatedCoinOptions) {
             &authority,
             &epoch_store,
             12,
-            true,
             &Default::default(),
             &mut transactions,
         )
@@ -10509,8 +11769,12 @@ async fn replay_after_the_final_round_survives_losing_an_uncommitted_producer() 
 /// it through its creation row.
 #[tokio::test]
 async fn shared_coin_created_this_epoch_and_deleted_above_the_horizon_gets_one_verdict() {
-    run_shared_coin_deletion_verdict_comparison(RegulatedCoinOptions { share_at: Some(5) }, 11)
-        .await;
+    run_shared_coin_deletion_verdict_comparison(
+        RegulatedCoinOptions { share_at: Some(5) },
+        11,
+        false,
+    )
+    .await;
 }
 
 /// As [`replay_after_losing_a_shared_coin_deletion_repeats_the_saved_decision`],
@@ -10830,8 +12094,10 @@ async fn frozen_regulated_coin_input_is_checked_at_the_commit() {
 /// uses for the deny list's dynamic fields, on a dynamic-field child created
 /// at commit 5 and deleted at commit 6. Below the horizon of the creation it
 /// is absent, at it the created version, and from the deletion on absent
-/// again. Once the pruner removes the created version, the read that needs
-/// it is a storage error, never an answer.
+/// again. Once the deletion's checkpoint commits, the created version is read
+/// from this epoch's bucket. Once its bytes are removed, the read that needs it
+/// is a storage error, never an answer, and after the epoch ended it abandons
+/// the commit.
 #[tokio::test]
 async fn read_at_the_horizon_follows_a_dynamic_field_child_and_needs_its_bytes() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -10855,6 +12121,18 @@ async fn read_at_the_horizon_follows_a_dynamic_field_child_and_needs_its_bytes()
     assert_eq!(read(9), Some(field_ref), "created at horizon 5");
     assert_eq!(read(10), None, "deleted at horizon 6");
 
+    // The deletion's checkpoint commits: the created version leaves the live
+    // state for this epoch's bucket, and the read finds it there.
+    s.commit_outputs(&committed);
+    s.authority.clear_execution_caches_for_testing();
+    assert!(
+        s.authority
+            .get_object_cache_reader()
+            .get_object_by_key(&field_ref.object_id, field_ref.version)
+            .is_none()
+    );
+    assert_eq!(read(9), Some(field_ref), "read from this epoch's bucket");
+
     s.prune_versions_consumed_by(&committed, &remove_effects)
         .await;
     let result = s.reader_at(9).read_dynamic_field(field_ref.object_id);
@@ -10862,10 +12140,18 @@ async fn read_at_the_horizon_follows_a_dynamic_field_child_and_needs_its_bytes()
         matches!(result, Err(IotaError::Storage(_))),
         "unexpected result: {result:?}"
     );
+
+    // Once the epoch has ended, the same miss abandons the commit instead.
+    s.epoch_store.epoch_terminated().await;
+    let result = s.reader_at(9).read_dynamic_field(field_ref.object_id);
+    assert!(
+        matches!(result, Err(IotaError::EpochEnded(epoch)) if epoch == s.epoch_store.epoch()),
+        "unexpected result: {result:?}"
+    );
 }
 
 /// On a validator that lost the bytes of a dynamic-field child consumed
-/// without a lock, pruned by hand past the pruning limit, commit 9 holds a
+/// without a lock, removed by hand, commit 9 holds a
 /// transfer of the child paid with a gas coin named at a wrong digest. Every
 /// read of the transaction's inputs at commit 9 must end the same way: each
 /// validator reads them once, and a storage error saves no decision, so the
@@ -10906,7 +12192,11 @@ async fn reads_of_a_transaction_with_a_pruned_child_and_a_dropping_input_end_ali
     let outcomes: std::collections::BTreeSet<&str> = (0..32)
         .map(|_| {
             let kinds = consumer
-                .collect_all_input_object_kind_for_reading()
+                .collect_all_input_object_kind_for_reading(
+                    s.epoch_store
+                        .protocol_config()
+                        .move_authenticator_type_arg_packages_as_inputs(),
+                )
                 .unwrap();
             match loader.read_objects_at_commit(&s.reader_at(9), &kinds) {
                 Ok(InputResolution::Drop(..)) => "drop",
@@ -10920,17 +12210,13 @@ async fn reads_of_a_transaction_with_a_pruned_child_and_a_dropping_input_end_ali
 }
 
 /// Commits the outputs of the transactions `executed` names, oldest first,
-/// and executes them as one certified checkpoint, followed by an empty one,
-/// then runs the object pruner over the executed checkpoints as the node does
-/// with aggressive pruning, within the epoch store's object pruning limit.
+/// and executes them as one certified checkpoint, then expires every
+/// historic objects bucket but the running epoch's, as a node with
+/// aggressive retention does.
 async fn execute_checkpoint_and_prune(s: &HandlerObjectStateSetup, executed: &[TransactionDigest]) {
     use iota_types::{
         base_types::ExecutionData,
         messages_checkpoint::{FullCheckpointContents, VerifiedCheckpointContents},
-    };
-
-    use crate::authority::authority_store_pruner::{
-        AuthorityStorePruner, AuthorityStorePruningMetrics,
     };
 
     let epoch = s.epoch_store.epoch();
@@ -10962,51 +12248,36 @@ async fn execute_checkpoint_and_prune(s: &HandlerObjectStateSetup, executed: &[T
         ),
     );
     let checkpoint_store = s.authority.get_checkpoint_store();
-    checkpoint_store
-        .insert_checkpoint_contents(contents.clone().into_checkpoint_contents())
-        .unwrap();
     let fixture = iota_swarm_config::test_utils::CommitteeFixture::generate(
         rand::rand_core::UnwrapErr(rand::rngs::SysRng),
         epoch,
         4,
     );
     // The fixture's first checkpoint is its own genesis; checkpoint 1 holds
-    // the transactions and checkpoint 2, executed after it, lets the pruner
-    // reach checkpoint 1.
-    let (checkpoints, ..) = fixture.make_checkpoints(3, None, || contents.clone());
+    // the transactions.
+    let (checkpoints, ..) = fixture.make_checkpoints(2, None, || contents.clone());
     for checkpoint in checkpoints.iter().skip(1) {
         checkpoint_store
             .insert_certified_checkpoint(checkpoint)
+            .unwrap();
+        checkpoint_store
+            .insert_checkpoint_contents(checkpoint, contents.clone().into_checkpoint_contents())
             .unwrap();
         checkpoint_store
             .update_highest_executed_checkpoint(checkpoint)
             .unwrap();
     }
 
-    let config = iota_config::node::AuthorityStorePruningConfig {
-        num_epochs_to_retain: 0,
-        ..Default::default()
-    };
-    AuthorityStorePruner::prune_objects_for_eligible_epochs(
-        &s.authority.database_for_testing().perpetual_tables,
-        checkpoint_store,
-        None,
-        config,
-        AuthorityStorePruningMetrics::new_for_test(),
-        0,
-        None,
-        None,
-        s.epoch_store.object_pruning_limit(),
-    )
-    .await
-    .unwrap();
+    s.authority
+        .database_for_testing()
+        .expire_historic_objects_and_compact_for_testing();
     for id in consumed {
         s.authority.evict_committed_object_for_testing(&id);
     }
 }
 
-/// A version that a commit above the horizon consumed keeps its bytes after
-/// the pruner runs over the consumer's executed checkpoint. A validation at a
+/// A version that a commit above the horizon consumed stays readable after
+/// the consumer's checkpoint commits and the earlier buckets expire. A validation at a
 /// commit less than the horizon distance above the consumer, or a replay of
 /// any commit after a restart before the consumer's output flushed, keeps the
 /// version, as on a validator that has not executed the consumer, and needs
@@ -11037,14 +12308,31 @@ async fn pruning_keeps_a_version_a_later_validation_can_still_keep() {
     assert_keeps(s.read_owned(8, named), named);
 
     execute_checkpoint_and_prune(&s, &[produce_digest, consume_digest]).await;
+    let key = ObjectKey(named.object_id, named.version);
+    assert!(
+        s.authority
+            .get_object_cache_reader()
+            .get_object_by_key(&key.0, key.1)
+            .is_none(),
+        "the commit moves the consumed version out of the live state"
+    );
+    assert!(
+        s.authority
+            .get_historic_objects()
+            .get_in_epoch(s.epoch_store.epoch(), &key)
+            .unwrap()
+            .is_some(),
+        "into this epoch's bucket"
+    );
     assert_keeps(s.read_owned(8, named), named);
 }
 
 /// A dynamic-field child is consumed through its parent at commit 6 without a
 /// lock, and commit 9 (horizon 5) holds a transaction naming the consumed
-/// version as an owned input. On one validator the pruner runs over the
-/// executed checkpoint of those commits, the other has not run it. The
-/// child's bytes stay, and both reach the same result: they drop the
+/// version as an owned input. On one validator the checkpoint of those
+/// commits executes and the earlier buckets expire, the other has not
+/// executed it. The child's bytes stay readable, and both reach the same
+/// result: they drop the
 /// transaction, since a child cannot be an owned input.
 #[tokio::test]
 async fn pruning_keeps_a_dynamic_field_child_a_later_validation_can_still_keep() {
@@ -11094,7 +12382,6 @@ async fn pruning_keeps_a_dynamic_field_child_a_later_validation_can_still_keep()
                 &authority,
                 &epoch_store,
                 9,
-                true,
                 &Default::default(),
                 &mut transactions,
             )
@@ -11112,51 +12399,6 @@ async fn pruning_keeps_a_dynamic_field_child_a_later_validation_can_still_keep()
     let on_keeping = validate(&keeping).await.unwrap();
     assert_eq!(on_keeping.1.len(), 1, "{on_keeping:?}");
     assert_eq!(validate(&pruning).await, Ok(on_keeping));
-}
-
-/// The object pruning limit follows the flushed commits: a commit's
-/// checkpoints become prunable once it is at or below the last flushed commit
-/// plus one minus the horizon distance. Before that, none of the epoch's
-/// checkpoints is.
-#[tokio::test]
-async fn object_pruning_limit_follows_the_flushed_commits() {
-    use crate::authority::authority_store_pruner::ObjectPruningLimit;
-
-    let s = setup_handler_object_state(vec![], true).await;
-    let epoch = s.epoch_store.epoch();
-    let limit = |highest_prunable_checkpoint| {
-        Some(ObjectPruningLimit {
-            epoch,
-            highest_prunable_checkpoint,
-        })
-    };
-    assert_eq!(s.epoch_store.object_pruning_limit(), limit(None));
-
-    // Commit `i` flushes with checkpoint `i`; the horizon distance is 4.
-    for index in 1..=3 {
-        s.epoch_store
-            .flush_commit_through_quarantine_for_testing(index, vec![])
-            .unwrap();
-        assert_eq!(s.epoch_store.object_pruning_limit(), limit(None));
-    }
-    s.epoch_store
-        .flush_commit_through_quarantine_for_testing(4, vec![])
-        .unwrap();
-    assert_eq!(s.epoch_store.object_pruning_limit(), limit(Some(1)));
-    for index in 5..=8 {
-        s.epoch_store
-            .flush_commit_through_quarantine_for_testing(index, vec![])
-            .unwrap();
-    }
-    assert_eq!(s.epoch_store.object_pruning_limit(), limit(Some(5)));
-}
-
-/// A node outside the committee keeps no handler object state, so its object pruning
-/// has no limit.
-#[tokio::test]
-async fn object_pruning_limit_is_off_outside_the_committee() {
-    let s = setup_handler_object_state_outside_committee(vec![]).await;
-    assert_eq!(s.epoch_store.object_pruning_limit(), None);
 }
 
 // ---------------------------------------------------------------------------
@@ -11464,6 +12706,7 @@ impl AccountSetup {
                 &self.s.epoch_store,
                 &self.s.authority.config.transaction_deny_config,
                 VerifierLimitsSource::ProtocolConfig,
+                false,
             )
             .unwrap()
     }

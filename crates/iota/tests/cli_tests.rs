@@ -21,9 +21,10 @@ use iota::{
     PrintableResult,
     client_commands::{
         DisplayOption, GasDataArgs, IotaClientCommandResult, IotaClientCommands, PaymentArgs,
-        SwitchResponse, TxProcessingArgs, estimate_gas_budget,
+        SwitchResponse, TxProcessingArgs, budget_took_the_gas_coins, estimate_gas_budget,
     },
     client_ptb::ptb::{PTB, PTBCommandResult},
+    displays::{DevInspectOutput, DryRunOutput},
     iota_commands::{IotaCommand, IotaEnvConfig},
     key_identity::{KeyIdentity, get_identity_address},
 };
@@ -383,7 +384,7 @@ async fn test_addresses_command() -> Result<(), anyhow::Error> {
 #[sim_test]
 async fn test_objects_command() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let address = test_cluster.get_address_0();
@@ -431,7 +432,7 @@ async fn test_ptb_publish_and_complex_arg_resolution() -> Result<(), anyhow::Err
     // Publish the package
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -572,7 +573,7 @@ async fn test_ptb_publish_and_complex_arg_resolution() -> Result<(), anyhow::Err
 async fn test_ptb_publish() -> Result<(), anyhow::Error> {
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let context = &mut test_cluster.wallet;
@@ -604,7 +605,7 @@ async fn test_ptb_publish() -> Result<(), anyhow::Error> {
 async fn test_ptb_publish_upgrade() -> Result<(), anyhow::Error> {
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let context = &mut test_cluster.wallet;
@@ -857,7 +858,7 @@ async fn publish_package_for_upgrade(
 async fn test_ptb_compile_upgrade_execute() -> Result<(), anyhow::Error> {
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let context = &mut test_cluster.wallet;
@@ -903,7 +904,7 @@ async fn test_ptb_compile_upgrade_execute() -> Result<(), anyhow::Error> {
 async fn test_ptb_upgrade_backward_compat() -> Result<(), anyhow::Error> {
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let context = &mut test_cluster.wallet;
@@ -1029,7 +1030,7 @@ async fn test_custom_genesis() -> Result<(), anyhow::Error> {
 #[sim_test]
 async fn test_object_info_get_command() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
 
@@ -1075,7 +1076,7 @@ async fn test_object_info_get_command() -> Result<(), anyhow::Error> {
 #[sim_test]
 async fn test_gas_command() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -1148,7 +1149,7 @@ async fn test_gas_command() -> Result<(), anyhow::Error> {
 #[sim_test]
 async fn test_move_call_args_linter_command() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -1446,7 +1447,7 @@ async fn test_move_call_args_linter_command() -> Result<(), anyhow::Error> {
 #[sim_test]
 async fn test_package_publish_command() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -1526,7 +1527,7 @@ async fn test_package_publish_command() -> Result<(), anyhow::Error> {
 #[sim_test]
 async fn test_package_management_on_publish_command() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -1609,7 +1610,7 @@ async fn test_package_management_on_publish_command() -> Result<(), anyhow::Erro
 #[sim_test]
 async fn test_delete_shared_object() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -1732,7 +1733,7 @@ async fn test_delete_shared_object() -> Result<(), anyhow::Error> {
 #[sim_test]
 async fn test_receive_argument() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -1870,7 +1871,7 @@ async fn test_receive_argument() -> Result<(), anyhow::Error> {
 #[sim_test]
 async fn test_receive_argument_by_immut_ref() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -2008,7 +2009,7 @@ async fn test_receive_argument_by_immut_ref() -> Result<(), anyhow::Error> {
 #[sim_test]
 async fn test_receive_argument_by_mut_ref() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -2149,7 +2150,7 @@ async fn test_package_publish_command_with_unpublished_dependency_succeeds()
     let with_unpublished_dependencies = true; // Value under test, results in successful response.
 
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let address = test_cluster.get_address_0();
@@ -2224,7 +2225,7 @@ async fn test_package_publish_command_with_unpublished_dependency_fails()
     let with_unpublished_dependencies = false; // Value under test, results in error response.
 
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -2288,7 +2289,7 @@ async fn test_package_publish_command_non_zero_unpublished_dep_fails() -> Result
     // address.
 
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -2342,7 +2343,7 @@ async fn test_package_publish_command_failure_invalid() -> Result<(), anyhow::Er
     // dependencies.
 
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -2403,7 +2404,7 @@ async fn test_package_publish_command_failure_invalid() -> Result<(), anyhow::Er
 #[sim_test]
 async fn test_package_publish_nonexistent_dependency() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -2451,7 +2452,7 @@ async fn test_package_publish_nonexistent_dependency() -> Result<(), anyhow::Err
 #[sim_test]
 async fn test_package_publish_test_flag() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -2567,7 +2568,7 @@ async fn test_package_publish_empty() -> Result<(), anyhow::Error> {
 async fn test_package_upgrade_command() -> Result<(), anyhow::Error> {
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -2726,7 +2727,7 @@ async fn test_package_upgrade_command() -> Result<(), anyhow::Error> {
 async fn test_package_management_on_upgrade_command() -> Result<(), anyhow::Error> {
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -2885,7 +2886,7 @@ async fn test_package_management_on_upgrade_command() -> Result<(), anyhow::Erro
 async fn test_package_management_on_upgrade_command_conflict() -> Result<(), anyhow::Error> {
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -3028,7 +3029,7 @@ Conflicting published package address: `Move.toml` contains published-at address
 #[sim_test]
 async fn test_native_transfer() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -3496,7 +3497,7 @@ async fn get_parsed_object_assert_existence(
 #[sim_test]
 async fn test_merge_coin() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -3628,7 +3629,7 @@ async fn test_merge_coin() -> Result<(), anyhow::Error> {
 #[sim_test]
 async fn test_split_coin() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -3930,7 +3931,7 @@ async fn test_signature_flag() -> Result<(), anyhow::Error> {
 #[sim_test]
 async fn test_execute_signed_tx() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let context = &mut test_cluster.wallet;
@@ -3950,7 +3951,7 @@ async fn test_execute_signed_tx() -> Result<(), anyhow::Error> {
 #[sim_test]
 async fn test_serialize_tx() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -4050,7 +4051,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
 #[tokio::test]
 async fn test_stake_with_none_amount() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let address = test_cluster.get_address_0();
@@ -4109,7 +4110,7 @@ async fn test_stake_with_none_amount() -> Result<(), anyhow::Error> {
 #[tokio::test]
 async fn test_stake_with_u64_amount() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let address = test_cluster.get_address_0();
@@ -4181,7 +4182,7 @@ async fn test_with_iota_binary(args: &[&str]) -> Result<(), anyhow::Error> {
 async fn test_get_owned_objects_owned_by_address_and_check_pagination() -> Result<(), anyhow::Error>
 {
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let address = test_cluster.get_address_0();
@@ -4272,7 +4273,7 @@ async fn test_linter_suppression_stats() -> Result<(), anyhow::Error> {
 #[tokio::test]
 async fn key_identity_test() {
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let address = test_cluster.get_address_0();
@@ -4312,7 +4313,7 @@ async fn key_identity_test() {
 }
 
 fn assert_dry_run(dry_run: IotaClientCommandResult, object_id: ObjectId, command: &str) {
-    if let IotaClientCommandResult::DryRun(response) = dry_run {
+    if let IotaClientCommandResult::DryRun(DryRunOutput { response, .. }) = dry_run {
         assert_eq!(
             *response.effects.status(),
             IotaExecutionStatus::Success,
@@ -4331,7 +4332,7 @@ fn assert_dry_run(dry_run: IotaClientCommandResult, object_id: ObjectId, command
 #[sim_test]
 async fn test_dry_run() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -4398,7 +4399,7 @@ async fn test_dry_run() -> Result<(), anyhow::Error> {
     .execute(context)
     .await?;
 
-    if let IotaClientCommandResult::DryRun(response) = pay_dry_run {
+    if let IotaClientCommandResult::DryRun(DryRunOutput { response, .. }) = pay_dry_run {
         assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
         assert_ne!(response.effects.gas_object().object_id(), object_id);
     } else {
@@ -4468,6 +4469,932 @@ async fn test_dry_run() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+#[cfg(not(msim))]
+fn dry_run(local: bool) -> TxProcessingArgs {
+    TxProcessingArgs {
+        dry_run: true,
+        local,
+        ..Default::default()
+    }
+}
+
+#[cfg(not(msim))]
+fn gas_budget(budget: u64) -> GasDataArgs {
+    GasDataArgs {
+        gas_budget: Some(budget),
+        ..Default::default()
+    }
+}
+
+#[cfg(not(msim))]
+fn transfer(
+    to: KeyIdentity,
+    object_id: ObjectId,
+    gas: Vec<ObjectId>,
+    gas_data: GasDataArgs,
+    processing: TxProcessingArgs,
+) -> IotaClientCommands {
+    IotaClientCommands::Transfer {
+        to,
+        object_id,
+        payment: PaymentArgs { gas },
+        gas_data,
+        processing,
+    }
+}
+
+#[cfg(not(msim))]
+fn publish(
+    package: &str,
+    gas_id: ObjectId,
+    rgp: u64,
+    processing: TxProcessingArgs,
+) -> IotaClientCommands {
+    IotaClientCommands::Publish {
+        package_path: PathBuf::from(TEST_DATA_DIR).join(package),
+        build_config: BuildConfig::new_for_testing().config,
+        skip_dependency_verification: false,
+        verify_deps: true,
+        with_unpublished_dependencies: false,
+        payment: PaymentArgs { gas: vec![gas_id] },
+        gas_data: gas_budget(rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+        processing,
+    }
+}
+
+#[cfg(not(msim))]
+fn call(
+    package: ObjectId,
+    module: &str,
+    function: &str,
+    args: &[ObjectId],
+    gas_id: ObjectId,
+    rgp: u64,
+    processing: TxProcessingArgs,
+) -> IotaClientCommands {
+    IotaClientCommands::Call {
+        package,
+        module: module.to_string(),
+        function: function.to_string(),
+        type_args: vec![],
+        args: args
+            .iter()
+            .map(|id| IotaJsonValue::from_str(&id.to_string()).unwrap())
+            .collect(),
+        payment: PaymentArgs { gas: vec![gas_id] },
+        gas_data: gas_budget(rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+        processing,
+    }
+}
+
+/// Execute `command` on the node, returning the objects it created.
+#[cfg(not(msim))]
+async fn created_by(
+    command: IotaClientCommands,
+    context: &mut WalletContext,
+) -> Result<Vec<OwnedObjectRef>, anyhow::Error> {
+    let IotaClientCommandResult::TransactionBlock(response) = command.execute(context).await?
+    else {
+        panic!("expected a TransactionBlock result");
+    };
+    Ok(response.effects.unwrap().created().to_vec())
+}
+
+#[cfg(not(msim))]
+fn published_package_id(created: &[OwnedObjectRef]) -> ObjectId {
+    created
+        .iter()
+        .find(|OwnedObjectRef { owner, .. }| owner == &Owner::Immutable)
+        .expect("must find the published package")
+        .reference
+        .object_id
+}
+
+/// Dry run `command` on the node and then locally, returning both responses.
+///
+/// This and everything gated the same way stay off under the simulator:
+/// resolving an object blocks the calling thread, which needs a real
+/// multi-threaded runtime.
+#[cfg(not(msim))]
+async fn dry_run_on_both_backends(
+    context: &mut WalletContext,
+    command: impl Fn(bool) -> IotaClientCommands,
+) -> Result<
+    (
+        iota_json_rpc_types::DryRunTransactionBlockResponse,
+        iota_json_rpc_types::DryRunTransactionBlockResponse,
+    ),
+    anyhow::Error,
+> {
+    let node = command(false).execute(context).await?;
+    let local = command(true).execute(context).await?;
+    let json = (serde_json::to_value(&node)?, serde_json::to_value(&local)?);
+    let (
+        IotaClientCommandResult::DryRun(DryRunOutput {
+            response: node,
+            local: false,
+        }),
+        IotaClientCommandResult::DryRun(DryRunOutput {
+            response: local,
+            local: true,
+        }),
+    ) = (node, local)
+    else {
+        panic!("expected DryRun results");
+    };
+    // `--json` prints the response alone, whichever backend ran it.
+    assert_eq!(
+        json,
+        (serde_json::to_value(&node)?, serde_json::to_value(&local)?)
+    );
+    Ok((node, local))
+}
+
+/// Everything a dry run reports, compared field by field. Object and balance
+/// changes are sorted first, so the comparison does not depend on the order
+/// the backends happen to derive them in.
+#[cfg(not(msim))]
+fn assert_same_dry_run(
+    node: &iota_json_rpc_types::DryRunTransactionBlockResponse,
+    local: &iota_json_rpc_types::DryRunTransactionBlockResponse,
+) {
+    assert_eq!(node.effects, local.effects);
+    assert_eq!(node.input, local.input);
+    assert_eq!(node.events, local.events);
+    let by_object_id = |changes: &[ObjectChange]| {
+        let mut changes = changes.to_vec();
+        changes.sort_by_key(|change| change.object_id());
+        changes
+    };
+    assert_eq!(
+        by_object_id(&node.object_changes),
+        by_object_id(&local.object_changes)
+    );
+    let by_owner_and_coin = |changes: &[iota_json_rpc_types::BalanceChange]| {
+        let mut changes = changes.to_vec();
+        changes.sort_by_key(|change| (change.owner, change.coin_type.clone()));
+        changes
+    };
+    assert_eq!(
+        by_owner_and_coin(&node.balance_changes),
+        by_owner_and_coin(&local.balance_changes)
+    );
+    assert_eq!(node.suggested_gas_price, local.suggested_gas_price);
+    assert_eq!(node.execution_error_source, local.execution_error_source);
+}
+
+#[cfg(not(msim))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_local_dry_run_matches_node_dry_run() -> Result<(), anyhow::Error> {
+    /// Above the protocol's minimum budget, so the transaction is
+    /// accepted, but too little to complete a transfer, so execution
+    /// runs out of gas instead.
+    const GAS_BUDGET_TOO_LOW_TO_TRANSFER: u64 = 1_000_000;
+
+    let (mut test_cluster, _, rgp, [gas_id, object_to_send, _], [recipient, _], _) =
+        test_cluster_helper().await;
+    let context = &mut test_cluster.wallet;
+
+    let (node, local) = dry_run_on_both_backends(context, |local| {
+        transfer(
+            recipient.clone(),
+            object_to_send,
+            vec![gas_id],
+            gas_budget(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
+            dry_run(local),
+        )
+    })
+    .await?;
+    assert_eq!(*node.effects.status(), IotaExecutionStatus::Success);
+    // No mutable shared input, so both paths suggest the reference gas price.
+    assert_eq!(node.suggested_gas_price, Some(rgp));
+    assert_same_dry_run(&node, &local);
+
+    // A run that fails for want of gas: the error source must read the same
+    // either way.
+    let (node, local) = dry_run_on_both_backends(context, |local| {
+        transfer(
+            recipient.clone(),
+            object_to_send,
+            vec![gas_id],
+            gas_budget(GAS_BUDGET_TOO_LOW_TO_TRANSFER),
+            dry_run(local),
+        )
+    })
+    .await?;
+    assert!(matches!(
+        node.effects.status(),
+        IotaExecutionStatus::Failure { .. }
+    ));
+    assert_same_dry_run(&node, &local);
+
+    Ok(())
+}
+
+// A receive loads the received object during execution, so it reaches the
+// effects without being one of the transaction's inputs. Both dry-run paths
+// must still report the same changes for it.
+#[cfg(not(msim))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_local_dry_run_matches_node_dry_run_for_received_object() -> Result<(), anyhow::Error>
+{
+    let (mut test_cluster, _, rgp, [gas_id, _, _], _, _) = test_cluster_helper().await;
+    let context = &mut test_cluster.wallet;
+
+    let package_id = published_package_id(
+        &created_by(
+            publish("tto", gas_id, rgp, TxProcessingArgs::default()),
+            context,
+        )
+        .await?,
+    );
+    let created = created_by(
+        call(
+            package_id,
+            "tto",
+            "start",
+            &[],
+            gas_id,
+            rgp,
+            Default::default(),
+        ),
+        context,
+    )
+    .await?;
+    let parents: BTreeSet<ObjectId> = created
+        .iter()
+        .flat_map(|refe| refe.owner.as_opt_address().copied().map(ObjectId::from))
+        .collect();
+    let object_id = |is_parent: bool| {
+        created
+            .iter()
+            .find(|refe| parents.contains(&refe.reference.object_id) == is_parent)
+            .unwrap()
+            .reference
+            .object_id
+    };
+    let (parent, child) = (object_id(true), object_id(false));
+
+    let (node, local) = dry_run_on_both_backends(context, |local| {
+        call(
+            package_id,
+            "tto",
+            "receiver",
+            &[parent, child],
+            gas_id,
+            rgp,
+            dry_run(local),
+        )
+    })
+    .await?;
+    assert_eq!(
+        *node.effects.status(),
+        IotaExecutionStatus::Success,
+        "the receive must succeed for this comparison to mean anything"
+    );
+    assert_same_dry_run(&node, &local);
+
+    Ok(())
+}
+
+// The budget a run reports when the caller leaves it unset, or sets it to
+// zero, or brings no gas coin at all.
+#[cfg(not(msim))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_local_dry_run_reports_the_same_gas_budget() -> Result<(), anyhow::Error> {
+    let (mut test_cluster, _, _, [gas_id, object_to_send, _], [recipient, _], _) =
+        test_cluster_helper().await;
+    let address = test_cluster.get_address_0();
+    let context = &mut test_cluster.wallet;
+
+    // Without a budget both paths report the gas the run used.
+    let (node, local) = dry_run_on_both_backends(context, |local| {
+        transfer(
+            recipient.clone(),
+            object_to_send,
+            vec![gas_id],
+            GasDataArgs::default(),
+            dry_run(local),
+        )
+    })
+    .await?;
+    assert_eq!(*node.effects.status(), IotaExecutionStatus::Success);
+    assert_eq!(
+        node.input.gas_data().budget,
+        node.effects.gas_cost_summary().gas_used(),
+        "an unset budget must be reported as the gas the run used"
+    );
+    assert_same_dry_run(&node, &local);
+
+    // A budget of zero asks both paths to report the gas the run used.
+    let (node, local) = dry_run_on_both_backends(context, |local| {
+        transfer(
+            recipient.clone(),
+            object_to_send,
+            vec![gas_id],
+            gas_budget(0),
+            dry_run(local),
+        )
+    })
+    .await?;
+    assert_eq!(
+        node.input.gas_data().budget,
+        node.effects.gas_cost_summary().gas_used(),
+        "a zero budget must be reported as the gas the run used"
+    );
+    assert_same_dry_run(&node, &local);
+
+    // `pay-iota` without input coins estimates a budget to select coins with,
+    // from a dry run on the same backend, so both paths pick the same coins.
+    let (node, local) = dry_run_on_both_backends(context, |local| IotaClientCommands::PayIota {
+        input_coins: None,
+        recipients: vec![recipient.clone()],
+        amounts: vec![1],
+        gas_data: GasDataArgs::default(),
+        processing: dry_run(local),
+    })
+    .await?;
+    assert_eq!(*node.effects.status(), IotaExecutionStatus::Success);
+    assert_same_dry_run(&node, &local);
+
+    // With no gas coin of its own each path funds the run with a coin of
+    // its own making, and must still report the same run.
+    let (node, local) = dry_run_on_both_backends(context, |local| {
+        transfer(
+            recipient.clone(),
+            object_to_send,
+            vec![],
+            GasDataArgs::default(),
+            TxProcessingArgs {
+                sender: Some(address),
+                ..dry_run(local)
+            },
+        )
+    })
+    .await?;
+    assert_eq!(*node.effects.status(), IotaExecutionStatus::Success);
+    assert_same_dry_run(&node, &local);
+
+    Ok(())
+}
+
+// `pay-iota` with input coins below the maximum budget has nothing left to pay
+// with when the budget is unset, and is told to set one.
+#[cfg(not(msim))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_dry_run_without_gas_budget_reserves_the_gas_coins() -> Result<(), anyhow::Error> {
+    let (mut test_cluster, _, rgp, [gas_id, _, _], [recipient, _], _) = test_cluster_helper().await;
+    let address = test_cluster.get_address_0();
+    let context = &mut test_cluster.wallet;
+
+    let small_coin = IotaClientCommands::PayIota {
+        input_coins: Some(vec![gas_id]),
+        recipients: vec![KeyIdentity::Address(address)],
+        amounts: vec![1_000_000_000],
+        gas_data: gas_budget(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
+        processing: TxProcessingArgs::default(),
+    }
+    .execute(context)
+    .await?;
+    let IotaClientCommandResult::TransactionBlock(response) = small_coin else {
+        panic!("expected a TransactionBlock result");
+    };
+    let small_coin = response.effects.unwrap().created()[0].reference.object_id;
+    let pay_from_small_coin = |local, gas_data| IotaClientCommands::PayIota {
+        input_coins: Some(vec![small_coin]),
+        recipients: vec![recipient.clone()],
+        amounts: vec![1],
+        gas_data,
+        processing: dry_run(local),
+    };
+    for local in [false, true] {
+        let result = pay_from_small_coin(local, GasDataArgs::default())
+            .execute(context)
+            .await?;
+        assert!(budget_took_the_gas_coins(&result, None, true), "{result}");
+    }
+    let (node, local) = dry_run_on_both_backends(context, |local| {
+        pay_from_small_coin(local, gas_budget(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER))
+    })
+    .await?;
+    assert_eq!(*node.effects.status(), IotaExecutionStatus::Success);
+    assert_same_dry_run(&node, &local);
+
+    Ok(())
+}
+
+// A mutable shared input is what makes a node price in congestion, and a
+// package published by the run itself is the one case whose types cannot be
+// resolved from the store.
+#[cfg(not(msim))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_local_dry_run_matches_node_dry_run_for_shared_object_and_publish()
+-> Result<(), anyhow::Error> {
+    let (mut test_cluster, _, rgp, [gas_id, _, _], _, _) = test_cluster_helper().await;
+    let context = &mut test_cluster.wallet;
+
+    // A dry run leaves the package it publishes uncommitted, so its types
+    // resolve only through the run's own output.
+    let (node, local) =
+        dry_run_on_both_backends(context, |local| publish("sod", gas_id, rgp, dry_run(local)))
+            .await?;
+    assert_eq!(*node.effects.status(), IotaExecutionStatus::Success);
+    assert_same_dry_run(&node, &local);
+
+    let package_id = published_package_id(
+        &created_by(publish("sod", gas_id, rgp, Default::default()), context).await?,
+    );
+    let shared_id = created_by(
+        call(
+            package_id,
+            "sod",
+            "start",
+            &[],
+            gas_id,
+            rgp,
+            Default::default(),
+        ),
+        context,
+    )
+    .await?[0]
+        .reference
+        .object_id;
+
+    // `delete` takes the shared object by value, so the transaction has a
+    // mutable shared input.
+    let (node, local) = dry_run_on_both_backends(context, |local| {
+        call(
+            package_id,
+            "sod",
+            "delete",
+            &[shared_id],
+            gas_id,
+            rgp,
+            dry_run(local),
+        )
+    })
+    .await?;
+    assert_eq!(*node.effects.status(), IotaExecutionStatus::Success);
+    // An uncongested chain suggests the reference gas price either way.
+    assert_eq!(node.suggested_gas_price, Some(rgp));
+    assert_same_dry_run(&node, &local);
+
+    Ok(())
+}
+
+#[cfg(not(msim))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_local_dry_run_matches_node_dry_run_for_move_abort() -> Result<(), anyhow::Error> {
+    let (mut test_cluster, _, rgp, [gas_id, _, _], _, _) = test_cluster_helper().await;
+    let context = &mut test_cluster.wallet;
+
+    let package_id = published_package_id(
+        &created_by(
+            publish("clever_errors", gas_id, rgp, Default::default()),
+            context,
+        )
+        .await?,
+    );
+
+    for function in [
+        "aborter",
+        "aborter_line_no",
+        "clever_aborter",
+        "clever_aborter_not_a_string",
+        "clever_aborter_with_code",
+    ] {
+        let (node, local) = dry_run_on_both_backends(context, |local| {
+            call(
+                package_id,
+                "clever_errors",
+                function,
+                &[],
+                gas_id,
+                rgp,
+                dry_run(local),
+            )
+        })
+        .await?;
+        assert!(
+            matches!(node.effects.status(), IotaExecutionStatus::Failure { .. }),
+            "{function} must abort"
+        );
+        assert_same_dry_run(&node, &local);
+        // Equal effects alone would also pass if neither path rendered.
+        if function == "clever_aborter" {
+            let IotaExecutionStatus::Failure { error } = local.effects.status() else {
+                unreachable!();
+            };
+            assert!(error.contains("Element not found in vector"), "{error}");
+        }
+    }
+
+    Ok(())
+}
+
+// A local run needs only gRPC, rendering a Move abort included.
+#[cfg(not(msim))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_local_dry_run_renders_move_abort_without_json_rpc() -> Result<(), anyhow::Error> {
+    let (mut test_cluster, _, rgp, [gas_id, _, _], _, _) = test_cluster_helper().await;
+    let package_id = published_package_id(
+        &created_by(
+            publish("clever_errors", gas_id, rgp, Default::default()),
+            &mut test_cluster.wallet,
+        )
+        .await?,
+    );
+
+    // A fresh context, so no JSON-RPC client is cached. Nothing listens on
+    // port 1.
+    let config_path = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
+    let mut context = WalletContext::new(&config_path)?.with_env_override("no-rpc".into());
+    context.config_mut().add_env(
+        iota_sdk::iota_client_config::IotaEnv::new("no-rpc", "http://127.0.0.1:1")
+            .with_grpc(test_cluster.grpc_url()),
+    );
+
+    // `iota client call` builds its transaction over JSON-RPC; a PTB builds
+    // it over gRPC.
+    let ptb = iota::client_ptb::ptb::PTB {
+        args: shlex::split(&format!(
+            "--move-call {package_id}::clever_errors::clever_aborter \
+             --gas-budget {} --dry-run --local",
+            rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        ))
+        .unwrap(),
+        display: HashSet::new(),
+    };
+    let IotaClientCommandResult::DryRun(DryRunOutput {
+        response,
+        local: true,
+    }) = IotaClientCommands::PTB(ptb).execute(&mut context).await?
+    else {
+        panic!("expected a local DryRun result");
+    };
+    let IotaExecutionStatus::Failure { error } = response.effects.status() else {
+        panic!("clever_aborter must abort");
+    };
+    assert!(error.contains("Element not found in vector"), "{error}");
+
+    Ok(())
+}
+
+// `std::hash::sha3_256(b"abc")`, from `std::hash`'s own tests.
+#[cfg(not(msim))]
+const SHA3_256_OF_ABC: [u8; 32] = [
+    0x3a, 0x98, 0x5d, 0xa7, 0x4f, 0xe2, 0x25, 0xb2, 0x04, 0x5c, 0x17, 0x2d, 0x6b, 0xd3, 0x90, 0xbd,
+    0x85, 0x5f, 0x08, 0x6e, 0x3e, 0x9d, 0x52, 0x5b, 0x46, 0xbf, 0xe2, 0x45, 0x11, 0x43, 0x15, 0x32,
+];
+
+#[cfg(not(msim))]
+fn dev_inspect(local: bool) -> TxProcessingArgs {
+    TxProcessingArgs {
+        dev_inspect: true,
+        local,
+        ..Default::default()
+    }
+}
+
+#[cfg(not(msim))]
+fn move_call(
+    package: ObjectId,
+    module: &str,
+    function: &str,
+    args: Vec<IotaJsonValue>,
+    gas: Vec<ObjectId>,
+    gas_data: GasDataArgs,
+    processing: TxProcessingArgs,
+) -> IotaClientCommands {
+    IotaClientCommands::Call {
+        package,
+        module: module.to_string(),
+        function: function.to_string(),
+        type_args: vec![],
+        args,
+        payment: PaymentArgs { gas },
+        gas_data,
+        processing,
+    }
+}
+
+/// Dev inspect `command` on the node and then locally, returning both
+/// results. Everything above it gated `#[cfg(not(msim))]` for the same reason
+/// as the dry-run helpers: the local path resolves objects on the calling
+/// thread, which needs a real multi-threaded runtime.
+#[cfg(not(msim))]
+async fn dev_inspect_on_both_backends(
+    context: &mut WalletContext,
+    command: impl Fn(bool) -> IotaClientCommands,
+) -> Result<
+    (
+        iota_json_rpc_types::DevInspectResults,
+        iota_json_rpc_types::DevInspectResults,
+    ),
+    anyhow::Error,
+> {
+    let node = command(false).execute(context).await?;
+    let local = command(true).execute(context).await?;
+    let json = (serde_json::to_value(&node)?, serde_json::to_value(&local)?);
+    let (
+        IotaClientCommandResult::DevInspect(DevInspectOutput {
+            response: node,
+            local: false,
+        }),
+        IotaClientCommandResult::DevInspect(DevInspectOutput {
+            response: local,
+            local: true,
+        }),
+    ) = (node, local)
+    else {
+        panic!("expected DevInspect results");
+    };
+    // `--json` prints the results alone, whichever backend ran them.
+    assert_eq!(
+        json,
+        (serde_json::to_value(&node)?, serde_json::to_value(&local)?)
+    );
+    Ok((node, local))
+}
+
+/// Everything a dev inspect reports, compared field by field. The per-command
+/// results carry the Move call's return values, which are compared through
+/// JSON because their value and type tags do not derive `PartialEq`.
+#[cfg(not(msim))]
+fn assert_same_dev_inspect(
+    node: &iota_json_rpc_types::DevInspectResults,
+    local: &iota_json_rpc_types::DevInspectResults,
+) {
+    assert_eq!(*node.effects.status(), *local.effects.status());
+    assert_eq!(node.effects, local.effects);
+    assert_eq!(node.events, local.events);
+    let results = |results: &Option<_>| results.as_ref().map(serde_json::to_value).transpose();
+    assert_eq!(
+        results(&node.results).unwrap(),
+        results(&local.results).unwrap(),
+    );
+    assert_eq!(node.error, local.error);
+    assert_eq!(node.raw_txn_data, local.raw_txn_data);
+    assert_eq!(node.raw_effects, local.raw_effects);
+}
+
+// Dev inspects differ from dry runs in what they report, so this compares
+// the full results of both backends. A framework call with a return value
+// exercises the per-command results; a run that aborts exercises the error
+// string and the missing results; a stake request and a package's `init`
+// exercise the event type layouts, from the store and from the run's own
+// published package.
+#[cfg(not(msim))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_local_dev_inspect_matches_node_dev_inspect() -> Result<(), anyhow::Error> {
+    let (mut test_cluster, _, rgp, [gas_id, stake_id, _], _, _) = test_cluster_helper().await;
+    let context = &mut test_cluster.wallet;
+
+    // No gas coin of its own, so each path funds the run with a coin of its
+    // own making. The input is `abc`, whose sha3_256 is known from
+    // `std::hash`'s own tests.
+    let (node, local) = dev_inspect_on_both_backends(context, |local| {
+        move_call(
+            ObjectId::STD,
+            "hash",
+            "sha3_256",
+            vec![IotaJsonValue::from_str("0x616263").unwrap()],
+            vec![],
+            GasDataArgs::default(),
+            dev_inspect(local),
+        )
+    })
+    .await?;
+    assert_eq!(*node.effects.status(), IotaExecutionStatus::Success);
+    assert_same_dev_inspect(&node, &local);
+    // The return value must be the actual hash, which proves the per-command
+    // results survived the round trip to both backends.
+    let results = local
+        .results
+        .as_ref()
+        .expect("a successful dev inspect must report results");
+    let [(bytes, tag)] = results[0].return_values.as_slice() else {
+        panic!("expected exactly one return value");
+    };
+    assert_eq!(tag.as_ref(), "vector<u8>");
+    assert_eq!(bcs::from_bytes::<Vec<u8>>(bytes)?, SHA3_256_OF_ABC);
+
+    // A real gas coin and no budget: both backends must fill in the same
+    // budget.
+    let (node, local) = dev_inspect_on_both_backends(context, |local| {
+        move_call(
+            ObjectId::STD,
+            "hash",
+            "sha3_256",
+            vec![IotaJsonValue::from_str("0x616263").unwrap()],
+            vec![gas_id],
+            GasDataArgs::default(),
+            dev_inspect(local),
+        )
+    })
+    .await?;
+    assert_eq!(*node.effects.status(), IotaExecutionStatus::Success);
+    assert_same_dev_inspect(&node, &local);
+
+    // A run that aborts: the error must read the same either way, and the
+    // missing results must be missing either way.
+    let package_id = published_package_id(
+        &created_by(
+            publish("clever_errors", gas_id, rgp, TxProcessingArgs::default()),
+            context,
+        )
+        .await?,
+    );
+    let (node, local) = dev_inspect_on_both_backends(context, |local| {
+        move_call(
+            package_id,
+            "clever_errors",
+            "aborter",
+            vec![],
+            vec![],
+            GasDataArgs::default(),
+            dev_inspect(local),
+        )
+    })
+    .await?;
+    assert!(matches!(
+        *node.effects.status(),
+        IotaExecutionStatus::Failure { .. }
+    ));
+    assert_same_dev_inspect(&node, &local);
+
+    let validator = context
+        .get_client()
+        .await?
+        .governance_api()
+        .get_latest_iota_system_state()
+        .await?
+        .iter_committee_members()
+        .next()
+        .unwrap()
+        .iota_address;
+    let (node, local) = dev_inspect_on_both_backends(context, |local| {
+        move_call(
+            ObjectId::SYSTEM,
+            "iota_system",
+            "request_add_stake",
+            vec![
+                IotaJsonValue::new(json!(ObjectId::SYSTEM_STATE)).unwrap(),
+                IotaJsonValue::new(json!(stake_id)).unwrap(),
+                IotaJsonValue::new(json!(validator)).unwrap(),
+            ],
+            vec![],
+            GasDataArgs::default(),
+            dev_inspect(local),
+        )
+    })
+    .await?;
+    assert_eq!(*node.effects.status(), IotaExecutionStatus::Success);
+    assert_eq!(node.events.data.len(), 1);
+    assert_same_dev_inspect(&node, &local);
+
+    // A dev inspect commits nothing, so the event's type resolves only from
+    // the package the run itself publishes.
+    let (node, local) = dev_inspect_on_both_backends(context, |local| {
+        publish("init_event", gas_id, rgp, dev_inspect(local))
+    })
+    .await?;
+    assert_eq!(*node.effects.status(), IotaExecutionStatus::Success);
+    assert_same_dev_inspect(&node, &local);
+    let [event] = local.events.data.as_slice() else {
+        panic!("expected the event `init` emits");
+    };
+    assert_eq!(event.parsed_json, json!({ "value": "42" }));
+
+    Ok(())
+}
+
+#[test]
+fn local_requires_a_simulation_mode() {
+    use clap::{Parser, error::ErrorKind};
+
+    let parse = |flags: &[&str]| {
+        let argv = "iota client call --package 0x2 --module m --function f"
+            .split_whitespace()
+            .chain(flags.iter().copied());
+        IotaCommand::try_parse_from(argv).map(|_| ())
+    };
+    assert_eq!(
+        parse(&["--local"]).unwrap_err().kind(),
+        ErrorKind::MissingRequiredArgument
+    );
+    for flags in [
+        &["--local", "--dry-run"][..],
+        &["--local", "--dev-inspect"],
+        &["--dry-run", "--dev-inspect"],
+    ] {
+        assert!(parse(flags).is_ok(), "{flags:?}");
+    }
+}
+
+// The PTB command reaches the local path through its own parser rather than
+// clap, so the guards on `--local` are checked here rather than by clap.
+#[cfg(not(msim))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_ptb_local_dry_run() -> Result<(), anyhow::Error> {
+    let (mut test_cluster, _, rgp, _, _, _) = test_cluster_helper().await;
+    let context = &mut test_cluster.wallet;
+
+    // One recipient for every run, so the transactions only differ in how
+    // they are simulated.
+    let recipient = Address::random();
+    let ptb = |extra: &str| {
+        let args = shlex::split(&format!(
+            "--split-coins gas [1000] --assign coins --transfer-objects [coins.0] @{recipient} \
+             --gas-budget {} {extra}",
+            rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        ))
+        .unwrap();
+        iota::client_ptb::ptb::PTB {
+            args,
+            display: HashSet::new(),
+        }
+    };
+
+    let PTBCommandResult::CommandResult(node_result) = ptb("--dry-run").execute(context).await?
+    else {
+        panic!("expected a dry-run result");
+    };
+    let PTBCommandResult::CommandResult(local_result) =
+        ptb("--dry-run --local").execute(context).await?
+    else {
+        panic!("expected a dry-run result");
+    };
+    let (
+        IotaClientCommandResult::DryRun(DryRunOutput {
+            response: node,
+            local: false,
+        }),
+        IotaClientCommandResult::DryRun(DryRunOutput {
+            response: local,
+            local: true,
+        }),
+    ) = (*node_result, *local_result)
+    else {
+        panic!("expected DryRun results");
+    };
+    assert_eq!(*node.effects.status(), IotaExecutionStatus::Success);
+    assert_same_dry_run(&node, &local);
+
+    // The parser accepts --local anywhere; the command only takes it with a
+    // simulation mode.
+    let Err(err) = ptb("--local").execute(context).await else {
+        panic!("--local alone must be rejected");
+    };
+    assert!(err.to_string().contains("--local"), "{err}");
+
+    Ok(())
+}
+
+// The same PTB dev inspects on both backends: the Move call's return value
+// must survive both paths unchanged.
+#[cfg(not(msim))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_ptb_local_dev_inspect_matches_node_dev_inspect() -> Result<(), anyhow::Error> {
+    let (mut test_cluster, _, _, _, _, _) = test_cluster_helper().await;
+    let context = &mut test_cluster.wallet;
+
+    let ptb = |extra: &str| {
+        let args = shlex::split(&format!(
+            "--assign hello_option \"some('Hello')\" \
+             --move-call std::option::borrow <std::string::String> hello_option {extra}"
+        ))
+        .unwrap();
+        iota::client_ptb::ptb::PTB {
+            args,
+            display: HashSet::new(),
+        }
+    };
+
+    let PTBCommandResult::DevInspect(node) = ptb("--dev-inspect").execute(context).await? else {
+        panic!("expected a dev-inspect result");
+    };
+    let PTBCommandResult::DevInspect(local) = ptb("--dev-inspect --local").execute(context).await?
+    else {
+        panic!("expected a dev-inspect result");
+    };
+    assert!(!node.local && local.local);
+
+    assert_same_dev_inspect(&node.response, &local.response);
+    let results = local
+        .response
+        .results
+        .as_ref()
+        .expect("a successful dev inspect must report results");
+    assert!(results.iter().any(|res| {
+        res.return_values.iter().any(|(bytes, tag)| {
+            tag.as_ref() == "0x1::string::String" && bytes == &[5, 72, 101, 108, 108, 111]
+        })
+    }));
+
+    Ok(())
+}
+
 async fn test_cluster_helper() -> (
     TestCluster,
     IotaClient,
@@ -4477,7 +5404,7 @@ async fn test_cluster_helper() -> (
     [Address; 2],
 ) {
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -5135,7 +6062,7 @@ async fn test_clever_errors() -> Result<(), anyhow::Error> {
     // Publish the package
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -5314,7 +6241,7 @@ async fn test_clever_errors() -> Result<(), anyhow::Error> {
 #[sim_test]
 async fn test_balance() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
 
@@ -5752,7 +6679,7 @@ async fn test_call_command_display_args() -> Result<(), anyhow::Error> {
     // Publish the package
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -5919,7 +6846,7 @@ async fn test_call_command_display_args() -> Result<(), anyhow::Error> {
 #[sim_test]
 async fn test_ptb_dev_inspect() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let context = &mut test_cluster.wallet;
@@ -5939,18 +6866,24 @@ async fn test_ptb_dev_inspect() -> Result<(), anyhow::Error> {
     else {
         panic!("unexpected PTB result");
     };
-    assert!(res.results.expect("missing results").iter().any(|res| {
-        res.return_values.iter().any(|(bytes, tag)| {
-            tag.as_ref() == "0x1::string::String" && bytes == &[5, 72, 101, 108, 108, 111]
-        })
-    }));
+    assert!(
+        res.response
+            .results
+            .expect("missing results")
+            .iter()
+            .any(|res| {
+                res.return_values.iter().any(|(bytes, tag)| {
+                    tag.as_ref() == "0x1::string::String" && bytes == &[5, 72, 101, 108, 108, 111]
+                })
+            })
+    );
     Ok(())
 }
 
 #[sim_test]
 async fn test_ptb_display_args() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let context = &mut test_cluster.wallet;
@@ -6049,7 +6982,6 @@ async fn test_new_env() -> Result<(), anyhow::Error> {
     let alias = "network-alias".to_string();
     let rpc = "http://127.0.0.1:9009".to_string();
     let graphql = Some("http://127.0.0.1:8000".to_string());
-    let ws = Some("ws://127.0.0.1:9000".to_string());
     let grpc = Some("http://127.0.0.1:9000".to_string());
     let basic_auth = Some("username:password".to_string());
     let faucet = Some("http://127.0.0.1:9123/v1/gas".to_string());
@@ -6058,7 +6990,6 @@ async fn test_new_env() -> Result<(), anyhow::Error> {
         alias: alias.clone(),
         rpc: rpc.clone(),
         graphql: graphql.clone(),
-        ws: ws.clone(),
         grpc: grpc.clone(),
         basic_auth: basic_auth.clone(),
         faucet: faucet.clone(),
@@ -6077,7 +7008,6 @@ async fn test_new_env() -> Result<(), anyhow::Error> {
     assert_eq!(*new_env.alias(), alias);
     assert_eq!(*new_env.rpc(), rpc);
     assert_eq!(*new_env.graphql(), graphql);
-    assert_eq!(*new_env.ws(), ws);
     assert_eq!(*new_env.grpc(), grpc);
     assert_eq!(*new_env.basic_auth(), basic_auth);
     assert_eq!(*new_env.faucet(), faucet);
@@ -6094,7 +7024,7 @@ async fn test_ptb_sender() -> Result<(), anyhow::Error> {
         Address::from_str("0xdbcd4c41bd078067c1fed6382ce014771529f37087d02a48f927d678f96064fa")
             .unwrap();
     let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
+        .with_num_validators(1)
         .build()
         .await;
     let address = test_cluster.get_address_0();

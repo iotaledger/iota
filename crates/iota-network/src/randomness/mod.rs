@@ -29,7 +29,7 @@ use iota_types::{
     crypto::{RandomnessPartialSignature, RandomnessSignature},
 };
 use serde::{Deserialize, Serialize};
-use tokio::sync::{OnceCell, mpsc, oneshot};
+use tokio::sync::{OnceCell, OwnedSemaphorePermit, mpsc, oneshot};
 use tracing::{debug, error, info, instrument, warn};
 
 use self::{auth::AllowedPeersUpdatable, metrics::Metrics};
@@ -215,7 +215,6 @@ enum RandomnessMessage {
         Vec<Vec<u8>>,
         Option<RandomnessSignature>,
     ),
-    MaybeIgnoreByzantinePeer(EpochId, PeerId),
     AdminGetPartialSignatures(RandomnessRound, oneshot::Sender<Vec<u8>>),
     AdminInjectPartialSignatures(
         AuthorityName,
@@ -234,7 +233,7 @@ struct RandomnessEventLoop {
     name: AuthorityName,
     config: RandomnessConfig,
     mailbox: mpsc::Receiver<RandomnessMessage>,
-    mailbox_sender: mpsc::WeakSender<RandomnessMessage>,
+    peer_mailbox: mpsc::Receiver<(RandomnessMessage, OwnedSemaphorePermit)>,
     network: anemo::Network,
     allowed_peers: AllowedPeersUpdatable,
     allowed_peers_set: HashSet<PeerId>,
@@ -269,6 +268,8 @@ impl RandomnessEventLoop {
 
         loop {
             tokio::select! {
+                // Serve the node's own messages first, so peer traffic cannot delay them.
+                biased;
                 maybe_message = self.mailbox.recv() => {
                     // Once all handles to our mailbox have been dropped this
                     // will yield `None` and we can terminate the event loop.
@@ -278,6 +279,7 @@ impl RandomnessEventLoop {
                         break;
                     }
                 },
+                Some((message, _permit)) = self.peer_mailbox.recv() => self.handle_message(message),
             }
         }
 
@@ -316,9 +318,6 @@ impl RandomnessEventLoop {
                 } else {
                     self.receive_partial_signatures(peer_id, epoch, round, partial_sigs)
                 }
-            }
-            RandomnessMessage::MaybeIgnoreByzantinePeer(epoch, peer_id) => {
-                self.maybe_ignore_byzantine_peer(epoch, peer_id)
             }
             RandomnessMessage::AdminGetPartialSignatures(round, tx) => {
                 self.admin_get_partial_signatures(round, tx)
@@ -674,11 +673,11 @@ impl RandomnessEventLoop {
 
         // Try to verify the aggregated signature all at once. (Should work in the happy
         // path.)
-        if ThresholdBls12381MinSig::verify(&vss_pk.c0(), &round.signature_message(), &sig).is_err()
-        {
+        let public_key = vss_pk.c0();
+        if ThresholdBls12381MinSig::verify(&public_key, &round.signature_message(), &sig).is_err() {
             // If verification fails, some of the inputs must be invalid. We have to go
             // through one-by-one to find which.
-            // TODO: add test for individual sig verification.
+            let mut byzantine_peers = Vec::new();
             self.received_partial_sigs
                 .retain(|&(r, peer_id), partial_sigs| {
                     if round != r {
@@ -695,17 +694,14 @@ impl RandomnessEventLoop {
                         warn!(
                             "received invalid partial signatures from possibly-Byzantine peer {peer_id}"
                         );
-                        if let Some(sender) = self.mailbox_sender.upgrade() {
-                            sender.try_send(RandomnessMessage::MaybeIgnoreByzantinePeer(
-                                epoch,
-                                peer_id,
-                            ))
-                            .expect("RandomnessEventLoop mailbox should not overflow or be closed");
-                        }
+                        byzantine_peers.push(peer_id);
                         return false;
                     }
                     true
                 });
+            for peer_id in byzantine_peers {
+                self.maybe_ignore_byzantine_peer(epoch, peer_id);
+            }
             let sig_range = self
                 .received_partial_sigs
                 .range(sig_bounds)
@@ -719,7 +715,7 @@ impl RandomnessEventLoop {
                 }
             };
             if let Err(e) =
-                ThresholdBls12381MinSig::verify(&vss_pk.c0(), &round.signature_message(), &sig)
+                ThresholdBls12381MinSig::verify(&public_key, &round.signature_message(), &sig)
             {
                 error!(
                     "error while verifying randomness partial signatures after removing invalid partials: {e:?}"
@@ -782,11 +778,7 @@ impl RandomnessEventLoop {
             ThresholdBls12381MinSig::verify(&vss_pk.c0(), &round.signature_message(), &sig)
         {
             info!("received invalid full signature from peer {peer_id}: {e:?}");
-            if let Some(sender) = self.mailbox_sender.upgrade() {
-                sender
-                    .try_send(RandomnessMessage::MaybeIgnoreByzantinePeer(epoch, peer_id))
-                    .expect("RandomnessEventLoop mailbox should not overflow or be closed");
-            }
+            self.maybe_ignore_byzantine_peer(epoch, peer_id);
             return;
         }
 

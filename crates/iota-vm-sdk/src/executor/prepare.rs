@@ -116,8 +116,13 @@ pub(super) fn prepare_transaction(
     // every `MoveAuthenticator`'s input objects into the transaction's; mirror
     // that merge so denied objects are also caught as authenticator inputs.
     let mut deny_check_input_kinds = raw_input_object_kinds.clone();
-    merge_authenticator_input_objects(move_authenticators, &mut deny_check_input_kinds)
-        .map_err(|e| ValidationError::new("merge authenticator inputs", e))?;
+    merge_authenticator_input_objects(
+        move_authenticators,
+        env.protocol_config
+            .move_authenticator_type_arg_packages_as_inputs(),
+        &mut deny_check_input_kinds,
+    )
+    .map_err(|e| ValidationError::new("merge authenticator inputs", e))?;
     iota_transaction_checks::deny::check_transaction_for_validation(
         &transaction,
         tx_signatures,
@@ -173,10 +178,14 @@ pub(super) fn prepare_transaction(
             .collect::<Vec<_>>()
     });
 
+    // Offline default: the verifier-signing limits may differ from those a
+    // live validator enforces, so these checks will not match a real chain.
+    let verifier_signing_config =
+        iota_config::verifier_signing_config::VerifierSigningConfig::default();
     let (gas_status, checked_input_objects) = if matches!(mode, ExecutionMode::DevInspect) {
         // Dev-inspect meters against the transaction's budget, which the fill-in
-        // above resolves to `max_tx_gas` when the caller declares none, matching
-        // the node's dev-inspect entry point.
+        // above resolves to `max_tx_gas`, capped at the gas coins' balance, when
+        // the caller declares none, matching the node's dev-inspect entry point.
         //
         // The engine smashes the gas coins and reserves the whole budget from them
         // before running any command, treating the input checks as having verified
@@ -194,6 +203,18 @@ pub(super) fn prepare_transaction(
         )
         .map_err(|e| ValidationError::new("simulation input check", e))?;
 
+        // Execution verifies the packages a transaction publishes with neither a
+        // limit nor a meter, trusting signing to have bounded them, so with the
+        // signing checks skipped here this bounds them, as the node's dev-inspect
+        // does.
+        iota_transaction_checks::check_non_system_packages_to_be_published(
+            &transaction,
+            &env.protocol_config,
+            &env.bytecode_verifier_metrics,
+            iota_transaction_checks::VerifierLimitsSource::NodeConfig(&verifier_signing_config),
+        )
+        .map_err(|e| ValidationError::new("package verification", e))?;
+
         let gas_status = IotaGasStatus::new(
             gas_budget,
             transaction.gas_price(),
@@ -203,10 +224,6 @@ pub(super) fn prepare_transaction(
         .map_err(|e| ValidationError::new("gas status", e))?;
         (gas_status, checked_input_objects)
     } else {
-        // Offline default: the verifier-signing limits may differ from those a
-        // live validator enforces, so this check will not match a real chain.
-        let verifier_signing_config =
-            iota_config::verifier_signing_config::VerifierSigningConfig::default();
         // Pass `0` for the authenticator gas budget: this crate runs the
         // authenticator and body together to effects, which is the node's
         // post-consensus path, where they share the full transaction budget
@@ -225,6 +242,9 @@ pub(super) fn prepare_transaction(
             &env.bytecode_verifier_metrics,
             iota_transaction_checks::VerifierLimitsSource::NodeConfig(&verifier_signing_config),
             0,
+            // Authenticator and body run together to effects; with a `0`
+            // authentication budget this flag does not change metering.
+            true,
         )
         .map_err(|e| ValidationError::new("transaction input check", e))?;
         (gas_status, checked_input_objects)
@@ -413,7 +433,7 @@ pub(super) fn execute_with_move_authenticators(
         })
         .collect::<Vec<_>>();
 
-    let (inner_temp_store, _, effects, _timings, execution_result) = env
+    let (inner_temp_store, _, effects, _timings, execution_result, _) = env
         .executor
         .authenticate_then_execute_transaction_to_effects(
             store,
@@ -427,6 +447,7 @@ pub(super) fn execute_with_move_authenticators(
             gas_status,
             MoveAuthenticatorsForExecution::Resolved(exec_authenticators),
             union_checked,
+            None,
             kind,
             signer,
             transaction.digest(),
@@ -495,8 +516,9 @@ type PreparedAuthenticator = (
 
 /// Resolve each authenticator's checked input objects and function ref from the
 /// store. The per-authenticator object restrictions a node enforces at signing
-/// time (no packages, no address-owned objects, no mutable shared objects, …)
-/// are applied to each authenticator's inputs.
+/// time (no packages other than those its type arguments name, no address-owned
+/// objects, no mutable shared objects, …) are applied to each authenticator's
+/// inputs.
 pub(super) fn prepare_authenticators(
     store: &dyn BackingStore,
     authenticators: Vec<MoveAuthenticator>,
@@ -504,7 +526,8 @@ pub(super) fn prepare_authenticators(
 ) -> Result<Vec<PreparedAuthenticator>, VmSdkError> {
     let mut prepared = Vec::with_capacity(authenticators.len());
     for authenticator in authenticators {
-        let auth_input_object_kinds = authenticator.input_objects();
+        let auth_input_object_kinds = authenticator
+            .input_objects(protocol_config.move_authenticator_type_arg_packages_as_inputs());
         let auth_input_objects = load_input_objects(store, &auth_input_object_kinds)?;
         let auth_checked = iota_transaction_checks::check_move_authenticator_input_for_validation(
             auth_input_objects,
@@ -580,7 +603,7 @@ pub(super) fn authenticate_only(
         iota_transaction_checks::aggregate_authenticator_input_objects(&checked_refs)
             .map_err(|e| ValidationError::new("aggregate authenticator inputs", e))?;
     let (kind, signer, gas_data) = transaction.execution_parts();
-    Ok(env.executor.authenticate_transaction(
+    let (_gas_status, result) = env.executor.authenticate_transaction(
         store,
         &env.protocol_config,
         env.limits_metrics.clone(),
@@ -595,7 +618,8 @@ pub(super) fn authenticate_only(
         transaction.digest(),
         auth_context_data,
         &mut None,
-    ))
+    );
+    Ok(result)
 }
 
 /// Run the regulated-coin deny-list check over the given inputs, mapping a
@@ -609,13 +633,13 @@ fn run_coin_deny_list_check(
 ) -> Result<(), VmSdkError> {
     iota_types::deny_list_v1::check_coin_deny_list_v1(
         sender,
-        tx_input_objects,
+        tx_input_objects.inner(),
         receiving_objects,
-        &per_authenticator_input_objects.to_vec(),
+        &per_authenticator_input_objects
+            .iter()
+            .map(|c| c.inner())
+            .collect(),
         store.as_object_store(),
-        // `None`: read the latest deny-list value. This offline check has no
-        // cross-validator determinism requirement.
-        None,
     )
     .map_err(|e| ValidationError::new("coin deny-list check", e).into())
 }

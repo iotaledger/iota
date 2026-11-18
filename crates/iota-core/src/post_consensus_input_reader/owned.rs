@@ -18,9 +18,10 @@
 //! above `V` is read. Every consumption of `V` writes a row of `id` above it,
 //! including a receive and a change through a dynamic-field parent, which
 //! take no lock. If that row was produced at or below the horizon, every
-//! validator has seen the consumption, so `V` drops even when this validator
-//! has already pruned its object. A row above the horizon is ignored, because
-//! a validator that has not executed its commit cannot see it. A keep from
+//! validator has seen the consumption, so `V` drops even when its object has
+//! already left this validator's live state. A row above the horizon is
+//! ignored, because a validator that has not executed its commit cannot see
+//! it. A keep from
 //! the store skips this read: a row above `V` at or below the horizon belongs
 //! to a commit that is executed before validation starts, so the store would
 //! already have answered a newer version. Mutations of a shared object write
@@ -629,6 +630,7 @@ mod tests {
             .record_commit_fully_executed(
                 PRODUCING_COMMIT,
                 &handler_processed_upserts(&effects, PRODUCING_COMMIT),
+                Default::default(),
             )
             .unwrap();
         authority.insert_genesis_object(x_after);
@@ -767,6 +769,7 @@ mod tests {
             .record_commit_fully_executed(
                 CONSUMING_COMMIT,
                 &handler_processed_upserts(&effects, CONSUMING_COMMIT),
+                Default::default(),
             )
             .unwrap();
         authority.insert_genesis_object(object(x_id, effects.lamport_version().as_u64()));
@@ -892,6 +895,7 @@ mod tests {
             .record_commit_fully_executed(
                 WRITING_COMMIT,
                 &handler_processed_upserts(&effects, WRITING_COMMIT),
+                Default::default(),
             )
             .unwrap();
         authority.insert_genesis_object(object(x_id, written));

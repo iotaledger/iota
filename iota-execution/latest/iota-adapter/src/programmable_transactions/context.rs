@@ -71,6 +71,9 @@ mod checked {
         },
         gas_charger::GasCharger,
         gas_meter::IotaGasMeter,
+        programmable_transactions::argument_nodes::{
+            ArgumentNodeBudget, NodeCountError, count_nodes,
+        },
         type_resolver::TypeTagResolver,
     };
 
@@ -113,6 +116,10 @@ mod checked {
         /// if the borrow is mutable This gets cleared out when new
         /// results are pushed, i.e. the end of a command
         borrowed: HashMap<Arg, /* mut */ bool>,
+        /// Budget for the struct, enum and vector values in the arguments of
+        /// this context's Move calls; `None` when the protocol version sets no
+        /// limit or the execution is unmetered.
+        argument_nodes: Option<ArgumentNodeBudget>,
     }
 
     /// A write for an object that was generated outside of the Move
@@ -247,6 +254,11 @@ mod checked {
                     ));
             }
 
+            let argument_nodes = ArgumentNodeBudget::new(
+                protocol_config.max_move_call_argument_nodes_total_as_option(),
+                gas_charger.is_unmetered(),
+            );
+
             Ok(Self {
                 protocol_config,
                 metrics,
@@ -263,7 +275,84 @@ mod checked {
                 new_packages: vec![],
                 user_events: vec![],
                 borrowed: HashMap::new(),
+                argument_nodes,
             })
+        }
+
+        /// The budget for the values in the arguments of one Move call; `None`
+        /// when the protocol version sets no limit or the execution is
+        /// unmetered.
+        pub fn new_call_argument_node_budget(&self) -> Option<ArgumentNodeBudget> {
+            ArgumentNodeBudget::new(
+                self.protocol_config
+                    .max_move_call_argument_nodes_as_option(),
+                self.gas_charger.is_unmetered(),
+            )
+        }
+
+        /// Counts the struct, enum and vector values in `bytes`, the argument
+        /// at `idx` of type `param_ty`, against the call's budget and the
+        /// transaction's. Fails the call when either runs out, when the type
+        /// has no layout, or when the bytes do not match it.
+        pub fn count_argument_nodes(
+            &mut self,
+            call_budget: &mut Option<ArgumentNodeBudget>,
+            idx: usize,
+            param_ty: &Type,
+            bytes: &[u8],
+        ) -> Result<(), ExecutionError> {
+            // The tighter budget caps the count and is the one an error names;
+            // a tie goes to the transaction's.
+            let (limit_type, scope, budget) =
+                match (call_budget.as_ref(), self.argument_nodes.as_ref()) {
+                    (None, None) => return Ok(()),
+                    (Some(call), Some(tx)) if call.remaining() < tx.remaining() => {
+                        ("call", "one call", call)
+                    }
+                    (Some(call), None) => ("call", "one call", call),
+                    (_, Some(tx)) => ("transaction", "the transaction's calls", tx),
+                };
+            let (max_nodes, limit) = (budget.remaining(), budget.limit());
+            let layout = self
+                .vm
+                .get_runtime()
+                .type_to_fully_annotated_layout(param_ty)
+                .map_err(|e| self.convert_vm_error(e))?;
+            match count_nodes(bytes, &layout, max_nodes) {
+                Ok(nodes) => {
+                    if let Some(call) = call_budget {
+                        call.spend(nodes)?;
+                    }
+                    if let Some(tx) = &mut self.argument_nodes {
+                        tx.spend(nodes)?;
+                    }
+                    Ok(())
+                }
+                Err(NodeCountError::Exceeded) => {
+                    self.metrics
+                        .excessive_move_call_argument_nodes
+                        .with_label_values(&[limit_type])
+                        .inc();
+                    Err(ExecutionError::new_with_source(
+                        ExecutionErrorKind::MovePrimitiveRuntimeError { location: None },
+                        format!("arguments of {scope} hold more than {limit} values"),
+                    ))
+                }
+                Err(NodeCountError::Malformed) => Err(command_argument_error(
+                    CommandArgumentError::InvalidBcsBytes,
+                    idx,
+                )),
+            }
+        }
+
+        /// Records how many values the arguments of a Move call hold, from
+        /// what the call's budget has used.
+        pub fn record_call_argument_nodes(&self, call_budget: Option<ArgumentNodeBudget>) {
+            if let Some(budget) = call_budget {
+                self.metrics
+                    .move_call_argument_nodes
+                    .observe(budget.used() as f64);
+            }
         }
 
         pub fn object_runtime(&self) -> Result<&ObjectRuntime<'_>, ExecutionError> {
@@ -1308,7 +1397,7 @@ mod checked {
         gas_charger.charge_coin_transfers(protocol_config, num_non_gas_coin_owners)?;
         result?;
 
-        // Under P-COOL deterministic validation, post-consensus validation checks
+        // Under the P-COOL flow, post-consensus validation checks
         // the sender against its inputs and receiving objects, with the deny list
         // as of the commit's horizon. Here the sender is checked again, once the
         // commands have run, against the coins the Move code received, with the

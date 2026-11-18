@@ -107,6 +107,12 @@ impl LocalVm {
         &self.protocol_config
     }
 
+    /// The epoch's reference gas price, from the [`ChainContext`] the VM was
+    /// built with.
+    pub fn reference_gas_price(&self) -> u64 {
+        self.reference_gas_price
+    }
+
     /// A shared reference to the underlying store, for read-only lookups.
     pub fn store(&self) -> &dyn Store {
         self.store.as_ref()
@@ -420,8 +426,6 @@ impl LocalVm {
         &self,
         signed: &SenderSignedTransaction,
     ) -> Result<(), VmSdkError> {
-        // Match the node's verifier, which also derives these from the protocol
-        // config; `VerifyParams::default()` would turn every check off.
         let verify_params = VerifyParams::from_protocol_config(&self.protocol_config);
         verify_sender_signed_data_message_signatures(signed, &verify_params)
             .map_err(VmSdkError::SignatureVerification)

@@ -94,6 +94,78 @@ fn input_object_version_validity_check(version: Version) -> UserInputResult {
     Ok(())
 }
 
+/// Rejects an identifier that move-core rejects. The SDK `Identifier` also
+/// accepts `<SELF>`, which no module or type can be named.
+fn move_core_identifier_validity_check(identifier: &Identifier) -> UserInputResult {
+    fp_ensure!(
+        move_core_types::identifier::Identifier::is_valid(identifier.as_str()),
+        UserInputError::InvalidIdentifier {
+            error: identifier.to_string()
+        }
+    );
+    Ok(())
+}
+
+/// Rejects an identifier that move-core rejects in the module or name of any
+/// struct type in `type_tags`, nested type parameters included.
+fn type_tags_identifiers_validity_check<'a>(
+    type_tags: impl IntoIterator<Item = &'a TypeTag>,
+) -> UserInputResult {
+    let mut stack: Vec<&TypeTag> = type_tags.into_iter().collect();
+    while let Some(type_tag) = stack.pop() {
+        match type_tag {
+            TypeTag::Vector(inner) => stack.push(inner.as_ref()),
+            TypeTag::Struct(s) => {
+                move_core_identifier_validity_check(s.module())?;
+                move_core_identifier_validity_check(s.name())?;
+                stack.extend(s.type_params());
+            }
+            TypeTag::Bool
+            | TypeTag::U8
+            | TypeTag::U16
+            | TypeTag::U32
+            | TypeTag::U64
+            | TypeTag::U128
+            | TypeTag::U256
+            | TypeTag::Address
+            | TypeTag::Signer => {}
+        }
+    }
+    Ok(())
+}
+
+/// Rejects an identifier that move-core rejects in a command: the module and
+/// function names and the type arguments of a Move call, or the element type
+/// of a `MakeMoveVector`.
+fn command_identifiers_validity_check(command: &Command) -> UserInputResult {
+    match command {
+        Command::MoveCall(call) => {
+            move_core_identifier_validity_check(&call.module)?;
+            move_core_identifier_validity_check(&call.function)?;
+            type_tags_identifiers_validity_check(&call.type_arguments)
+        }
+        Command::MakeMoveVector(MakeMoveVector {
+            type_tag: Some(type_tag),
+            ..
+        }) => type_tags_identifiers_validity_check([type_tag]),
+        Command::MakeMoveVector(MakeMoveVector { type_tag: None, .. })
+        | Command::TransferObjects(_)
+        | Command::SplitCoins(_)
+        | Command::MergeCoins(_)
+        | Command::Publish(_)
+        | Command::Upgrade(_) => Ok(()),
+        _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
+    }
+}
+
+/// Rejects an identifier that move-core rejects in the type arguments of a
+/// Move authenticator.
+pub(crate) fn move_authenticator_identifiers_validity_check(
+    authenticator: &impl MoveAuthenticatorExt,
+) -> UserInputResult {
+    type_tags_identifiers_validity_check(authenticator.type_args())
+}
+
 pub fn type_tag_validity_check(
     tag: &TypeTag,
     config: &ProtocolConfig,
@@ -346,7 +418,7 @@ impl CallArgExt for CallArg {
 }
 
 // Add package IDs, `ObjectId`, for types defined in modules.
-fn add_type_tag_packages(packages: &mut BTreeSet<ObjectId>, type_argument: &TypeTag) {
+pub(crate) fn add_type_tag_packages(packages: &mut BTreeSet<ObjectId>, type_argument: &TypeTag) {
     let mut stack = vec![type_argument];
     while let Some(cur) = stack.pop() {
         match cur {
@@ -550,6 +622,9 @@ impl CommandExt for Command {
             }
             _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
         };
+        if config.disallow_self_identifier_in_transactions() {
+            command_identifiers_validity_check(self)?;
+        }
 
         Ok(())
     }
@@ -1987,18 +2062,27 @@ pub struct TxValidityCheckContext<'a> {
     pub epoch: EpochId,
 }
 
-/// Merge every [`MoveAuthenticator`]'s input objects into `input_objects`.
+/// Merge every [`MoveAuthenticator`]'s input objects into `input_objects`,
+/// with the packages named by its type arguments if
+/// `include_type_arg_packages` is set.
 ///
 /// Objects not yet present are appended; for an object that appears in both
 /// sets the kinds are checked for consistency and unioned via
 /// [`InputObjectKind::left_union_with_checks`] (in particular, a shared object
 /// may differ in mutability but not in initial shared version).
+///
+/// The packages named by the type arguments are appended after every
+/// authenticator's objects, each only if its id is not present yet, so they
+/// never fail the merge. A type argument that names an object's id is rejected
+/// by the validity check, or when the id is read as a package.
 pub fn merge_authenticator_input_objects<'a>(
     move_authenticators: impl IntoIterator<Item = &'a MoveAuthenticator>,
+    include_type_arg_packages: bool,
     input_objects: &mut Vec<InputObjectKind>,
 ) -> UserInputResult<()> {
+    let mut type_arg_packages = Vec::new();
     for move_authenticator in move_authenticators {
-        for auth_object in move_authenticator.input_objects() {
+        for auth_object in move_authenticator.input_objects(false) {
             let entry = input_objects
                 .iter_mut()
                 .find(|o| o.object_id() == auth_object.object_id());
@@ -2007,6 +2091,14 @@ pub fn merge_authenticator_input_objects<'a>(
                 None => input_objects.push(auth_object),
                 Some(existing) => existing.left_union_with_checks(&auth_object)?,
             }
+        }
+        if include_type_arg_packages {
+            type_arg_packages.extend(move_authenticator.type_arg_packages());
+        }
+    }
+    for package_id in type_arg_packages {
+        if input_objects.iter().all(|o| o.object_id() != package_id) {
+            input_objects.push(InputObjectKind::MovePackage(package_id));
         }
     }
     Ok(())
@@ -2052,20 +2144,27 @@ pub trait SenderSignedTransactionAPI {
     fn validity_check(&self, context: &TxValidityCheckContext<'_>) -> Result<usize, IotaError>;
 
     /// Returns all unique input objects including those from
-    /// `MoveAuthenticator`s if any for reading, in the order the transaction
-    /// and then each authenticator name them.
+    /// `MoveAuthenticator`s if any for reading, with the packages named by
+    /// their type arguments if `include_type_arg_packages` is set, in the
+    /// order the transaction and then each authenticator name them.
     ///
     /// Although some shared objects(with a different mutability flag, for
     /// example) can be duplicated in the transaction and authenticators, we
     /// load them independently to make it possible to analyze the inputs in
     /// the transaction checkers.
-    fn collect_all_input_object_kind_for_reading(&self) -> IotaResult<Vec<InputObjectKind>>;
+    fn collect_all_input_object_kind_for_reading(
+        &self,
+        include_type_arg_packages: bool,
+    ) -> IotaResult<Vec<InputObjectKind>>;
 
-    /// Splits the provided input objects into groups:
+    /// Splits the provided input objects, read for the kinds
+    /// [`Self::collect_all_input_object_kind_for_reading`] returns, into
+    /// groups:
     /// 1. Input objects required by the transaction itself; may contain duplicates if an IOTA coin
     ///    is used both as an input and a gas coin.
-    /// 2. A list of input objects required by each `MoveAuthenticator`( including the object to
-    ///    authenticate) + the object to authenticate.
+    /// 2. A list of input objects required by each `MoveAuthenticator` (including the object to
+    ///    authenticate, and the packages named by its type arguments that were read and that the
+    ///    transaction does not name itself) + the object to authenticate.
     fn split_input_objects_into_groups_for_reading(
         &self,
         input_objects: InputObjects,
@@ -2101,7 +2200,11 @@ pub trait SenderSignedTransactionAPI {
     /// returned.
     ///
     /// Shared objects with the same ID but different versions are not allowed.
-    fn input_objects(&self) -> IotaResult<Vec<InputObjectKind>>;
+    ///
+    /// The packages named by the `MoveAuthenticator`s' type arguments are
+    /// included if `include_type_arg_packages` is set, each only if no other
+    /// input has its id.
+    fn input_objects(&self, include_type_arg_packages: bool) -> IotaResult<Vec<InputObjectKind>>;
 
     /// Checks if [`SenderSignedTransaction`] contains the `Random` object as an
     /// input.
@@ -2188,7 +2291,10 @@ impl SenderSignedTransactionAPI for SenderSignedTransaction {
         Ok(tx_size)
     }
 
-    fn collect_all_input_object_kind_for_reading(&self) -> IotaResult<Vec<InputObjectKind>> {
+    fn collect_all_input_object_kind_for_reading(
+        &self,
+        include_type_arg_packages: bool,
+    ) -> IotaResult<Vec<InputObjectKind>> {
         let mut seen = HashSet::new();
         Ok(self
             .transaction()
@@ -2197,7 +2303,9 @@ impl SenderSignedTransactionAPI for SenderSignedTransaction {
             .chain(
                 self.move_authenticators()
                     .into_iter()
-                    .flat_map(|authenticator| authenticator.input_objects()),
+                    .flat_map(|authenticator| {
+                        authenticator.input_objects(include_type_arg_packages)
+                    }),
             )
             .filter(|kind| seen.insert(*kind))
             .collect())
@@ -2212,9 +2320,8 @@ impl SenderSignedTransactionAPI for SenderSignedTransaction {
             .map(|o| (&o.input_object_kind, o))
             .collect::<HashMap<_, _>>();
 
-        let mut tx_input_objects: InputObjects = self
-            .transaction()
-            .input_objects()?
+        let tx_input_object_kinds = self.transaction().input_objects()?;
+        let mut tx_input_objects: InputObjects = tx_input_object_kinds
             .iter()
             .map(|k| {
                 input_objects_map
@@ -2232,14 +2339,24 @@ impl SenderSignedTransactionAPI for SenderSignedTransaction {
             self.move_authenticators()
                 .into_iter()
                 .map(|move_authenticator| {
+                    // The packages named by the type arguments were read only
+                    // if the protocol config makes them inputs. A package the
+                    // transaction names itself goes only to the transaction's group.
+                    let type_arg_packages = move_authenticator
+                        .type_arg_packages()
+                        .into_iter()
+                        .map(InputObjectKind::MovePackage)
+                        .filter(|k| !tx_input_object_kinds.contains(k))
+                        .filter_map(|k| input_objects_map.get(&k).map(|&r| r.clone()));
                     let authenticator_input_objects = move_authenticator
-                        .input_objects()
+                        .input_objects(false)
                         .iter()
                         .map(|k| {
                             input_objects_map.get(k).map(|&r| r.clone()).expect(
                                 "All authenticator input objects are expected to be present",
                             )
                         })
+                        .chain(type_arg_packages)
                         .collect::<Vec<_>>()
                         .into();
 
@@ -2307,13 +2424,17 @@ impl SenderSignedTransactionAPI for SenderSignedTransaction {
         input_objects
     }
 
-    fn input_objects(&self) -> IotaResult<Vec<InputObjectKind>> {
+    fn input_objects(&self, include_type_arg_packages: bool) -> IotaResult<Vec<InputObjectKind>> {
         // Can contain duplicates in case of using the same IOTA coin as an input and as
         // a gas coin.
         let mut input_objects = self.transaction().input_objects()?;
 
         // Add the `MoveAuthenticator` shared objects if any.
-        merge_authenticator_input_objects(self.move_authenticators(), &mut input_objects)?;
+        merge_authenticator_input_objects(
+            self.move_authenticators(),
+            include_type_arg_packages,
+            &mut input_objects,
+        )?;
 
         Ok(input_objects)
     }
@@ -2357,6 +2478,36 @@ fn check_user_signature_protocol_compatibility(
     }
 
     Ok(())
+}
+
+/// Rejects a signed transaction that carries a system transaction kind, or an
+/// identifier move-core rejects: in Move call module and function names, and in
+/// the type arguments of Move calls, `MakeMoveVector` commands and Move
+/// authenticators.
+///
+/// Independent of the protocol config, so the caller gates it; the consensus
+/// block verifier uses it to reject exactly the blocks a decoder that follows
+/// the move-core rules would fail to decode.
+pub fn transaction_identifiers_validity_check(
+    signed_tx: &SenderSignedTransaction,
+) -> UserInputResult {
+    // A system transaction needs no signature and can carry identifiers in
+    // genesis objects and events, so it is rejected instead of walked.
+    fp_ensure!(
+        !signed_tx.transaction().is_system_tx(),
+        UserInputError::Unsupported(
+            "SenderSignedTransaction must not contain system transaction".to_string()
+        )
+    );
+    if let TransactionKind::Programmable(pt) = signed_tx.transaction().kind() {
+        pt.commands
+            .iter()
+            .try_for_each(command_identifiers_validity_check)?;
+    }
+    signed_tx
+        .move_authenticators()
+        .into_iter()
+        .try_for_each(move_authenticator_identifiers_validity_check)
 }
 
 fn move_authenticators_validity_check(
@@ -2404,7 +2555,11 @@ fn move_authenticators_validity_check(
             );
         }
 
-        check_move_authenticators_input_consistency(tx, &authenticators)?;
+        check_move_authenticators_input_consistency(
+            tx,
+            &authenticators,
+            config.move_authenticator_type_arg_packages_as_inputs(),
+        )?;
     }
 
     Ok(())
@@ -2413,6 +2568,7 @@ fn move_authenticators_validity_check(
 fn check_move_authenticators_input_consistency(
     tx: &Transaction,
     authenticators: &[&MoveAuthenticator],
+    include_type_arg_packages: bool,
 ) -> IotaResult {
     // Get the input objects from the transaction data kind to skip the gas coins.
     let mut checked_inputs = tx
@@ -2424,7 +2580,7 @@ fn check_move_authenticators_input_consistency(
 
     authenticators.iter().try_for_each(|authenticator| {
         authenticator
-            .input_objects()
+            .input_objects(include_type_arg_packages)
             .iter()
             .try_for_each(|auth_input_object| {
                 match checked_inputs.get(&auth_input_object.object_id()) {
@@ -2975,6 +3131,19 @@ impl ObjectReadResult {
             ObjectReadResultKind::DeletedSharedObject(_, _) => None,
             ObjectReadResultKind::CancelledTransactionObject(_) => None,
             ObjectReadResultKind::UnreadSharedObject => None,
+        }
+    }
+
+    /// The version this read resolved to, including deletion and cancellation
+    /// markers.
+    pub fn version(&self) -> Version {
+        match &self.object {
+            ObjectReadResultKind::Object(object) => object.version(),
+            ObjectReadResultKind::DeletedSharedObject(version, _) => *version,
+            ObjectReadResultKind::CancelledTransactionObject(version) => *version,
+            ObjectReadResultKind::UnreadSharedObject => {
+                unreachable!("an unread shared object has no version to execute at")
+            }
         }
     }
 

@@ -160,8 +160,6 @@ pub struct IndexerMetrics {
     pub get_dynamic_fields_latency: Histogram, // not used
     pub get_dynamic_field_object_latency: Histogram, // not used
     pub get_protocol_config_latency: Histogram, // not used
-    // latency of event websocket subscription
-    pub subscription_process_latency: Histogram, // not used
     pub transaction_per_checkpoint: Histogram,
     // indexer state metrics
     pub db_conn_pool_size: IntGauge,
@@ -610,13 +608,6 @@ impl IndexerMetrics {
                 DB_UPDATE_QUERY_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
-            subscription_process_latency: register_histogram_with_registry!(
-                "subscription_process_latency",
-                "Time spent in process Websocket subscription",
-                JSON_RPC_LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
-            )
-            .unwrap(),
             transaction_per_checkpoint: register_histogram_with_registry!(
                 "transaction_per_checkpoint",
                 "Number of transactions per checkpoint",

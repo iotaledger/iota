@@ -1,0 +1,1908 @@
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+//! The RPC index store: the on-disk indexes the JSON-RPC and gRPC APIs read
+//! from. A store fills only the tables of its configured [`IndexGroup`]s,
+//! plus the digest rows (see `schema::HistoryBucket`) that checkpoint
+//! ingest reads to skip already-indexed transactions.
+//!
+//! [`jsonrpc_api`] and [`grpc_api`] add the read APIs, and [`live_scan`]
+//! fills the live-state tables from a live object scan or a formal-snapshot
+//! restore.
+
+pub mod grpc_api;
+pub mod jsonrpc_api;
+pub mod live_scan;
+pub mod schema;
+
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap},
+    ops::RangeInclusive,
+    path::{Path, PathBuf},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicU64, Ordering},
+    },
+    time::{Duration, Instant},
+};
+
+use iota_sdk_types::{
+    CheckpointContents, Owner, TransactionDigest, TransactionEffects, TransactionEvents,
+};
+use iota_types::{
+    base_types::TxSequenceNumber,
+    committee::EpochId,
+    effects::TransactionEffectsAPI,
+    error::{IotaError, IotaResult},
+    full_checkpoint_content::{CheckpointData, CheckpointTransaction},
+    messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber, VerifiedCheckpoint},
+    storage::{
+        DynamicFieldKey, PackageVersionInfo, PackageVersionKey,
+        error::{Error as StorageError, Kind as StorageErrorKind},
+    },
+    transaction::TransactionEnvelope,
+};
+use parking_lot::Mutex;
+use prometheus_filtered::{IntGauge, MetricLevel, Registry, register_int_gauge_with_registry};
+use tracing::{error, info, warn};
+use typed_store::{
+    TypedStoreError,
+    database::{Database, drop_tolerant_write_options, wait_for_database_close},
+    rocks::{
+        DBBatch, DBMap, DBMapTableConfigMap, DBOptions, MetricConf, ReadWriteOptions,
+        bulk_ingestion_options, default_db_options, list_tables, open_cf_opts, read_size_from_env,
+        safe_drop_db,
+    },
+    rocksdb,
+    traits::Map,
+};
+
+pub use self::schema::{IndexGroup, TotalBalance};
+use self::{
+    jsonrpc_api::{
+        BalanceCaches, CoinBalanceChanges, JsonRpcMetrics,
+        invalidate_balance_caches_instead_of_updating,
+    },
+    live_scan::{LiveObjectSetIndexer, SstFiles},
+    schema::{
+        CURRENT_DB_VERSION, CoinIndexInfo, CoinIndexKey, HISTORY_BUCKET_DIR, HISTORY_CF_PREFIX,
+        HistoryBucket, IndexStoreTables, IndexStoreTablesReadOnly, MetadataInfo, OwnerIndexKey,
+        history_cf_epoch, history_cf_name, is_dynamic_field, merge_coin_into,
+        transaction_index_data, try_create_coin_index_info, try_create_package_version_info,
+        try_create_regulated_coin_info,
+    },
+};
+use crate::{
+    authority::{
+        AuthorityStore,
+        historic_objects::{get_transaction_input_objects, get_transaction_output_objects},
+    },
+    checkpoints::CheckpointStore,
+    epoch_buckets::{
+        self, BucketPaths, BucketReopen, EpochBuckets, PrunedBuckets, absent_if_dropped,
+        historic_root,
+    },
+    index_rebuild_cancellation::{RebuildCancelled, is_cancelled},
+    par_index_live_object_set::par_index_live_object_set,
+    progress_logger::{PROGRESS_REPORT_INTERVAL, progress_line},
+};
+
+const ENV_VAR_HISTORY_BLOCK_CACHE_SIZE_MB: &str = "RPC_INDEX_HISTORY_BLOCK_CACHE_MB";
+const DEFAULT_HISTORY_BLOCK_CACHE_SIZE_MB: usize = 512;
+const ENV_VAR_OWNER_BLOCK_CACHE_SIZE_MB: &str = "OWNER_INDEX_BLOCK_CACHE_MB";
+const DEFAULT_OWNER_BLOCK_CACHE_SIZE_MB: usize = 2 * 1024;
+
+/// How many threads one compaction of the index database may be split
+/// across.
+const MAX_SUBCOMPACTIONS: u32 = 8;
+
+/// The index database directories of earlier releases, superseded by
+/// [`schema::RPC_INDEXES_DIR`].
+const LEGACY_INDEX_DIRS: [&str; 3] = ["indexes", "jsonrpc_indexes", "grpc_indexes"];
+
+/// Removes the index databases of earlier releases from `db_path`; this store
+/// cannot reuse them.
+pub fn remove_legacy_index_dirs(db_path: &Path) -> std::io::Result<()> {
+    for dir in LEGACY_INDEX_DIRS {
+        let legacy_dir = db_path.join(dir);
+        if legacy_dir.exists() {
+            info!("removing the legacy index database at {legacy_dir:?}");
+            std::fs::remove_dir_all(&legacy_dir)?;
+        }
+    }
+    Ok(())
+}
+
+/// The disk space [`remove_legacy_index_dirs`] frees in `db_path` on the file
+/// system `counted_for` is on. Space freed elsewhere does not count, nor does
+/// space on a file system that cannot be told apart.
+pub fn legacy_index_dirs_size(db_path: &Path, counted_for: &Path) -> u64 {
+    fn size(path: &Path) -> u64 {
+        let Ok(metadata) = std::fs::symlink_metadata(path) else {
+            return 0;
+        };
+        if !metadata.is_dir() {
+            return metadata.len();
+        }
+        std::fs::read_dir(path).map_or(0, |entries| {
+            entries
+                .filter_map(Result::ok)
+                .map(|entry| size(&entry.path()))
+                .sum()
+        })
+    }
+    LEGACY_INDEX_DIRS
+        .iter()
+        .map(|dir| db_path.join(dir))
+        .filter(|dir| {
+            dir.exists() && typed_store::rocks::on_same_file_system(dir, counted_for) == Some(true)
+        })
+        .map(|dir| size(&dir))
+        .sum()
+}
+
+/// A staged index update for one checkpoint, waiting for its in-order commit.
+struct PendingCheckpointUpdate {
+    batch: DBBatch,
+    /// The checkpoint's coin balance changes, used at commit time to derive
+    /// the JSON-RPC balance cache updates. Empty when that group is off.
+    coin_changes: CoinBalanceChanges,
+}
+
+struct RpcIndexesMetrics {
+    /// Lowest checkpoint the history backfill has replayed so far. Keeps its
+    /// final value after the backfill stops, whatever pruning drops later.
+    history_backfill_lowest_replayed_checkpoint: IntGauge,
+    /// 1 while the background history backfill is running, 0 otherwise.
+    history_backfill_running: IntGauge,
+}
+
+impl RpcIndexesMetrics {
+    fn new(registry: &Registry) -> Self {
+        Self {
+            // How far the backfill got is visible nowhere else, so keep it
+            // above the default metric filter.
+            history_backfill_lowest_replayed_checkpoint: register_int_gauge_with_registry!(
+                "rpc_index_history_backfill_lowest_replayed_checkpoint",
+                "Lowest checkpoint the RPC index history backfill has replayed, keeping its \
+                 final value after the backfill stops; unaffected by later pruning",
+                registry;
+                MetricLevel::Warn,
+            )
+            .unwrap(),
+            history_backfill_running: register_int_gauge_with_registry!(
+                "rpc_index_history_backfill_running",
+                "1 while the RPC index history backfill is running, 0 otherwise",
+                registry;
+                MetricLevel::Warn,
+            )
+            .unwrap(),
+        }
+    }
+}
+
+/// The pieces produced by opening the index database.
+struct OpenedIndexDb {
+    tables: IndexStoreTables,
+    db: Arc<Database>,
+    history_cf_options: rocksdb::Options,
+    history_paths: BucketPaths,
+    /// Every history bucket found on disk, before the retention floor is
+    /// applied by [`EpochBuckets::open`].
+    history: BTreeMap<EpochId, Arc<HistoryBucket>>,
+}
+
+/// The store backing both the JSON-RPC and gRPC APIs. See the
+/// [module docs][self].
+pub struct RpcIndexesStore {
+    tables: IndexStoreTables,
+    /// The API groups whose tables this store fills.
+    groups: BTreeSet<IndexGroup>,
+    /// The retained history buckets.
+    history: EpochBuckets<HistoryBucket>,
+    next_sequence_number: AtomicU64,
+    metrics: RpcIndexesMetrics,
+    /// Balance caches backing the JSON-RPC coin reads; unused unless the
+    /// store serves [`IndexGroup::JsonRpc`].
+    caches: BalanceCaches,
+    jsonrpc_metrics: JsonRpcMetrics,
+    max_type_length: u64,
+    /// The staged updates of the checkpoints indexed but not yet committed,
+    /// in checkpoint order.
+    pending_updates: Mutex<BTreeMap<CheckpointSequenceNumber, PendingCheckpointUpdate>>,
+    history_backfill_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
+    /// Stops the startup rebuild and the background history backfill.
+    cancelled: Arc<AtomicBool>,
+    /// How many historic epochs of history to retain on top of the current
+    /// one (`num_epochs_to_retain_for_indexes`), for every history table and
+    /// the history backfill. `None` when index pruning is off.
+    epochs_to_retain: Option<u64>,
+    /// The index watermark when the store was opened. Checkpoints up to it
+    /// are in the store already, and executing them again stages nothing.
+    indexed_at_open: Option<CheckpointSequenceNumber>,
+    /// The coin rows of the staged updates not yet written, with the
+    /// checkpoint that staged each. A coin type's metadata objects can be
+    /// created in different checkpoints, so a checkpoint's row is merged onto
+    /// a row staged before it, which the coin table does not show yet.
+    staged_coin_rows: Mutex<HashMap<CoinIndexKey, (CheckpointSequenceNumber, CoinIndexInfo)>>,
+}
+
+/// The highest checkpoint whose outputs are in the live object set:
+/// `executed`, or a later one if every checkpoint up to it has all of its
+/// transactions executed, which `all_executed` answers. A node can stop after
+/// committing a checkpoint's outputs but before recording it as executed, and
+/// the checkpoints it then executes again must not be applied a second time on
+/// top of a rebuild that scanned their outputs already.
+pub(crate) fn highest_checkpoint_with_committed_outputs(
+    checkpoint_store: &CheckpointStore,
+    executed: Option<CheckpointSequenceNumber>,
+    all_executed: impl Fn(&[TransactionDigest]) -> IotaResult<bool>,
+) -> Result<Option<CheckpointSequenceNumber>, StorageError> {
+    let Some(mut highest) = executed else {
+        return Ok(None);
+    };
+    loop {
+        let next = highest + 1;
+        let Some(summary) = checkpoint_store.get_checkpoint_by_sequence_number(next)? else {
+            return Ok(Some(highest));
+        };
+        let Some(contents) = checkpoint_store.get_checkpoint_contents(&summary.contents_digest)?
+        else {
+            return Ok(Some(highest));
+        };
+        let digests: Vec<_> = contents.iter().map(|digests| digests.transaction).collect();
+        if !all_executed(&digests).map_err(StorageError::custom)? {
+            return Ok(Some(highest));
+        }
+        highest = next;
+    }
+}
+
+/// Whether an open or a replay failed for a reason outside the database
+/// itself: another process holds it, or the host refuses its files or the
+/// space to write. Wiping the database fixes none of these.
+fn is_host_error(error: &dyn std::fmt::Display) -> bool {
+    const HOST_ERRORS: [&str; 7] = [
+        "While lock file",
+        "lock hold by current process",
+        "Too many open files",
+        "Permission denied",
+        "No space left on device",
+        "Disk quota exceeded",
+        "Read-only file system",
+    ];
+    let message = error.to_string();
+    HOST_ERRORS
+        .iter()
+        .any(|host_error| message.contains(host_error))
+}
+
+/// The options to open every column family of the index database at `path`
+/// with, for a tool that opens it directly: each history bucket's under the
+/// directory its files are in, the others' as RocksDB's defaults.
+/// `historic_db_path` is as for [`RpcIndexesStore::new`].
+pub fn column_family_options(
+    path: &Path,
+    historic_db_path: Option<&Path>,
+) -> IotaResult<Vec<(String, rocksdb::Options)>> {
+    let history_cf_options = epoch_buckets::history_cf_options(
+        &default_db_options(),
+        DEFAULT_HISTORY_BLOCK_CACHE_SIZE_MB,
+    );
+    let history_paths =
+        BucketPaths::new(&historic_root(path, historic_db_path), HISTORY_BUCKET_DIR);
+    let existing_cfs =
+        list_tables(path.to_path_buf()).map_err(|e| IotaError::Storage(e.to_string()))?;
+    Ok(existing_cfs
+        .into_iter()
+        .map(|cf_name| {
+            let options = match history_cf_epoch(&cf_name) {
+                Some(epoch) => history_paths.existing_cf_options(&history_cf_options, epoch),
+                None => rocksdb::Options::default(),
+            };
+            (cf_name, options)
+        })
+        .collect())
+}
+
+impl IndexStoreTables {
+    /// Opens the tables read-only, for inspecting a store another process
+    /// may hold open. `historic_db_path` is as for [`RpcIndexesStore::new`].
+    pub fn open_readonly(
+        path: &Path,
+        historic_db_path: Option<&Path>,
+    ) -> IotaResult<IndexStoreTablesReadOnly> {
+        let db_options = default_db_options();
+        let history_cf_options =
+            epoch_buckets::history_cf_options(&db_options, DEFAULT_HISTORY_BLOCK_CACHE_SIZE_MB);
+        let history_paths =
+            BucketPaths::new(&historic_root(path, historic_db_path), HISTORY_BUCKET_DIR);
+        let existing_cfs =
+            list_tables(path.to_path_buf()).map_err(|e| IotaError::Storage(e.to_string()))?;
+        let table_options = existing_cfs
+            .into_iter()
+            .filter_map(|cf_name| {
+                let epoch = history_cf_epoch(&cf_name)?;
+                let options = DBOptions {
+                    options: history_paths.existing_cf_options(&history_cf_options, epoch),
+                    rw_options: db_options.rw_options.clone(),
+                };
+                Some((cf_name, options))
+            })
+            .collect();
+        Ok(Self::get_read_only_handle_with_table_options(
+            path.to_path_buf(),
+            None,
+            None,
+            MetricConf::new("rpc-index-readonly"),
+            DBMapTableConfigMap::new(table_options),
+        ))
+    }
+
+    /// Opens the tables with bulk-ingestion options (unordered writes, no
+    /// automatic compaction) for a full rebuild, deleting anything left under
+    /// `path` first, and returns the column-family options every table is
+    /// open with, for the SST files written for them. Writes must be flushed
+    /// before the database closes, and serving queries requires a reopen with
+    /// default options.
+    fn open_for_bulk_ingestion(path: PathBuf) -> (Self, rocksdb::Options) {
+        // Leftover column families would be opened with default options, and
+        // `safe_drop_db` can leave files RocksDB does not recognize.
+        if path.exists() && path.read_dir().is_ok_and(|mut dir| dir.next().is_some()) {
+            warn!("clearing leftover files under {path:?} before the index rebuild");
+            std::fs::remove_dir_all(&path)
+                .expect("unable to clear the index database directory for the rebuild");
+        }
+        let bulk_options = bulk_ingestion_options();
+        let table_config = bulk_options.table_config(Self::describe_tables().into_keys());
+        let tables = Self::open_tables_read_write(
+            path,
+            MetricConf::new("rpc-index"),
+            Some(bulk_options.db_options),
+            Some(table_config),
+        );
+        (tables, bulk_options.column_family_options.options)
+    }
+
+    /// Seeds the `meta` row on the first open of an empty database, so a
+    /// fresh store on a node with no executed checkpoints needs no rebuild.
+    ///
+    /// A database with data but no `meta` row is of an older schema whose
+    /// content cannot be trusted, so it is left unseeded and gets rebuilt.
+    fn seed_meta(&self, groups: &BTreeSet<IndexGroup>) -> IotaResult {
+        if self.meta.get(&())?.is_some() {
+            return Ok(());
+        }
+        if self.owner.is_empty() {
+            self.meta.insert(
+                &(),
+                &MetadataInfo {
+                    version: CURRENT_DB_VERSION,
+                    groups: groups.clone(),
+                },
+            )?;
+        }
+        Ok(())
+    }
+
+    /// Whether the store must be wiped and rebuilt: a schema mismatch, an
+    /// enabled group `meta` does not record, or a missing watermark. Read
+    /// errors propagate rather than wipe a healthy store or adopt a stale one.
+    fn needs_to_do_initialization(
+        &self,
+        checkpoint_store: &CheckpointStore,
+        groups: &BTreeSet<IndexGroup>,
+    ) -> IotaResult<bool> {
+        let stale = match self.meta.get(&())? {
+            Some(metadata) => {
+                metadata.version != CURRENT_DB_VERSION || !groups.is_subset(&metadata.groups)
+            }
+            None => true,
+        };
+
+        Ok(stale || self.is_watermark_missing(checkpoint_store)?)
+    }
+
+    /// Whether the store holds data, or the node has executed checkpoints,
+    /// but no watermark records what the store covers, as an interrupted
+    /// rebuild leaves it.
+    fn is_watermark_missing(&self, checkpoint_store: &CheckpointStore) -> IotaResult<bool> {
+        if self.watermark.get(&())?.is_some() {
+            return Ok(false);
+        }
+        // Not `is_empty`, which reads an unreadable table as non-empty.
+        let has_data = self.owner.safe_iter().next().transpose()?.is_some();
+        Ok(has_data
+            || checkpoint_store
+                .get_highest_executed_checkpoint_seq_number()?
+                .is_some())
+    }
+
+    /// The executed checkpoints past the index watermark, which the open
+    /// indexes again. A checkpoint's index commit is written before the
+    /// checkpoint is recorded as executed, but not synced, so a power loss can
+    /// lose the last commits and keep those records.
+    ///
+    /// A watermark ahead of the executed checkpoint needs nothing: after an
+    /// unclean stop it can be ahead by up to the execution concurrency, and
+    /// after a power loss also ahead of the checkpoints the checkpoint store
+    /// kept. Those checkpoints are executed again with the same outputs, and
+    /// the index skips them as already indexed.
+    fn checkpoints_to_replay(
+        &self,
+        checkpoint_store: &CheckpointStore,
+    ) -> IotaResult<Option<RangeInclusive<CheckpointSequenceNumber>>> {
+        let Some(watermark) = self.watermark.get(&())? else {
+            return Ok(None);
+        };
+        let Some(executed) = checkpoint_store.get_highest_executed_checkpoint_seq_number()? else {
+            return Ok(None);
+        };
+        Ok((watermark < executed).then(|| watermark + 1..=executed))
+    }
+
+    /// Rebuilds the live-state tables of `groups` from a parallel scan of the
+    /// live object set. The database must be empty.
+    ///
+    /// Writes only `meta`; the caller adopts the result with
+    /// [`Self::adopt_bulk_ingestion`] at the returned checkpoint, the highest
+    /// one whose outputs the scanned live object set holds.
+    #[tracing::instrument(skip_all)]
+    fn init(
+        &mut self,
+        authority_store: &AuthorityStore,
+        checkpoint_store: &CheckpointStore,
+        groups: &BTreeSet<IndexGroup>,
+        sst_files: SstFiles,
+        cancelled: &AtomicBool,
+    ) -> Result<Option<CheckpointSequenceNumber>, StorageError> {
+        info!("Initializing RPC indexes");
+
+        self.meta.insert(
+            &(),
+            &MetadataInfo {
+                version: CURRENT_DB_VERSION,
+                groups: groups.clone(),
+            },
+        )?;
+
+        let indexed_through = highest_checkpoint_with_committed_outputs(
+            checkpoint_store,
+            checkpoint_store.get_highest_executed_checkpoint_seq_number()?,
+            |digests| {
+                Ok(authority_store
+                    .multi_get_executed_effects_digests(digests)?
+                    .iter()
+                    .all(Option::is_some))
+            },
+        )?;
+
+        // The history tables are filled later, by `backfill_history`.
+        let indexer = LiveObjectSetIndexer::new(self, groups, sst_files);
+        par_index_live_object_set(authority_store, &indexer, cancelled)?;
+        indexer.finish()?;
+
+        info!("Finished initializing RPC indexes");
+
+        Ok(indexed_through)
+    }
+
+    /// Makes the bulk-ingested data durable and writes the watermarks that
+    /// let a node open the store in place instead of rebuilding it.
+    /// `highest_executed` is the highest checkpoint the build covers; with
+    /// `None`, no index watermark is written, meaning nothing is indexed.
+    fn adopt_bulk_ingestion(
+        &self,
+        highest_executed: Option<CheckpointSequenceNumber>,
+    ) -> Result<(), TypedStoreError> {
+        // Flush before writing the WAL-durable watermarks, or a crash could
+        // leave them over unflushed data. Flushing one table flushes every
+        // column family.
+        self.meta.flush_all()?;
+        self.history_watermark
+            .insert(&(), &highest_executed.map_or(0, |c| c.saturating_add(1)))?;
+        if let Some(highest_executed) = highest_executed {
+            self.watermark.insert(&(), &highest_executed)?;
+        }
+        Ok(())
+    }
+
+    /// Appends the live-state changes of a checkpoint's `transactions` for
+    /// `groups` to `batch`, collects the JSON-RPC balance cache updates in
+    /// `coin_changes`, and the coin metadata objects they create in
+    /// `coin_rows`, which the caller writes.
+    ///
+    /// The rows a change replaces are derived from the object's previous
+    /// version, since an owner key carries the object's type and, for a coin,
+    /// its balance.
+    fn index_objects(
+        &self,
+        transactions: &[&CheckpointTransaction],
+        groups: &BTreeSet<IndexGroup>,
+        batch: &mut DBBatch,
+        coin_changes: &mut CoinBalanceChanges,
+        coin_rows: &mut HashMap<CoinIndexKey, CoinIndexInfo>,
+    ) -> IotaResult {
+        let index_jsonrpc = groups.contains(&IndexGroup::JsonRpc);
+        let index_grpc = groups.contains(&IndexGroup::Grpc);
+        let mut package_versions: Vec<(PackageVersionKey, PackageVersionInfo)> = Vec::new();
+
+        for tx in transactions {
+            for removed_object in tx.removed_objects_pre_version() {
+                match removed_object.owner {
+                    Owner::Address(address) => {
+                        if let Some((owner_key, _)) =
+                            OwnerIndexKey::for_object(address, removed_object)
+                        {
+                            batch.delete_batch(&self.owner, [owner_key])?;
+                        }
+                        if index_jsonrpc {
+                            coin_changes.record_removed(address, removed_object);
+                        }
+                    }
+                    Owner::Object(object_id) => {
+                        batch.delete_batch(
+                            &self.dynamic_field,
+                            [DynamicFieldKey::new(object_id, removed_object.id())],
+                        )?;
+                    }
+                    Owner::Shared(_) | Owner::Immutable => {}
+                    _ => {
+                        unimplemented!("a new Owner enum variant was added and needs to be handled")
+                    }
+                }
+            }
+
+            for (object, old_object) in tx.changed_objects() {
+                if let Some(old_object) = old_object {
+                    match old_object.owner {
+                        Owner::Address(address) => {
+                            if let Some((owner_key, _)) =
+                                OwnerIndexKey::for_object(address, old_object)
+                            {
+                                batch.delete_batch(&self.owner, [owner_key])?;
+                            }
+                            if index_jsonrpc {
+                                coin_changes.record_removed(address, old_object);
+                            }
+                        }
+                        Owner::Object(object_id) => {
+                            if old_object.owner != object.owner {
+                                batch.delete_batch(
+                                    &self.dynamic_field,
+                                    [DynamicFieldKey::new(object_id, old_object.id())],
+                                )?;
+                            }
+                        }
+                        Owner::Shared(_) | Owner::Immutable => {}
+                        _ => unimplemented!(
+                            "a new Owner enum variant was added and needs to be handled"
+                        ),
+                    }
+                }
+
+                match object.owner {
+                    Owner::Address(owner) => {
+                        if let Some((owner_key, owner_info)) =
+                            OwnerIndexKey::for_object(owner, object)
+                        {
+                            batch.insert_batch(&self.owner, [(owner_key, owner_info)])?;
+                        }
+                        if index_jsonrpc {
+                            coin_changes.record_written(owner, object);
+                        }
+                    }
+                    Owner::Object(parent) => {
+                        if is_dynamic_field(object) {
+                            batch.insert_batch(
+                                &self.dynamic_field,
+                                [(DynamicFieldKey::new(parent, object.id()), ())],
+                            )?;
+                        }
+                    }
+                    Owner::Shared(_) | Owner::Immutable => {}
+                    _ => {
+                        unimplemented!("a new Owner enum variant was added and needs to be handled")
+                    }
+                }
+            }
+
+            // These rows hold only object ids and package versions, which are
+            // fixed when the object is created.
+            for object in tx.created_objects() {
+                if let Some((key, info)) = try_create_coin_index_info(object) {
+                    merge_coin_into(coin_rows, key, info);
+                }
+                if let Some((key, object_id)) = try_create_regulated_coin_info(object) {
+                    merge_coin_into(
+                        coin_rows,
+                        key,
+                        CoinIndexInfo {
+                            regulated_coin_metadata_object_id: Some(object_id),
+                            ..Default::default()
+                        },
+                    );
+                }
+                if index_grpc {
+                    if let Some((key, info)) = try_create_package_version_info(object) {
+                        package_versions.push((key, info));
+                    }
+                }
+            }
+        }
+
+        batch.insert_batch(&self.package_version, package_versions)?;
+        Ok(())
+    }
+}
+
+impl RpcIndexesStore {
+    /// Opens the store, wiping it and rebuilding the live-state tables first
+    /// when the indexes are missing or stale.
+    ///
+    /// The history tables are filled by a background replay after this
+    /// returns; until it finishes, history-backed queries cover a growing
+    /// range of recent checkpoints. `epochs_to_retain` also bounds the replay.
+    ///
+    /// Checkpoints executed past the index watermark, whose index commits a
+    /// power loss lost, are indexed again before this returns; the store is
+    /// rebuilt instead when their data is gone.
+    ///
+    /// Setting `cancelled` abandons a rebuild or such a replay running here,
+    /// failing the open, and stops the background replay. The next open
+    /// rebuilds the store, or resumes the replay where it stopped.
+    ///
+    /// `historic_db_path` is the root the history buckets keep their files
+    /// under, and must be the same on every open of a database; a node names
+    /// [`epoch_buckets::HISTORIC_DB_DIR`] in its live database directory.
+    /// Unset, the root is that directory in `path` itself.
+    pub async fn new(
+        path: PathBuf,
+        historic_db_path: Option<&Path>,
+        registry: &Registry,
+        groups: BTreeSet<IndexGroup>,
+        max_type_length: Option<u64>,
+        epochs_to_retain: Option<u64>,
+        authority_store: &Arc<AuthorityStore>,
+        checkpoint_store: &Arc<CheckpointStore>,
+        cancelled: Arc<AtomicBool>,
+    ) -> Result<Arc<Self>, StorageError> {
+        let historic_root = historic_root(&path, historic_db_path);
+        // An unopenable database is rebuilt rather than crash-looping the
+        // node, but only after one retry, so a transient error keeps it.
+        let mut opened = match Self::open_index_db(&path, &historic_root) {
+            Ok(opened) => Some(opened),
+            Err(first) => {
+                warn!("unable to open the RPC index database, retrying once: {first}");
+                match Self::open_index_db(&path, &historic_root) {
+                    Ok(opened) => Some(opened),
+                    Err(e) if is_host_error(&e) => {
+                        return Err(StorageError::custom(format!(
+                            "unable to open the RPC index database at {}: {e}; a rebuild \
+                             would not help, so the database is kept",
+                            path.display()
+                        )));
+                    }
+                    Err(e) => {
+                        warn!("unable to open the RPC index database, wiping and rebuilding: {e}");
+                        None
+                    }
+                }
+            }
+        };
+
+        if let Some(opened) = &opened {
+            opened
+                .tables
+                .seed_meta(&groups)
+                .map_err(StorageError::custom)?;
+        }
+
+        // Tells operators the node is rebuilding, not hung. Registered even
+        // without a rebuild, so that reads as 0 rather than a missing series.
+        let rebuild_gauge = register_int_gauge_with_registry!(
+            "rpc_index_rebuild_in_progress",
+            "1 while the RPC index store is being rebuilt at startup",
+            registry;
+            MetricLevel::Warn,
+        )
+        .expect("failed to register the RPC index rebuild gauge");
+
+        let mut needs_initialization = match &opened {
+            None => true,
+            Some(opened) => opened
+                .tables
+                .needs_to_do_initialization(checkpoint_store, &groups)
+                .map_err(StorageError::custom)?,
+        };
+        if let Some(lost) = match &opened {
+            Some(opened) if !needs_initialization => opened
+                .tables
+                .checkpoints_to_replay(checkpoint_store)
+                .map_err(StorageError::custom)?,
+            _ => None,
+        } {
+            let to_replay = opened.take().expect("checked above");
+            opened = Self::replay_lost_checkpoints(
+                to_replay,
+                lost,
+                &path,
+                &historic_root,
+                &groups,
+                max_type_length,
+                epochs_to_retain,
+                authority_store,
+                checkpoint_store,
+                &cancelled,
+            )
+            .await?;
+            needs_initialization = opened.is_none();
+        }
+        if needs_initialization {
+            rebuild_gauge.set(1);
+            let (init_tables, table_options) = {
+                drop(opened);
+                // `DB::destroy` fails on a database it cannot parse, the very
+                // state a rebuild recovers from.
+                if let Err(e) = safe_drop_db(path.clone(), Duration::from_secs(30)).await {
+                    warn!("unable to destroy the old RPC index database ({e}), deleting it");
+                    std::fs::remove_dir_all(&path).map_err(|e| {
+                        StorageError::custom(format!(
+                            "unable to delete the old RPC index database: {e}"
+                        ))
+                    })?;
+                }
+                // The history lives outside the database directory, so the
+                // wipe leaves it. No bucket of it is left to read it, and the
+                // rebuild would otherwise hold its disk until it finished.
+                BucketPaths::new(&historic_root, HISTORY_BUCKET_DIR)
+                    .remove_dirs_without_bucket(|_| false);
+
+                IndexStoreTables::open_for_bulk_ingestion(path.clone())
+            };
+
+            // The rebuild scans and writes RocksDB for a long time; keep it
+            // off the async runtime's worker threads.
+            let (init_tables, initialized) = tokio::task::spawn_blocking({
+                let authority_store = authority_store.clone();
+                let checkpoint_store = checkpoint_store.clone();
+                let cancelled = cancelled.clone();
+                let groups = groups.clone();
+                let path = path.clone();
+                move || {
+                    let mut init_tables = init_tables;
+                    let initialized = SstFiles::new(
+                        &path,
+                        &table_options,
+                        crate::par_index_live_object_set::TASKS,
+                    )
+                    .and_then(|sst_files| {
+                        init_tables.init(
+                            &authority_store,
+                            &checkpoint_store,
+                            &groups,
+                            sst_files,
+                            &cancelled,
+                        )
+                    });
+                    (init_tables, initialized)
+                }
+            })
+            .await
+            .expect("RPC index initialization task failed");
+
+            match initialized {
+                Ok(indexed_through) => init_tables
+                    .adopt_bulk_ingestion(indexed_through)
+                    .map_err(StorageError::custom)?,
+                // Keyed on the error, not on the flag: a real failure that
+                // races the shutdown must stay a failure.
+                Err(e) if is_cancelled(&e) => {
+                    let weak_db = init_tables.meta.db.close_handle();
+                    drop(init_tables);
+                    if !wait_for_database_close(weak_db).await {
+                        warn!("the cancelled RPC index rebuild left its database open");
+                    }
+                    return Err(RebuildCancelled::error(format!(
+                        "the RPC index rebuild was cancelled by shutdown: {e}"
+                    )));
+                }
+                Err(e) => {
+                    return Err(StorageError::custom(format!(
+                        "unable to initialize the RPC index: {e}"
+                    )));
+                }
+            }
+
+            let weak_db = init_tables.meta.db.close_handle();
+            drop(init_tables);
+            if !wait_for_database_close(weak_db).await {
+                panic!("unable to reopen DB after indexing");
+            }
+
+            let reopened =
+                Self::open_index_db(&path, &historic_root).map_err(StorageError::custom)?;
+
+            let stored_version = reopened
+                .tables
+                .meta
+                .get(&())
+                .map_err(StorageError::custom)?
+                .ok_or_else(|| {
+                    StorageError::custom("the rebuilt RPC index database has no metadata")
+                })?;
+            assert_eq!(
+                stored_version.version, CURRENT_DB_VERSION,
+                "database version mismatch after flush and reopen: expected {}, found {}",
+                CURRENT_DB_VERSION, stored_version.version
+            );
+            opened = Some(reopened);
+            rebuild_gauge.set(0);
+        }
+        let opened = opened.expect("the index database is open on both paths above");
+
+        // Record the groups this open maintains, so re-enabling a group left
+        // out here rebuilds instead of adopting tables frozen at this point.
+        // Written before the store exists, so nothing is indexed in between.
+        let recorded = opened.tables.meta.get(&()).map_err(StorageError::custom)?;
+        if recorded.is_none_or(|metadata| metadata.groups != groups) {
+            opened
+                .tables
+                .meta
+                .insert(
+                    &(),
+                    &MetadataInfo {
+                        version: CURRENT_DB_VERSION,
+                        groups: groups.clone(),
+                    },
+                )
+                .map_err(StorageError::custom)?;
+        }
+
+        // A store rebuilt without local history has no rows to derive the
+        // transaction total from, so take it from the watermark's checkpoint,
+        // or, when the checkpoint store lost it (see
+        // `checkpoints_to_replay`), from the newest checkpoint it
+        // holds below it; replaying the checkpoints up to the watermark raises
+        // the total again before anything new is indexed.
+        let anchor = match opened
+            .tables
+            .watermark
+            .get(&())
+            .map_err(StorageError::custom)?
+        {
+            None => 0,
+            Some(watermark) => {
+                let at_watermark = match checkpoint_store
+                    .get_checkpoint_by_sequence_number(watermark)
+                    .map_err(StorageError::custom)?
+                {
+                    Some(checkpoint) => Some(checkpoint),
+                    None => checkpoint_store
+                        .get_highest_verified_checkpoint()
+                        .map_err(StorageError::custom)?
+                        .filter(|checkpoint| checkpoint.sequence_number < watermark),
+                };
+                at_watermark.map_or(0, |checkpoint| checkpoint.network_total_transactions)
+            }
+        };
+
+        let store = Arc::new(Self::finish_open(
+            opened,
+            registry,
+            groups,
+            max_type_length,
+            anchor,
+            cancelled,
+            epochs_to_retain,
+        )?);
+        store.spawn_history_backfill(authority_store.clone(), checkpoint_store.clone());
+        Ok(store)
+    }
+
+    /// Indexes the executed checkpoints `lost` again, through a store opened
+    /// on `opened` for the purpose, and returns the database reopened. Returns
+    /// `None`, for a rebuild, when the replay fails for a reason a rebuild
+    /// fixes, as when the data of a checkpoint is gone; fails on a shutdown and
+    /// on an error of the host, which keeps the database.
+    async fn replay_lost_checkpoints(
+        opened: OpenedIndexDb,
+        lost: RangeInclusive<CheckpointSequenceNumber>,
+        path: &Path,
+        historic_root: &Path,
+        groups: &BTreeSet<IndexGroup>,
+        max_type_length: Option<u64>,
+        epochs_to_retain: Option<u64>,
+        authority_store: &Arc<AuthorityStore>,
+        checkpoint_store: &Arc<CheckpointStore>,
+        cancelled: &Arc<AtomicBool>,
+    ) -> Result<Option<OpenedIndexDb>, StorageError> {
+        // Its metrics go to a registry of their own, since the store this open
+        // returns registers them again. It numbers transactions from the
+        // checkpoint summaries, so it needs no transaction total to start
+        // from.
+        let store = Arc::new(
+            Self::finish_open(
+                opened,
+                &Registry::default(),
+                groups.clone(),
+                max_type_length,
+                0,
+                cancelled.clone(),
+                epochs_to_retain,
+            )
+            .map_err(StorageError::custom)?,
+        );
+        let replayed = tokio::task::spawn_blocking({
+            let store = store.clone();
+            let authority_store = authority_store.clone();
+            let checkpoint_store = checkpoint_store.clone();
+            let lost = lost.clone();
+            move || store.replay_checkpoints(lost, &authority_store, &checkpoint_store)
+        })
+        .await
+        .expect("RPC index replay task failed");
+
+        let weak_db = store.tables.meta.db.close_handle();
+        drop(store);
+        if !wait_for_database_close(weak_db).await {
+            return Err(StorageError::custom(
+                "the RPC index database stayed open after the replay",
+            ));
+        }
+        match replayed {
+            Ok(()) => Self::open_index_db(path, historic_root)
+                .map(Some)
+                .map_err(StorageError::custom),
+            Err(e) if is_cancelled(&e) => Err(e),
+            Err(e) if is_host_error(&e) => Err(StorageError::custom(format!(
+                "unable to index the checkpoints {}..={} again: {e}; a rebuild would not help, \
+                 so the database is kept",
+                lost.start(),
+                lost.end()
+            ))),
+            Err(e) => {
+                warn!(
+                    "unable to index the checkpoints {}..={} again, rebuilding the RPC index: {e}",
+                    lost.start(),
+                    lost.end()
+                );
+                Ok(None)
+            }
+        }
+    }
+
+    /// Indexes the executed checkpoints `checkpoints` in order, committing
+    /// each, as the checkpoint executor does.
+    fn replay_checkpoints(
+        &self,
+        checkpoints: RangeInclusive<CheckpointSequenceNumber>,
+        authority_store: &AuthorityStore,
+        checkpoint_store: &CheckpointStore,
+    ) -> Result<(), StorageError> {
+        info!(
+            "Indexing checkpoints {}..={} again: their RPC index commits were lost",
+            checkpoints.start(),
+            checkpoints.end()
+        );
+        let start_time = Instant::now();
+        let mut last_report = Instant::now();
+        let total = checkpoints.end() - checkpoints.start() + 1;
+        for (done, checkpoint_seq) in checkpoints.enumerate() {
+            if self.cancelled.load(Ordering::Relaxed) {
+                return Err(RebuildCancelled::error(format!(
+                    "the RPC index replay was cancelled by shutdown at checkpoint {checkpoint_seq}"
+                )));
+            }
+            let checkpoint =
+                load_executed_checkpoint(authority_store, checkpoint_store, checkpoint_seq)?;
+            self.index_checkpoint(&checkpoint)
+                .and_then(|()| self.commit_update_for_checkpoint(checkpoint_seq))
+                .map_err(|e| StorageError::custom(e.to_string()))?;
+            if last_report.elapsed() >= PROGRESS_REPORT_INTERVAL {
+                last_report = Instant::now();
+                let done = done as u64 + 1;
+                info!(
+                    "{}",
+                    progress_line(
+                        "Indexing lost checkpoints again",
+                        "checkpoints",
+                        done as f64 / total as f64,
+                        done,
+                        total,
+                        start_time.elapsed(),
+                    )
+                );
+            }
+        }
+        info!(
+            "Indexing {total} checkpoints again took {} seconds",
+            start_time.elapsed().as_secs()
+        );
+        Ok(())
+    }
+
+    /// Opens the store without the init logic of [`Self::new`] — for tests.
+    pub fn new_without_init(
+        path: PathBuf,
+        historic_db_path: Option<&Path>,
+        groups: BTreeSet<IndexGroup>,
+    ) -> Self {
+        Self::new_without_init_with_retention(path, historic_db_path, groups, None)
+    }
+
+    /// [`Self::new_without_init`] with an explicit retention, for tests that
+    /// exercise pruning without a full node's setup.
+    pub fn new_without_init_with_retention(
+        path: PathBuf,
+        historic_db_path: Option<&Path>,
+        groups: BTreeSet<IndexGroup>,
+        epochs_to_retain: Option<u64>,
+    ) -> Self {
+        let opened = Self::open_index_db(&path, &historic_root(&path, historic_db_path))
+            .expect("unable to open the RPC index database");
+        Self::finish_open(
+            opened,
+            &Registry::default(),
+            groups,
+            None,
+            0,
+            Arc::default(),
+            epochs_to_retain,
+        )
+        .expect("unable to open the RPC index database")
+    }
+
+    /// Whether this store maintains `group`'s tables.
+    pub fn serves(&self, group: IndexGroup) -> bool {
+        self.groups.contains(&group)
+    }
+
+    /// One past the last indexed transaction's sequence number, which is the
+    /// total number of transactions. Covers checkpoints staged but not yet
+    /// committed.
+    pub fn next_sequence_number(&self) -> TxSequenceNumber {
+        self.next_sequence_number.load(Ordering::SeqCst)
+    }
+
+    /// The `max_type_length` this store was opened with, defaulting to 128.
+    pub fn max_type_length(&self) -> u64 {
+        self.max_type_length
+    }
+
+    /// The live-state and marker tables, for tests that seed them directly.
+    #[cfg(test)]
+    pub(crate) fn tables(&self) -> &IndexStoreTables {
+        &self.tables
+    }
+
+    fn finish_open(
+        opened: OpenedIndexDb,
+        registry: &Registry,
+        groups: BTreeSet<IndexGroup>,
+        max_type_length: Option<u64>,
+        next_sequence_number_floor: TxSequenceNumber,
+        cancelled: Arc<AtomicBool>,
+        epochs_to_retain: Option<u64>,
+    ) -> Result<Self, TypedStoreError> {
+        let OpenedIndexDb {
+            tables,
+            db,
+            history_cf_options,
+            history_paths,
+            history,
+        } = opened;
+        let history = EpochBuckets::open(
+            db,
+            "RPC index history",
+            HISTORY_CF_PREFIX,
+            history_cf_options,
+            Some(history_paths),
+            tables.earliest_retained_epoch.clone(),
+            history,
+        )?;
+        let metrics = RpcIndexesMetrics::new(registry);
+        let jsonrpc_metrics = JsonRpcMetrics::new(registry);
+        let indexed_at_open = tables.watermark.get(&())?;
+
+        Ok(Self {
+            tables,
+            groups,
+            history,
+            next_sequence_number: next_sequence_number_floor.into(),
+            metrics,
+            caches: BalanceCaches::new(),
+            jsonrpc_metrics,
+            max_type_length: max_type_length.unwrap_or(128),
+            pending_updates: Mutex::new(BTreeMap::new()),
+            history_backfill_task: Mutex::new(None),
+            cancelled,
+            epochs_to_retain,
+            indexed_at_open,
+            staged_coin_rows: Mutex::new(HashMap::new()),
+        })
+    }
+
+    /// Opens the index database, with every existing per-epoch history
+    /// column family under its tuned options.
+    fn open_index_db(path: &Path, historic_root: &Path) -> IotaResult<OpenedIndexDb> {
+        let mut db_options = default_db_options().disable_write_throttling();
+        // A rebuild or a restore leaves the `owner` table as many overlapping
+        // L0 files, which slow its reads until they are merged. Splitting
+        // that compaction lets it use the background threads RocksDB is
+        // given (`increase_parallelism` in `default_db_options`).
+        db_options
+            .options
+            .set_max_subcompactions(MAX_SUBCOMPACTIONS);
+        let history_cf_options = epoch_buckets::history_cf_options(
+            &db_options,
+            read_size_from_env(ENV_VAR_HISTORY_BLOCK_CACHE_SIZE_MB)
+                .unwrap_or(DEFAULT_HISTORY_BLOCK_CACHE_SIZE_MB),
+        );
+
+        // Every owned-object and balance query scans the `owner` table.
+        let owner_options = db_options
+            .clone()
+            .optimize_for_read(
+                read_size_from_env(ENV_VAR_OWNER_BLOCK_CACHE_SIZE_MB)
+                    .unwrap_or(DEFAULT_OWNER_BLOCK_CACHE_SIZE_MB),
+            )
+            .options;
+
+        let static_tables = IndexStoreTables::describe_tables();
+        // A listing failure must not pass for "no history", which would hide
+        // the buckets until the next reopen. `CURRENT` marks a database.
+        let existing_cfs = if path.join("CURRENT").exists() {
+            list_tables(path.to_path_buf()).map_err(|e| IotaError::Storage(e.to_string()))?
+        } else {
+            Vec::new()
+        };
+        let history_paths = BucketPaths::new(historic_root, HISTORY_BUCKET_DIR);
+        let mut epochs = BTreeSet::new();
+        let mut opt_cfs: Vec<(String, rocksdb::Options)> = Vec::new();
+        for name in static_tables.keys() {
+            let options = if name == "owner" {
+                owner_options.clone()
+            } else {
+                db_options.options.clone()
+            };
+            opt_cfs.push((name.clone(), options));
+        }
+        // Column families of another schema version are opened with default
+        // options by `open_cf_opts`; the version mismatch then wipes them.
+        for cf_name in &existing_cfs {
+            if let Some(epoch) = history_cf_epoch(cf_name) {
+                epochs.insert(epoch);
+                opt_cfs.push((
+                    cf_name.clone(),
+                    history_paths.existing_cf_options(&history_cf_options, epoch),
+                ));
+            }
+        }
+        let opt_cfs: Vec<(&str, rocksdb::Options)> = opt_cfs
+            .iter()
+            .map(|(name, options)| (name.as_str(), options.clone()))
+            .collect();
+        let db = open_cf_opts(
+            path,
+            Some(db_options.options.clone()),
+            MetricConf::new("rpc-index"),
+            &opt_cfs,
+        )
+        .map_err(|e| IotaError::Storage(e.to_string()))?;
+
+        fn map<K, V>(
+            db: &Arc<Database>,
+            cf_name: &str,
+            rw: &ReadWriteOptions,
+        ) -> IotaResult<DBMap<K, V>> {
+            DBMap::reopen(db, Some(cf_name), rw, false)
+                .map_err(|e| IotaError::Storage(format!("cannot open the {cf_name} table: {e}")))
+        }
+        let tables = IndexStoreTables {
+            meta: map(&db, "meta", &db_options.rw_options)?,
+            watermark: map(&db, "watermark", &db_options.rw_options)?,
+            history_watermark: map(&db, "history_watermark", &db_options.rw_options)?,
+            earliest_retained_epoch: map(&db, "earliest_retained_epoch", &db_options.rw_options)?,
+            owner: map(&db, "owner", &db_options.rw_options)?,
+            dynamic_field: map(&db, "dynamic_field", &db_options.rw_options)?,
+            coin: map(&db, "coin", &db_options.rw_options)?,
+            package_version: map(&db, "package_version", &db_options.rw_options)?,
+        };
+
+        let mut history = BTreeMap::new();
+        for epoch in epochs {
+            let bucket = HistoryBucket::reopen(&db, &history_cf_name(epoch))?;
+            history.insert(epoch, Arc::new(bucket));
+        }
+
+        Ok(OpenedIndexDb {
+            tables,
+            db,
+            history_cf_options,
+            history_paths,
+            history,
+        })
+    }
+
+    /// Opens `epoch`'s history bucket, creating its column family if needed,
+    /// which blocks.
+    pub(crate) fn ensure_history_bucket_exists(&self, epoch: EpochId) -> IotaResult<()> {
+        self.ensure_history_bucket(epoch).map(|_| ())
+    }
+
+    /// The epochs whose history buckets this store holds, oldest first.
+    #[cfg(test)]
+    pub(crate) fn retained_history_epochs(&self) -> Vec<EpochId> {
+        self.history
+            .iter_with_epoch(false)
+            .into_iter()
+            .map(|(epoch, _)| epoch)
+            .collect()
+    }
+
+    /// The bucket holding `epoch`'s history, created if absent. Pruned epochs
+    /// are refused, see [`EpochBuckets::ensure`].
+    fn ensure_history_bucket(&self, epoch: EpochId) -> IotaResult<Arc<HistoryBucket>> {
+        self.history
+            .ensure(epoch)
+            .map_err(|e| IotaError::Storage(e.to_string()))
+    }
+
+    /// The transaction's position in the network order, from the newest
+    /// bucket holding it, `None` if the digest is not indexed (or its epoch
+    /// has been pruned).
+    pub fn lookup_digest(
+        &self,
+        digest: &TransactionDigest,
+    ) -> IotaResult<Option<TxSequenceNumber>> {
+        for bucket in self.history.iter(true) {
+            if let Some(found) = absent_if_dropped(bucket.txs_seq.get(digest))? {
+                return Ok(Some(found));
+            }
+        }
+        Ok(None)
+    }
+
+    /// Drops the history of expired epochs, in every history table. Returns
+    /// the earliest epoch to retain and how many buckets were dropped, `None`
+    /// when index pruning is off or there is no history at all.
+    ///
+    /// The retention counts historic epochs on top of the current one: `0`
+    /// keeps the current epoch only. The newest epoch's bucket is always
+    /// kept, since [`Self::index_checkpoint`] reads its digests.
+    ///
+    /// A query racing a drop answers without the dropped epoch's rows.
+    /// Blocks for as long as the drops take, so callers on an async runtime
+    /// must use `spawn_blocking`.
+    pub fn prune(&self, current_epoch: EpochId) -> IotaResult<Option<PrunedBuckets>> {
+        let Some(epochs_to_retain) = self.epochs_to_retain else {
+            return Ok(None);
+        };
+        self.history
+            .prune(current_epoch, epochs_to_retain, |_, _| Ok(()))
+            .map_err(|e| IotaError::Storage(e.to_string()))
+    }
+
+    /// Compacts the buckets of the epochs below `current_epoch` that are not
+    /// compacted yet (see
+    /// `EpochBuckets::compact_closed`, which asks
+    /// `stop` before each bucket). Blocks while
+    /// the compactions run, so async callers must use `spawn_blocking`.
+    pub fn compact_closed_buckets(
+        &self,
+        current_epoch: EpochId,
+        stop: &dyn Fn() -> bool,
+    ) -> IotaResult<usize> {
+        self.history
+            .compact_closed(current_epoch, stop)
+            .map_err(|e| IotaError::Storage(e.to_string()))
+    }
+
+    /// Builds and stages the index update of one executed checkpoint. Nothing
+    /// is written until [`Self::commit_update_for_checkpoint`] is called.
+    /// Checkpoints up to the index watermark the store was opened at, and
+    /// transactions already indexed by the history backfill, are skipped.
+    ///
+    /// Must be called for each checkpoint in sequence order.
+    #[tracing::instrument(
+        skip_all,
+        fields(checkpoint = checkpoint.checkpoint_summary.sequence_number)
+    )]
+    pub fn index_checkpoint(&self, checkpoint: &CheckpointData) -> IotaResult {
+        let summary = &checkpoint.checkpoint_summary;
+        let checkpoint_seq = summary.sequence_number;
+        // Its live-state rows are in the store already, from the commit that
+        // indexed it or from the scan a rebuild started at; its history rows
+        // likewise, or the history backfill writes them. Applying it again
+        // would apply its object and balance changes twice.
+        if self
+            .indexed_at_open
+            .is_some_and(|indexed| checkpoint_seq <= indexed)
+        {
+            // The anchor at open can be below it; see `new`.
+            self.next_sequence_number
+                .fetch_max(summary.network_total_transactions, Ordering::SeqCst);
+            self.stage_update(
+                checkpoint_seq,
+                PendingCheckpointUpdate {
+                    batch: self.tables.watermark.batch(),
+                    coin_changes: CoinBalanceChanges::default(),
+                },
+            );
+            return Ok(());
+        }
+        let bucket = self.ensure_history_bucket(summary.epoch)?;
+
+        let digests: Vec<_> = checkpoint
+            .transactions
+            .iter()
+            .map(|tx| *tx.effects.transaction_digest())
+            .collect();
+        // Digest rows are written whatever the groups, into the bucket of the
+        // transaction's own epoch, so this one lookup decides for every table.
+        let already_indexed = bucket.txs_seq.multi_get(&digests)?;
+        debug_assert_eq!(digests.len(), already_indexed.len());
+        let transactions: Vec<(usize, &CheckpointTransaction)> = checkpoint
+            .transactions
+            .iter()
+            .enumerate()
+            .zip(already_indexed)
+            .filter_map(|((position, tx), indexed)| indexed.is_none().then_some((position, tx)))
+            .collect();
+
+        let index_jsonrpc = self.serves(IndexGroup::JsonRpc);
+        // Derived from the summary rather than counted, so a replay that
+        // finds only some of these digests indexed numbers the rest the same
+        // way the first run did.
+        let first_sequence = summary
+            .network_total_transactions
+            .saturating_sub(checkpoint.transactions.len() as u64);
+
+        let mut batch = self.tables.watermark.batch();
+        for (position, tx) in &transactions {
+            let sequence = first_sequence + *position as u64;
+            if index_jsonrpc {
+                let data =
+                    transaction_index_data(&tx.transaction, &tx.effects, tx.events.as_ref())?;
+                bucket.index_tx(&mut batch, sequence, summary.timestamp_ms, data)?;
+            } else {
+                // A gRPC-only store needs only the digest row.
+                batch.insert_batch_tagged(
+                    &bucket.txs_seq,
+                    [(*tx.effects.transaction_digest(), sequence)],
+                )?;
+            }
+        }
+        self.next_sequence_number
+            .fetch_max(summary.network_total_transactions, Ordering::SeqCst);
+
+        let indexed: Vec<&CheckpointTransaction> = transactions.iter().map(|(_, tx)| *tx).collect();
+
+        let mut coin_changes = CoinBalanceChanges::default();
+        let mut coin_rows = HashMap::new();
+        self.tables.index_objects(
+            &indexed,
+            &self.groups,
+            &mut batch,
+            &mut coin_changes,
+            &mut coin_rows,
+        )?;
+        self.stage_coin_rows(checkpoint_seq, coin_rows, &mut batch)?;
+        batch.insert_batch(&self.tables.watermark, [((), checkpoint_seq)])?;
+
+        self.stage_update(
+            checkpoint_seq,
+            PendingCheckpointUpdate {
+                batch,
+                coin_changes,
+            },
+        );
+        Ok(())
+    }
+
+    /// Appends `coin_rows` to `batch`, each merged onto the row of the same
+    /// coin type staged last, or else onto the committed one.
+    fn stage_coin_rows(
+        &self,
+        checkpoint_seq: CheckpointSequenceNumber,
+        coin_rows: HashMap<CoinIndexKey, CoinIndexInfo>,
+        batch: &mut DBBatch,
+    ) -> IotaResult {
+        if coin_rows.is_empty() {
+            return Ok(());
+        }
+        let mut staged = self.staged_coin_rows.lock();
+        for (key, info) in coin_rows {
+            let mut row = match staged.get(&key) {
+                Some((_, row)) => row.clone(),
+                None => self.tables.coin.get(&key)?.unwrap_or_default(),
+            };
+            row.merge(info);
+            batch.insert_batch(&self.tables.coin, [(key.clone(), row.clone())])?;
+            staged.insert(key, (checkpoint_seq, row));
+        }
+        Ok(())
+    }
+
+    fn stage_update(
+        &self,
+        checkpoint_seq: CheckpointSequenceNumber,
+        update: PendingCheckpointUpdate,
+    ) {
+        let mut pending_updates = self.pending_updates.lock();
+        assert!(
+            pending_updates
+                .last_key_value()
+                .is_none_or(|(seq, _)| *seq < checkpoint_seq),
+            "index_checkpoint must be called in order"
+        );
+        pending_updates.insert(checkpoint_seq, update);
+    }
+
+    /// Commits the staged update of `checkpoint_seq` and updates the balance
+    /// caches to match.
+    ///
+    /// # Panics
+    ///
+    /// If [`Self::index_checkpoint`] has not staged `checkpoint_seq`, or it is
+    /// not the next checkpoint to commit.
+    #[tracing::instrument(skip(self))]
+    pub fn commit_update_for_checkpoint(
+        &self,
+        checkpoint_seq: CheckpointSequenceNumber,
+    ) -> IotaResult {
+        let next_update = self.pending_updates.lock().pop_first();
+        let (staged_seq, update) =
+            next_update.expect("commit_update_for_checkpoint called without a staged update");
+        assert_eq!(
+            checkpoint_seq, staged_seq,
+            "commit_update_for_checkpoint must be called in order"
+        );
+
+        // Holds the affected owners' locks until it is dropped, so a
+        // cache-miss read cannot observe the write below without the update
+        // that goes with it.
+        let cache_updates = self.balance_cache_updates(update.coin_changes);
+        let invalidate_caches = invalidate_balance_caches_instead_of_updating();
+        if invalidate_caches {
+            // Invalidate before the write, so the caches never serve a value
+            // older than the database.
+            self.invalidate_balance_caches(&cache_updates);
+        }
+
+        // Rows of a bucket `prune` dropped meanwhile are discarded rather than
+        // failing the write. That bucket is never the executing epoch's.
+        // Not synced: the checkpoint is recorded as executed after this
+        // returns, and a power loss that keeps that record but loses this
+        // write is repaired by the next open, which indexes the checkpoint
+        // again.
+        // Lets a test lose the commit, as a power loss can.
+        let lose_commit = std::cell::Cell::new(false);
+        iota_macros::fail_point_if!("rpc-index-lose-commit", || lose_commit.set(true));
+        let written = if lose_commit.get() {
+            Ok(())
+        } else {
+            update.batch.write_opt(&drop_tolerant_write_options())
+        };
+        // Also after a failed write, which may have been applied in part.
+        self.record_balance_commit(&cache_updates);
+        written?;
+        // Only once written, so a checkpoint staged meanwhile finds these
+        // rows in either place.
+        self.staged_coin_rows
+            .lock()
+            .retain(|_, (staged_seq, _)| *staged_seq > checkpoint_seq);
+
+        if !invalidate_caches {
+            // Merging before the write would apply the delta twice if the
+            // write then failed, so the caches trail the database by the
+            // duration of the write.
+            self.merge_balance_cache_updates(cache_updates);
+        }
+        Ok(())
+    }
+
+    /// Starts the background replay that fills the history tables below the
+    /// watermark, if any is pending.
+    fn spawn_history_backfill(
+        self: &Arc<Self>,
+        authority_store: Arc<AuthorityStore>,
+        checkpoint_store: Arc<CheckpointStore>,
+    ) {
+        let store = self.clone();
+        let task = tokio::task::spawn_blocking(move || {
+            store.metrics.history_backfill_running.set(1);
+            if let Err(e) = store.backfill_history(&authority_store, &checkpoint_store) {
+                error!("RPC index history backfill stopped: {e}");
+            }
+            store.metrics.history_backfill_running.set(0);
+        });
+        *self.history_backfill_task.lock() = Some(task);
+    }
+
+    /// Whether the background history backfill is still writing history
+    /// buckets, closed epochs' included.
+    pub fn is_history_backfill_running(&self) -> bool {
+        self.history_backfill_task
+            .lock()
+            .as_ref()
+            .is_some_and(|task| !task.is_finished())
+    }
+
+    /// Flushes every column family's memtable to disk — for tests.
+    pub fn flush_for_testing(&self) -> Result<(), TypedStoreError> {
+        self.tables.meta.flush_all()
+    }
+
+    /// Waits for the background history replay to finish — for tests.
+    pub async fn wait_for_history_backfill_for_testing(&self) {
+        self.join_backfill_task()
+            .await
+            .expect("history backfill task failed");
+    }
+
+    /// Stops the background history replay at its next checkpoint boundary
+    /// and waits for it to finish, so shutdown does not block on a full
+    /// replay.
+    pub async fn shutdown(&self) {
+        self.cancelled.store(true, Ordering::Relaxed);
+        if let Err(e) = self.join_backfill_task().await {
+            warn!("the RPC index history backfill task failed: {e}");
+        }
+    }
+
+    /// Awaits the backfill task, if one is still running.
+    async fn join_backfill_task(&self) -> Result<(), tokio::task::JoinError> {
+        let task = self.history_backfill_task.lock().take();
+        match task {
+            Some(task) => task.await,
+            None => Ok(()),
+        }
+    }
+
+    /// Fills the history tables for the checkpoints below
+    /// `history_watermark`, newest first, until it reaches the lowest
+    /// checkpoint the node still holds, an epoch [`Self::prune`] removed, or
+    /// the index retention. The marker commits atomically with each
+    /// checkpoint's rows, so an interrupted run resumes where it stopped.
+    /// No-op when the marker is absent.
+    #[tracing::instrument(skip_all)]
+    fn backfill_history(
+        &self,
+        authority_store: &AuthorityStore,
+        checkpoint_store: &CheckpointStore,
+    ) -> Result<(), StorageError> {
+        let Some(watermark) = self.tables.history_watermark.get(&())? else {
+            return Ok(());
+        };
+        let Some(mut next) = watermark.checked_sub(1) else {
+            return Ok(());
+        };
+
+        info!("Backfilling RPC index history tables from checkpoint {next} downwards");
+        self.metrics
+            .history_backfill_lowest_replayed_checkpoint
+            .set(watermark as i64);
+        let start_time = Instant::now();
+        let mut last_report = Instant::now();
+        let mut replayed: u64 = 0;
+        loop {
+            if self.cancelled.load(Ordering::Relaxed) {
+                info!("Stopping the RPC index history backfill at checkpoint {next}: shutdown");
+                break;
+            }
+            // Expiry raises this bound while the backfill runs.
+            let lowest = checkpoint_store
+                .get_highest_pruned_checkpoint_seq_number()?
+                .map(|c| c.saturating_add(1))
+                .unwrap_or(0);
+            if next < lowest {
+                break;
+            }
+            let summary = match checkpoint_store.get_checkpoint_by_sequence_number(next)? {
+                Some(summary) => summary,
+                None => {
+                    // Pruned since the check above: the end of the history,
+                    // not a failure.
+                    if self.backfill_reached_pruned_data(checkpoint_store, next, None)? {
+                        break;
+                    }
+                    return Err(StorageError::missing(format!("missing checkpoint {next}")));
+                }
+            };
+            let earliest_retained = self.history.earliest_retained();
+            if summary.epoch < earliest_retained {
+                info!(
+                    "Stopping the RPC index history backfill at checkpoint {next}: epoch {} was \
+                     pruned from the index, only epochs from {earliest_retained} on are retained",
+                    summary.epoch
+                );
+                break;
+            }
+            if let Some(horizon) = self.backfill_retention_horizon(summary.epoch) {
+                if summary.epoch < horizon {
+                    info!(
+                        "Stopping the RPC index history backfill at checkpoint {next}: epoch {} \
+                         is past the index retention, the next pruning pass would drop it again",
+                        summary.epoch
+                    );
+                    break;
+                }
+            }
+            if let Err(e) =
+                self.replay_checkpoint_history(authority_store, checkpoint_store, &summary)
+            {
+                if self.backfill_reached_pruned_data(checkpoint_store, next, Some(summary.epoch))? {
+                    break;
+                }
+                // Expiry drops a checkpoint's data before raising the pruned
+                // checkpoint checked above, so missing data means pruned too.
+                if e.kind() == StorageErrorKind::Missing {
+                    info!(
+                        "Stopping the RPC index history backfill at checkpoint {next}: its data \
+                         is already gone ({e})"
+                    );
+                    break;
+                }
+                return Err(e);
+            }
+            replayed += 1;
+            self.metrics
+                .history_backfill_lowest_replayed_checkpoint
+                .set(next as i64);
+            if last_report.elapsed() >= PROGRESS_REPORT_INTERVAL {
+                last_report = Instant::now();
+                let total = replayed + (next - lowest);
+                info!(
+                    "{}",
+                    progress_line(
+                        "Backfilling RPC index history",
+                        "checkpoints",
+                        replayed as f64 / total as f64,
+                        replayed,
+                        total,
+                        start_time.elapsed(),
+                    )
+                );
+            }
+            let Some(n) = next.checked_sub(1) else {
+                break;
+            };
+            next = n;
+        }
+
+        info!(
+            "Backfilling {replayed} checkpoints of RPC index history took {} seconds",
+            start_time.elapsed().as_secs()
+        );
+        Ok(())
+    }
+
+    /// The lowest epoch the backfill may replay, matching the horizon
+    /// [`Self::prune`] enforces even before its first pass. `None` when index
+    /// pruning is off. `current_epoch` stands in for the newest epoch while
+    /// no bucket exists yet.
+    fn backfill_retention_horizon(&self, current_epoch: EpochId) -> Option<EpochId> {
+        let epochs_to_retain = self.epochs_to_retain?;
+        let newest = self.history.newest_epoch().unwrap_or(current_epoch);
+        Some(newest.saturating_sub(epochs_to_retain))
+    }
+
+    /// Whether checkpoint `next`, or the history bucket of its `epoch` where
+    /// known, was pruned while the backfill worked on it. Logs why the
+    /// backfill stops.
+    fn backfill_reached_pruned_data(
+        &self,
+        checkpoint_store: &CheckpointStore,
+        next: CheckpointSequenceNumber,
+        epoch: Option<EpochId>,
+    ) -> Result<bool, StorageError> {
+        if checkpoint_store
+            .get_highest_pruned_checkpoint_seq_number()?
+            .is_some_and(|pruned| next <= pruned)
+        {
+            info!(
+                "Stopping the RPC index history backfill at checkpoint {next}: it was pruned \
+                 mid-replay"
+            );
+            return Ok(true);
+        }
+        let earliest_retained = self.history.earliest_retained();
+        if let Some(epoch) = epoch.filter(|&epoch| epoch < earliest_retained) {
+            info!(
+                "Stopping the RPC index history backfill at checkpoint {next}: epoch {epoch} was \
+                 pruned from the index mid-replay, only epochs from {earliest_retained} on are \
+                 retained"
+            );
+            return Ok(true);
+        }
+        Ok(false)
+    }
+
+    /// Replays one checkpoint into its epoch's history bucket and lowers
+    /// `history_watermark` to it, in one atomic batch.
+    fn replay_checkpoint_history(
+        &self,
+        authority_store: &AuthorityStore,
+        checkpoint_store: &CheckpointStore,
+        summary: &VerifiedCheckpoint,
+    ) -> Result<(), StorageError> {
+        let checkpoint_seq = summary.sequence_number;
+        let contents = checkpoint_store
+            .get_checkpoint_contents(&summary.contents_digest)?
+            .ok_or_else(|| {
+                StorageError::missing(format!("missing checkpoint contents {checkpoint_seq}"))
+            })?;
+        let first_sequence_number = summary
+            .network_total_transactions
+            .checked_sub(contents.iter().len() as u64)
+            .ok_or_else(|| {
+                StorageError::custom(format!(
+                    "checkpoint {checkpoint_seq} has more transactions ({}) than the network \
+                     total ({})",
+                    contents.iter().len(),
+                    summary.network_total_transactions
+                ))
+            })?;
+        let bucket = self
+            .ensure_history_bucket(summary.epoch)
+            .map_err(|e| StorageError::custom(e.to_string()))?;
+
+        let mut batch = self.tables.watermark.batch();
+
+        if self.serves(IndexGroup::JsonRpc) {
+            for (sequence, (transaction, effects, events)) in (first_sequence_number..).zip(
+                load_checkpoint_transactions(authority_store, summary.epoch, &contents)?,
+            ) {
+                let data = transaction_index_data(&transaction, &effects, events.as_ref())
+                    .map_err(|e| StorageError::custom(e.to_string()))?;
+                bucket
+                    .index_tx(&mut batch, sequence, summary.timestamp_ms, data)
+                    .map_err(|e| StorageError::custom(e.to_string()))?;
+            }
+        } else {
+            // A gRPC-only store needs only the digest rows, which the
+            // checkpoint contents provide without reading the transactions.
+            batch.insert_batch_tagged(
+                &bucket.txs_seq,
+                (first_sequence_number..)
+                    .zip(contents.iter())
+                    .map(|(sequence, digests)| (digests.transaction, sequence)),
+            )?;
+        }
+
+        batch.insert_batch(&self.tables.history_watermark, [((), checkpoint_seq)])?;
+        // If `prune` dropped the bucket mid-replay, its rows are discarded and
+        // the next iteration stops at the pruned epoch.
+        batch
+            .write_opt(&drop_tolerant_write_options())
+            .map_err(StorageError::from)?;
+        Ok(())
+    }
+}
+
+/// The transactions of a checkpoint of `epoch`, with their effects and
+/// events, in checkpoint order.
+fn load_checkpoint_transactions(
+    authority_store: &AuthorityStore,
+    epoch: EpochId,
+    contents: &CheckpointContents,
+) -> Result<
+    Vec<(
+        TransactionEnvelope,
+        TransactionEffects,
+        Option<TransactionEvents>,
+    )>,
+    StorageError,
+> {
+    // A checkpoint's transactions, effects and events are stored under its
+    // epoch, so they are read from there in one batch each; what those miss
+    // is read one by one through every epoch.
+    let storage = |e: IotaError| StorageError::custom(e.to_string());
+    let tx_digests: Vec<_> = contents.iter().map(|digests| digests.transaction).collect();
+    let fx_digests: Vec<_> = contents.iter().map(|digests| digests.effects).collect();
+    let transactions = authority_store
+        .multi_get_transaction_blocks_in_epoch(epoch, &tx_digests)
+        .map_err(storage)?;
+    let all_effects = authority_store
+        .multi_get_effects_in_epoch(epoch, &fx_digests)
+        .map_err(storage)?;
+    let all_events = authority_store
+        .multi_get_events_in_epoch(epoch, &tx_digests)
+        .map_err(storage)?;
+    contents
+        .iter()
+        .zip(transactions)
+        .zip(all_effects)
+        .zip(all_events)
+        .map(|(((digests, transaction), effects), events)| {
+            let transaction = match transaction {
+                Some(transaction) => transaction,
+                None => authority_store
+                    .get_transaction_block(&digests.transaction)
+                    .map_err(storage)?
+                    .ok_or_else(|| {
+                        StorageError::missing(format!(
+                            "missing transaction {}",
+                            digests.transaction
+                        ))
+                    })?,
+            }
+            .into_inner();
+            let effects = match effects {
+                Some(effects) => effects,
+                None => authority_store
+                    .get_effects(&digests.effects)
+                    .map_err(storage)?
+                    .ok_or_else(|| {
+                        StorageError::missing(format!("missing effects {}", digests.effects))
+                    })?,
+            };
+            let events = match (effects.events_digest(), events) {
+                (None, _) => None,
+                (Some(_), Some(events)) => Some(events),
+                (Some(_), None) => Some(
+                    authority_store
+                        .get_events(&digests.transaction)
+                        .map_err(storage)?
+                        .ok_or_else(|| {
+                            StorageError::missing(format!("missing events {}", digests.transaction))
+                        })?,
+                ),
+            };
+            Ok((transaction, effects, events))
+        })
+        .collect()
+}
+
+/// The full data of the executed checkpoint `checkpoint_seq`, as the
+/// checkpoint executor hands it to the index.
+fn load_executed_checkpoint(
+    authority_store: &AuthorityStore,
+    checkpoint_store: &CheckpointStore,
+    checkpoint_seq: CheckpointSequenceNumber,
+) -> Result<CheckpointData, StorageError> {
+    let summary = checkpoint_store
+        .get_checkpoint_by_sequence_number(checkpoint_seq)?
+        .ok_or_else(|| StorageError::missing(format!("missing checkpoint {checkpoint_seq}")))?;
+    let contents = checkpoint_store
+        .get_checkpoint_contents(&summary.contents_digest)?
+        .ok_or_else(|| {
+            StorageError::missing(format!("missing checkpoint contents {checkpoint_seq}"))
+        })?;
+    let historic_objects = authority_store.get_historic_objects();
+    let storage = |e: IotaError| StorageError::custom(e.to_string());
+    let transactions = load_checkpoint_transactions(authority_store, summary.epoch, &contents)?
+        .into_iter()
+        .map(|(transaction, effects, events)| {
+            Ok(CheckpointTransaction {
+                input_objects: get_transaction_input_objects(
+                    authority_store,
+                    historic_objects,
+                    &effects,
+                )
+                .map_err(storage)?,
+                output_objects: get_transaction_output_objects(
+                    authority_store,
+                    historic_objects,
+                    &effects,
+                )
+                .map_err(storage)?,
+                transaction,
+                effects,
+                events,
+            })
+        })
+        .collect::<Result<_, StorageError>>()?;
+    Ok(CheckpointData {
+        checkpoint_summary: summary.into(),
+        checkpoint_contents: contents,
+        transactions,
+    })
+}
+
+#[cfg(test)]
+#[path = "../unit_tests/rpc_indexes_tests.rs"]
+mod tests;

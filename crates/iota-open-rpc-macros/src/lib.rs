@@ -73,21 +73,12 @@ pub fn open_rpc(attr: TokenStream, item: TokenStream) -> TokenStream {
             quote! {None;}
         };
 
-        if method.is_pubsub {
-            Some(quote! {
-                let mut inputs: Vec<iota_open_rpc::ContentDescriptor> = Vec::new();
-                #(#inputs)*
-                let result = #returns_ty
-                builder.add_subscription(#namespace, #name, inputs, result, #doc, #tag, #deprecated);
-            })
-        } else {
-            Some(quote! {
-                let mut inputs: Vec<iota_open_rpc::ContentDescriptor> = Vec::new();
-                #(#inputs)*
-                let result = #returns_ty
-                builder.add_method(#namespace, #name, inputs, result, #doc, #tag, #deprecated);
-            })
-        }
+        Some(quote! {
+            let mut inputs: Vec<iota_open_rpc::ContentDescriptor> = Vec::new();
+            #(#inputs)*
+            let result = #returns_ty
+            builder.add_method(#namespace, #name, inputs, result, #doc, #tag, #deprecated);
+        })
     }).collect::<Vec<_>>();
 
     let routes = rpc_definition
@@ -145,9 +136,7 @@ struct Method {
     params: Vec<(String, Type, Option<String>)>,
     returns: Option<Type>,
     doc: String,
-    is_pubsub: bool,
-    /// Left out of the spec: `deprecated` in the `method` or `subscription`
-    /// attribute.
+    /// Left out of the spec: `deprecated` in the `method` attribute.
     hidden: bool,
     /// Marked as deprecated in the spec: a `#[deprecated]` attribute.
     deprecated: bool,
@@ -199,7 +188,7 @@ fn parse_rpc_method(trait_data: &mut syn::ItemTrait) -> Result<RpcDefinition, sy
                 })
                 .collect::<Result<_, _>>()?;
 
-            let (method_name, mut returns, is_pubsub, hidden) = if let Some(attr) =
+            let (method_name, mut returns, hidden) = if let Some(attr) =
                 find_attr(&mut method.attrs, "method")
             {
                 let token: TokenStream = attr.tokens.clone().into();
@@ -232,20 +221,7 @@ fn parse_rpc_method(trait_data: &mut syn::ItemTrait) -> Result<RpcDefinition, sy
                     }
                 }
                 attr.tokens = remove_iota_rpc_attributes(attributes);
-                (method_name, returns, false, hidden)
-            } else if let Some(attr) = find_attr(&mut method.attrs, "subscription") {
-                let token: TokenStream = attr.tokens.clone().into();
-                let attributes = parse::<Attributes>(token)?;
-                let name = attributes.get_value("name");
-                let type_ = attributes
-                    .find("item")
-                    .expect("Subscription should have a [item] attribute")
-                    .type_
-                    .clone()
-                    .expect("[item] attribute should have a value");
-                let hidden = attributes.find("deprecated").is_some();
-                attr.tokens = remove_iota_rpc_attributes(attributes);
-                (name, Some(type_), true, hidden)
+                (method_name, returns, hidden)
             } else {
                 continue;
             };
@@ -270,7 +246,6 @@ fn parse_rpc_method(trait_data: &mut syn::ItemTrait) -> Result<RpcDefinition, sy
                 params,
                 returns,
                 doc,
-                is_pubsub,
                 hidden,
                 deprecated,
             });

@@ -7,10 +7,12 @@ use std::sync::Arc;
 use eyre::WrapErr;
 use fastcrypto_tbls::dkg_v1;
 use iota_metrics::monitored_scope;
+use iota_sdk_types::SenderSignedTransaction;
 use iota_types::{
     base_types::ConciseableName,
     error::IotaError,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
+    transaction::transaction_identifiers_validity_check,
 };
 use prometheus_filtered::{IntCounter, Registry, register_int_counter_with_registry};
 use starfish_core;
@@ -47,17 +49,46 @@ impl IotaTxValidator {
         }
     }
 
+    /// Rejects the block when a transaction carries an identifier that
+    /// move-core rejects, once the protocol disallows them: a validator whose
+    /// decoder follows the move-core rules cannot decode such a block, so every
+    /// validator must refuse it the same way.
+    fn identifiers_check(&self, signed_tx: &SenderSignedTransaction) -> Result<(), IotaError> {
+        if self
+            .epoch_store
+            .protocol_config()
+            .disallow_self_identifier_in_transactions()
+        {
+            transaction_identifiers_validity_check(signed_tx)?;
+        }
+        Ok(())
+    }
+
     #[instrument(level = "trace", skip_all)]
     fn validate_transactions(&self, txs: Vec<ConsensusTransactionKind>) -> Result<(), IotaError> {
         let mut cert_batch = Vec::new();
         let mut ckpt_messages = Vec::new();
         let mut ckpt_batch = Vec::new();
         let mut authority_cap_batch = Vec::new();
-        let mut user_tx_v1_count: u64 = 0;
+        let mut user_tx_count: u64 = 0;
 
         for tx in txs.iter() {
             match tx {
                 ConsensusTransactionKind::CertifiedTransaction(certificate) => {
+                    self.identifiers_check(certificate.data())?;
+                    // A certificate carries no attestation, so it would skip the
+                    // judge, the units claim and the cutoff.
+                    if self
+                        .epoch_store
+                        .protocol_config()
+                        .enable_validator_attestation()
+                    {
+                        return Err(IotaError::UnsupportedFeature {
+                            error: "CertifiedTransaction not allowed when validator attestation \
+                                    is enabled"
+                                .into(),
+                        });
+                    }
                     cert_batch.push(certificate.as_ref());
                 }
                 ConsensusTransactionKind::CheckpointSignature(signature) => {
@@ -106,6 +137,27 @@ impl IotaTxValidator {
                                 .into(),
                         });
                     }
+                    self.identifiers_check(attested_tx.transaction.data())?;
+                    // An attestation is authenticated by the block signature,
+                    // so only its presence is checked here, against the flag;
+                    // post-consensus validation checks its content.
+                    let attested = attested_tx.attestation.is_some();
+                    let attestation_enabled = self
+                        .epoch_store
+                        .protocol_config()
+                        .enable_validator_attestation();
+                    if attested != attestation_enabled {
+                        return Err(IotaError::UnsupportedFeature {
+                            error: if attested {
+                                "attested UserTransactionV1 not supported at current protocol \
+                                 version"
+                            } else {
+                                "UserTransactionV1 must carry an attestation when validator \
+                                 attestation is enabled"
+                            }
+                            .into(),
+                        });
+                    }
                     // TODO: Batch signature verification for UserTransactionV1.
                     //  For now verify individually, but this should be batched for performance
                     //  similar to how certificates are batch-verified above.
@@ -115,7 +167,7 @@ impl IotaTxValidator {
                         .tap_err(|e| {
                             warn!("UserTransactionV1 signature verification failed: {}", e)
                         })?;
-                    user_tx_v1_count += 1;
+                    user_tx_count += 1;
                 }
 
                 ConsensusTransactionKind::EndOfPublish(_)
@@ -180,7 +232,7 @@ impl IotaTxValidator {
             .inc_by(authority_cap_count as u64);
         self.metrics
             .user_transaction_signatures_verified
-            .inc_by(user_tx_v1_count);
+            .inc_by(user_tx_count);
         Ok(())
 
         // todo - we should un-comment line below once we have a way to revert
@@ -264,23 +316,25 @@ impl IotaTxValidatorMetrics {
 mod tests {
     use std::sync::Arc;
 
+    use fastcrypto::traits::KeyPair as _;
     use iota_macros::sim_test;
-    use iota_protocol_config::Chain;
-    use iota_sdk_types::{ObjectId, UserSignature};
+    use iota_protocol_config::{Chain, OverrideGuard, ProtocolConfig, ProtocolVersion};
+    use iota_sdk_types::{Identifier, ObjectId, UserSignature};
     use iota_types::{
         attestation::AttestedTransaction,
-        error::IotaError,
+        crypto::AuthorityKeyPair,
+        error::{IotaError, UserInputError},
         messages_consensus::{
             ConsensusTransaction, ConsensusTransactionKind, MisbehaviorObservationsV1,
             VersionedMisbehaviorReport,
         },
         object::Object,
-        transaction::SenderSignedTransactionAPI,
+        transaction::{CertifiedTransaction, SenderSignedTransactionAPI, TransactionEnvelope},
     };
     use starfish_core::TransactionVerifier as _;
 
     use crate::{
-        authority::test_authority_builder::TestAuthorityBuilder,
+        authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder},
         checkpoints::CheckpointServiceNoop,
         consensus_adapter::consensus_tests::{test_certificates, test_gas_objects},
         consensus_validator::{IotaTxValidator, IotaTxValidatorMetrics},
@@ -289,6 +343,13 @@ mod tests {
 
     #[sim_test]
     async fn accept_valid_transaction() {
+        // A certificate carries no attestation, so this test runs with
+        // validator attestation off.
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_validator_attestation_for_testing(false);
+            config
+        });
+
         // Initialize an authority with a (owned) gas object and a shared object; then
         // make a test certificate.
         let mut objects = test_gas_objects();
@@ -498,5 +559,272 @@ mod tests {
                 }
             }
         }
+    }
+    /// Validator attestation off, which the latest version has on, for tests
+    /// that send plain user transactions and certificates through block
+    /// verification.
+    fn validator_attestation_off() -> OverrideGuard {
+        ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_validator_attestation_for_testing(false);
+            config
+        })
+    }
+
+    /// A single-validator authority at `protocol_version`, or at the latest
+    /// version when `None`, with its validator keypair and a block verifier
+    /// over its epoch store.
+    async fn self_identifier_fixture(
+        protocol_version: Option<ProtocolVersion>,
+    ) -> (Arc<AuthorityState>, AuthorityKeyPair, IotaTxValidator) {
+        let mut network_config_builder =
+            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir();
+        if let Some(version) = protocol_version {
+            network_config_builder = network_config_builder.with_protocol_version(version);
+        }
+        let network_config = network_config_builder.build();
+        let keypair = network_config.validator_configs()[0]
+            .authority_key_pair()
+            .copy();
+        let mut builder = TestAuthorityBuilder::new().with_network_config(&network_config, 0);
+        if let Some(version) = protocol_version {
+            builder = builder
+                .with_protocol_config(ProtocolConfig::get_for_version(version, Chain::Unknown));
+        }
+        let state = builder.build().await;
+        let validator = IotaTxValidator::new(
+            state.epoch_store_for_testing().clone(),
+            Arc::new(CheckpointServiceNoop {}),
+            IotaTxValidatorMetrics::new(&Default::default()),
+        );
+        (state, keypair, validator)
+    }
+
+    /// A signed Move call of `0x2::coin::zero<0x2::iota::<type_name>>`.
+    fn move_call_with_type_name(
+        state: &AuthorityState,
+        type_name: Identifier,
+    ) -> TransactionEnvelope {
+        use iota_sdk_types::{Address, StructTag, Transaction, TypeTag};
+        use iota_types::{
+            base_types::random_object_ref,
+            crypto::{AccountPrivateKey, deterministic_random_account_private_key},
+            programmable_transaction_builder::ProgrammableTransactionBuilder,
+            transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
+            utils::to_sender_signed_transaction,
+        };
+
+        let (sender, sender_key): (_, AccountPrivateKey) =
+            deterministic_random_account_private_key();
+        let gas_price = state.epoch_store_for_testing().reference_gas_price();
+        let type_arg = TypeTag::Struct(Box::new(StructTag::new(
+            "0x2".parse::<Address>().unwrap(),
+            Identifier::from_static("iota"),
+            type_name,
+            vec![],
+        )));
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.programmable_move_call(
+            ObjectId::from("0x2".parse::<Address>().unwrap()),
+            Identifier::from_static("coin"),
+            Identifier::from_static("zero"),
+            vec![type_arg],
+            vec![],
+        );
+        let transaction = Transaction::new_programmable(
+            sender,
+            vec![random_object_ref()],
+            builder.finish(),
+            gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+            gas_price,
+        );
+        to_sender_signed_transaction(transaction, &sender_key)
+    }
+
+    fn user_transaction(signed_tx: TransactionEnvelope) -> ConsensusTransactionKind {
+        ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            signed_tx, None,
+        )))
+    }
+
+    /// `signed_tx` certified by the single validator of `state`.
+    fn certificate(
+        signed_tx: TransactionEnvelope,
+        state: &AuthorityState,
+        keypair: &AuthorityKeyPair,
+    ) -> ConsensusTransactionKind {
+        ConsensusTransactionKind::CertifiedTransaction(Box::new(
+            CertifiedTransaction::new_from_keypairs_for_testing(
+                signed_tx.into_data(),
+                std::slice::from_ref(keypair),
+                &state.clone_committee_for_testing(),
+            ),
+        ))
+    }
+
+    fn assert_self_identifier_rejected(result: &Result<(), IotaError>) {
+        assert!(
+            matches!(
+                result,
+                Err(IotaError::UserInput {
+                    error: UserInputError::InvalidIdentifier { error }
+                }) if error == "<SELF>"
+            ),
+            "{result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn reject_identifier_move_core_rejects_in_user_transaction() {
+        let _guard = validator_attestation_off();
+        let (state, _, validator) = self_identifier_fixture(None).await;
+        assert!(
+            validator
+                .epoch_store
+                .protocol_config()
+                .disallow_self_identifier_in_transactions()
+        );
+
+        let result = validator.validate_transactions(vec![user_transaction(
+            move_call_with_type_name(&state, Identifier::new_unchecked("<SELF>")),
+        )]);
+        assert_self_identifier_rejected(&result);
+
+        validator
+            .validate_transactions(vec![user_transaction(move_call_with_type_name(
+                &state,
+                Identifier::from_static("IOTA"),
+            ))])
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn reject_identifier_move_core_rejects_in_certificate() {
+        let _guard = validator_attestation_off();
+        let (state, keypair, validator) = self_identifier_fixture(None).await;
+        assert!(
+            validator
+                .epoch_store
+                .protocol_config()
+                .disallow_self_identifier_in_transactions()
+        );
+
+        let result = validator.validate_transactions(vec![certificate(
+            move_call_with_type_name(&state, Identifier::new_unchecked("<SELF>")),
+            &state,
+            &keypair,
+        )]);
+        assert_self_identifier_rejected(&result);
+
+        validator
+            .validate_transactions(vec![certificate(
+                move_call_with_type_name(&state, Identifier::from_static("IOTA")),
+                &state,
+                &keypair,
+            )])
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn reject_system_transaction_in_user_transaction() {
+        use iota_sdk_types::{
+            Address, Event, GenesisTransaction, SenderSignedTransaction, StructTag, Transaction,
+            TransactionKind,
+        };
+        use iota_types::transaction::TransactionAPI;
+
+        let (_, _, validator) = self_identifier_fixture(None).await;
+        assert!(
+            validator
+                .epoch_store
+                .protocol_config()
+                .disallow_self_identifier_in_transactions()
+        );
+
+        // A system transaction needs no signature and can carry identifiers in
+        // genesis events.
+        let event = Event {
+            package_id: ObjectId::random(),
+            module: Identifier::new_unchecked("<SELF>"),
+            sender: Address::random(),
+            struct_tag: StructTag::new(
+                "0x2".parse::<Address>().unwrap(),
+                Identifier::from_static("iota"),
+                Identifier::from_static("IOTA"),
+                vec![],
+            ),
+            contents: vec![],
+        };
+        let signed_tx = TransactionEnvelope::new(SenderSignedTransaction::new(
+            Transaction::new_system_transaction(TransactionKind::Genesis(GenesisTransaction {
+                objects: vec![],
+                events: vec![event],
+            })),
+            vec![],
+        ));
+        let result = validator.validate_transactions(vec![user_transaction(signed_tx)]);
+        assert!(
+            matches!(
+                &result,
+                Err(IotaError::UserInput {
+                    error: UserInputError::Unsupported(_)
+                })
+            ),
+            "{result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn accept_identifier_move_core_rejects_before_the_flag() {
+        let (state, keypair, validator) =
+            self_identifier_fixture(Some(ProtocolVersion::new(39))).await;
+        assert!(
+            !validator
+                .epoch_store
+                .protocol_config()
+                .disallow_self_identifier_in_transactions()
+        );
+
+        validator
+            .validate_transactions(vec![
+                user_transaction(move_call_with_type_name(
+                    &state,
+                    Identifier::new_unchecked("<SELF>"),
+                )),
+                certificate(
+                    move_call_with_type_name(&state, Identifier::new_unchecked("<SELF>")),
+                    &state,
+                    &keypair,
+                ),
+            ])
+            .unwrap();
+    }
+
+    /// A certificate carries no attestation, so block verification refuses it
+    /// while validator attestation is on, whatever it holds.
+    #[tokio::test]
+    async fn reject_certificate_with_validator_attestation_on() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config.set_enable_validator_attestation_for_testing(true);
+            config.set_checkpoint_summary_version_specific_data_for_testing(2);
+            config
+        });
+        let (state, keypair, validator) = self_identifier_fixture(None).await;
+        assert!(
+            validator
+                .epoch_store
+                .protocol_config()
+                .enable_validator_attestation()
+        );
+
+        let result = validator.validate_transactions(vec![certificate(
+            move_call_with_type_name(&state, Identifier::from_static("IOTA")),
+            &state,
+            &keypair,
+        )]);
+        assert!(
+            matches!(&result, Err(IotaError::UnsupportedFeature { .. })),
+            "{result:?}"
+        );
     }
 }

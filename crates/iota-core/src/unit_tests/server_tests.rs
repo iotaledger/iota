@@ -63,11 +63,7 @@ async fn test_simple_request() {
 
     let client = NetworkAuthorityClient::connect(
         server_handle.address(),
-        authority_state
-            .config
-            .network_key_pair()
-            .public()
-            .to_owned(),
+        authority_state.config.network_key_pair().public_key(),
     )
     .await
     .unwrap();
@@ -369,6 +365,7 @@ async fn collect_v2_stream_raw(
                         TxStatusUpdate::Rejected { error }
                     }
                     Kind::Expired(exp) => TxStatusUpdate::Expired { epoch: exp.epoch },
+                    Kind::TimedOut(_) => TxStatusUpdate::TimedOut,
                 };
                 results.push(V2StreamItem::Ok(digest, native_result));
             }
@@ -1111,6 +1108,7 @@ async fn collect_v2_status_stream(
                 TxStatusUpdate::Rejected { error }
             }
             Kind::Expired(exp) => TxStatusUpdate::Expired { epoch: exp.epoch },
+            Kind::TimedOut(_) => TxStatusUpdate::TimedOut,
         };
         results.push((digest, update));
     }
@@ -1616,7 +1614,7 @@ async fn test_v2_get_tx_status_dropped_digest_rejected() {
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
-async fn test_v2_get_tx_status_unknown_digest_expires() {
+async fn test_v2_get_tx_status_unknown_digest_times_out() {
     telemetry_subscribers::init_for_testing();
 
     let authority_state = TestAuthorityBuilder::new().build().await;
@@ -1644,8 +1642,114 @@ async fn test_v2_get_tx_status_unknown_digest_expires() {
     let (digest, update) = &results[0];
     assert_eq!(*digest, unknown_digest);
     assert!(
-        matches!(update, TxStatusUpdate::Expired { .. }),
-        "Expected Expired for unknown digest, got {update:?}"
+        matches!(update, TxStatusUpdate::TimedOut),
+        "Expected TimedOut for unknown digest, got {update:?}"
+    );
+}
+
+/// `TimedOut` is not final: the same digest answers `Executed` once the
+/// transaction executed.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn test_v2_get_tx_status_executed_after_a_timed_out_query() {
+    telemetry_subscribers::init_for_testing();
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let authority_state = TestAuthorityBuilder::new()
+        .with_starting_objects(&[
+            Object::with_id_owner_for_testing(object_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ])
+        .build()
+        .await;
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
+        authority_state.name,
+    ));
+    let validator_service = Arc::new(ValidatorService::new_for_tests(
+        authority_state.clone(),
+        consensus_adapter,
+        Arc::new(ValidatorServiceMetrics::new_for_tests()),
+    ));
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let object = authority_state.get_object(&object_id).unwrap();
+    let gas = authority_state.get_object(&gas_id).unwrap();
+    let tx = to_sender_signed_transaction(
+        Transaction::new_transfer(
+            dbg_addr(2),
+            object.object_ref(),
+            sender,
+            gas.object_ref(),
+            rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+            rgp,
+        ),
+        &sender_key,
+    );
+    let tx_digest = *tx.digest();
+
+    // With paused time, the 30s timeout fires immediately.
+    let response = validator_service
+        .get_tx_status(make_v2_get_tx_status_request(vec![(tx_digest, false)]))
+        .await
+        .expect("get_tx_status should succeed");
+    let results = collect_v2_status_stream(response).await;
+    assert!(
+        matches!(results.as_slice(), [(digest, TxStatusUpdate::TimedOut)] if *digest == tx_digest),
+        "Expected TimedOut before execution, got {results:?}"
+    );
+
+    let cert = init_certified_transaction(tx, &authority_state);
+    let (effects, _) = authority_state.execute_for_test(&cert, ExecutionEnv::new());
+
+    let response = validator_service
+        .get_tx_status(make_v2_get_tx_status_request(vec![(tx_digest, false)]))
+        .await
+        .expect("get_tx_status should succeed");
+    let results = collect_v2_status_stream(response).await;
+    assert!(
+        matches!(
+            results.as_slice(),
+            [(digest, TxStatusUpdate::Executed { effects_digest, .. })]
+                if *digest == tx_digest && effects_digest == effects.digest()
+        ),
+        "Expected Executed after execution, got {results:?}"
+    );
+}
+
+/// The epoch ending before the transaction is executed or dropped is the
+/// only answer that says `Expired`.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn test_v2_get_tx_status_expires_when_the_epoch_ends() {
+    telemetry_subscribers::init_for_testing();
+
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let epoch_store = authority_state.epoch_store_for_testing();
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
+        authority_state.name,
+    ));
+    let validator_service = Arc::new(ValidatorService::new_for_tests(
+        authority_state,
+        consensus_adapter,
+        Arc::new(ValidatorServiceMetrics::new_for_tests()),
+    ));
+
+    let unknown_digest = TransactionDigest::random();
+    let response = validator_service
+        .get_tx_status(make_v2_get_tx_status_request(vec![(unknown_digest, false)]))
+        .await
+        .expect("get_tx_status should succeed");
+    // Let the handler start its wait before the epoch ends.
+    tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+    assert_eq!(epoch_store.pending_dropped_digest_requests_for_testing(), 1);
+    epoch_store.epoch_terminated().await;
+
+    let results = collect_v2_status_stream(response).await;
+    assert_eq!(results.len(), 1);
+    let (digest, update) = &results[0];
+    assert_eq!(*digest, unknown_digest);
+    assert!(
+        matches!(update, TxStatusUpdate::Expired { epoch } if *epoch == epoch_store.epoch()),
+        "Expected Expired for the ended epoch, got {update:?}"
     );
 }
 

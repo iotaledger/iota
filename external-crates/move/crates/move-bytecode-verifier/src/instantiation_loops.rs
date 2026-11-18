@@ -33,7 +33,7 @@ use move_core_types::vm_status::StatusCode;
 use move_vm_config::verifier::VerifierConfig;
 use petgraph::{
     Graph,
-    algo::tarjan_scc,
+    algo::kosaraju_scc,
     graph::{EdgeIndex, NodeIndex},
     visit::EdgeRef,
 };
@@ -408,7 +408,7 @@ impl<'a, 'b, M: Meter + ?Sized> InstantiationLoopChecker<'a, 'b, M> {
     /// infinitely many types. This is precisely the kind of constructs we want
     /// to forbid.
     fn find_non_trivial_components(&self) -> Vec<(Vec<NodeIndex>, Vec<EdgeIndex>)> {
-        tarjan_scc(&self.graph)
+        kosaraju_scc(&self.graph)
             .into_iter()
             .filter_map(move |nodes| {
                 let node_set: HashSet<_> = nodes.iter().cloned().collect();
@@ -742,5 +742,62 @@ mod tests {
         checker.build_graph().unwrap();
         assert_eq!(checker.graph.edge_count(), 0);
         assert_eq!(checker.argument_params.len(), 1);
+    }
+
+    #[test]
+    fn long_chain_of_identity_edges_does_not_overflow_the_stack() {
+        // 1000 functions of 32 type parameters, each calling itself with its
+        // parameters rotated and the next one with them unchanged. Every edge
+        // is an identity edge, so the module is accepted, but a simple path
+        // through the graph visits all 32,000 nodes.
+        const FUNCTIONS: usize = 1000;
+        const ARITY: u16 = 32;
+
+        let mut module = empty_module();
+        let rotated = (1..ARITY)
+            .chain(0..1)
+            .map(SignatureToken::TypeParameter)
+            .collect();
+        let identity = (0..ARITY).map(SignatureToken::TypeParameter).collect();
+        module.signatures.push(Signature(rotated));
+        module.signatures.push(Signature(identity));
+        for i in 0..FUNCTIONS {
+            // The call to the next function comes first so that a depth-first
+            // walk, which takes the most recently added edges first, follows
+            // the rotation through all 32 parameters before moving on.
+            let mut code = vec![];
+            if i + 1 < FUNCTIONS {
+                let next_call = module.function_instantiations.len() as u16;
+                module.function_instantiations.push(FunctionInstantiation {
+                    handle: FunctionHandleIndex((i + 1) as u16),
+                    type_parameters: SignatureIndex(2),
+                });
+                code.push(Bytecode::CallGeneric(FunctionInstantiationIndex(next_call)));
+            }
+            let self_call = module.function_instantiations.len() as u16;
+            module.function_instantiations.push(FunctionInstantiation {
+                handle: FunctionHandleIndex(i as u16),
+                type_parameters: SignatureIndex(1),
+            });
+            code.push(Bytecode::CallGeneric(FunctionInstantiationIndex(self_call)));
+            code.push(Bytecode::Ret);
+            push_function(&mut module, &format!("f{i}"), ARITY as usize, code);
+        }
+
+        // 2 MiB is the default stack size of spawned threads and of tokio and
+        // rayon workers.
+        std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || {
+                InstantiationLoopChecker::verify_module(
+                    &VerifierConfig::default(),
+                    &module,
+                    &mut DummyMeter,
+                )
+            })
+            .unwrap()
+            .join()
+            .unwrap()
+            .unwrap();
     }
 }

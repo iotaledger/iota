@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 use tracing::warn;
 
 use crate::{
-    attestation::AttestedTransaction,
+    attestation::{Attestation, AttestedTransaction},
     base_types::{AuthorityName, ConciseableName},
     crypto::{AuthoritySignature, DefaultHash, default_hash},
     message_envelope::{Envelope, Message, VerifiedEnvelope},
@@ -355,12 +355,14 @@ impl ConsensusTransactionKind {
         self.map_cert_or_raw_user_tx(|c| *c.digest(), |t| *t.digest())
     }
 
-    /// Returns the raw, uncertified user transaction (`UserTransactionV1`)
-    /// submitted directly to consensus, or `None` for any other kind. Certified
-    /// user transactions are not included here.
-    pub fn as_user_transaction(&self) -> Option<&TransactionEnvelope> {
+    /// Returns the raw, uncertified user transaction together with its
+    /// attestation (`Some` when it was attested), or `None` for any other
+    /// kind. Certified user transactions are not included here.
+    pub fn as_user_transaction_with_attestation(
+        &self,
+    ) -> Option<(&TransactionEnvelope, Option<&Attestation>)> {
         match self {
-            Self::UserTransactionV1(tx) => Some(&tx.transaction),
+            Self::UserTransactionV1(t) => Some((&t.transaction, t.attestation.as_ref())),
             Self::CertifiedTransaction(_)
             | Self::CheckpointSignature(_)
             | Self::EndOfPublish(_)
@@ -374,6 +376,13 @@ impl ConsensusTransactionKind {
             #[allow(deprecated)]
             Self::NewJWKFetchedDeprecated => None,
         }
+    }
+
+    /// Returns the raw, uncertified user transaction (`UserTransactionV1`)
+    /// submitted directly to consensus, or `None` for any other kind.
+    /// Certified user transactions are not included here.
+    pub fn as_user_transaction(&self) -> Option<&TransactionEnvelope> {
+        self.as_user_transaction_with_attestation().map(|(t, _)| t)
     }
 
     /// Returns `true` only for a raw, uncertified user transaction
@@ -800,6 +809,16 @@ impl ConsensusTransaction {
         Self {
             tracking_id,
             kind: ConsensusTransactionKind::TransactionDenyRuleProposal(proposal),
+        }
+    }
+
+    pub fn new_attested_user_transaction(attested_tx: AttestedTransaction) -> Self {
+        let mut hasher = DefaultHasher::new();
+        attested_tx.digest().hash(&mut hasher);
+        let tracking_id = hasher.finish().to_le_bytes();
+        Self {
+            tracking_id,
+            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(attested_tx)),
         }
     }
 

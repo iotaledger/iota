@@ -10,7 +10,6 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
     sync::{Arc, RwLock},
-    time::Duration,
 };
 
 use anyhow::{anyhow, bail};
@@ -50,13 +49,6 @@ pub const MAINNET_URL: &str = "https://api.mainnet.iota.cafe:443";
 pub const TESTNET_URL: &str = "https://api.testnet.iota.cafe:443";
 pub const DEVNET_URL: &str = "https://api.devnet.iota.cafe:443";
 pub const LOCALNET_URL: &str = "http://127.0.0.1:9000";
-
-pub const MAINNET_WS_URL: &str = "wss://api.mainnet.iota.cafe:443";
-pub const TESTNET_WS_URL: &str = "wss://api.testnet.iota.cafe:443";
-pub const DEVNET_WS_URL: &str = "wss://api.devnet.iota.cafe:443";
-pub const LOCALNET_WS_URL: &str = "ws://127.0.0.1:9000";
-
-pub const WS_PING_INTERVAL: Duration = Duration::from_millis(20_000);
 
 pub const METRICS_ROUTE: &str = "/metrics";
 pub const METRICS_HOST_PORT: &str = "0.0.0.0:9184";

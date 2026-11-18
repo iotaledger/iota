@@ -173,6 +173,13 @@ impl PeakGauge {
     pub fn observe(&self, value: u64) {
         self.window.observe(value);
     }
+
+    /// Like [`observe`](Self::observe), for a caller that already read the
+    /// clock for the event. `now` is not later than the current time. A value
+    /// older than the window is dropped.
+    pub fn observe_at(&self, value: u64, now: Instant) {
+        self.window.observe_at(value, now);
+    }
 }
 
 impl Collector for PeakGauge {

@@ -11,9 +11,7 @@ use move_binary_format::{
 /// Build a `BinaryConfig` from a `ProtocolConfig`
 ///
 /// `override_deprecate_global_storage_ops` takes precedence over the
-/// `deprecate_global_storage_ops` protocol flag. The signing path passes
-/// `Some(true)` so that rejection of the deprecated global storage
-/// instructions ships with the binary rather than with a protocol version.
+/// `deprecate_global_storage_ops` protocol flag.
 pub fn to_binary_config(
     protocol_config: &ProtocolConfig,
     override_deprecate_global_storage_ops: Option<bool>,

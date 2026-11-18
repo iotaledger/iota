@@ -5,21 +5,33 @@
 use std::fmt::{Display, Formatter};
 
 use iota_json_rpc_types::{DevInspectResults, IotaTransactionBlockEffectsAPI};
+use serde::Serialize;
 
 use crate::displays::Pretty;
 
-impl Display for Pretty<'_, DevInspectResults> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let Pretty(response) = self;
+/// A dev inspect's results and whether they ran locally. Serializes as the
+/// results alone.
+#[derive(Serialize)]
+#[serde(transparent)]
+pub struct DevInspectOutput {
+    pub response: DevInspectResults,
+    #[serde(skip)]
+    pub local: bool,
+}
 
+impl Display for Pretty<'_, DevInspectOutput> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let Pretty(DevInspectOutput { response, local }) = self;
+
+        let locally = if *local { " locally" } else { "" };
         if let Some(error) = &response.error {
-            writeln!(f, "Dev inspect failed: {error}")?;
+            writeln!(f, "Dev inspect failed{locally}: {error}")?;
             return Ok(());
         }
 
         writeln!(
             f,
-            "Dev inspect completed, execution status: {}",
+            "Dev inspect completed{locally}, execution status: {}",
             response.effects.status()
         )?;
 

@@ -99,6 +99,8 @@ impl MockTxStore {
             None,
             0,
             Vec::new(),
+            Vec::new(),
+            Default::default(),
         );
 
         let signed = SignedCheckpointSummary::new(

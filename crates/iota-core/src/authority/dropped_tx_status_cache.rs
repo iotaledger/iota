@@ -76,16 +76,17 @@ impl DroppedTxStatusCache {
         }
         // Notify outside the lock — entries are already visible to readers,
         // so the register-then-check pattern in notify_read_dropped is safe.
-        for (digest, error) in dropped {
-            self.notify_read.notify(digest, error);
-            self.any_drop_notify_read.notify(digest, error);
-        }
+        self.notify(dropped);
     }
 
     /// Notify the current waiters of transactions dropped from one commit
     /// only, without recording the drops: the same digests can still be kept
     /// when sequenced again, so a later request must wait for that outcome.
     pub(crate) fn notify_without_recording(&self, dropped: &[(TransactionDigest, IotaError)]) {
+        self.notify(dropped);
+    }
+
+    fn notify(&self, dropped: &[(TransactionDigest, IotaError)]) {
         for (digest, error) in dropped {
             self.notify_read.notify(digest, error);
             self.any_drop_notify_read.notify(digest, error);
@@ -199,15 +200,16 @@ mod tests {
 
         cache.remove_kept(&[digest]);
 
-        assert!(
-            timeout(
-                Duration::from_millis(100),
-                cache.notify_read_dropped(digest)
-            )
-            .await
-            .is_err(),
-            "a request after the keep must wait for the kept transaction's outcome"
-        );
+        {
+            let waiter = cache.notify_read_dropped(digest);
+            futures::pin_mut!(waiter);
+            assert!(
+                futures::poll!(&mut waiter).is_pending(),
+                "a request after the keep must wait for the kept transaction's outcome"
+            );
+            assert_eq!(cache.num_pending_for_testing(), 1);
+        }
+        assert_eq!(cache.num_pending_for_testing(), 0);
     }
 
     /// The drop of one copy of a digest ends a wait for any drop, but is not

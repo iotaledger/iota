@@ -379,17 +379,36 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
                     typed_store::rocks::default_db_options()
                 };
                 let (db, rwopt_cfs) = {
-                    let opt_cfs = match tables_db_options_override {
-                        None => [
+                    let opt_cfs: Vec<(String, typed_store::rocks::DBOptions)> = match tables_db_options_override {
+                        None => vec![
                             #(
                                 (stringify!(#active_cf_names).to_owned(), #active_default_options_override_fn_names()),
                             )*
                         ],
-                        Some(o) => [
-                            #(
-                                (stringify!(#active_cf_names).to_owned(), o.to_map().get(stringify!(#active_cf_names)).unwrap_or(&default_cf_opt).clone()),
-                            )*
-                        ]
+                        Some(o) => {
+                            let overrides = o.to_map();
+                            let mut opt_cfs = vec![
+                                #(
+                                    (stringify!(#active_cf_names).to_owned(), overrides.get(stringify!(#active_cf_names)).unwrap_or(&default_cf_opt).clone()),
+                                )*
+                            ];
+                            // Keep overrides for column families the caller manages outside
+                            // this struct, or rocksdb opens them with default options.
+                            let declared: std::collections::HashSet<&str> = [
+                                #(
+                                    stringify!(#active_cf_names),
+                                )*
+                                #(
+                                    stringify!(#deprecated_cf_names),
+                                )*
+                            ].into_iter().collect();
+                            opt_cfs.extend(
+                                overrides
+                                    .into_iter()
+                                    .filter(|(name, _)| !declared.contains(name.as_str())),
+                            );
+                            opt_cfs
+                        }
                     };
                     // Safe to call unwrap because we will have at least one field_name entry in the struct
                     let rwopt_cfs: std::collections::HashMap<String, typed_store::rocks::ReadWriteOptions> = opt_cfs.iter().map(|q| (q.0.as_str().to_string(), q.1.rw_options.clone())).collect();
@@ -451,7 +470,8 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
             /// Opens a set of tables in read-write mode
             /// Only one process is allowed to do this at a time
             /// `global_db_options_override` apply to the whole DB
-            /// `tables_db_options_override` apply to each table. If `None`, the attributes from `default_options_override_fn` are used if any
+            /// `tables_db_options_override` apply to each table. If `None`, the attributes from `default_options_override_fn` are used if any.
+            /// Entries for column families that are not fields of this struct are applied too
             #[expect(unused_parens)]
             pub fn open_tables_read_write(
                 path: std::path::PathBuf,
@@ -481,7 +501,20 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
                 global_db_options_override: Option<typed_store::rocksdb::Options>,
                 metric_conf: typed_store::rocks::MetricConf,
                 ) -> #secondary_db_map_struct_name #generics {
-                #secondary_db_map_struct_name::open_tables_read_only(primary_path, with_secondary_path, metric_conf, global_db_options_override)
+                #secondary_db_map_struct_name::open_tables_read_only(primary_path, with_secondary_path, metric_conf, global_db_options_override, None)
+            }
+
+            /// Like `get_read_only_handle`, with per-column-family options. Needed for column
+            /// families that cannot be opened with default options, such as ones that keep
+            /// their files outside the database directory.
+            pub fn get_read_only_handle_with_table_options(
+                primary_path: std::path::PathBuf,
+                with_secondary_path: Option<std::path::PathBuf>,
+                global_db_options_override: Option<typed_store::rocksdb::Options>,
+                metric_conf: typed_store::rocks::MetricConf,
+                tables_db_options_override: typed_store::rocks::DBMapTableConfigMap,
+                ) -> #secondary_db_map_struct_name #generics {
+                #secondary_db_map_struct_name::open_tables_read_only(primary_path, with_secondary_path, metric_conf, global_db_options_override, Some(tables_db_options_override))
             }
         }
 
@@ -509,14 +542,15 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
                 with_secondary_path: Option<std::path::PathBuf>,
                 metric_conf: typed_store::rocks::MetricConf,
                 global_db_options_override: Option<typed_store::rocksdb::Options>,
+                tables_db_options_override: Option<typed_store::rocks::DBMapTableConfigMap>,
             ) -> Self {
                 let inner = match with_secondary_path {
-                    Some(q) => #intermediate_db_map_struct_name::open_tables_impl(primary_path, Some(q), metric_conf, global_db_options_override, None),
+                    Some(q) => #intermediate_db_map_struct_name::open_tables_impl(primary_path, Some(q), metric_conf, global_db_options_override, tables_db_options_override),
                     None => {
                         let p: std::path::PathBuf = tempfile::tempdir()
                         .expect("Failed to open temporary directory")
                         .keep();
-                        #intermediate_db_map_struct_name::open_tables_impl(primary_path, Some(p), metric_conf, global_db_options_override, None)
+                        #intermediate_db_map_struct_name::open_tables_impl(primary_path, Some(p), metric_conf, global_db_options_override, tables_db_options_override)
                     }
                 };
                 Self {

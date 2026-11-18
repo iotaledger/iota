@@ -17,16 +17,12 @@
 
 use std::{env, net::SocketAddr, str::FromStr, sync::Arc};
 
-use axum::{
-    body::Body,
-    routing::{get, post},
-};
+use axum::{body::Body, routing::post};
 pub use balance_changes::*;
 use hyper::{
     Method, Request,
     header::{HeaderName, HeaderValue},
 };
-pub use iota_config::node::ServerType;
 use iota_json_rpc_api::{
     CLIENT_SDK_TYPE_HEADER, CLIENT_SDK_VERSION_HEADER, CLIENT_TARGET_API_VERSION_HEADER,
 };
@@ -45,10 +41,7 @@ use tower_http::{
 use tracing::{debug, info};
 
 use crate::{
-    axum_router::{json_rpc_handler, ws::ws_json_rpc_upgrade},
-    error::Error,
-    metrics::MetricsLogger,
-    routing_layer::RpcRouter,
+    axum_router::json_rpc_handler, error::Error, metrics::MetricsLogger, routing_layer::RpcRouter,
 };
 
 pub mod authority_state;
@@ -154,7 +147,7 @@ impl JsonRpcServerBuilder {
         })
     }
 
-    pub async fn to_router(&self, server_type: ServerType) -> Result<axum::Router, Error> {
+    pub async fn to_router(&self) -> Result<axum::Router, Error> {
         let routing = self.rpc_doc.method_routing.clone();
 
         let disable_routing = env::var("DISABLE_BACKWARD_COMPATIBILITY")
@@ -193,29 +186,10 @@ impl JsonRpcServerBuilder {
             Extensions::new(),
         );
 
-        let mut router = axum::Router::new();
-
-        match server_type {
-            ServerType::WebSocket => {
-                router = router
-                    .route("/", get(ws_json_rpc_upgrade))
-                    .route("/subscribe", get(ws_json_rpc_upgrade));
-            }
-            ServerType::Http => {
-                router = router
-                    .route("/", post(json_rpc_handler))
-                    .route("/json-rpc", post(json_rpc_handler))
-                    .route("/public", post(json_rpc_handler));
-            }
-            ServerType::Both => {
-                router = router
-                    .route("/", post(json_rpc_handler))
-                    .route("/", get(ws_json_rpc_upgrade))
-                    .route("/subscribe", get(ws_json_rpc_upgrade))
-                    .route("/json-rpc", post(json_rpc_handler))
-                    .route("/public", post(json_rpc_handler));
-            }
-        }
+        let router = axum::Router::new()
+            .route("/", post(json_rpc_handler))
+            .route("/json-rpc", post(json_rpc_handler))
+            .route("/public", post(json_rpc_handler));
 
         let app = router.with_state(service).layer(middleware);
 
@@ -228,10 +202,9 @@ impl JsonRpcServerBuilder {
         self,
         listen_address: SocketAddr,
         custom_runtime: Option<Handle>,
-        server_type: ServerType,
         cancel: Option<CancellationToken>,
     ) -> Result<ServerHandle, Error> {
-        let app = self.to_router(server_type).await?;
+        let app = self.to_router().await?;
 
         let listener = tokio::net::TcpListener::bind(listen_address)
             .await

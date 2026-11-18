@@ -11,7 +11,8 @@ use std::{num::NonZeroUsize, time::Duration};
 
 use fastcrypto::encoding::Base64;
 use iota_core::authority_client::{
-    make_network_authority_clients_with_network_config, validator::ValidatorAPI,
+    NetworkAuthorityClient, make_network_authority_clients_with_network_config,
+    validator::ValidatorAPI, validator_v2::ValidatorV2API,
 };
 use iota_json_rpc_api::TRANSACTION_NOT_FOUND_ERROR_CODE;
 use iota_json_rpc_types::{
@@ -25,11 +26,12 @@ use iota_swarm_config::network_config_builder::ConfigBuilder;
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_traffic_controller::sim::TrafficSim;
 use iota_types::{
+    error::IotaError,
     quorum_driver_types::ExecuteTransactionRequestType,
     traffic_control::{
         FreqThresholdConfig, PolicyConfig, PolicyType, TrafficControlReconfigParams, Weight,
     },
-    transaction::SenderSignedTransactionAPI,
+    transaction::{SenderSignedTransactionAPI, TransactionEnvelope},
 };
 use jsonrpsee::{core::client::ClientT, rpc_params};
 use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
@@ -201,18 +203,43 @@ async fn test_fullnode_traffic_control_dry_run() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+/// Sends `tx` to a validator through the endpoint the flow uses:
+/// `handle_transaction` without the P-COOL flow, `submit_tx` with it.
+async fn send_to_validator(
+    client: &NetworkAuthorityClient,
+    tx: &TransactionEnvelope,
+    pcool: bool,
+) -> Result<(), IotaError> {
+    if pcool {
+        client.submit_tx(vec![tx.clone()], None).await.map(|_| ())
+    } else {
+        client
+            .handle_transaction(tx.clone(), None)
+            .await
+            .map(|_| ())
+    }
+}
+
 #[tokio::test]
-async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Error> {
+async fn test_validator_traffic_control_error_blocked_pre_consensus_flow()
+-> Result<(), anyhow::Error> {
+    test_validator_traffic_control_error_blocked(false).await
+}
+
+#[tokio::test]
+async fn test_validator_traffic_control_error_blocked_pcool_flow() -> Result<(), anyhow::Error> {
+    test_validator_traffic_control_error_blocked(true).await
+}
+
+async fn test_validator_traffic_control_error_blocked(pcool: bool) -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
-    // Under the P-COOL flow `handle_transaction` is rejected before signature
-    // verification, so the errors this policy counts never reach the tally.
-    let _pcool_guard = override_pcool_flow(false);
+    let _pcool_guard = override_pcool_flow(pcool);
     let n = 5;
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 120,
         // Test that any N requests to the gRPC API of the validator will cause an IP to be added to
-        // the blocklist. In this test we're directly calling
-        // `/iota.validator.Validator/Transaction` gRPC method to go above the limit.
+        // the blocklist. In this test we're directly calling the validator's
+        // transaction submission gRPC method to go above the limit.
         error_policy_type: PolicyType::TestNConnIP(n - 1),
         dry_run: false,
         ..Default::default()
@@ -243,7 +270,7 @@ async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Er
     // The error policy blocks after n - 1 error tallies, so the block must be
     // observed within n requests.
     for _ in 0..n {
-        let response = auth_client.handle_transaction(tx.clone(), None).await;
+        let response = send_to_validator(auth_client, &tx, pcool).await;
         if let Err(err) = response {
             if err.to_string().contains("Too many requests") {
                 return Ok(());
@@ -254,12 +281,22 @@ async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Er
 }
 
 #[tokio::test]
-async fn test_validator_traffic_control_error_blocked_with_policy_reconfig()
+async fn test_validator_traffic_control_error_blocked_with_policy_reconfig_pre_consensus_flow()
 -> Result<(), anyhow::Error> {
+    test_validator_traffic_control_error_blocked_with_policy_reconfig(false).await
+}
+
+#[tokio::test]
+async fn test_validator_traffic_control_error_blocked_with_policy_reconfig_pcool_flow()
+-> Result<(), anyhow::Error> {
+    test_validator_traffic_control_error_blocked_with_policy_reconfig(true).await
+}
+
+async fn test_validator_traffic_control_error_blocked_with_policy_reconfig(
+    pcool: bool,
+) -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
-    // Under the P-COOL flow `handle_transaction` is rejected before signature
-    // verification, so the errors this policy counts never reach the tally.
-    let _pcool_guard = override_pcool_flow(false);
+    let _pcool_guard = override_pcool_flow(pcool);
     let n = 5;
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 100,
@@ -294,7 +331,7 @@ async fn test_validator_traffic_control_error_blocked_with_policy_reconfig()
     // run mode, even after far exceeding the threshold. However the blocklist
     // should be updated.
     for _ in 0..(2 * n) {
-        let response = auth_client.handle_transaction(tx.clone(), None).await;
+        let response = send_to_validator(auth_client, &tx, pcool).await;
         if let Err(err) = response {
             assert!(
                 !err.to_string().contains("Too many requests"),
@@ -318,7 +355,7 @@ async fn test_validator_traffic_control_error_blocked_with_policy_reconfig()
     // If Node and TrafficController has not crashed, blocklist and policy freq
     // state should still be intact. A single additional erroneous request from
     // the client should trigger enforcement.
-    let response = auth_client.handle_transaction(tx.clone(), None).await;
+    let response = send_to_validator(auth_client, &tx, pcool).await;
     if let Err(err) = response {
         if err.to_string().contains("Too many requests") {
             return Ok(());

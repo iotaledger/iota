@@ -81,6 +81,20 @@ pub async fn start_with_executor(
     (handle, MetricsReader::new(&registry).with_prefix(PREFIX))
 }
 
+/// The requests of the listener that have started and not ended: each start
+/// observes the requests in flight on its connection, and each end observes a
+/// completion.
+pub fn requests_in_flight(metrics: &MetricsReader) -> u64 {
+    // Read the ends first: a start always comes before its end.
+    let ended = metrics
+        .histogram_totals("request_completion_latency", &[])
+        .count;
+    let started = metrics
+        .histogram_totals("connection_inflight_requests", &[])
+        .count;
+    started - ended
+}
+
 pub async fn connect(handle: &GrpcServerHandle) -> Channel {
     Channel::from_shared(format!("http://{}", handle.address()))
         .unwrap()

@@ -104,6 +104,10 @@ where
             ClientIpStatus::Ok(ip) => Some(ip),
             status => {
                 warn!("Request from {remote_addr:?}: {status}");
+                if status.should_refuse_request() {
+                    let response = Status::invalid_argument(status.to_string()).into_http();
+                    return Box::pin(async move { Ok(response) });
+                }
                 None
             }
         };

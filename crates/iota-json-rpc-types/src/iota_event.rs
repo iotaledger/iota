@@ -413,60 +413,12 @@ pub enum EventFilter {
 }
 
 impl EventFilter {
-    fn try_matches(&self, item: &IotaEvent) -> IotaResult<bool> {
-        Ok(match self {
-            EventFilter::MoveEventType(event_type) => &item.struct_tag == event_type,
-            EventFilter::MoveEventField { path, value } => {
-                matches!(item.parsed_json.pointer(path), Some(v) if v == value)
-            }
-            EventFilter::Sender(sender) => &item.sender == sender,
-            EventFilter::Package(object_id) => &item.package_id == object_id,
-            EventFilter::MoveModule { package, module } => {
-                &item.transaction_module == module && &item.package_id == package
-            }
-            EventFilter::All(filters) => filters.iter().all(|f| f.matches(item)),
-            EventFilter::Any(filters) => filters.iter().any(|f| f.matches(item)),
-            EventFilter::And(f1, f2) => {
-                EventFilter::All(vec![*(*f1).clone(), *(*f2).clone()]).matches(item)
-            }
-            EventFilter::Or(f1, f2) => {
-                EventFilter::Any(vec![*(*f1).clone(), *(*f2).clone()]).matches(item)
-            }
-            EventFilter::Transaction(digest) => digest == &item.id.tx_digest,
-
-            EventFilter::TimeRange {
-                start_time,
-                end_time,
-            } => {
-                if let Some(timestamp) = &item.timestamp_ms {
-                    start_time <= timestamp && end_time > timestamp
-                } else {
-                    false
-                }
-            }
-            EventFilter::MoveEventModule { package, module } => {
-                item.struct_tag.module() == module
-                    && &item.struct_tag.address() == package.as_address()
-            }
-        })
-    }
-
     pub fn and(self, other_filter: EventFilter) -> Self {
         Self::All(vec![self, other_filter])
     }
     pub fn or(self, other_filter: EventFilter) -> Self {
         Self::Any(vec![self, other_filter])
     }
-}
-
-impl Filter<IotaEvent> for EventFilter {
-    fn matches(&self, item: &IotaEvent) -> bool {
-        self.try_matches(item).unwrap_or_default()
-    }
-}
-
-pub trait Filter<T> {
-    fn matches(&self, item: &T) -> bool;
 }
 
 #[cfg(test)]

@@ -19,6 +19,7 @@ use crate::{
     server::watermark_task::Watermark,
     types::{
         big_int::BigInt,
+        chain_identifier::ChainIdentifierCache,
         checkpoint::{self, Checkpoint},
         cursor::Page,
         date_time::DateTime,
@@ -173,10 +174,18 @@ impl Epoch {
 
     #[graphql(flatten)]
     async fn system_state_summary(&self, ctx: &Context<'_>) -> Result<SystemStateSummary> {
-        let state = ctx
+        let mut state = ctx
             .data_unchecked::<PgManager>()
             .fetch_iota_system_state(Some(self.stored.epoch as u64))
             .await?;
+        let chain = ctx
+            .data_unchecked::<ChainIdentifierCache>()
+            .read(ctx.data_unchecked(), ctx.data_unchecked())
+            .await
+            .extend()?
+            .into_inner()
+            .chain();
+        state.apply_protocol_config_validator_parameters(chain);
         Ok(SystemStateSummary { native: state })
     }
 

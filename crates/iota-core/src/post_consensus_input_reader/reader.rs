@@ -231,39 +231,54 @@ impl CommitIndexedReader {
         })
     }
 
+    /// The object at exactly `key`, a version a validation at this commit
+    /// keeps. Such a version was live at a horizon of this epoch, so it is in
+    /// the live state or, once consumed and committed, in this epoch's
+    /// historic objects bucket, which is not expired while the epoch runs. A
+    /// miss is a storage error, which stops commit processing, or
+    /// [`IotaError::EpochEnded`] once the epoch has ended, which abandons the
+    /// commit.
+    pub(super) fn load_kept_version(&self, key: &ObjectKey) -> IotaResult<Object> {
+        let epoch = self.epoch_store.epoch();
+        if let Some(object) = self
+            .cache
+            .try_get_object_by_key_with_historic_fallback(&key.0, key.1, epoch)?
+        {
+            return Ok(object);
+        }
+        if self.epoch_store.is_epoch_terminated() {
+            return Err(IotaError::EpochEnded(epoch));
+        }
+        Err(IotaError::Storage(format!(
+            "no bytes for {key:?} in the object store"
+        )))
+    }
+
     /// Loads the object of a kept input at exactly `(id, V)`. Takes the
     /// `NeedBytes` step, which only a keep result creates. An object with
     /// another digest drops the input: a keep through a row that replaced `V`
     /// has not compared the named digest yet. A shared object named as owned
-    /// is decided from its creation row, see the owned module doc. The pruning
-    /// limit keeps the object of every version a validation can still keep,
-    /// so a missing object is a storage error, which stops commit processing,
-    /// and never a result.
+    /// is decided from its creation row, see the owned module doc.
     fn load_bytes(&self, need_bytes: OwnedReader<NeedBytes>) -> IotaResult<OwnedVerdict> {
         let input = need_bytes.into_reference();
-        let key = ObjectKey(input.object_id, input.version);
-        if let Some(object) = self.cache.try_get_object_by_key(&key.0, key.1)? {
-            if object.digest() != input.digest {
-                return Ok(OwnedVerdict::Drop(DropReason(
-                    DropKind::StoreDigestMismatch,
-                )));
-            }
-            if let Owner::Shared(initial) = object.owner {
-                let creation_row = self
-                    .epoch_store
-                    .handler_processed_object(&ObjectKey(input.object_id, initial))?;
-                return Ok(
-                    match classify_shared_named_as_owned(creation_row.as_ref(), self.horizon) {
-                        SharedNamedAsOwned::Missing(reason) => OwnedVerdict::Missing(reason),
-                        SharedNamedAsOwned::Drop(reason) => OwnedVerdict::Drop(reason),
-                    },
-                );
-            }
-            return Ok(OwnedVerdict::Keep(KeptObject(object)));
+        let object = self.load_kept_version(&ObjectKey(input.object_id, input.version))?;
+        if object.digest() != input.digest {
+            return Ok(OwnedVerdict::Drop(DropReason(
+                DropKind::StoreDigestMismatch,
+            )));
         }
-        Err(IotaError::Storage(format!(
-            "kept input {key:?} has no bytes in the object store"
-        )))
+        if let Owner::Shared(initial) = object.owner {
+            let creation_row = self
+                .epoch_store
+                .handler_processed_object(&ObjectKey(input.object_id, initial))?;
+            return Ok(
+                match classify_shared_named_as_owned(creation_row.as_ref(), self.horizon) {
+                    SharedNamedAsOwned::Missing(reason) => OwnedVerdict::Missing(reason),
+                    SharedNamedAsOwned::Drop(reason) => OwnedVerdict::Drop(reason),
+                },
+            );
+        }
+        Ok(OwnedVerdict::Keep(KeptObject(object)))
     }
 
     /// The dynamic field `id` as of the horizon, live or absent. The field

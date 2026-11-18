@@ -2,20 +2,38 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fmt::Debug, path::PathBuf, str::FromStr};
+use std::{
+    fmt::Debug,
+    path::{Path, PathBuf},
+    str::FromStr,
+    sync::Arc,
+};
 
 use anyhow::{anyhow, bail};
-use iota_core::jsonrpc_index::IndexStoreTables;
-use iota_sdk_types::{Address, Identifier, ObjectId, TransactionDigest};
-use iota_types::base_types::TxSequenceNumber;
+use iota_core::rpc_indexes::{
+    column_family_options,
+    schema::{
+        DB_PREFIX_HISTORIC_EVENT_BY_EVENT_MODULE, DB_PREFIX_HISTORIC_EVENT_BY_MOVE_MODULE,
+        DB_PREFIX_HISTORIC_EVENT_BY_SENDER, DB_PREFIX_HISTORIC_EVENT_ORDER,
+        DB_PREFIX_HISTORIC_TX_ORDER, DB_PREFIX_HISTORIC_TXS_BY_INPUT_OBJECT_ID,
+        DB_PREFIX_HISTORIC_TXS_BY_MOVE_FUNCTION, DB_PREFIX_HISTORIC_TXS_BY_MUTATED_OBJECT_ID,
+        DB_PREFIX_HISTORIC_TXS_FROM_ADDR, DB_PREFIX_HISTORIC_TXS_SEQ,
+        DB_PREFIX_HISTORIC_TXS_TO_ADDR, IndexStoreTables, OwnerIndexKey, history_cf_epoch,
+        history_cf_name,
+    },
+};
+use iota_sdk_types::{Address, ObjectId, TransactionDigest, TransactionEventsDigest};
+use iota_types::{base_types::TxSequenceNumber, committee::EpochId, storage::DynamicFieldKey};
 use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
 use serde::{Serialize, de::DeserializeOwned};
 use typed_store::{
-    rocks::{DBMap, MetricConf},
+    database::Database,
+    rocks::{DBMap, MetricConf, ReadWriteOptions, TaggedDBMap, open_cf_opts_secondary},
+    rocksdb,
     traits::Map,
 };
 
-use crate::get_db_entries;
+use crate::{db_tool::historic_db_path_of_store, get_db_entries};
 
 #[derive(Clone, Debug)]
 pub enum SearchRange<T: Serialize + Clone + Debug> {
@@ -45,115 +63,225 @@ pub fn search_index(
 ) -> Result<Vec<(String, String)>, anyhow::Error> {
     let start = start.as_str();
     println!("Opening db at {db_path:?} ...");
-    let db_read_only_handle =
-        IndexStoreTables::get_read_only_handle(db_path, None, None, MetricConf::default());
     match table_name.as_str() {
-        "transactions_from_addr" => {
+        "owner" => {
+            let db_read_only_handle = IndexStoreTables::open_readonly(
+                &db_path,
+                Some(&historic_db_path_of_store(&db_path)),
+            )?;
             get_db_entries!(
-                db_read_only_handle.transactions_from_addr,
-                from_addr_seq,
+                db_read_only_handle.owner,
+                from_addr_owner_key,
                 start,
                 termination
             )
         }
-        "transactions_to_addr" => {
+        "dynamic_field" => {
+            let db_read_only_handle = IndexStoreTables::open_readonly(
+                &db_path,
+                Some(&historic_db_path_of_store(&db_path)),
+            )?;
             get_db_entries!(
-                db_read_only_handle.transactions_to_addr,
-                from_addr_seq,
+                db_read_only_handle.dynamic_field,
+                from_parent_field_key,
                 start,
                 termination
             )
         }
-        "transactions_by_input_object_id" => {
-            get_db_entries!(
-                db_read_only_handle.transactions_by_input_object_id,
-                from_id_seq,
-                start,
-                termination
-            )
-        }
-        "transactions_by_mutated_object_id" => {
-            get_db_entries!(
-                db_read_only_handle.transactions_by_mutated_object_id,
-                from_id_seq,
-                start,
-                termination
-            )
-        }
-        "transactions_by_move_function" => {
-            get_db_entries!(
-                db_read_only_handle.transactions_by_move_function,
-                from_id_module_function_txseq,
-                start,
-                termination
-            )
-        }
-        "transaction_order" => {
-            get_db_entries!(
-                db_read_only_handle.transaction_order,
-                u64::from_str,
-                start,
-                termination
-            )
-        }
-        "transactions_seq" => {
-            get_db_entries!(
-                db_read_only_handle.transactions_seq,
-                TransactionDigest::from_str,
-                start,
-                termination
-            )
-        }
-        "owner_index" => {
-            get_db_entries!(
-                db_read_only_handle.owner_index,
-                from_addr_oid,
-                start,
-                termination
-            )
-        }
+        // Old table names point callers at the new name rather than at the
+        // generic "unsupported table" error.
+        "owner_index" => bail!("no such table \"owner_index\"; it was renamed to \"owner\""),
         "dynamic_field_index" => {
-            get_db_entries!(
-                db_read_only_handle.dynamic_field_index,
-                from_oid_oid,
-                start,
-                termination
-            )
+            bail!("no such table \"dynamic_field_index\"; it was renamed to \"dynamic_field\"")
         }
-        "event_by_event_module" => {
-            get_db_entries!(
-                db_read_only_handle.event_by_event_module,
-                from_module_id_and_event_id,
-                start,
-                termination
-            )
+        _ => {
+            let historic_db_path = historic_db_path_of_store(&db_path);
+            search_history_table(db_path, &historic_db_path, &table_name, start, termination)
         }
-        "event_by_move_module" => {
-            get_db_entries!(
-                db_read_only_handle.event_by_move_module,
-                from_module_id_and_event_id,
-                start,
-                termination
-            )
-        }
-        "event_order" => {
-            get_db_entries!(
-                db_read_only_handle.event_order,
-                from_event_id,
-                start,
-                termination
-            )
-        }
-        "event_by_sender" => {
-            get_db_entries!(
-                db_read_only_handle.event_by_sender,
-                from_address_and_event_id,
-                start,
-                termination
-            )
-        }
+    }
+}
+
+/// Searches one of the transaction/event history tables, which live in
+/// per-epoch column families. Entries come back in global order.
+fn search_history_table(
+    db_path: PathBuf,
+    historic_db_path: &Path,
+    table_name: &str,
+    start: &str,
+    termination: SearchRange<String>,
+) -> Result<Vec<(String, String)>, anyhow::Error> {
+    // Every existing column family must be listed for RocksDB to open the
+    // database, each history bucket with the directory its files are in; the
+    // scan itself only touches the history buckets.
+    let cf_options = column_family_options(&db_path, Some(historic_db_path))
+        .map_err(|e| anyhow!("unable to list the column families of {db_path:?}: {e}"))?;
+    let mut epochs: Vec<EpochId> = cf_options
+        .iter()
+        .filter_map(|(name, _)| history_cf_epoch(name))
+        .collect();
+    epochs.sort_unstable();
+    if epochs.is_empty() {
+        bail!("the database at {db_path:?} holds no history column families");
+    }
+    let opt_cfs: Vec<(&str, rocksdb::Options)> = cf_options
+        .iter()
+        .map(|(name, options)| (name.as_str(), options.clone()))
+        .collect();
+    let db = open_cf_opts_secondary(
+        &db_path,
+        None,
+        None,
+        MetricConf::new("index_search"),
+        &opt_cfs,
+    )?;
+
+    match table_name {
+        "tx_order" => get_history_entries::<TxSequenceNumber, TransactionDigest>(
+            &db,
+            &epochs,
+            DB_PREFIX_HISTORIC_TX_ORDER,
+            |s| Ok(TxSequenceNumber::from_str(s)?),
+            start,
+            termination,
+        ),
+        "txs_seq" => get_history_entries::<TransactionDigest, TxSequenceNumber>(
+            &db,
+            &epochs,
+            DB_PREFIX_HISTORIC_TXS_SEQ,
+            |s| Ok(TransactionDigest::from_str(s)?),
+            start,
+            termination,
+        ),
+        "txs_from_addr" => get_history_entries::<_, TransactionDigest>(
+            &db,
+            &epochs,
+            DB_PREFIX_HISTORIC_TXS_FROM_ADDR,
+            from_addr_seq,
+            start,
+            termination,
+        ),
+        "txs_to_addr" => get_history_entries::<_, TransactionDigest>(
+            &db,
+            &epochs,
+            DB_PREFIX_HISTORIC_TXS_TO_ADDR,
+            from_addr_seq,
+            start,
+            termination,
+        ),
+        "txs_by_input_object_id" => get_history_entries::<_, TransactionDigest>(
+            &db,
+            &epochs,
+            DB_PREFIX_HISTORIC_TXS_BY_INPUT_OBJECT_ID,
+            from_id_seq,
+            start,
+            termination,
+        ),
+        "txs_by_mutated_object_id" => get_history_entries::<_, TransactionDigest>(
+            &db,
+            &epochs,
+            DB_PREFIX_HISTORIC_TXS_BY_MUTATED_OBJECT_ID,
+            from_id_seq,
+            start,
+            termination,
+        ),
+        "txs_by_move_function" => get_history_entries::<_, TransactionDigest>(
+            &db,
+            &epochs,
+            DB_PREFIX_HISTORIC_TXS_BY_MOVE_FUNCTION,
+            from_id_module_function_txseq,
+            start,
+            termination,
+        ),
+        "event_order" => get_history_entries::<_, EventValue>(
+            &db,
+            &epochs,
+            DB_PREFIX_HISTORIC_EVENT_ORDER,
+            from_event_id,
+            start,
+            termination,
+        ),
+        "event_by_move_module" => get_history_entries::<_, EventValue>(
+            &db,
+            &epochs,
+            DB_PREFIX_HISTORIC_EVENT_BY_MOVE_MODULE,
+            from_module_id_and_event_id,
+            start,
+            termination,
+        ),
+        "event_by_event_module" => get_history_entries::<_, EventValue>(
+            &db,
+            &epochs,
+            DB_PREFIX_HISTORIC_EVENT_BY_EVENT_MODULE,
+            from_module_id_and_event_id,
+            start,
+            termination,
+        ),
+        "event_by_sender" => get_history_entries::<_, EventValue>(
+            &db,
+            &epochs,
+            DB_PREFIX_HISTORIC_EVENT_BY_SENDER,
+            from_address_and_event_id,
+            start,
+            termination,
+        ),
         _ => bail!("Invalid or unsupported table: {table_name}"),
     }
+}
+
+/// The value shared by every event history table.
+type EventValue = (TransactionEventsDigest, TransactionDigest, u64);
+
+/// [`get_entries`] over one history table's per-epoch maps, in epoch order.
+fn get_history_entries<K, V>(
+    db: &Arc<Database>,
+    epochs: &[EpochId],
+    tag: u8,
+    key_converter: impl Fn(&str) -> Result<K, anyhow::Error>,
+    start: &str,
+    termination: SearchRange<String>,
+) -> Result<Vec<(String, String)>, anyhow::Error>
+where
+    K: Serialize + DeserializeOwned + Clone + Debug,
+    V: Serialize + DeserializeOwned + Debug,
+{
+    let start = key_converter(start)?;
+    println!("Searching from key: {start:?}");
+    let termination = match termination {
+        SearchRange::ExclusiveLastKey(last_key) => {
+            println!("Retrieving all keys up to (but not including) key: {last_key:?}");
+            SearchRange::ExclusiveLastKey(key_converter(last_key.as_str())?)
+        }
+        SearchRange::Count(count) => {
+            println!("Retrieving up to {count} keys");
+            SearchRange::Count(count)
+        }
+    };
+
+    let mut entries = Vec::new();
+    for epoch in epochs {
+        let map: TaggedDBMap<K, V> = TaggedDBMap::reopen(
+            db,
+            &history_cf_name(*epoch),
+            tag,
+            &ReadWriteOptions::default(),
+            true,
+        )?;
+        map.try_catch_up_with_primary()?;
+        let upper_bound = match &termination {
+            SearchRange::ExclusiveLastKey(last_key) => Some(last_key.clone()),
+            SearchRange::Count(_) => None,
+        };
+        for result in map.safe_iter_with_bounds(Some(start.clone()), upper_bound) {
+            let (key, value) = result?;
+            entries.push((format!("{key:?}"), format!("{value:?}")));
+            if let SearchRange::Count(count) = &termination {
+                if entries.len() as u64 >= *count {
+                    return Ok(entries);
+                }
+            }
+        }
+    }
+    Ok(entries)
 }
 
 #[macro_export]
@@ -269,37 +397,37 @@ fn from_id_module_function_txseq(
         bail!("Invalid object id, module name, function name, TX sequence number quad");
     }
     let pid = ObjectId::from_str(tokens[0].trim())?;
-    let module: Identifier = Identifier::from_str(tokens[1].trim())?;
-    let func: Identifier = Identifier::from_str(tokens[2].trim())?;
+    let module = iota_sdk_types::Identifier::from_str(tokens[1].trim())?;
+    let func = iota_sdk_types::Identifier::from_str(tokens[2].trim())?;
     let seq: TxSequenceNumber = TxSequenceNumber::from_str(tokens[3].trim())?;
 
     Ok((pid, module.to_string(), func.to_string(), seq))
 }
 
-fn from_addr_oid(s: &str) -> Result<(Address, ObjectId), anyhow::Error> {
-    // Remove whitespaces
-    let s = s.trim();
-    let tokens = s.split(',').collect::<Vec<&str>>();
-    if tokens.len() != 2 {
-        bail!("Invalid address, object id pair");
-    }
-    let addr = Address::from_str(tokens[0].trim())?;
-    let oid = ObjectId::from_str(tokens[1].trim())?;
-
-    Ok((addr, oid))
+/// The owner index's lowest key for an address, so a scan can be bounded by
+/// the address alone.
+fn from_addr_owner_key(s: &str) -> Result<OwnerIndexKey, anyhow::Error> {
+    let owner = Address::from_str(s.trim())?;
+    Ok(OwnerIndexKey {
+        owner,
+        object_type_identifier: 0,
+        object_type_params: 0,
+        inverted_balance: None,
+        object_id: ObjectId::ZERO,
+    })
 }
 
-fn from_oid_oid(s: &str) -> Result<(ObjectId, ObjectId), anyhow::Error> {
+fn from_parent_field_key(s: &str) -> Result<DynamicFieldKey, anyhow::Error> {
     // Remove whitespaces
     let s = s.trim();
     let tokens = s.split(',').collect::<Vec<&str>>();
     if tokens.len() != 2 {
-        bail!("Invalid object id, object id triplet");
+        bail!("Invalid parent object id, field object id pair");
     }
-    let oid1 = ObjectId::from_str(tokens[0].trim())?;
-    let oid2: ObjectId = ObjectId::from_str(tokens[1].trim())?;
+    let parent = ObjectId::from_str(tokens[0].trim())?;
+    let field_id = ObjectId::from_str(tokens[1].trim())?;
 
-    Ok((oid1, oid2))
+    Ok(DynamicFieldKey::new(parent, field_id))
 }
 
 fn from_module_id_and_event_id(
@@ -350,4 +478,54 @@ fn from_address_and_event_id(
     let event_seq = usize::from_str(tokens[2])?;
     let address = Address::from_str(tokens[0].trim())?;
     Ok((address, (tx_seq, event_seq)))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+
+    use iota_core::rpc_indexes::{IndexGroup, RpcIndexesStore};
+    use iota_types::{
+        effects::TransactionEffectsAPI, test_checkpoint_data_builder::TestCheckpointDataBuilder,
+    };
+
+    use super::*;
+
+    /// The history value types spelled out above still decode what the node
+    /// writes, also once it is flushed into the bucket's own directory.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn digests_search_decodes_what_the_index_wrote() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("rpc_indexes");
+        let store = RpcIndexesStore::new_without_init(
+            db_path.clone(),
+            Some(&historic_db_path_of_store(&db_path)),
+            BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
+        );
+        let checkpoint = TestCheckpointDataBuilder::new(0)
+            .start_transaction(0)
+            .create_owned_object(0)
+            .finish_transaction()
+            .build_checkpoint();
+        store.index_checkpoint(&checkpoint).unwrap();
+        store
+            .commit_update_for_checkpoint(checkpoint.checkpoint_summary.sequence_number)
+            .unwrap();
+        store.flush_for_testing().unwrap();
+        let digest = *checkpoint.transactions[0].effects.transaction_digest();
+
+        let entries = search_index(
+            db_path,
+            "txs_seq".to_owned(),
+            TransactionDigest::new([0; 32]).to_string(),
+            SearchRange::Count(10),
+        )
+        .unwrap();
+
+        assert_eq!(entries.len(), 1);
+        assert!(
+            entries[0].0.contains(&digest.to_string()),
+            "the scan must return the indexed transaction, got {entries:?}"
+        );
+    }
 }

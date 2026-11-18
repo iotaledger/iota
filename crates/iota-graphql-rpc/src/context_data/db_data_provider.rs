@@ -70,6 +70,7 @@ impl PgManager {
             fallback_kv_multi_fetch_batch_size,
             fallback_kv_concurrent_fetches,
             fallback_kv_cache_size,
+            fallback_kv_max_response_size_bytes,
         } = historic_fallback
         {
             let fallback = HistoricalFallbackReader::new(
@@ -78,6 +79,7 @@ impl PgManager {
                 reader.package_resolver().clone(),
                 *fallback_kv_multi_fetch_batch_size,
                 *fallback_kv_concurrent_fetches,
+                *fallback_kv_max_response_size_bytes,
                 registry,
             )
             .map_err(|e| {

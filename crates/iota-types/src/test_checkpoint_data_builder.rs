@@ -651,6 +651,8 @@ impl TestCheckpointDataBuilder {
             None,
             0,
             vec![],
+            vec![],
+            Default::default(),
         );
 
         let (committee, keys) = Committee::new_simple_test_committee();

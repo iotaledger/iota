@@ -322,6 +322,8 @@ mod tests {
             None,
             0,
             Vec::new(),
+            Vec::new(),
+            Default::default(),
         );
         let info = AuthorityQuorumSignInfo::<true> {
             epoch: 0,

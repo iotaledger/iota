@@ -200,4 +200,6 @@ flowchart TD
 
 </Tabs>
 
+A failed authentication has a different outcome in the two phases. Before consensus the transaction is rejected and no gas is charged. At execution the transaction fails with the `MoveAuthentication` execution error, none of its commands run, and gas is charged.
+
 For the full technical specification, including component details, protocol design, requirements, and test cases, see [IIP-0009](https://github.com/iotaledger/IIPs/blob/main/iips/IIP-0009/IIP-0009.md).

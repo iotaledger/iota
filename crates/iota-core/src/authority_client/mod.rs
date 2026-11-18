@@ -115,7 +115,7 @@ pub fn make_network_authority_clients_with_network_config(
             .as_ref()
             .map(|key| {
                 iota_tls::create_rustls_client_config(
-                    key.clone(),
+                    *key,
                     iota_tls::IOTA_VALIDATOR_SERVER_NAME.to_string(),
                     None,
                 )

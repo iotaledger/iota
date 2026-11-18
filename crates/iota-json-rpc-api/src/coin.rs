@@ -3,11 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_json_rpc_types::{
-    Balance, Coin, CoinPage, IotaCirculatingSupply, IotaCoinMetadata, IotaSupply, Page,
-    iota_primitives::{Address as AddressSchema, ObjectId as ObjectIdSchema},
+    Balance, Coin, CoinPage, IotaCirculatingSupply, IotaCoinMetadata, IotaSupply,
+    OwnedObjectCursor, Page, iota_primitives::Address as AddressSchema,
 };
 use iota_open_rpc_macros::open_rpc;
-use iota_sdk_types::{Address, ObjectId};
+use iota_sdk_types::Address;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 /// Provides access to coin-related data such as coins owned by an address,
@@ -18,7 +18,7 @@ pub trait CoinReadApi {
     /// Return all Coin<`coin_type`> objects owned by an address.
     #[rustfmt::skip]
     #[method(name = "getCoins")]
-    #[schemars(with = "Page<Coin, ObjectIdSchema>")]
+    #[schemars(with = "Page<Coin, OwnedObjectCursor>")]
     async fn get_coins(
         &self,
         /// the owner's IOTA address
@@ -27,8 +27,7 @@ pub trait CoinReadApi {
         /// optional type name for the coin (e.g., 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC), default to 0x2::iota::IOTA if not specified.
         coin_type: Option<String>,
         /// optional paging cursor
-        #[schemars(with = "Option<ObjectIdSchema>")]
-        cursor: Option<ObjectId>,
+        cursor: Option<OwnedObjectCursor>,
         /// maximum number of items per page
         limit: Option<usize>,
     ) -> RpcResult<CoinPage>;
@@ -36,15 +35,14 @@ pub trait CoinReadApi {
     /// Return all Coin objects owned by an address.
     #[rustfmt::skip]
     #[method(name = "getAllCoins")]
-    #[schemars(with = "Page<Coin, ObjectIdSchema>")]
+    #[schemars(with = "Page<Coin, OwnedObjectCursor>")]
     async fn get_all_coins(
         &self,
         /// the owner's IOTA address
         #[schemars(with = "AddressSchema")]
         owner: Address,
         /// optional paging cursor
-        #[schemars(with = "Option<ObjectIdSchema>")]
-        cursor: Option<ObjectId>,
+        cursor: Option<OwnedObjectCursor>,
         /// maximum number of items per page
         limit: Option<usize>,
     ) -> RpcResult<CoinPage>;

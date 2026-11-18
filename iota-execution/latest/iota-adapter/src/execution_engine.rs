@@ -38,8 +38,9 @@ mod checked {
         committee::EpochId,
         error::{ExecutionError, ExecutionErrorKind},
         execution::{
-            ExecutionResults, ExecutionResultsV1, ExecutionTiming, ResultWithTimings, SharedInput,
-            is_certificate_denied,
+            AuthenticateThenExecuteOutput, ExecutionResults, ExecutionResultsV1, ExecutionTiming,
+            ResultWithTimings, SharedInput, is_any_invariant_violation, is_cancellation,
+            is_certificate_denied, unwrap_move_authentication_error,
         },
         execution_config_utils::to_binary_config,
         gas::{IotaGasStatus, IotaGasStatusAPI},
@@ -288,14 +289,16 @@ mod checked {
     /// the authentication execution and then reuses these for the normal
     /// transaction execution.
     /// When consensus cancelled the transaction, no authenticator runs and
-    /// the effects carry the cancellation; with deterministic validation on, a
-    /// gas owner that is a Move account is then not charged. Otherwise, running
+    /// the effects carry the cancellation; with the P-COOL flow on, a gas
+    /// owner that is a Move account is then not charged. Otherwise, running
     /// the Move authentication can have two outcomes:
     ///   - If it fails, then it charges gas for the failed execution of the authentication and
-    ///     produces transaction effects with the appropriate error status. With deterministic
-    ///     validation on, a gas owner that is a Move account and did not authorize the transaction
-    ///     is not charged; see `execute_without_gas_charge_to_effects`. A gas owner that did
-    ///     authorize it is charged, and every owned input moves to its next version.
+    ///     produces transaction effects with the appropriate error status. With the P-COOL flow on,
+    ///     a gas owner that is a Move account and did not authorize the transaction is not charged;
+    ///     see `execute_without_gas_charge_to_effects`. When `gas_owner_pays` is given, it decides
+    ///     whether such a gas owner pays anyway, unless the failure is a cancellation or an
+    ///     invariant violation. A gas owner that did authorize it is charged, and every owned input
+    ///     moves to its next version.
     ///   - Else, if the authentication is successful, it continues with the normal transaction
     ///     execution.
     /// It combines the input objects from both the authentication and
@@ -321,6 +324,7 @@ mod checked {
         // Authentication
         authenticators: MoveAuthenticatorsForExecution,
         authenticator_and_transaction_input_objects: CheckedInputObjects,
+        gas_owner_pays: Option<&dyn Fn(&ExecutionErrorKind) -> bool>,
         // Transaction
         transaction_kind: TransactionKind,
         transaction_signer: Address,
@@ -330,13 +334,7 @@ mod checked {
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         // VM
         move_vm: &Arc<MoveVM>,
-    ) -> (
-        InnerTemporaryStore,
-        IotaGasStatus,
-        TransactionEffects,
-        Vec<ExecutionTiming>,
-        Result<Mode::ExecutionResults, ExecutionError>,
-    ) {
+    ) -> AuthenticateThenExecuteOutput<Mode::ExecutionResults> {
         // Preparation
         // It involves setting up the TemporaryStore, GasCharger, and TxContext, that
         // will be common for both the authentication and transaction execution.
@@ -396,7 +394,7 @@ mod checked {
         );
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
 
-        let deterministic_validation = protocol_config.enable_pcool_flow();
+        let enable_pcool = protocol_config.enable_pcool_flow();
         let run_authenticator =
             |temporary_store: &mut TemporaryStore<'_>,
              gas_charger: &mut GasCharger,
@@ -438,8 +436,8 @@ mod checked {
         // consensus. A Move account did only if its authenticator ran and
         // succeeded.
         //
-        // Under deterministic validation the gas owner's authenticator runs
-        // first, and also after another account failed to resolve, so whether
+        // Under the P-COOL flow the gas owner's authenticator runs first, and
+        // also after another account failed to resolve, so whether
         // the gas owner authorized does not depend on the order of the
         // signatures. When it fails, its failure is the one reported.
         //
@@ -471,7 +469,7 @@ mod checked {
                             (Err(error), true)
                         } else {
                             match gas_owner_authenticator
-                                .filter(|_| deterministic_validation)
+                                .filter(|_| enable_pcool)
                                 .map(|gas_owner_authenticator| *gas_owner_authenticator)
                             {
                                 Some(MoveAuthenticatorForExecution {
@@ -539,7 +537,7 @@ mod checked {
                             )
                             .collect::<Vec<_>>();
 
-                        if deterministic_validation {
+                        if enable_pcool {
                             if let Some(position) =
                                 authenticators.iter().position(|(authenticator, ..)| {
                                     authenticator.address() == gas_owner
@@ -594,25 +592,48 @@ mod checked {
             }
         };
 
-        // Under deterministic validation, the gas owner's authenticator runs for
-        // the first time here, so a transaction it did not authorize can reach
-        // execution. Nobody pays for it.
+        // The body's own checks may replace this error in the effects, so its
+        // kind is reported alongside.
+        let authentication_error = authentication_execution_result
+            .as_ref()
+            .err()
+            .map(|error| error.kind().clone());
+
+        // Under the P-COOL flow, the gas owner's authenticator runs for the
+        // first time here, so a transaction it did not authorize can reach
+        // execution. Nobody pays for it, unless `gas_owner_pays` answers `true`.
         let authentication_execution_result = match authentication_execution_result {
-            Err(error) if !gas_owner_authorized && protocol_config.enable_pcool_flow() => {
-                return execute_without_gas_charge_to_effects::<Mode>(
-                    temporary_store,
-                    gas_charger,
-                    shared_object_refs,
-                    transaction_dependencies,
-                    contains_deleted_input,
-                    cancelled_objects,
-                    transaction_digest,
-                    epoch_id,
-                    protocol_config,
-                    certificate_deny_set,
-                    error,
+            Err(error)
+                if !gas_owner_authorized
+                    && protocol_config.enable_pcool_flow()
+                    && !charge_gas_owner(protocol_config, &error, gas_owner_pays) =>
+            {
+                let (inner_temp_store, gas_status, effects, timings, execution_result) =
+                    execute_without_gas_charge_to_effects::<Mode>(
+                        temporary_store,
+                        gas_charger,
+                        shared_object_refs,
+                        transaction_dependencies,
+                        contains_deleted_input,
+                        cancelled_objects,
+                        transaction_digest,
+                        epoch_id,
+                        protocol_config,
+                        certificate_deny_set,
+                        error,
+                    );
+
+                return (
+                    inner_temp_store,
+                    gas_status,
+                    effects,
+                    timings,
+                    execution_result,
+                    authentication_error,
                 );
             }
+            // Also a gas owner that `gas_owner_pays` charges: it pays like any
+            // failed transaction its gas owner authorized.
             result => result,
         };
         // Transaction execution.
@@ -622,27 +643,55 @@ mod checked {
         // authentication failure or for a normal execution of the transaction.
 
         // Run the transaction execution and return the effects.
-        execute_transaction_to_effects_inner::<Mode>(
-            temporary_store,
-            gas_charger,
-            tx_ctx,
-            &mutable_inputs,
-            shared_object_refs,
-            transaction_dependencies,
-            contains_deleted_input,
-            cancelled_objects,
-            transaction_kind,
-            transaction_signer,
-            transaction_digest,
-            move_vm,
-            epoch_id,
-            protocol_config,
-            metrics,
-            enable_expensive_checks,
-            certificate_deny_set,
-            trace_builder_opt,
-            Some(authentication_execution_result),
+        let (inner_temp_store, gas_status, effects, timings, execution_result) =
+            execute_transaction_to_effects_inner::<Mode>(
+                temporary_store,
+                gas_charger,
+                tx_ctx,
+                &mutable_inputs,
+                shared_object_refs,
+                transaction_dependencies,
+                contains_deleted_input,
+                cancelled_objects,
+                transaction_kind,
+                transaction_signer,
+                transaction_digest,
+                move_vm,
+                epoch_id,
+                protocol_config,
+                metrics,
+                enable_expensive_checks,
+                certificate_deny_set,
+                trace_builder_opt,
+                Some(authentication_execution_result),
+            );
+        (
+            inner_temp_store,
+            gas_status,
+            effects,
+            timings,
+            execution_result,
+            authentication_error,
         )
+    }
+
+    /// Whether a gas owner that is a Move account and did not authorize the
+    /// transaction pays for its failed authentication, as `gas_owner_pays`
+    /// decides under the protocol feature flag `enable_validator_attestation`.
+    /// `gas_owner_pays` is not asked about a cancellation, decided at the
+    /// consensus commit before any authenticator ran, nor about an invariant
+    /// violation, an internal error: such a gas owner is not charged.
+    fn charge_gas_owner(
+        protocol_config: &ProtocolConfig,
+        error: &ExecutionError,
+        gas_owner_pays: Option<&dyn Fn(&ExecutionErrorKind) -> bool>,
+    ) -> bool {
+        let kind = unwrap_move_authentication_error(error.kind());
+
+        protocol_config.enable_validator_attestation()
+            && !is_cancellation(kind)
+            && !is_any_invariant_violation(kind)
+            && gas_owner_pays.is_some_and(|pays| pays(kind))
     }
 
     /// Produces the effects of a transaction whose gas owner is a Move account
@@ -722,7 +771,8 @@ mod checked {
     /// This function checks the authentication of a transaction without
     /// returning effects. It executes an authenticate function using the
     /// information of an authenticator. If the execution fails, it returns
-    /// an execution error; otherwise it returns an empty value.
+    /// an execution error; otherwise it returns an empty value. The gas
+    /// status the authentication was metered on is returned alongside.
     #[instrument(name = "tx_validate", level = "debug", skip_all)]
     pub fn authenticate_transaction(
         store: &dyn BackingStore,
@@ -751,8 +801,10 @@ mod checked {
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         // VM
         move_vm: &Arc<MoveVM>,
-    ) -> Result<<execution_mode::Authentication as ExecutionMode>::ExecutionResults, ExecutionError>
-    {
+    ) -> (
+        IotaGasStatus,
+        Result<<execution_mode::Authentication as ExecutionMode>::ExecutionResults, ExecutionError>,
+    ) {
         // Prepare the gas charger for authentication execution.
         let sponsor = resolve_sponsor(&gas_data, &transaction_signer);
         let gas_price = gas_status.gas_price();
@@ -809,7 +861,8 @@ mod checked {
             },
         );
 
-        report_authentication_error(authentication_execution_result, protocol_config)
+        let result = report_authentication_error(authentication_execution_result, protocol_config);
+        (gas_charger.into_gas_status(), result)
     }
 
     // This function implements the authentication execution. It checks that the

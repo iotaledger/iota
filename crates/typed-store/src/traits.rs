@@ -49,9 +49,16 @@ where
     fn schedule_delete_all(&self) -> Result<(), TypedStoreError>;
 
     /// Returns true if the map is empty, otherwise false.
+    ///
+    /// Has no error channel, so a map whose scan cannot be constructed reads
+    /// as non-empty, see [`Self::safe_iter`].
     fn is_empty(&self) -> bool;
 
     /// Iterates over all entries in key order.
+    ///
+    /// A scan the backend cannot construct, e.g. over a dropped column
+    /// family, yields that error as its single item, so it counts as one
+    /// entry rather than none.
     fn safe_iter(&'a self) -> DbIterator<'a, (K, V)>;
 
     /// Iterates over the half-open key range `[lower_bound, upper_bound)` —

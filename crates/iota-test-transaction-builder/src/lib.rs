@@ -198,6 +198,18 @@ impl TestTransactionBuilder {
         )
     }
 
+    pub fn call_unstaking(self, staked_iota: ObjectReference) -> Self {
+        self.move_call(
+            ObjectId::SYSTEM,
+            Identifier::IOTA_SYSTEM_MODULE.as_str(),
+            "request_withdraw_stake",
+            vec![
+                CallArg::IOTA_SYSTEM_MUTABLE,
+                CallArg::ImmutableOrOwned(staked_iota),
+            ],
+        )
+    }
+
     pub fn call_emit_random(
         self,
         package_id: ObjectId,
