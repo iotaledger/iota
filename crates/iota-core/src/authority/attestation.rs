@@ -7,7 +7,7 @@
 
 use std::{
     cell::Cell,
-    collections::{BTreeSet, HashSet},
+    collections::{BTreeSet, HashMap, HashSet},
     sync::Arc,
 };
 
@@ -27,7 +27,7 @@ use iota_types::{
     committee::Committee,
     deny_rule_governance::DenyRuleConfig,
     effects::TransactionEffectsAPI,
-    error::{IotaError, IotaResult},
+    error::{IotaError, IotaResult, UserInputError},
     gas::IotaGasStatus,
     inner_temporary_store::InnerTemporaryStore,
     messages_checkpoint::CheckpointSummaryExt,
@@ -86,6 +86,23 @@ impl AuthorityState {
             tx_checked_input_objects,
             per_authenticator_checked_inputs,
         } = self.run_validation_checks(transaction, epoch_store, deny_config, true)?;
+
+        // `aggregate_authenticator_input_objects()` asserts that the sets it
+        // combines hold the same read result for every object they share, and
+        // a failed assert stops the validator. It is called in
+        // `authenticate_before_consensus()` and again before the dry run, so
+        // the sets are compared before both: if two of them differ, the
+        // transaction is rejected with an error.
+        if !move_authenticators.is_empty() {
+            let checked_input_sets: Vec<_> = std::iter::once(&tx_checked_input_objects)
+                .chain(
+                    per_authenticator_checked_inputs
+                        .iter()
+                        .map(|(inputs, _)| inputs),
+                )
+                .collect();
+            check_input_read_consistency(&checked_input_sets)?;
+        }
 
         let owned_objects = tx_checked_input_objects.inner().filter_owned_objects();
 
@@ -548,10 +565,31 @@ fn attestable_object_versions(
         .collect())
 }
 
+/// Checks that `input_sets` hold the same read result for every object they
+/// name more than once, and returns [`UserInputError::InconsistentInput`]
+/// for the first object where they differ.
+///
+/// [`iota_transaction_checks::checked_input_objects_union()`] asserts the
+/// same when it combines two sets.
+fn check_input_read_consistency(input_sets: &[&CheckedInputObjects]) -> IotaResult {
+    let mut read_results = HashMap::new();
+    for input in input_sets.iter().flat_map(|set| set.inner().iter()) {
+        let first_read = *read_results.entry(input.id()).or_insert(&input.object);
+        if *first_read != input.object {
+            return Err(UserInputError::InconsistentInput {
+                object_id: input.id(),
+            }
+            .into());
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{GasCostSummary, TransactionDigest};
-    use iota_types::effects::TransactionEffectsExtForTesting;
+    use iota_sdk_types::{GasCostSummary, TransactionDigest, Version};
+    use iota_types::{effects::TransactionEffectsExtForTesting, object::Object};
 
     use super::*;
 
@@ -689,5 +727,61 @@ mod tests {
             cut_off_attestors(&totals, 100, &committee),
             BTreeSet::from([first])
         );
+    }
+
+    /// A set of checked inputs that holds the shared object `id` as read at
+    /// `version`, taken as mutable if `mutable` is set.
+    fn read_shared_object_at(id: ObjectId, version: u64, mutable: bool) -> CheckedInputObjects {
+        let initial_shared_version = Version::from(1);
+        let object = Object::with_id_owner_version_for_testing(
+            id,
+            Version::from(version),
+            Owner::Shared(initial_shared_version),
+        );
+        let kind = InputObjectKind::SharedMoveObject {
+            id,
+            initial_shared_version,
+            mutable,
+        };
+
+        CheckedInputObjects::new_with_checked_transaction_inputs(InputObjects::new(vec![
+            ObjectReadResult::new(kind, object.into()),
+        ]))
+    }
+
+    /// The transaction takes the object as mutable and an authenticator as
+    /// immutable. Different mutability is allowed, so the error comes from
+    /// the two versions read.
+    #[test]
+    fn input_sets_with_shared_object_at_two_versions_are_inconsistent() {
+        let id = ObjectId::random();
+        let transaction_inputs = read_shared_object_at(id, 2, true);
+        let authenticator_inputs = read_shared_object_at(id, 3, false);
+
+        let error = check_input_read_consistency(&[&transaction_inputs, &authenticator_inputs])
+            .unwrap_err();
+
+        assert!(
+            matches!(
+                &error,
+                IotaError::UserInput {
+                    error: UserInputError::InconsistentInput { object_id }
+                } if *object_id == id
+            ),
+            "expected InconsistentInput for the object, got {error:?}"
+        );
+    }
+
+    /// Sets that hold the same read result for an object they share pass, and
+    /// so does a set that shares no object with the others.
+    #[test]
+    fn input_sets_with_same_read_results_are_consistent() {
+        let id = ObjectId::random();
+        let transaction_inputs = read_shared_object_at(id, 2, true);
+        let authenticator_inputs = read_shared_object_at(id, 2, false);
+        let other_inputs = read_shared_object_at(ObjectId::random(), 5, false);
+
+        check_input_read_consistency(&[&transaction_inputs, &authenticator_inputs, &other_inputs])
+            .unwrap();
     }
 }

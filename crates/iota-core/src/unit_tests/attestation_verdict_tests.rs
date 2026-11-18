@@ -17,7 +17,9 @@
 //! with its key, pays as for any failure. Most tests rotate the account after
 //! the transaction is built - its key or its authenticator function - so the
 //! same transaction authenticates differently at two versions of the same
-//! account.
+//! account. One test checks the attestor's dry run instead: a transaction
+//! whose gas coin and authenticator name one object at two versions is refused
+//! before any input is read.
 
 use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
 use iota_sdk_types::{ExecutionError, ExecutionStatus, GasCostSummary, Owner, TransactionEffects};
@@ -25,6 +27,7 @@ use iota_types::{
     attestation::{Attestation, AttestationRecord, AttestationVerdict},
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
+    error::{IotaError, UserInputError},
     execution::is_cancellation,
     object::Object,
     transaction::{TransactionAPI, TransactionEnvelope},
@@ -705,4 +708,36 @@ async fn unattested_failed_authentication_charges_nobody() {
     let gas_coin_after = env.object(&gas_coin_before.id());
     assert_not_charged(&effects, &gas_coin_before, &gas_coin_after);
     assert_eq!(env.attestation_record(effects.transaction_digest()), None);
+}
+
+/// A Move account freezes one of its coins, then sends a transaction that pays
+/// gas with the coin's version from before the freeze, while its authenticator
+/// names the frozen version. The attestor's dry run refuses it with
+/// [`UserInputError::InconsistentInput`] when it lists the inputs, before it
+/// reads any, so the two versions do not reach
+/// [`iota_transaction_checks::checked_input_objects_union()`]. The
+/// authenticator does not accept the extra argument either, but that check
+/// comes later.
+#[tokio::test]
+async fn dry_run_refuses_gas_coin_named_at_another_version_by_authenticator() {
+    let _guard = attestation_config(None);
+
+    let mut env = AbstractAccountTestEnv::new().await;
+    let (owned_coin, frozen_coin) = env.freeze_account_coin().await;
+    assert_ne!(owned_coin.version, frozen_coin.version);
+    let tx = env.account_transaction_with_authenticator_input(owned_coin, frozen_coin);
+
+    let error = env
+        .try_attest(&tx)
+        .expect_err("the dry run must refuse the transaction");
+
+    assert!(
+        matches!(
+            &error,
+            IotaError::UserInput {
+                error: UserInputError::InconsistentInput { object_id }
+            } if *object_id == owned_coin.object_id
+        ),
+        "expected InconsistentInput for the coin, got {error:?}"
+    );
 }
