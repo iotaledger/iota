@@ -1605,6 +1605,16 @@ impl AuthorityState {
             )
             .await?;
 
+        // Concurrent requests for the same transaction are signed once; the others
+        // get the stored signature instead of signing and writing it again.
+        let _signing_lock = epoch_store.acquire_signing_lock(transaction.digest());
+        if let Some(signed_transaction) =
+            epoch_store.get_signed_transaction(transaction.digest())?
+        {
+            self.metrics.tx_already_processed.inc();
+            return Ok(signed_transaction);
+        }
+
         let epoch = epoch_store.epoch();
         let signed_transaction =
             VerifiedSignedTransaction::new(epoch, transaction, self.name, &*self.secret);
