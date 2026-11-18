@@ -91,7 +91,7 @@ async fn verify_dependent_replay() {
         .expect("Replay with execution engine failed");
 }
 
-/// Replays a transaction cancelled because the transaction it depends on
+/// Replays a transaction that failed because the transaction it depends on
 /// failed.
 #[sim_test]
 async fn verify_dependent_of_failed_transaction_replay() {
