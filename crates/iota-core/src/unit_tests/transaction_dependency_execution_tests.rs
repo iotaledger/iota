@@ -148,7 +148,7 @@ impl Setup {
 }
 
 #[tokio::test]
-async fn dependent_of_a_failed_transaction_is_cancelled_at_execution() {
+async fn dependent_of_a_failed_transaction_fails_at_execution() {
     let setup = setup().await;
     let failing = setup.transfer(0, u64::MAX, None, false);
     let failing_digest = *failing.digest();
