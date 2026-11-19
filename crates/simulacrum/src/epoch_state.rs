@@ -11,20 +11,21 @@ use iota_config::{
 use iota_execution::Executor;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{Transaction, TransactionEffects};
-use iota_transaction_checks::VerifierLimitsSource;
+use iota_transaction_checks::{
+    VerifierLimitsSource,
+    simulate::{self, SimulationEnv},
+};
 use iota_types::{
     committee::{Committee, EpochId},
-    effects::TransactionEffectsAPI,
     error::IotaResult,
     gas::IotaGasStatus,
-    gas_coin::mock_simulation_gas_coin,
     inner_temporary_store::InnerTemporaryStore,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
     },
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
-    transaction::{ObjectReadResult, TransactionAPI, VerifiedTransaction},
+    transaction::{TransactionAPI, VerifiedTransaction},
     transaction_executor::{InputCheckRules, SimulateTransactionResult, VmChecks},
 };
 
@@ -189,119 +190,51 @@ impl EpochState {
         Ok((inner_temp_store, gas_status, effects, result))
     }
 
-    /// Simulate a transaction without committing changes.
-    /// This is similar to execute_transaction but:
-    /// - Takes Transaction instead of VerifiedTransaction (no signature required)
-    /// - Takes VmChecks parameter to control validation strictness
-    /// - Returns SimulateTransactionResult with input/output objects
-    /// - Creates a mock gas object if none provided
+    /// Simulate an unsigned transaction without committing it, filling in the
+    /// gas it leaves unset. See
+    /// [`iota_transaction_checks::simulate::prepare_simulation`] for how
+    /// `checks`, unset gas and published packages are handled.
     pub fn simulate_transaction(
         &self,
         store: &dyn SimulatorStore,
         deny_config: &TransactionDenyConfig,
         verifier_signing_config: &VerifierSigningConfig,
-        mut transaction: Transaction,
+        transaction: Transaction,
         checks: VmChecks,
     ) -> IotaResult<SimulateTransactionResult> {
-        // A missing gas payment is allowed here, since we may create a mock gas
-        // object below.
-        iota_transaction_checks::check_user_transaction_validity(
-            &transaction,
-            &self.protocol_config,
-        )?;
-
-        let input_object_kinds = transaction.input_objects()?;
-        let receiving_object_refs = transaction.receiving_objects();
-
-        // Check if some transaction elements are denied
-        iota_transaction_checks::deny::check_transaction_for_validation(
-            &transaction,
-            &[],
-            &input_object_kinds,
-            &receiving_object_refs,
+        let tx_digest = transaction.digest();
+        let env = SimulationEnv {
+            protocol_config: &self.protocol_config,
+            reference_gas_price: self.epoch_start_state.reference_gas_price(),
+            epoch_id: self.epoch_start_state.epoch(),
+            epoch_timestamp_ms: self.epoch_start_state.epoch_start_timestamp_ms(),
             deny_config,
-            store,
-        )?;
-
-        // Load input and receiving objects
-        let (mut input_objects, receiving_objects) = store.read_objects_for_synchronous_execution(
-            &transaction.digest(),
-            &input_object_kinds,
-            &receiving_object_refs,
-        )?;
-
-        // Create a mock gas object if one was not provided
-        let mock_gas_id = if transaction.gas().is_empty() {
-            let mock_gas_object = mock_simulation_gas_coin(transaction.gas_data().owner);
-            let mock_gas_object_ref = mock_gas_object.object_ref();
-            transaction.gas_data_mut().objects = vec![mock_gas_object_ref];
-            input_objects.push(ObjectReadResult::new_from_gas_object(&mock_gas_object));
-            Some(mock_gas_object.id())
-        } else {
-            None
+            certificate_deny_set: &HashSet::new(),
+            verifier_signing_config,
+            bytecode_verifier_metrics: &self.bytecode_verifier_metrics,
+            limits_metrics: &self.limits_metrics,
         };
-
-        iota_types::gas::fill_in_unset_simulation_gas(
-            &mut transaction,
-            &input_objects,
-            self.epoch_start_state.reference_gas_price(),
-            &self.protocol_config,
-        );
-
-        // `MoveAuthenticator`s are not supported in Simulacrum, so we set the
-        // `authenticator_gas_budget` to 0.
-        let authenticator_gas_budget = 0;
-
-        let (gas_status, checked_input_objects) = iota_transaction_checks::check_transaction_input(
-            &self.protocol_config,
-            self.epoch_start_state.reference_gas_price(),
-            &transaction,
-            input_objects,
-            &receiving_objects,
-            &self.bytecode_verifier_metrics,
-            VerifierLimitsSource::NodeConfig(verifier_signing_config),
-            authenticator_gas_budget,
-            false,
-            InputCheckRules::from(checks),
+        let prepared = simulate::prepare_simulation(
+            &env,
+            store.backing_store(),
+            transaction,
+            checks,
+            &[],  // signatures
+            true, // fill_in_gas
+            |input_object_kinds, receiving_object_refs| {
+                store.read_objects_for_synchronous_execution(
+                    &tx_digest,
+                    input_object_kinds,
+                    receiving_object_refs,
+                )
+            },
         )?;
-
-        // Execute the simulation
-        let (kind, signer, gas_data) = transaction.execution_parts();
-        let (inner_temp_store, _, effects, execution_result) =
-            self.executor.dev_inspect_transaction(
-                store.backing_store(),
-                &self.protocol_config,
-                self.limits_metrics.clone(),
-                false,           // expensive_checks
-                &HashSet::new(), // certificate_deny_set
-                &self.epoch_start_state.epoch(),
-                self.epoch_start_state.epoch_start_timestamp_ms(),
-                checked_input_objects,
-                gas_data,
-                gas_status,
-                kind,
-                signer,
-                transaction.digest(),
-                checks.disabled(),
-            );
-
-        let mut input_objects = inner_temp_store.input_objects;
-        iota_types::storage::extend_input_objects_with_loaded_runtime_objects(
-            &mut input_objects,
-            &effects,
-            &inner_temp_store.loaded_runtime_objects,
-            store.backing_store().as_object_store(),
-        );
-
-        Ok(SimulateTransactionResult {
-            input_objects,
-            output_objects: inner_temp_store.written,
-            events: effects.events_digest().map(|_| inner_temp_store.events),
-            effects,
-            execution_result,
-            mock_gas_id,
-            suggested_gas_price: None,
-            gas_data: transaction.gas_data().clone(),
-        })
+        Ok(simulate::execute_simulation(
+            &env,
+            self.executor.as_ref(),
+            store.backing_store(),
+            prepared,
+        )
+        .0)
     }
 }

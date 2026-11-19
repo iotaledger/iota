@@ -7,10 +7,15 @@
 //! debug-configured Move engine for that one call. This module also owns the
 //! executor construction and the gas-profile capture.
 
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
+use iota_config::{
+    transaction_deny_config::TransactionDenyConfig, verifier_signing_config::VerifierSigningConfig,
+};
 use iota_execution::Executor;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::TransactionDigest;
+use iota_transaction_checks::simulate::SimulationEnv;
 use iota_types::metrics::{BytecodeVerifierMetrics, LimitsMetrics};
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -24,12 +29,16 @@ use crate::{
 /// The Move engine and debug wiring for a single `execute*` call.
 pub(super) struct ExecutionEnv {
     pub(super) protocol_config: ProtocolConfig,
-    pub(super) reference_gas_price: u64,
+    reference_gas_price: u64,
     pub(super) epoch_id: u64,
     pub(super) epoch_timestamp_ms: u64,
     pub(super) executor: Arc<dyn Executor + Send + Sync>,
     pub(super) limits_metrics: Arc<LimitsMetrics>,
-    pub(super) bytecode_verifier_metrics: Arc<BytecodeVerifierMetrics>,
+    bytecode_verifier_metrics: Arc<BytecodeVerifierMetrics>,
+    /// Offline default: the verifier-signing limits may differ from those a
+    /// live validator enforces.
+    verifier_signing_config: VerifierSigningConfig,
+    certificate_deny_set: HashSet<TransactionDigest>,
     debug: DebugConfig,
     #[cfg(not(target_arch = "wasm32"))]
     profile_capture: Option<ProfileCapture>,
@@ -73,10 +82,29 @@ impl ExecutionEnv {
             executor,
             limits_metrics: vm.limits_metrics.clone(),
             bytecode_verifier_metrics: vm.bytecode_verifier_metrics.clone(),
+            verifier_signing_config: VerifierSigningConfig::default(),
+            certificate_deny_set: HashSet::new(),
             debug: debug.clone(),
             #[cfg(not(target_arch = "wasm32"))]
             profile_capture,
         })
+    }
+
+    pub(super) fn simulation_env<'a>(
+        &'a self,
+        deny_config: &'a TransactionDenyConfig,
+    ) -> SimulationEnv<'a> {
+        SimulationEnv {
+            protocol_config: &self.protocol_config,
+            reference_gas_price: self.reference_gas_price,
+            epoch_id: self.epoch_id,
+            epoch_timestamp_ms: self.epoch_timestamp_ms,
+            deny_config,
+            certificate_deny_set: &self.certificate_deny_set,
+            verifier_signing_config: &self.verifier_signing_config,
+            bytecode_verifier_metrics: &self.bytecode_verifier_metrics,
+            limits_metrics: &self.limits_metrics,
+        }
     }
 
     pub(super) fn trace_enabled(&self) -> bool {
