@@ -13,6 +13,10 @@
 /// proof before calling them. For `SmartAccount`, `smart_account_builtin_auth` requires a
 /// signature by the key.
 ///
+/// For a `SmartAccount`, use `smart_account_builtin_auth`, which does the steps below and checks
+/// the key holder's proof. The examples are for an account type `Account` defined in another
+/// module, which can reach the account's `UID`.
+///
 /// # Account creation
 /// To create a new account backed by the built-in authenticator, attach the public key and obtain
 /// the authenticator function ref, then pass it to `account::create_account_v1`:
@@ -20,6 +24,7 @@
 /// ```move
 /// builtin_authenticator_functions::attach_public_key(&mut account.id, public_key::create(scheme, raw_pk_bytes));
 /// let authenticator_function_ref = builtin_authenticator_functions::builtin_authenticator_function_ref_v1<Account>();
+/// builtin_authenticator_functions::ensure_builtin_auth_and_public_key_together(&account.id, &authenticator_function_ref);
 /// account::create_account_v1(account, authenticator_function_ref);
 /// ```
 ///
@@ -38,6 +43,7 @@
 /// ```move
 /// let old_public_key = builtin_authenticator_functions::detach_public_key(&mut account.id);
 /// let new_authenticator_function_ref = ...;
+/// builtin_authenticator_functions::ensure_builtin_auth_and_public_key_together(&account.id, &new_authenticator_function_ref);
 /// account::rotate_auth_function_ref_v1(account, new_authenticator_function_ref);
 /// ```
 module iota::builtin_authenticator_functions;
