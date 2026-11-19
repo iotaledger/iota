@@ -250,7 +250,8 @@ fn record_reconstruction_validity_failure(
     let authored = dag_state
         .read()
         .contains_verified_block_headers_for_transaction_refs(&[tx_ref])[0];
-    misbehavior_store.record_faulty_transactions(
+    misbehavior_store.record_fault(
+        err,
         authored.then_some(Slot::new(tx_ref.round, author)),
         relayers,
     );
@@ -288,7 +289,7 @@ fn reconstruct_and_verify(
             // come from peers, so charge only the peers that relayed shards,
             // never the author, even when a verified header for the ref exists.
             if matches!(err, ConsensusError::TransactionCommitmentMismatch { .. }) {
-                misbehavior_store.record_faulty_transactions(None, relayers);
+                misbehavior_store.record_fault(&err, None, relayers);
             }
             Err(tx_ref)
         }
@@ -820,14 +821,14 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                 .committee
                 .to_authority_index(shard_msg.shard_index)
             {
-                self.misbehavior_store.record_faulty_block(
-                    peer,
-                    None,
+                self.misbehavior_store.record_fault(
                     &ConsensusError::SecondShardForSlot {
                         peer,
                         author: tx_ref.author,
                         round: tx_ref.round,
                     },
+                    None,
+                    [peer],
                 );
             }
             return Ok(());

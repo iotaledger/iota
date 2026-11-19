@@ -301,72 +301,25 @@ impl MisbehaviorStore {
             .collect()
     }
 
-    /// Records a fault found while checking data from `peer`: a rejected block
-    /// header, or a corrupt part of a relayed bundle. `header_slot` is the slot
-    /// of the parsed header the error is about, if there is one.
-    ///
-    /// A provable error (valid signature, protocol violation) is charged to the
-    /// header's author once per round, and to `peer` as an unprovable fault on
-    /// every delivery when `peer` is not the author. Other errors charge
-    /// `peer` only.
-    pub(crate) fn record_faulty_block(
+    /// Records a fault found in data received from `relayers`. `header_slot` is
+    /// the slot of the signed header the error is about, or of the header that
+    /// commits to the rejected payload. The class of `error` decides the charge:
+    /// a provable error is charged to that header's author once per round, and
+    /// to each relayer other than the author as an unprovable fault.
+    pub(crate) fn record_fault(
         &self,
-        peer: AuthorityIndex,
-        header_slot: Option<Slot>,
         error: &ConsensusError,
-    ) {
-        // `peer` is trusted (authenticated connection); the header's author is
-        // attacker-controlled and may be out of committee range.
-        let committee_size = self.in_memory.authorities.len();
-        let peer_idx = peer.value();
-        if peer_idx >= committee_size {
-            debug_fatal!("peer {peer} is outside the committee");
-            return;
-        }
-        match classify_block_error(error) {
-            FaultType::Provable => {
-                let Some(slot) = header_slot else {
-                    debug_fatal!("provable error {error} recorded without its header");
-                    self.in_memory.record_block_fault_unprovable(peer_idx);
-                    return;
-                };
-                if slot.authority.value() >= committee_size {
-                    // Can't credit a bogus author; charge the serving peer instead.
-                    self.in_memory.record_block_fault_unprovable(peer_idx);
-                    return;
-                }
-                self.record_provable_fault(slot);
-                if peer != slot.authority {
-                    self.in_memory.record_block_fault_unprovable(peer_idx);
-                }
-            }
-            FaultType::Unprovable => {
-                self.in_memory.record_block_fault_unprovable(peer_idx);
-            }
-            FaultType::BundlePart => {
-                self.in_memory.record_bundle_part_fault(peer_idx);
-            }
-            FaultType::Untracked => {}
-        }
-    }
-
-    /// Attributes a transaction payload that failed the commitment check or
-    /// the transaction validity check.
-    ///
-    /// `authored` is the slot of a verified, author-signed block header that
-    /// commits to this payload, if there is one. Only then are the invalid
-    /// transactions provably the author's, and the author is charged a
-    /// provable fault, counted once per round. Each peer in `relayers` is
-    /// charged an unprovable fault for handing us a payload it should not have
-    /// relayed; a relayer that is also the author is not double-charged when
-    /// the author is charged provably.
-    pub(crate) fn record_faulty_transactions(
-        &self,
-        authored: Option<Slot>,
+        header_slot: Option<Slot>,
         relayers: impl IntoIterator<Item = AuthorityIndex>,
     ) {
         let committee_size = self.in_memory.authorities.len();
-        if let Some(slot) = authored {
+        let fault_type = classify_block_error(error);
+        // Relayers are trusted (authenticated connections); the header's
+        // author is attacker-controlled and may be outside the committee.
+        let author = header_slot.filter(|slot| {
+            matches!(fault_type, FaultType::Provable) && slot.authority.value() < committee_size
+        });
+        if let Some(slot) = author {
             self.record_provable_fault(slot);
         }
         for peer in relayers {
@@ -375,19 +328,16 @@ impl MisbehaviorStore {
                 debug_fatal!("relaying peer {peer} is outside the committee");
                 continue;
             }
-            if authored.is_some_and(|slot| slot.authority == peer) {
-                continue;
+            match fault_type {
+                FaultType::Provable | FaultType::Unprovable => {
+                    if author.is_none_or(|slot| slot.authority != peer) {
+                        self.in_memory.record_block_fault_unprovable(idx);
+                    }
+                }
+                FaultType::BundlePart => self.in_memory.record_bundle_part_fault(idx),
+                FaultType::Untracked => {}
             }
-            self.in_memory.record_block_fault_unprovable(idx);
         }
-    }
-
-    /// Attributes a rejected fetch response to the peer that served it: the
-    /// peer is both the sender and the only party the error can name. The
-    /// block classifier decides the fault type, leaving transport failures
-    /// untracked.
-    pub(crate) fn record_fetch_fault(&self, peer: AuthorityIndex, error: &ConsensusError) {
-        self.record_faulty_block(peer, None, error);
     }
 }
 
@@ -401,7 +351,7 @@ enum FaultType {
     /// pre-signature check (epoch / genesis / author-vs-peer mismatch) so its
     /// `author` field can't be trusted, or because the fault is in how the
     /// peer sent the block (stream order) rather than in the block itself.
-    /// Charged to the sending peer, not the claimed author.
+    /// Charged to the peers that sent the data.
     Unprovable,
     /// Relayed bundle part (additional header or shard) that is corrupt,
     /// invalid, or one the peer had no right to relay, and isn't tied to a
@@ -1128,18 +1078,18 @@ mod tests {
         let store = MisbehaviorStore::new(&context);
         let authority = AuthorityIndex::new_for_test(0);
 
-        store.record_faulty_block(
-            authority,
-            None,
+        store.record_fault(
             &ConsensusError::WrongEpoch {
                 expected: 1,
                 actual: 2,
             },
-        );
-        store.record_faulty_block(
-            authority,
             None,
+            [authority],
+        );
+        store.record_fault(
             &ConsensusError::MalformedShard(bcs::Error::Custom("bad".to_string())),
+            None,
+            [authority],
         );
 
         let result = store.update_misbehavior_counts(authority, &BTreeSet::new(), 0, 1, &context);
@@ -1402,7 +1352,7 @@ mod tests {
         let context = Arc::new(Context::new_for_test(4).0);
         let store = MisbehaviorStore::new(&context);
         let authority = AuthorityIndex::new_for_test(0);
-        store.record_faulty_block(authority, Some(Slot::new(1, authority)), error);
+        store.record_fault(error, Some(Slot::new(1, authority)), [authority]);
         let counts = store.in_memory.snapshot(0);
         (
             counts.faulty_blocks_provable,
@@ -1419,47 +1369,33 @@ mod tests {
         let store = MisbehaviorStore::new(&context);
         let peer = AuthorityIndex::new_for_test(1);
 
-        store.record_fetch_fault(
-            peer,
-            &ConsensusError::TooManyFetchedTransactionsReturned(peer),
-        );
-        store.record_fetch_fault(
-            peer,
-            &ConsensusError::SerializedTransactionsTooLarge { size: 2, limit: 1 },
-        );
-        store.record_fetch_fault(
-            peer,
-            &ConsensusError::TooManyFetchedHeadersReturned {
+        for error in [
+            ConsensusError::TooManyFetchedTransactionsReturned(peer),
+            ConsensusError::SerializedTransactionsTooLarge { size: 2, limit: 1 },
+            ConsensusError::TooManyFetchedHeadersReturned {
                 peer,
                 requested: 1,
                 received: 2,
             },
-        );
-        store.record_fetch_fault(
-            peer,
-            &ConsensusError::TooManyCommitsFromPeer {
+            ConsensusError::TooManyCommitsFromPeer {
                 peer,
                 count: 3,
                 limit: 2,
             },
-        );
-        store.record_fetch_fault(
-            peer,
-            &ConsensusError::TooManyCommitVoteHeaders {
+            ConsensusError::TooManyCommitVoteHeaders {
                 peer,
                 count: 9,
                 limit: 8,
             },
-        );
-        store.record_fetch_fault(
-            peer,
-            &ConsensusError::SerializedBlockHeaderTooLarge {
+            ConsensusError::SerializedBlockHeaderTooLarge {
                 peer,
                 size: 2,
                 limit: 1,
             },
-        );
-        store.record_fetch_fault(peer, &ConsensusError::NetworkRequest("cut".to_string()));
+            ConsensusError::NetworkRequest("cut".to_string()),
+        ] {
+            store.record_fault(&error, None, [peer]);
+        }
 
         let counts = store.in_memory.snapshot(peer.value());
         assert_eq!(counts.faulty_blocks_unprovable, 6);
@@ -1718,9 +1654,9 @@ mod tests {
 
         // Seed in_memory provable counts for authority 0 (2) and 1 (1).
         for round in [1, 2] {
-            store.record_faulty_block(a0, Some(Slot::new(round, a0)), &provable);
+            store.record_fault(&provable, Some(Slot::new(round, a0)), [a0]);
         }
-        store.record_faulty_block(a1, Some(Slot::new(1, a1)), &provable);
+        store.record_fault(&provable, Some(Slot::new(1, a1)), [a1]);
 
         // Move authority 0's rounds into persisted; leave authority 1 in memory
         // so the snapshot must sum across both buckets.
@@ -1728,7 +1664,7 @@ mod tests {
 
         // Record 3 more provable faults on authority 0 — these stay in_memory.
         for round in [3, 4, 5] {
-            store.record_faulty_block(a0, Some(Slot::new(round, a0)), &provable);
+            store.record_fault(&provable, Some(Slot::new(round, a0)), [a0]);
         }
 
         let snapshot = store.snapshot_totals();
@@ -1797,7 +1733,7 @@ mod tests {
         let store = MisbehaviorStore::new(&context);
         let author = AuthorityIndex::new_for_test(0);
         let peer = AuthorityIndex::new_for_test(1);
-        store.record_faulty_block(peer, Some(Slot::new(1, author)), &e);
+        store.record_fault(&e, Some(Slot::new(1, author)), [peer]);
         let author_counts = store.in_memory.snapshot(0);
         let peer_counts = store.in_memory.snapshot(1);
         assert_eq!(author_counts.faulty_blocks_provable, 1);
@@ -1823,11 +1759,15 @@ mod tests {
         };
 
         for _ in 0..3 {
-            store.record_faulty_block(peer, Some(Slot::new(5, author)), &e);
+            store.record_fault(&e, Some(Slot::new(5, author)), [peer]);
         }
-        store.record_faulty_transactions(Some(Slot::new(5, author)), [peer]);
-        store.record_faulty_block(peer, Some(Slot::new(6, author)), &e);
-        store.record_faulty_block(peer, Some(Slot::new(ceiling + 1, author)), &e);
+        store.record_fault(
+            &ConsensusError::InvalidTransaction("bad tx".to_string()),
+            Some(Slot::new(5, author)),
+            [peer],
+        );
+        store.record_fault(&e, Some(Slot::new(6, author)), [peer]);
+        store.record_fault(&e, Some(Slot::new(ceiling + 1, author)), [peer]);
         assert_eq!(provable(&store), (0, 2));
         assert_eq!(
             store
@@ -1841,7 +1781,7 @@ mod tests {
         let stored = store
             .update_misbehavior_counts(author, &BTreeSet::new(), 5, 7, &context)
             .unwrap();
-        store.record_faulty_block(peer, Some(Slot::new(5, author)), &e);
+        store.record_fault(&e, Some(Slot::new(5, author)), [peer]);
         assert_eq!(provable(&store), (1, 1));
 
         // After a restart, round 6 was never stored, so it counts once.
@@ -1854,12 +1794,12 @@ mod tests {
             &context,
         );
         for round in [5, 6, 6] {
-            store.record_faulty_block(peer, Some(Slot::new(round, author)), &e);
+            store.record_fault(&e, Some(Slot::new(round, author)), [peer]);
         }
         assert_eq!(provable(&store), (1, 1));
 
         // When fast sync passes the recorded rounds, they are stored.
-        store.record_faulty_block(peer, Some(Slot::new(8, author)), &e);
+        store.record_fault(&e, Some(Slot::new(8, author)), [peer]);
         store.update_misbehavior_counts(author, &BTreeSet::new(), 20, 20, &context);
         assert_eq!(provable(&store), (3, 0));
     }
@@ -1875,13 +1815,13 @@ mod tests {
         let bogus_author = AuthorityIndex::new_for_test(99);
 
         let provable = ConsensusError::TooManyAncestors(10, 5);
-        store.record_faulty_block(peer, Some(Slot::new(1, bogus_author)), &provable);
+        store.record_fault(&provable, Some(Slot::new(1, bogus_author)), [peer]);
 
         let unprovable = ConsensusError::InvalidAuthorityIndex {
             index: bogus_author,
             max: 3,
         };
-        store.record_faulty_block(peer, Some(Slot::new(1, bogus_author)), &unprovable);
+        store.record_fault(&unprovable, Some(Slot::new(1, bogus_author)), [peer]);
 
         let peer_counts = store.in_memory.snapshot(1);
         assert_eq!(peer_counts.faulty_blocks_provable, 0);

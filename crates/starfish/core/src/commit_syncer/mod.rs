@@ -334,7 +334,7 @@ pub(crate) fn verify_commits(
     // header that fails verification, which also charges its author when its
     // signature is valid.
     let reject = |e: ConsensusError| {
-        misbehavior_store.record_fetch_fault(peer, &e);
+        misbehavior_store.record_fault(&e, None, [peer]);
         e
     };
 
@@ -409,7 +409,7 @@ pub(crate) fn verify_commits(
             .map_err(|e| reject(ConsensusError::MalformedHeader(e)))?;
         // The block signature needs to be verified.
         if let Err(e) = block_verifier.verify(&signed_block_header) {
-            misbehavior_store.record_faulty_block(peer, Some(signed_block_header.slot()), &e);
+            misbehavior_store.record_fault(&e, Some(signed_block_header.slot()), [peer]);
             return Err(e);
         }
         for vote in signed_block_header.commit_votes() {
@@ -466,13 +466,12 @@ pub(crate) fn verify_transactions_commitments(
             transaction_ref,
             inner_serialized_transactions,
         )
-        .inspect_err(|e| match e {
-            ConsensusError::MalformedTransactionsMatchingCommitment { .. } => misbehavior_store
-                .record_faulty_transactions(
-                    Some(Slot::new(transaction_ref.round, transaction_ref.author)),
-                    [peer],
-                ),
-            e => misbehavior_store.record_fetch_fault(peer, e),
+        .inspect_err(|e| {
+            misbehavior_store.record_fault(
+                e,
+                Some(Slot::new(transaction_ref.round, transaction_ref.author)),
+                [peer],
+            )
         })?;
         verified_transactions_map.insert(transaction_ref, verified_transactions);
     }

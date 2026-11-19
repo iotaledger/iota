@@ -200,13 +200,13 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             serialized_transactions,
         } = SerializedHeaderAndTransactions::try_from(SerializedBlock { serialized_block })
             .inspect_err(|e| {
-                self.misbehavior_store.record_faulty_block(peer, None, e);
+                self.misbehavior_store.record_fault(e, None, [peer]);
             })?;
 
         let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
             .map_err(ConsensusError::MalformedHeader)
             .inspect_err(|e| {
-                self.misbehavior_store.record_faulty_block(peer, None, e);
+                self.misbehavior_store.record_fault(e, None, [peer]);
             })?;
 
         // Reject blocks not produced by the peer.
@@ -218,7 +218,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 .bundles_with_invalid_parts
                 .with_label_values(&[peer_hostname, "header", e.name()])
                 .inc();
-            self.misbehavior_store.record_faulty_block(peer, None, &e);
+            self.misbehavior_store.record_fault(&e, None, [peer]);
             info!("Block with wrong authority from {}: {}", peer, e);
             return Err(e);
         }
@@ -230,10 +230,10 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 .with_label_values(&[peer_hostname, "header", e.name()])
                 .inc();
             // peer == author is guaranteed by the UnexpectedAuthority check above.
-            // Pass both so record_faulty_block can attribute correctly:
+            // Pass both so record_fault can attribute correctly:
             // provable errors → author, unprovable (bad signature) → peer.
             self.misbehavior_store
-                .record_faulty_block(peer, Some(signed_block_header.slot()), &e);
+                .record_fault(&e, Some(signed_block_header.slot()), [peer]);
             info!("Invalid block header from {}: {}", peer, e);
             return Err(e);
         }
@@ -318,7 +318,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             .with_label_values(&[peer_hostname, "transactions", error.name()])
             .inc();
         self.misbehavior_store
-            .record_faulty_block(header_slot.authority, Some(header_slot), error);
+            .record_fault(error, Some(header_slot), [header_slot.authority]);
     }
 
     fn validate_additional_header_round(
@@ -341,8 +341,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             .bundles_with_invalid_parts
             .with_label_values(&[peer_hostname, "header", "invalid round in header"])
             .inc();
-        self.misbehavior_store
-            .record_faulty_block(peer, None, &error);
+        self.misbehavior_store.record_fault(&error, None, [peer]);
         info!("Invalid additional block header from {}: {}", peer, error);
         Err(error)
     }
@@ -385,7 +384,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 .map_err(ConsensusError::MalformedHeader)
                 .inspect_err(|e| {
                     // Author is unknown when deserialization fails — blame the peer.
-                    self.misbehavior_store.record_faulty_block(peer, None, e);
+                    self.misbehavior_store.record_fault(e, None, [peer]);
                 })?;
 
             self.validate_additional_header_round(
@@ -420,11 +419,8 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 // (the sender) and author separately so provable errors (valid
                 // signature, protocol violation) are charged to the block author
                 // while unprovable errors (bad signature) are charged to the peer.
-                self.misbehavior_store.record_faulty_block(
-                    peer,
-                    Some(signed_block_header.slot()),
-                    &e,
-                );
+                self.misbehavior_store
+                    .record_fault(&e, Some(signed_block_header.slot()), [peer]);
                 info!("Invalid additional block header from {}: {}", peer, e);
                 return Err(e);
             }
@@ -465,7 +461,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             let shard: ShardWithProof = bcs::from_bytes(serialized_shard)
                 .map_err(ConsensusError::MalformedShard)
                 .inspect_err(|e| {
-                    self.misbehavior_store.record_faulty_block(peer, None, e);
+                    self.misbehavior_store.record_fault(e, None, [peer]);
                 })?;
 
             if let Err(e) = check_shard_version(&shard) {
@@ -486,7 +482,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .bundles_with_invalid_parts
                     .with_label_values(&[peer_hostname, "shard", e.name()])
                     .inc();
-                self.misbehavior_store.record_faulty_block(peer, None, &e);
+                self.misbehavior_store.record_fault(&e, None, [peer]);
                 info!("Invalid shard from {}: {}", peer, e);
                 return Err(e);
             }
@@ -502,7 +498,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .bundles_with_invalid_parts
                     .with_label_values(&[peer_hostname, "shard", e.name()])
                     .inc();
-                self.misbehavior_store.record_faulty_block(peer, None, &e);
+                self.misbehavior_store.record_fault(&e, None, [peer]);
                 info!("Invalid shard from {}: {}", peer, e);
                 return Err(e);
             }
@@ -519,7 +515,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .bundles_with_invalid_parts
                     .with_label_values(&[peer_hostname, "shard", e.name()])
                     .inc();
-                self.misbehavior_store.record_faulty_block(peer, None, &e);
+                self.misbehavior_store.record_fault(&e, None, [peer]);
                 info!("Invalid shard from {}: {}", peer, e);
                 return Err(e);
             }
@@ -542,7 +538,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .bundles_with_invalid_parts
                     .with_label_values(&[peer_hostname, "shard", e.name()])
                     .inc();
-                self.misbehavior_store.record_faulty_block(peer, None, &e);
+                self.misbehavior_store.record_fault(&e, None, [peer]);
                 info!("Invalid shard from {}: {}", peer, e);
                 return Err(e);
             }
@@ -1365,7 +1361,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let peer_hostname = &self.context.committee.authority(peer).hostname;
         let mut serialized_block_bundle_parts =
             SerializedBlockBundleParts::try_from(serialized_block_bundle).inspect_err(|e| {
-                self.misbehavior_store.record_faulty_block(peer, None, e);
+                self.misbehavior_store.record_fault(e, None, [peer]);
             })?;
         if let Err(e) =
             serialized_block_bundle_parts.validate_useful_authorities(&self.context.committee)
@@ -1376,7 +1372,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .bundles_with_invalid_parts
                 .with_label_values(&[peer_hostname.as_str(), "metadata", e.name()])
                 .inc();
-            self.misbehavior_store.record_faulty_block(peer, None, &e);
+            self.misbehavior_store.record_fault(&e, None, [peer]);
             warn!("Invalid bundle metadata from {}: {}", peer, e);
             return Err(e);
         }
@@ -1450,7 +1446,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                     ])
                     .inc();
             } else {
-                self.misbehavior_store.record_faulty_block(peer, None, &e);
+                self.misbehavior_store.record_fault(&e, None, [peer]);
                 self.context
                     .metrics
                     .node_metrics

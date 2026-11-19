@@ -626,7 +626,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                 Ok(serialized_transactions)
             }
             Ok(Err(err)) => {
-                self.misbehavior_store.record_fetch_fault(peer, &err);
+                self.misbehavior_store.record_fault(&err, None, [peer]);
                 record_failure(err.name());
                 Err(err)
             }
@@ -656,9 +656,9 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         // Ensure that all the returned transactions do not go over the total max
         // allowed returned transactions
         if serialized_transactions_vec.len() > transactions_guard.transactions_refs.len() {
-            self.misbehavior_store
-                .record_faulty_transactions(None, [peer]);
-            return Err(ConsensusError::TooManyFetchedTransactionsReturned(peer));
+            let err = ConsensusError::TooManyFetchedTransactionsReturned(peer);
+            self.misbehavior_store.record_fault(&err, None, [peer]);
+            return Err(err);
         }
 
         // Deserialization, commitment checks and the transaction batch
@@ -721,10 +721,8 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         for serialized_transaction_bytes in &serialized_transactions_vec {
             let serialized_transactions: SerializedTransactionsV2 =
                 bcs::from_bytes(serialized_transaction_bytes)
-                    .inspect_err(|_| {
-                        misbehavior_store.record_faulty_transactions(None, [peer_index])
-                    })
-                    .map_err(ConsensusError::MalformedTransactions)?;
+                    .map_err(ConsensusError::MalformedTransactions)
+                    .inspect_err(|e| misbehavior_store.record_fault(e, None, [peer_index]))?;
             let committed_transaction_ref = serialized_transactions.transaction_ref;
             // The commitment check below only proves each payload matches
             // its own claimed ref; it does not tie the ref to anything we
@@ -732,11 +730,12 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             // cannot serve correctly-committed transactions we never
             // requested (which need not correspond to any real header).
             if !requested_transactions_refs.contains(&committed_transaction_ref) {
-                misbehavior_store.record_faulty_transactions(None, [peer_index]);
-                return Err(ConsensusError::UnrequestedTransactionFetched {
+                let err = ConsensusError::UnrequestedTransactionFetched {
                     peer: peer_index,
                     transaction_ref: serialized_transactions.transaction_ref,
-                });
+                };
+                misbehavior_store.record_fault(&err, None, [peer_index]);
+                return Err(err);
             }
             serialized_transactions_map.insert(
                 committed_transaction_ref,
@@ -789,7 +788,8 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                 // payload is provably the author's. `peer_index` served a full
                 // payload it could have verified before relaying, so it is also
                 // charged an unprovable fault.
-                misbehavior_store.record_faulty_transactions(
+                misbehavior_store.record_fault(
+                    &err,
                     Some(Slot::new(verified_transactions.round(), author)),
                     [peer_index],
                 );

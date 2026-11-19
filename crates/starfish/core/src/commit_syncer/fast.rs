@@ -632,7 +632,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             .inspect_err(|e| {
                 inner
                     .misbehavior_store
-                    .record_fetch_fault(target_authority, e);
+                    .record_fault(e, None, [target_authority]);
             })?;
 
         // 2. Verify the response contains block headers that can certify the last returned commit,
@@ -693,7 +693,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 Err(e) => {
                     inner
                         .misbehavior_store
-                        .record_fetch_fault(target_authority, &e);
+                        .record_fault(&e, None, [target_authority]);
                     return Err(e);
                 }
             };
@@ -703,13 +703,13 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 &mut committed_tx_refs,
                 &mut first_commit_awaited,
             )
-            .inspect_err(|_| {
+            .inspect_err(|e| {
                 // Truncation drops whole entries and never corrupts or
                 // reorders one, so a malformed, uncommitted or out-of-order
                 // entry is the peer's fault.
                 inner
                     .misbehavior_store
-                    .record_faulty_transactions(None, [target_authority]);
+                    .record_fault(e, None, [target_authority]);
             })?;
             // Charged as the server charges, less each entry's ref and length
             // prefixes, so an honest server with the same budget stops first.
@@ -769,7 +769,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 return Err(stream_error.unwrap_or_else(|| {
                     inner
                         .misbehavior_store
-                        .record_fetch_fault(target_authority, &mismatch);
+                        .record_fault(&mismatch, None, [target_authority]);
                     mismatch
                 }));
             }
@@ -978,9 +978,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                                 break;
                             }
                             Err(e) => {
-                                inner
-                                    .misbehavior_store
-                                    .record_faulty_block(authority, None, &e);
+                                inner.misbehavior_store.record_fault(&e, None, [authority]);
                                 record_headers_for_reinitialization_failure(
                                     &inner,
                                     &mut failed_authorities,
@@ -996,7 +994,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                         }
                     }
                     Ok(Err(e)) => {
-                        inner.misbehavior_store.record_fetch_fault(authority, &e);
+                        inner.misbehavior_store.record_fault(&e, None, [authority]);
                         record_headers_for_reinitialization_failure(
                             &inner,
                             &mut failed_authorities,
