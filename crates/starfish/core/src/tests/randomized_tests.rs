@@ -543,7 +543,7 @@ fn authority_setup(num_authorities: usize, authority_index: u8) -> AuthorityTest
         Arc::new(MemStore::new()),
     )));
 
-    // Create committer with pipelining and only 1 leader per leader round
+    // Create committer with 1 leader per round
     let committer =
         UniversalCommitterBuilder::new(context.clone(), leader_schedule, dag_state.clone()).build();
 

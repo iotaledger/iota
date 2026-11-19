@@ -56,11 +56,9 @@ async fn direct_commit() {
         BaseCommitterBuilder::new(dag_builder.context.clone(), dag_state.clone()).build();
     dag_builder.persist_all_blocks(dag_state);
 
-    let leader_round = committer.leader_round(1);
+    let leader_round = 3;
     tracing::info!("Leader round at wave 1: {leader_round}");
-    let leader = committer
-        .elect_leader(leader_round)
-        .expect("there should be a leader at wave 1");
+    let leader = committer.elect_leader(leader_round);
     let leader_status = committer.try_direct_decide(leader);
     if let LeaderStatus::Commit(_, metastate, _) = &leader_status {
         tracing::info!("Committed: {leader_status}");
@@ -101,11 +99,9 @@ async fn direct_skip() {
         BaseCommitterBuilder::new(dag_builder.context.clone(), dag_state.clone()).build();
     dag_builder.persist_all_blocks(dag_state);
 
-    let leader_round = committer.leader_round(1);
+    let leader_round = 3;
     tracing::info!("Leader round at wave 1: {leader_round}");
-    let leader = committer
-        .elect_leader(leader_round)
-        .expect("there should be a leader at wave 1");
+    let leader = committer.elect_leader(leader_round);
     let leader_status = committer.try_direct_decide(leader);
     if let LeaderStatus::Skip(_) = leader_status {
         tracing::info!("Skip: {leader_status}");
@@ -145,11 +141,9 @@ async fn direct_undecided() {
         BaseCommitterBuilder::new(dag_builder.context.clone(), dag_state.clone()).build();
     dag_builder.persist_all_blocks(dag_state);
 
-    let leader_round = committer.leader_round(1);
+    let leader_round = 3;
     tracing::info!("Leader round at wave 1: {leader_round}");
-    let leader = committer
-        .elect_leader(leader_round)
-        .expect("there should be a leader at wave 1");
+    let leader = committer.elect_leader(leader_round);
     let leader_status = committer.try_direct_decide(leader);
     if let LeaderStatus::Undecided(_) = leader_status {
         tracing::info!("Undecided: {leader_status}");
@@ -223,11 +217,9 @@ async fn indirect_commit() {
         BaseCommitterBuilder::new(dag_builder.context.clone(), dag_state.clone()).build();
     dag_builder.persist_all_blocks(dag_state);
 
-    let leader_round = committer.leader_round(1);
+    let leader_round = 3;
     tracing::info!("Leader round wave 1: {leader_round}");
-    let leader = committer
-        .elect_leader(leader_round)
-        .expect("there should be a leader for wave 1");
+    let leader = committer.elect_leader(leader_round);
     let leader_index = leader.authority;
     tracing::info!("Leader index wave 1: {leader_index}");
 
@@ -240,11 +232,9 @@ async fn indirect_commit() {
         );
     }
 
-    let leader_round_wave2 = committer.leader_round(2);
+    let leader_round_wave2 = 6;
     tracing::info!("Leader round wave 2: {leader_round_wave2}");
-    let leader_wave2 = committer
-        .elect_leader(leader_round_wave2)
-        .expect("there should be a leader for wave 2");
+    let leader_wave2 = committer.elect_leader(leader_round_wave2);
     let leader_index_wave2 = leader_wave2.authority;
     tracing::info!("Leader index wave 2: {leader_index_wave2}");
 
@@ -309,11 +299,9 @@ async fn indirect_skip() {
         BaseCommitterBuilder::new(dag_builder.context.clone(), dag_state.clone()).build();
     dag_builder.persist_all_blocks(dag_state);
 
-    let leader_round = committer.leader_round(1);
+    let leader_round = 3;
     tracing::info!("Leader round wave 1: {leader_round}");
-    let leader = committer
-        .elect_leader(leader_round)
-        .expect("there should be a leader for wave 1");
+    let leader = committer.elect_leader(leader_round);
     let leader_index = leader.authority;
     tracing::info!("Leader index wave 1: {leader_index}");
 
@@ -327,11 +315,9 @@ async fn indirect_skip() {
         );
     }
 
-    let leader_round_wave_2 = committer.leader_round(2);
+    let leader_round_wave_2 = 6;
     tracing::info!("Leader round wave 2: {leader_round_wave_2}");
-    let leader_wave2 = committer
-        .elect_leader(leader_round_wave_2)
-        .expect("there should be a leader for wave 2");
+    let leader_wave2 = committer.elect_leader(leader_round_wave_2);
     let leader_index_wave_2 = leader_wave2.authority;
     tracing::info!("Leader index wave 2: {leader_index_wave_2}");
 
@@ -347,10 +333,8 @@ async fn indirect_skip() {
     // Ensure we commit the leaders of wave 1 and 3 and skip the leader of wave 2
 
     // 1. Ensure we commit the leader of wave 3.
-    let leader_round_wave_3 = committer.leader_round(3);
-    let leader_wave_3 = committer
-        .elect_leader(leader_round_wave_3)
-        .expect("should have elected leader");
+    let leader_round_wave_3 = 9;
+    let leader_wave_3 = committer.elect_leader(leader_round_wave_3);
     tracing::info!("Try direct commit for leader {leader_wave_3}");
     let leader_status = committer.try_direct_decide(leader_wave_3);
     tracing::info!("Leader commit status: {leader_status}");
@@ -365,9 +349,7 @@ async fn indirect_skip() {
     };
 
     // 2. Ensure we directly mark leader of wave 2 undecided.
-    let leader_wave_2 = committer
-        .elect_leader(leader_round_wave_2)
-        .expect("should have elected leader");
+    let leader_wave_2 = committer.elect_leader(leader_round_wave_2);
     tracing::info!("Try direct commit for leader {leader_wave_2}");
     let leader_status = committer.try_direct_decide(leader_wave_2);
     tracing::info!("Leader commit status: {leader_status}");

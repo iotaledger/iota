@@ -8,9 +8,7 @@ use starfish_config::AuthorityIndex;
 
 use crate::{
     authority_set::AuthoritySet,
-    base_committer::{
-        BaseCommitter, BaseCommitterOptions, base_committer_builder::BaseCommitterBuilder,
-    },
+    base_committer::{BaseCommitter, base_committer_builder::BaseCommitterBuilder},
     block_header::{
         BlockHeader, BlockHeaderV2, BlockRef, BlockTimestampMs, CommitmentVerifiedTransactions,
         GENESIS_ROUND, Round, Slot, StrongVote, TransactionsCommitment, VerifiedBlockHeader,
@@ -179,12 +177,9 @@ fn build_metastate_dag(
     committer: &mut crate::base_committer::BaseCommitter,
     voter_strong_votes: [Option<AuthoritySet>; 4],
 ) -> crate::block_header::Slot {
-    let leader_round = committer.leader_round(1);
+    let leader_round = 3;
     let round_3_refs = build_v2_layers(&context, &dag_state, None, leader_round);
-    let leader_authority = committer
-        .elect_leader(leader_round)
-        .expect("should elect a leader")
-        .authority;
+    let leader_authority = committer.elect_leader(leader_round).authority;
 
     // Round 4 (voting): each voter links to all round-3 blocks and carries the
     // configured missing-mask, pinned to the canonical leader.
@@ -206,7 +201,7 @@ fn build_metastate_dag(
     }
 
     // Round 5 (certifying): each certifier links to all round-4 blocks.
-    let certifying_round = committer.certifying_round(1);
+    let certifying_round = 5;
     for author in 0..context.committee.size() {
         let author = author as u8;
         let block = v2_block(
@@ -221,9 +216,7 @@ fn build_metastate_dag(
             .accept_block_header(block, DataSource::Test);
     }
 
-    committer
-        .elect_leader(committer.leader_round(1))
-        .expect("should elect a leader")
+    committer.elect_leader(leader_round)
 }
 
 #[tokio::test]
@@ -316,15 +309,13 @@ fn build_equivocating_metastate_dag(
     committer: &mut crate::base_committer::BaseCommitter,
     voter_config: [(LeaderChoice, Option<AuthoritySet>); 4],
 ) -> (crate::block_header::Slot, BlockRef, BlockRef) {
-    let leader_round = committer.leader_round(1);
+    let leader_round = 3;
     let voting_round = leader_round + 1;
-    let certifying_round = committer.certifying_round(1);
+    let certifying_round = 5;
 
     let prev_refs = build_v2_layers(&context, &dag_state, None, leader_round - 1);
 
-    let leader_slot = committer
-        .elect_leader(leader_round)
-        .expect("should elect a leader");
+    let leader_slot = committer.elect_leader(leader_round);
     let leader_author: u8 = leader_slot.authority.value() as u8;
 
     // Round `leader_round`: one block per non-leader authority, plus TWO
@@ -499,13 +490,10 @@ fn build_through_voting_round(
     committer: &mut crate::base_committer::BaseCommitter,
     voter_strong_votes: [Option<AuthoritySet>; 4],
 ) -> (crate::block_header::Slot, Vec<BlockRef>) {
-    let leader_round = committer.leader_round(1);
+    let leader_round = 3;
     let voting_round = leader_round + 1;
     let round_3_refs = build_v2_layers(context, dag_state, None, leader_round);
-    let leader_authority = committer
-        .elect_leader(leader_round)
-        .expect("should elect a leader")
-        .authority;
+    let leader_authority = committer.elect_leader(leader_round).authority;
 
     let mut voter_refs = Vec::with_capacity(4);
     for (author, missing) in voter_strong_votes.into_iter().enumerate() {
@@ -523,19 +511,13 @@ fn build_through_voting_round(
             .accept_block_header(block, DataSource::Test);
     }
 
-    let leader_slot = committer
-        .elect_leader(leader_round)
-        .expect("should elect a leader");
+    let leader_slot = committer.elect_leader(leader_round);
     (leader_slot, voter_refs)
 }
 
 /// Build one round-5 certifier from the specified round-4 voter refs.
-fn certifier(
-    committer: &mut crate::base_committer::BaseCommitter,
-    author: u8,
-    voter_refs: Vec<BlockRef>,
-) -> VerifiedBlockHeader {
-    let round = committer.certifying_round(1);
+fn certifier(author: u8, voter_refs: Vec<BlockRef>) -> VerifiedBlockHeader {
+    let round = 5;
     v2_block(round, author, voter_refs, None, default_ts(round, author))
 }
 
@@ -554,10 +536,10 @@ fn build_wave_one_with_single_strong_qc(
         committer,
         [strong_vote(), strong_vote(), strong_vote(), None],
     );
-    let c0 = certifier(committer, 0, vec![voters[0], voters[1], voters[2]]);
-    let c1 = certifier(committer, 1, vec![voters[0], voters[1], voters[3]]);
-    let c2 = certifier(committer, 2, vec![voters[0], voters[2], voters[3]]);
-    let c3 = certifier(committer, 3, vec![voters[1], voters[2], voters[3]]);
+    let c0 = certifier(0, vec![voters[0], voters[1], voters[2]]);
+    let c1 = certifier(1, vec![voters[0], voters[1], voters[3]]);
+    let c2 = certifier(2, vec![voters[0], voters[2], voters[3]]);
+    let c3 = certifier(3, vec![voters[1], voters[2], voters[3]]);
     let refs = [
         c0.reference(),
         c1.reference(),
@@ -580,7 +562,7 @@ async fn indirect_metastate_optimistic_when_anchor_path_contains_strong_qc() {
         build_wave_one_with_single_strong_qc(&context, &dag_state, &mut committer);
 
     // Anchor at round 6 includes the StrongQC c0 in its round-5 ancestors.
-    let anchor_round = committer.certifying_round(1) + 1;
+    let anchor_round = 6;
     let anchor = v2_block(
         anchor_round,
         0,
@@ -615,7 +597,7 @@ async fn indirect_metastate_standard_when_strong_qc_outside_anchor_path() {
 
     // Anchor excludes the StrongQC c0. Indirect must still resolve from the
     // restricted r+2 path and pick Standard, not Optimistic.
-    let anchor_round = committer.certifying_round(1) + 1;
+    let anchor_round = 6;
     let anchor = v2_block(
         anchor_round,
         1,
@@ -720,7 +702,7 @@ async fn pending_leader_resolves_to_standard() {
 
     // Wave 1 only — strong_vote = None everywhere → direct says Pending.
     let round_5_refs = build_v2_layers(&context, &dag_state, None, 5);
-    let round_3_slot = base.elect_leader(3).expect("round 3 has a leader");
+    let round_3_slot = base.elect_leader(3);
     assert_direct_commit_metastate(&mut base, round_3_slot, CommitMetastate::Pending);
 
     // Wave 2 arrives. The round-6 anchor's r+2 path has only regular QCs.
@@ -874,14 +856,10 @@ async fn optimistic_commits_ref_without_actual_transactions() {
         ..LeaderSwapTable::default()
     };
     let alt_schedule = Arc::new(LeaderSchedule::new(context.clone(), alt_table));
-    let mut committer = BaseCommitter::new(
-        context.clone(),
-        alt_schedule.clone(),
-        dag_state.clone(),
-        BaseCommitterOptions::default(),
-    );
+    let mut committer =
+        BaseCommitter::new(context.clone(), alt_schedule.clone(), dag_state.clone());
 
-    let leader_b_slot = committer.elect_leader(3).expect("leader at round 3");
+    let leader_b_slot = committer.elect_leader(3);
     assert_eq!(leader_b_slot.authority, auth_1);
 
     let (block_b, metastate, strong_voters) = match committer.try_direct_decide(leader_b_slot) {
@@ -943,9 +921,9 @@ async fn decision_cache_classifies_a_certifier_accepted_after_a_check_once() {
 
     // Quorum stake at r+2 but only two certificates: the slot stays open and
     // the three classifications are cached.
-    let c0 = certifier(&mut base, 0, voters.clone());
-    let c1 = certifier(&mut base, 1, voters.clone());
-    let c2 = certifier(&mut base, 2, vec![voters[0], voters[1]]);
+    let c0 = certifier(0, voters.clone());
+    let c1 = certifier(1, voters.clone());
+    let c2 = certifier(2, vec![voters[0], voters[1]]);
     for c in [c0, c1, c2] {
         dag_state.write().accept_block_header(c, DataSource::Test);
     }
@@ -956,7 +934,7 @@ async fn decision_cache_classifies_a_certifier_accepted_after_a_check_once() {
     assert_eq!(metrics.decision_cache_misses_total.get(), 3);
 
     // The third certificate arrives: it is the only new classification.
-    let c3 = certifier(&mut base, 3, voters);
+    let c3 = certifier(3, voters);
     dag_state.write().accept_block_header(c3, DataSource::Test);
     assert_direct_commit_metastate(&mut base, leader_slot, CommitMetastate::Optimistic);
     assert_eq!(metrics.decision_cache_misses_total.get(), 4);

@@ -11,7 +11,7 @@ use crate::{
     block_header::{
         BlockHeaderAPI, Slot, TestBlockHeader, TestBlockHeaderVersion, VerifiedBlockHeader,
     },
-    commit::{DecidedLeader, WAVE_LENGTH},
+    commit::DecidedLeader,
     context::Context,
     dag_state::{DagState, DataSource},
     leader_schedule::{LeaderSchedule, LeaderSwapTable},
@@ -25,22 +25,19 @@ use crate::{
 async fn direct_commit() {
     let (context, dag_state, mut committer) = basic_test_setup();
 
-    // note: pipelines, waves & rounds are zero-indexed.
-    let decision_round_wave_0_pipeline_1 = committer.committers[1].certifying_round(0);
-    build_dag(context, dag_state, None, decision_round_wave_0_pipeline_1);
+    // note: rounds are zero-indexed.
+    let leader_round = 1;
+    let certifying_round = 3;
+    build_dag(context, dag_state, None, certifying_round);
 
     let last_finalized = Slot::new(0, 0);
     let sequence = committer.try_decide(last_finalized);
     tracing::info!("Commit sequence: {sequence:#?}");
     assert_eq!(sequence.len(), 1);
 
-    let leader_round_wave_0_pipeline_1 = committer.committers[1].leader_round(0);
     if let DecidedLeader::Commit(ref block, _, _) = sequence[0] {
-        assert_eq!(block.round(), leader_round_wave_0_pipeline_1);
-        assert_eq!(
-            block.author(),
-            committer.get_leaders(leader_round_wave_0_pipeline_1)[0]
-        );
+        assert_eq!(block.round(), leader_round);
+        assert_eq!(block.author(), committer.get_leaders(leader_round)[0]);
     } else {
         panic!("Expected a committed leader")
     };
@@ -51,11 +48,11 @@ async fn direct_commit() {
 async fn idempotence() {
     let (context, dag_state, mut committer) = basic_test_setup();
 
-    // Add enough blocks to reach decision round of pipeline 1 wave 0 which is round
-    // 4. note: pipelines, waves & rounds are zero-indexed.
-    let leader_round_pipeline_1_wave_0 = committer.committers[1].leader_round(0);
-    let certifying_round_pipeline_1_wave_0 = committer.committers[1].certifying_round(0);
-    build_dag(context, dag_state, None, certifying_round_pipeline_1_wave_0);
+    // Add enough blocks to reach the certifying round of the round-1 leader,
+    // which is round 3. note: rounds are zero-indexed.
+    let leader_round = 1;
+    let certifying_round = 3;
+    build_dag(context, dag_state, None, certifying_round);
 
     // Commit one leader.
     let last_finalized = Slot::new(0, 0);
@@ -64,11 +61,8 @@ async fn idempotence() {
     tracing::info!("Commit sequence: {first_sequence:#?}");
 
     if let DecidedLeader::Commit(ref block, _, _) = first_sequence[0] {
-        assert_eq!(block.round(), leader_round_pipeline_1_wave_0);
-        assert_eq!(
-            block.author(),
-            committer.get_leaders(leader_round_pipeline_1_wave_0)[0]
-        )
+        assert_eq!(block.round(), leader_round);
+        assert_eq!(block.author(), committer.get_leaders(leader_round)[0])
     } else {
         panic!("Expected a committed leader")
     };
@@ -79,11 +73,8 @@ async fn idempotence() {
 
     assert_eq!(first_sequence.len(), 1);
     if let DecidedLeader::Commit(ref block, _, _) = first_sequence[0] {
-        assert_eq!(block.round(), leader_round_pipeline_1_wave_0);
-        assert_eq!(
-            block.author(),
-            committer.get_leaders(leader_round_pipeline_1_wave_0)[0]
-        )
+        assert_eq!(block.round(), leader_round);
+        assert_eq!(block.author(), committer.get_leaders(leader_round)[0])
     } else {
         panic!("Expected a committed leader")
     };
@@ -99,18 +90,14 @@ async fn idempotence() {
 #[tokio::test]
 async fn multiple_direct_commit() {
     let (context, dag_state, mut committer) = basic_test_setup();
-    let wave_length = WAVE_LENGTH;
 
     let mut last_finalized = Slot::new(0, 0);
     let mut ancestors = None;
-    for n in 1..=10 {
-        // Build the dag up to the decision round for each pipeline's wave starting
-        // with wave 1.
-        // note: pipelines, waves & rounds are zero-indexed.
-        let pipeline = n % wave_length as usize;
-        let wave_number = committer.committers[pipeline].wave_number(n as u32);
-        let certifying_round = committer.committers[pipeline].certifying_round(wave_number);
-        let leader_round = committer.committers[pipeline].leader_round(wave_number);
+    for leader_round in 1..=10 {
+        // Build the dag up to the certifying round of each leader starting with
+        // round 1.
+        // note: rounds are zero-indexed.
+        let certifying_round = leader_round + 2;
 
         ancestors = Some(build_dag(
             context.clone(),
@@ -119,7 +106,7 @@ async fn multiple_direct_commit() {
             certifying_round,
         ));
 
-        // Because of pipelining we are committing a leader every round.
+        // There is a leader in every round, so we commit one leader per round.
         let sequence = committer.try_decide(last_finalized);
         tracing::info!("Commit sequence: {sequence:#?}");
 
@@ -135,7 +122,7 @@ async fn multiple_direct_commit() {
         }
 
         // Update the last decided leader so only one new leader is committed as
-        // each new wave is completed.
+        // each new round is added.
         let last = sequence.into_iter().next_back().unwrap();
         last_finalized = Slot::new(last.round(), last.authority());
     }
@@ -145,13 +132,10 @@ async fn multiple_direct_commit() {
 #[tokio::test]
 async fn direct_commit_late_call() {
     let (context, dag_state, mut committer) = basic_test_setup();
-    let wave_length = WAVE_LENGTH;
 
-    // note: pipelines, waves & rounds are zero-indexed.
+    // note: rounds are zero-indexed.
     let n = 10;
-    let pipeline = n % wave_length as usize;
-    let wave_number = committer.committers[pipeline].wave_number(n as u32);
-    let certifying_round = committer.committers[pipeline].certifying_round(wave_number);
+    let certifying_round = n as u32 + 2;
 
     build_dag(context, dag_state, None, certifying_round);
 
@@ -177,13 +161,12 @@ async fn direct_commit_late_call() {
 async fn no_genesis_commit() {
     let (context, dag_state, mut committer) = basic_test_setup();
 
-    // Pipeline 0 wave 0 will not have a commit because its leader round is the
-    // genesis round.
-    // note: pipelines, waves & rounds are zero-indexed.
-    let certifying_round_pipeline_0_wave_0 = committer.committers[0].certifying_round(0);
+    // The leader of the genesis round is never committed.
+    // note: rounds are zero-indexed.
+    let certifying_round_of_genesis_leader = 2;
 
     let mut ancestors = None;
-    for r in 0..certifying_round_pipeline_0_wave_0 {
+    for r in 0..certifying_round_of_genesis_leader {
         ancestors = Some(build_dag(context.clone(), dag_state.clone(), ancestors, r));
 
         let last_finalized = Slot::new(0, 0);
@@ -197,11 +180,11 @@ async fn no_genesis_commit() {
 async fn direct_skip_no_leader() {
     let (context, dag_state, mut committer) = basic_test_setup();
 
-    // Add enough blocks to reach the decision round of the leader of wave 0 for
-    // pipeline 1 but without the leader block.
-    // note: pipelines, waves & rounds are zero-indexed.
-    let leader_round_pipeline_1_wave_0 = committer.committers[1].leader_round(0);
-    let leader_pipeline_1_wave_0 = committer.get_leaders(leader_round_pipeline_1_wave_0)[0];
+    // Add enough blocks to reach the certifying round of the round-1 leader but
+    // without the leader block.
+    // note: rounds are zero-indexed.
+    let leader_round_1 = 1;
+    let leader_1 = committer.get_leaders(leader_round_1)[0];
 
     let genesis: Vec<_> = context
         .committee
@@ -215,18 +198,13 @@ async fn direct_skip_no_leader() {
     let connections = context
         .committee
         .authorities()
-        .filter(|&authority| authority.0 != leader_pipeline_1_wave_0)
+        .filter(|&authority| authority.0 != leader_1)
         .map(|authority| (authority.0, genesis.clone()))
         .collect::<Vec<_>>();
     let references = build_dag_layer(&context, connections, dag_state.clone());
 
-    let decision_round_pipeline_1_wave_0 = committer.committers[1].certifying_round(0);
-    build_dag(
-        context,
-        dag_state,
-        Some(references),
-        decision_round_pipeline_1_wave_0,
-    );
+    let certifying_round_1 = 3;
+    build_dag(context, dag_state, Some(references), certifying_round_1);
 
     // Ensure no blocks are committed because there are 2f+1 blame (non-votes) for
     // the missing leader.
@@ -236,8 +214,8 @@ async fn direct_skip_no_leader() {
 
     assert_eq!(sequence.len(), 1);
     if let DecidedLeader::Skip(leader) = sequence[0] {
-        assert_eq!(leader.authority, leader_pipeline_1_wave_0);
-        assert_eq!(leader.round, leader_round_pipeline_1_wave_0);
+        assert_eq!(leader.authority, leader_1);
+        assert_eq!(leader.round, leader_round_1);
     } else {
         panic!("Expected to directly skip the leader");
     }
@@ -248,22 +226,17 @@ async fn direct_skip_no_leader() {
 async fn direct_skip_enough_blame() {
     let (context, dag_state, mut committer) = basic_test_setup();
 
-    // Add enough blocks to reach the wave 0 leader for pipeline 1.
-    // note: pipelines, waves & rounds are zero-indexed.
-    let leader_round_pipeline_1_wave_0 = committer.committers[1].leader_round(0);
-    let leader_pipeline_1_wave_0 = committer.get_leaders(leader_round_pipeline_1_wave_0)[0];
-    let references_round_1 = build_dag(
-        context.clone(),
-        dag_state.clone(),
-        None,
-        leader_round_pipeline_1_wave_0,
-    );
+    // Add enough blocks to reach the round-1 leader.
+    // note: rounds are zero-indexed.
+    let leader_round_1 = 1;
+    let leader_1 = committer.get_leaders(leader_round_1)[0];
+    let references_round_1 = build_dag(context.clone(), dag_state.clone(), None, leader_round_1);
 
     // Filter out that leader.
     let references_without_leader_1: Vec<_> = references_round_1
         .iter()
         .cloned()
-        .filter(|x| x.author != leader_pipeline_1_wave_0)
+        .filter(|x| x.author != leader_1)
         .collect();
 
     // 2f+1 validators non votes for that leader.
@@ -292,26 +265,20 @@ async fn direct_skip_enough_blame() {
         .take(context.committee.quorum_threshold() as usize)
         .collect();
 
-    // Add enough blocks to reach the decision round of the wave 0 leader for
-    // pipeline 1.
-    let decision_round_pipeline_1_wave_0 = committer.committers[1].certifying_round(0);
-    build_dag(
-        context,
-        dag_state,
-        Some(references),
-        decision_round_pipeline_1_wave_0,
-    );
+    // Add enough blocks to reach the certifying round of the round-1 leader.
+    let certifying_round_1 = 3;
+    build_dag(context, dag_state, Some(references), certifying_round_1);
 
     // Ensure the leader is skipped because there are 2f+1 blame (non-votes) for
-    // the wave 0 leader of pipeline 1.
+    // the round-1 leader.
     let last_finalized = Slot::new(0, 0);
     let sequence = committer.try_decide(last_finalized);
     tracing::info!("Commit sequence: {sequence:#?}");
 
     assert_eq!(sequence.len(), 1);
     if let DecidedLeader::Skip(leader) = sequence[0] {
-        assert_eq!(leader.authority, leader_pipeline_1_wave_0);
-        assert_eq!(leader.round, leader_round_pipeline_1_wave_0);
+        assert_eq!(leader.authority, leader_1);
+        assert_eq!(leader.round, leader_round_1);
     } else {
         panic!("Expected to directly skip the leader");
     }
@@ -321,29 +288,17 @@ async fn direct_skip_enough_blame() {
 #[tokio::test]
 async fn indirect_commit() {
     let (context, dag_state, mut committer) = basic_test_setup();
-    let wave_length = WAVE_LENGTH;
 
-    // Add enough blocks to reach the wave 0 leader of pipeline 1.
-    // note: pipelines, waves & rounds are zero-indexed.
-    let leader_round_pipeline_1_wave_0 = committer.committers[1].leader_round(0);
-    let references_round_1 = build_dag(
-        context.clone(),
-        dag_state.clone(),
-        None,
-        leader_round_pipeline_1_wave_0,
-    );
+    // Add enough blocks to reach the round-1 leader.
+    // note: rounds are zero-indexed.
+    let leader_round_1 = 1;
+    let references_round_1 = build_dag(context.clone(), dag_state.clone(), None, leader_round_1);
 
     // Filter out that leader.
     let references_without_leader_1: Vec<_> = references_round_1
         .iter()
         .cloned()
-        .filter(|x| {
-            x.author
-                != *committer
-                    .get_leaders(leader_round_pipeline_1_wave_0)
-                    .first()
-                    .unwrap()
-        })
+        .filter(|x| x.author != *committer.get_leaders(leader_round_1).first().unwrap())
         .collect();
 
     // Only 2f+1 validators vote for that leader.
@@ -401,14 +356,12 @@ async fn indirect_commit() {
     // be skipped (it was the vote for the first leader that we removed) so we
     // add enough blocks to indirectly skip it.
     let leader_round_5 = 5;
-    let pipeline_leader_5 = leader_round_5 % wave_length as usize;
-    let wave_leader_5 = committer.committers[pipeline_leader_5].wave_number(leader_round_5 as u32);
-    let decision_round_5 = committer.committers[pipeline_leader_5].certifying_round(wave_leader_5);
+    let certifying_round_5 = leader_round_5 + 2;
     build_dag(
         context,
         dag_state,
         Some(references_round_3),
-        decision_round_5,
+        certifying_round_5,
     );
 
     // Ensure we commit the first leaders.
@@ -440,10 +393,9 @@ async fn indirect_commit() {
 #[tokio::test]
 async fn indirect_skip() {
     let (context, dag_state, mut committer) = basic_test_setup();
-    let wave_length = WAVE_LENGTH;
 
     // Add enough blocks to reach the 4th leader.
-    // note: pipelines, waves & rounds are zero-indexed.
+    // note: rounds are zero-indexed.
     let leader_round_4 = 4;
     let references_round_4 = build_dag(context.clone(), dag_state.clone(), None, leader_round_4);
 
@@ -481,16 +433,14 @@ async fn indirect_skip() {
         dag_state.clone(),
     ));
 
-    // Add enough blocks to reach the decision round of the 7th leader.
+    // Add enough blocks to reach the certifying round of the 7th leader.
     let leader_round_7 = 7;
-    let pipeline_leader_7 = leader_round_7 % wave_length as usize;
-    let wave_leader_7 = committer.committers[pipeline_leader_7].wave_number(leader_round_7 as u32);
-    let decision_round_7 = committer.committers[pipeline_leader_7].certifying_round(wave_leader_7);
+    let certifying_round_7 = leader_round_7 + 2;
     build_dag(
         context,
         dag_state,
         Some(references_round_5),
-        decision_round_7,
+        certifying_round_7,
     );
 
     // Ensure we commit the first 3 leaders, skip the 4th, and commit the last 2
@@ -512,7 +462,7 @@ async fn indirect_skip() {
         };
     }
 
-    // Ensure we skip the leader of wave 1 (pipeline one) but commit the others.
+    // Ensure we skip the round-4 leader but commit the others.
     if let DecidedLeader::Skip(leader) = sequence[3] {
         assert_eq!(leader.authority, committer.get_leaders(leader_round_4)[0]);
         assert_eq!(leader.round, leader_round_4);
@@ -538,7 +488,7 @@ async fn undecided() {
     let (context, dag_state, mut committer) = basic_test_setup();
 
     // Add enough blocks to reach the first leader.
-    // note: pipelines, waves & rounds are zero-indexed.
+    // note: rounds are zero-indexed.
     let leader_round_1 = 1;
     let references_round_1 = build_dag(context.clone(), dag_state.clone(), None, leader_round_1);
 
@@ -563,13 +513,13 @@ async fn undecided() {
         .collect::<Vec<_>>();
     let references_voting_round_1 = build_dag_layer(&context, connections, dag_state.clone());
 
-    // Add enough blocks to reach the first decision round
-    let decision_round_1 = committer.committers[1].certifying_round(0);
+    // Add enough blocks to reach the certifying round of the first leader.
+    let certifying_round_1 = 3;
     build_dag(
         context.clone(),
         dag_state,
         Some(references_voting_round_1),
-        decision_round_1,
+        certifying_round_1,
     );
 
     // Ensure no blocks are committed.
@@ -590,7 +540,7 @@ async fn test_byzantine_validator() {
     let version = TestBlockHeaderVersion::V2;
 
     // Add enough blocks to reach leader A12
-    // note: pipelines, waves & rounds are zero-indexed.
+    // note: rounds are zero-indexed.
     let leader_round_12 = 12;
     let references_leader_round_12 =
         build_dag(context.clone(), dag_state.clone(), None, leader_round_12);
@@ -738,7 +688,7 @@ async fn test_byzantine_validator() {
     // these blocks also have good votes from A, C & D.
 
     // Expect a successful direct commit of A12 and leaders at rounds 1 ~ 11 as
-    // pipelining is enabled.
+    // every round has a leader.
     let last_finalized = Slot::new(0, 0);
     let sequence = committer.try_decide(last_finalized);
     tracing::info!("Commit sequence: {sequence:#?}");
@@ -803,13 +753,9 @@ fn basic_test_setup() -> (
         LeaderSwapTable::default(),
     ));
 
-    // Create committer with pipelining and only 1 leader per leader round
+    // Create committer with 1 leader per round
     let committer =
         UniversalCommitterBuilder::new(context.clone(), leader_schedule, dag_state.clone()).build();
-
-    // note: with pipelining and without multi-leader enabled there should be
-    // three committers.
-    assert!(committer.committers.len() == 3);
 
     (context, dag_state, committer)
 }

@@ -312,12 +312,14 @@ mod pipelined_committers {
 
     use crate::{
         block_header::{BlockHeaderAPI, BlockRef, GENESIS_ROUND, Round, Slot, VerifiedBlockHeader},
-        commit::{CommitMetastate, DecidedLeader, LeaderStatus, WAVE_LENGTH, WaveNumber},
+        commit::{CommitMetastate, DecidedLeader, LeaderStatus, WAVE_LENGTH},
         context::Context,
         dag_state::DagState,
         leader_schedule::LeaderSchedule,
         stake_aggregator::{QuorumThreshold, StakeAggregator},
     };
+
+    type WaveNumber = u32;
 
     pub(super) struct UniversalCommitter {
         dag_state: Arc<RwLock<DagState>>,
