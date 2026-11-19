@@ -467,17 +467,14 @@ impl LeaderSchedule {
 
 #[derive(Default, Clone)]
 pub(crate) struct LeaderSwapTable {
-    /// The authorities scoring close to the top score, as defined by the
-    /// provided `ReputationScores`. Those authorities will be used in the
-    /// position of the `bad_nodes` on the final leader schedule.
+    /// Authorities that `select_by_absolute_score` picks to replace `bad_nodes`
+    /// on the final leader schedule.
     /// Storing the hostname & stake along side the authority index for
     /// debugging.
     pub(crate) good_nodes: Vec<(AuthorityIndex, String, Stake)>,
 
-    /// The authorities scoring far below the top score, as defined by the
-    /// provided `ReputationScores`. Every time where such authority is
-    /// elected as leader on the schedule, it will swapped by one of the
-    /// authorities of the `good_nodes`.
+    /// Authorities that `select_by_absolute_score` picks to be replaced by one
+    /// of `good_nodes` whenever they are elected leader.
     /// Storing the hostname & stake along side the authority index for
     /// debugging.
     pub(crate) bad_nodes: BTreeMap<AuthorityIndex, (String, Stake)>,
