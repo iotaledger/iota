@@ -4155,11 +4155,11 @@ impl ProtocolConfig {
                     // Set the cost for built-in Move authenticators to 0 for now.
                     cfg.builtin_move_authenticator_cost_base = Some(0);
 
-                    cfg.ed25519_ed25519_validate_pubkey_cost_base = Some(52);
-                    cfg.ecdsa_k1_secp256k1_validate_pubkey_cost_base = Some(52);
-                    cfg.ecdsa_r1_secp256r1_validate_pubkey_cost_base = Some(52);
-                    cfg.multisig_multisig_validate_pubkey_cost_base = Some(52);
-                    cfg.public_key_to_iota_address_impl_cost_base = Some(52);
+                    cfg.ed25519_ed25519_validate_pubkey_cost_base = Some(170);
+                    cfg.ecdsa_k1_secp256k1_validate_pubkey_cost_base = Some(176);
+                    cfg.ecdsa_r1_secp256r1_validate_pubkey_cost_base = Some(325);
+                    cfg.multisig_multisig_validate_pubkey_cost_base = Some(72);
+                    cfg.public_key_to_iota_address_impl_cost_base = Some(341);
                 }
                 // Use this template when making changes:
                 //
