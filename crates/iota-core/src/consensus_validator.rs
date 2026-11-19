@@ -328,7 +328,7 @@ mod tests {
     use iota_protocol_config::{Chain, OverrideGuard, ProtocolConfig, ProtocolVersion};
     use iota_sdk_types::{Identifier, ObjectId, UserSignature};
     use iota_types::{
-        attestation::AttestedTransaction,
+        attestation::{Attestation, AttestationData, AttestedTransaction},
         crypto::AuthorityKeyPair,
         error::{IotaError, IotaResult, UserInputError},
         messages_checkpoint::{CheckpointSignatureMessage, SignedCheckpointSummary},
@@ -761,6 +761,23 @@ mod tests {
         )))
     }
 
+    /// `signed_tx` with an attestation. Block verification checks only that
+    /// one is present, so its content is arbitrary.
+    fn attested_user_transaction(signed_tx: TransactionEnvelope) -> ConsensusTransactionKind {
+        let attestation = Attestation::new_authority(
+            AttestationData::V1 {
+                computation_units: 0,
+                object_versions: vec![],
+            },
+            0,
+        );
+
+        ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            signed_tx,
+            Some(attestation),
+        )))
+    }
+
     /// `signed_tx` certified by the single validator of `state`.
     fn certificate(
         signed_tx: TransactionEnvelope,
@@ -806,6 +823,28 @@ mod tests {
 
         validator
             .validate_transactions(vec![user_transaction(move_call_with_type_name(
+                &state,
+                Identifier::from_static("IOTA"),
+            ))])
+            .unwrap();
+    }
+
+    /// The identifier check of block verification applies to a user
+    /// transaction in the form it takes while validator attestation is on.
+    #[tokio::test]
+    async fn reject_identifier_move_core_rejects_in_attested_user_transaction() {
+        let (state, _, validator) = self_identifier_fixture(None).await;
+        let protocol_config = validator.epoch_store.protocol_config();
+        assert!(protocol_config.disallow_self_identifier_in_transactions());
+        assert!(protocol_config.enable_validator_attestation());
+
+        let result = validator.validate_transactions(vec![attested_user_transaction(
+            move_call_with_type_name(&state, Identifier::new_unchecked("<SELF>")),
+        )]);
+        assert_self_identifier_rejected(&result);
+
+        validator
+            .validate_transactions(vec![attested_user_transaction(move_call_with_type_name(
                 &state,
                 Identifier::from_static("IOTA"),
             ))])

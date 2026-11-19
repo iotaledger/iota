@@ -1570,6 +1570,85 @@ async fn assert_validator_built_the_certified_checkpoint(
     );
 }
 
+/// Asserts that the attestation of the transaction `digest` by `attestor` is
+/// recorded valid. Every validator judged it at execution and stored a valid
+/// record. The fullnode executes from checkpoints, where a valid attestation is
+/// not certified, so it stores no record, and it reaches the effects of
+/// `attestor`.
+#[cfg(msim)]
+fn assert_attestation_recorded_valid(
+    test_cluster: &TestCluster,
+    attestor: &AuthorityName,
+    digest: &iota_sdk_types::TransactionDigest,
+) {
+    use iota_types::{
+        attestation::{AttestationRecord, AttestationVerdict},
+        base_types::ConciseableName,
+    };
+
+    // The node's record of the attestation, and the digest of its effects.
+    let read = |node: &iota_node::IotaNode| {
+        let state = node.state();
+        let cache = state.get_transaction_cache_reader();
+        let record = cache
+            .multi_get_attestation_records_in_epoch(
+                state.epoch_store_for_testing().epoch(),
+                &[*digest],
+            )
+            .pop()
+            .expect("one result per digest");
+        let effects_digest = cache
+            .try_get_executed_effects(digest)
+            .unwrap()
+            .expect("the node executed the transaction")
+            .digest();
+
+        (record, effects_digest)
+    };
+    let (attestor_index, attestor_effects) = test_cluster
+        .swarm
+        .node(attestor)
+        .unwrap()
+        .get_node_handle()
+        .unwrap()
+        .with(|node| {
+            let index = node
+                .state()
+                .epoch_store_for_testing()
+                .committee()
+                .authority_index(attestor)
+                .expect("the attestor is in the committee");
+
+            (
+                u8::try_from(index).expect("committee indices fit in a u8"),
+                read(node).1,
+            )
+        });
+    let valid = AttestationRecord {
+        attestor: attestor_index,
+        verdict: AttestationVerdict::Valid,
+    };
+    for handle in test_cluster.all_validator_handles() {
+        let (name, record) = handle.with(|node| (node.state().name, read(node).0));
+        assert_eq!(
+            record,
+            Some(valid),
+            "validator {} must record the attestation valid",
+            name.concise()
+        );
+    }
+
+    let (record, effects_digest) = test_cluster.fullnode_handle.iota_node.with(read);
+    assert_eq!(
+        record, None,
+        "the fullnode stores no record of a valid attestation"
+    );
+    assert_eq!(
+        effects_digest, attestor_effects,
+        "the fullnode must reach the effects of the attestor"
+    );
+}
+
 /// Under P-COOL, a transaction whose authenticator fails at execution produces
 /// failure effects on every validator. Such a transaction reaches consensus
 /// through an honest validator whose view is behind: before submitting, it runs
@@ -1577,20 +1656,21 @@ async fn assert_validator_built_the_certified_checkpoint(
 /// Post-consensus validation keeps the transaction without running the
 /// authenticator, so validators at different points cannot disagree on it, and
 /// execution runs the authenticator at the version consensus assigned, where it
-/// fails. The account pays its own gas but did not authorize the transaction,
-/// so nobody is charged, and the account can spend the gas coin afterwards at
-/// its next version.
+/// fails. The account can spend the gas coin afterwards at its next version.
+///
+/// Who pays depends on `attestation`, which turns validator attestation on or
+/// off. Without attestation, the account pays its own gas but did not
+/// authorize the transaction, so nobody is charged. With attestation, the
+/// validator attests the transaction at the account version it read. The judge
+/// re-runs authentication there, where it passes, so the attestation is valid
+/// and the account pays.
 ///
 /// Staging: execution on one validator is paused before the owner key rotation
 /// executes there, so that validator still admits a transaction signed with
 /// the old key. Consensus orders it after the rotation, and every validator
 /// fails it at execution.
-///
-/// Simulator only, because the pause is a fail point.
 #[cfg(msim)]
-#[sim_test]
-async fn test_stale_abstract_account_tx_fails_with_effects_with_the_pcool_flow()
--> Result<(), anyhow::Error> {
+async fn run_stale_transaction_after_key_rotation(attestation: bool) -> Result<(), anyhow::Error> {
     use std::{sync::atomic::Ordering, time::Duration};
 
     use iota_core::authority_client::validator_v2::ValidatorV2API;
@@ -1601,10 +1681,7 @@ async fn test_stale_abstract_account_tx_fails_with_effects_with_the_pcool_flow()
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
-    // The no-charge effect is the P-COOL flow's own: with attestation on, the
-    // judge finds the authentication valid at the attested versions and the
-    // account pays.
-    let _attestation = override_validator_attestation(false);
+    let _attestation = override_validator_attestation(attestation);
     let mut test_env = TestEnvironment::with_cluster(
         TestClusterBuilder::new()
             .with_epoch_duration_ms(600_000)
@@ -1736,14 +1813,24 @@ async fn test_stale_abstract_account_tx_fails_with_effects_with_the_pcool_flow()
         ),
         "expected the abort of basic_keyed_aa::authenticate_ed25519 with error code 0, got {error:?}"
     );
-    // The account pays its own gas but did not authorize the transaction, so
-    // nobody is charged. Its gas coin moves to its next version with its
-    // balance unchanged.
-    assert_eq!(
-        effects.gas_cost_summary(),
-        &GasCostSummary::default(),
-        "nobody may be charged for a transaction the gas owner did not authorize"
-    );
+    if attestation {
+        // The judge found the attestation valid, so the account pays, as for a
+        // failure it authorized.
+        assert!(
+            effects.gas_cost_summary().gas_used() > 0,
+            "the account must be charged, got {:?}",
+            effects.gas_cost_summary()
+        );
+    } else {
+        // The account pays its own gas but did not authorize the transaction,
+        // so nobody is charged. Its gas coin moves to its next version with its
+        // balance unchanged.
+        assert_eq!(
+            effects.gas_cost_summary(),
+            &GasCostSummary::default(),
+            "nobody may be charged for a transaction the gas owner did not authorize"
+        );
+    }
     let next_gas = effects
         .mutated()
         .into_iter()
@@ -1760,6 +1847,9 @@ async fn test_stale_abstract_account_tx_fails_with_effects_with_the_pcool_flow()
         &stale_digest,
     )
     .await;
+    if attestation {
+        assert_attestation_recorded_valid(&test_env.test_cluster, &paused_validator, &stale_digest);
+    }
 
     // The account can spend the gas coin at its next version with its new
     // key, here by sending all of it away.
@@ -1783,22 +1873,49 @@ async fn test_stale_abstract_account_tx_fails_with_effects_with_the_pcool_flow()
     Ok(())
 }
 
+/// [`run_stale_transaction_after_key_rotation()`] with validator attestation
+/// off: nobody is charged.
+///
+/// Simulator only, because the pause is a fail point.
+#[cfg(msim)]
+#[sim_test]
+async fn test_stale_abstract_account_tx_fails_with_effects_with_the_pcool_flow()
+-> Result<(), anyhow::Error> {
+    run_stale_transaction_after_key_rotation(false).await
+}
+
+/// [`run_stale_transaction_after_key_rotation()`] with validator attestation
+/// on: the attestation is recorded valid and the account pays. A valid
+/// attestation is not certified, so the fullnode reaches the same effects
+/// without a record.
+///
+/// Simulator only, because the pause is a fail point.
+#[cfg(msim)]
+#[sim_test]
+async fn attested_stale_abstract_account_tx_charges_account() -> Result<(), anyhow::Error> {
+    run_stale_transaction_after_key_rotation(true).await
+}
+
 /// Under P-COOL, a transaction from an account that was deleted since the
 /// validator that proposed it last saw it executes with failure effects on
 /// every validator: the account is read as deleted and the transaction fails
-/// with `InputObjectDeleted`. The account's authenticator does not run, so
-/// nothing is charged and only the gas coin is mutated.
+/// with `InputObjectDeleted`. Only the gas coin is mutated.
+///
+/// Who pays depends on `attestation`, which turns validator attestation on or
+/// off. Without attestation, the account's authenticator does not run, so
+/// nothing is charged. With attestation, the validator attests the transaction
+/// at the account version it read. The deletion superseded that version, so the
+/// judge re-runs authentication there, where it passes: the attestation is
+/// valid and the account pays.
 ///
 /// Execution on one validator is paused so it still admits a transaction from
 /// the account after the deletion. Both reach consensus in that order, with
 /// the deletion above the horizon of the stale transaction's commit, which
 /// keeps it.
-///
-/// Simulator only, because the pause is a fail point.
 #[cfg(msim)]
-#[sim_test]
-async fn test_stale_abstract_account_tx_after_deletion_fails_with_effects_pcool_flow()
--> Result<(), anyhow::Error> {
+async fn run_stale_transaction_after_account_deletion(
+    attestation: bool,
+) -> Result<(), anyhow::Error> {
     use std::{sync::atomic::Ordering, time::Duration};
 
     use iota_macros::clear_fail_point;
@@ -1808,10 +1925,7 @@ async fn test_stale_abstract_account_tx_after_deletion_fails_with_effects_pcool_
 
     telemetry_subscribers::init_for_testing();
 
-    // The no-charge effect is the P-COOL flow's own: with attestation on, the
-    // judge finds the authentication valid at the attested versions and the
-    // account pays.
-    let _attestation = override_validator_attestation(false);
+    let _attestation = override_validator_attestation(attestation);
     let mut test_env = TestEnvironment::with_cluster(
         TestClusterBuilder::new()
             .with_epoch_duration_ms(600_000)
@@ -1905,11 +2019,21 @@ async fn test_stale_abstract_account_tx_after_deletion_fails_with_effects_pcool_
         matches!(error, ExecutionError::InputObjectDeleted),
         "expected InputObjectDeleted, got {error:?}"
     );
-    assert_eq!(
-        effects.gas_cost_summary(),
-        &Default::default(),
-        "nothing may be charged for the failed transaction"
-    );
+    if attestation {
+        // The judge found the attestation valid, so the account pays, as for a
+        // failure it authorized.
+        assert!(
+            effects.gas_cost_summary().gas_used() > 0,
+            "the account must be charged, got {:?}",
+            effects.gas_cost_summary()
+        );
+    } else {
+        assert_eq!(
+            effects.gas_cost_summary(),
+            &Default::default(),
+            "nothing may be charged for the failed transaction"
+        );
+    }
     let mutated: Vec<_> = effects
         .mutated()
         .into_iter()
@@ -1927,8 +2051,35 @@ async fn test_stale_abstract_account_tx_after_deletion_fails_with_effects_pcool_
         &stale_digest,
     )
     .await;
+    if attestation {
+        assert_attestation_recorded_valid(&test_env.test_cluster, &paused_validator, &stale_digest);
+    }
 
     Ok(())
+}
+
+/// [`run_stale_transaction_after_account_deletion()`] with validator
+/// attestation off: nothing is charged.
+///
+/// Simulator only, because the pause is a fail point.
+#[cfg(msim)]
+#[sim_test]
+async fn test_stale_abstract_account_tx_after_deletion_fails_with_effects_pcool_flow()
+-> Result<(), anyhow::Error> {
+    run_stale_transaction_after_account_deletion(false).await
+}
+
+/// [`run_stale_transaction_after_account_deletion()`] with validator
+/// attestation on: the attestation is recorded valid and the account pays. A
+/// valid attestation is not certified, so the fullnode reaches the same effects
+/// without a record.
+///
+/// Simulator only, because the pause is a fail point.
+#[cfg(msim)]
+#[sim_test]
+async fn attested_stale_abstract_account_tx_after_deletion_charges_account()
+-> Result<(), anyhow::Error> {
+    run_stale_transaction_after_account_deletion(true).await
 }
 
 /// Under P-COOL, a transaction from an account whose authenticate function

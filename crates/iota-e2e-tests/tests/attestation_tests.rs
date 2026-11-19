@@ -48,7 +48,7 @@ use iota_types::{
         TransactionEnvelope,
     },
 };
-use test_cluster::{TestCluster, TestClusterBuilder};
+use test_cluster::{ProtocolEnvOverride, TestCluster, TestClusterBuilder};
 
 const AA_PACKAGE_PATH: &str = "tests/abstract_account/abstract_account";
 const AA_MODULE_NAME: &str = "abstract_account";
@@ -435,37 +435,6 @@ fn enable_attestation_env() -> ProtocolEnvOverride {
             "true",
         ),
     ])
-}
-
-/// Sets process-wide environment variables on construction, restores them (by
-/// removing them) on drop.  Must be constructed **before**
-/// `TestClusterBuilder::build()` so that validator node threads inherit the
-/// values when they call `ProtocolConfig::get_for_version`.
-struct ProtocolEnvOverride {
-    keys: Vec<&'static str>,
-}
-
-impl ProtocolEnvOverride {
-    fn new(overrides: &[(&'static str, &'static str)]) -> Self {
-        for (key, val) in overrides {
-            // SAFETY: set before any node thread is spawned; no concurrent env
-            // readers at this point.
-            unsafe { std::env::set_var(key, val) };
-        }
-        Self {
-            keys: overrides.iter().map(|(k, _)| *k).collect(),
-        }
-    }
-}
-
-impl Drop for ProtocolEnvOverride {
-    fn drop(&mut self) {
-        for key in &self.keys {
-            // SAFETY: runs at test teardown, when no node thread reads the
-            // environment anymore.
-            unsafe { std::env::remove_var(key) };
-        }
-    }
 }
 
 // --------------------------------------------------
