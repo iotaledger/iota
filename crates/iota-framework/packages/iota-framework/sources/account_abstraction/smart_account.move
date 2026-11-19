@@ -40,7 +40,7 @@ use iota::public_key::PublicKey;
 const ETransactionSenderIsNotTheSmartAccount: vector<u8> =
     b"Transaction must be signed by the smart account.";
 #[error(code = 1)]
-const EBuiltinAuthenticatorsNotEnabled: vector<u8> = b"Built-in Move authenticators not enabled.";
+const ESmartAccountsNotEnabled: vector<u8> = b"Smart accounts not enabled.";
 
 // === Structs ===
 
@@ -76,15 +76,12 @@ public struct SmartAccountBuilder {
 /// `build_v1` aborts for a builder made here with the built-in authenticator, since it has no
 /// key.
 ///
-/// Aborts if `enable_builtin_move_authenticators` is not enabled in the protocol config.
+/// Aborts if `enable_smart_accounts` is not enabled in the protocol config.
 public fun builder_v1(
     authenticator: AuthenticatorFunctionRefV1<SmartAccount>,
     ctx: &mut TxContext,
 ): SmartAccountBuilder {
-    assert!(
-        protocol_config::is_feature_enabled(b"enable_builtin_move_authenticators"),
-        EBuiltinAuthenticatorsNotEnabled,
-    );
+    ensure_smart_accounts_enabled();
 
     SmartAccountBuilder {
         account: SmartAccount { id: object::new(ctx) },
@@ -252,12 +249,15 @@ public fun rotate_auth_function_ref_v1(
 
 /// Creates a `SmartAccountBuilder` whose account ID is the claimed sender address.
 ///
+/// Aborts if `enable_smart_accounts` is not enabled in the protocol config.
 /// Aborts if `public_key` does not derive the sender's address.
 public(package) fun claim_builder(
     public_key: PublicKey,
     authenticator: AuthenticatorFunctionRefV1<SmartAccount>,
     ctx: &TxContext,
 ): SmartAccountBuilder {
+    ensure_smart_accounts_enabled();
+
     SmartAccountBuilder {
         account: SmartAccount { id: claim::claim_address(public_key, ctx) },
         authenticator,
@@ -277,4 +277,14 @@ public(package) fun uid(self: &SmartAccount): &UID {
 /// Borrows the account's `UID` mutably.
 public(package) fun uid_mut(self: &mut SmartAccount): &mut UID {
     &mut self.id
+}
+
+// === Private Functions ===
+
+/// Aborts if `enable_smart_accounts` is not enabled in the protocol config.
+fun ensure_smart_accounts_enabled() {
+    assert!(
+        protocol_config::is_feature_enabled(b"enable_smart_accounts"),
+        ESmartAccountsNotEnabled,
+    );
 }

@@ -803,6 +803,11 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     enable_claim_account_transaction: bool,
 
+    // If true, `smart_account::builder_v1` and a smart account `ClaimAccount` create a
+    // `SmartAccount`; otherwise they abort.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_smart_accounts: bool,
+
     // If true, a consensus message is skipped as a duplicate of an earlier message with the same
     // key that was recorded as processed or passed verification in the same commit:
     // - The consensus handler adds a message to its processed-transaction cache only after the
@@ -2449,6 +2454,10 @@ impl ProtocolConfig {
         enable_claim_account_transaction
     }
 
+    pub fn enable_smart_accounts(&self) -> bool {
+        self.feature_flags.enable_smart_accounts
+    }
+
     pub fn disallow_self_identifier_in_transactions(&self) -> bool {
         self.feature_flags.disallow_self_identifier_in_transactions
     }
@@ -4037,9 +4046,8 @@ impl ProtocolConfig {
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         // Enable built-in Move authenticators in devnet.
                         cfg.feature_flags.enable_builtin_move_authenticators = true;
-                        // Enable claiming an account for the sender's address in
-                        // devnet only.
-                        cfg.feature_flags.enable_claim_account_transaction = true;
+                        // Enable creating smart accounts in devnet only.
+                        cfg.feature_flags.enable_smart_accounts = true;
 
                         // Bounds on a ClaimAccount's cost, so a claim cannot run
                         // out of gas at any admissible gas price or key size.
@@ -4050,11 +4058,11 @@ impl ProtocolConfig {
                     // Set the cost for built-in Move authenticators to 0 for now.
                     cfg.builtin_move_authenticator_cost_base = Some(0);
 
-                    cfg.ed25519_ed25519_validate_pubkey_cost_base = Some(52);
-                    cfg.ecdsa_k1_secp256k1_validate_pubkey_cost_base = Some(52);
-                    cfg.ecdsa_r1_secp256r1_validate_pubkey_cost_base = Some(52);
-                    cfg.multisig_multisig_validate_pubkey_cost_base = Some(52);
-                    cfg.public_key_to_iota_address_impl_cost_base = Some(52);
+                    cfg.ed25519_ed25519_validate_pubkey_cost_base = Some(170);
+                    cfg.ecdsa_k1_secp256k1_validate_pubkey_cost_base = Some(176);
+                    cfg.ecdsa_r1_secp256r1_validate_pubkey_cost_base = Some(325);
+                    cfg.multisig_multisig_validate_pubkey_cost_base = Some(72);
+                    cfg.public_key_to_iota_address_impl_cost_base = Some(341);
                 }
                 // Use this template when making changes:
                 //
@@ -4508,6 +4516,10 @@ impl ProtocolConfig {
 
     pub fn set_enable_builtin_move_authenticators_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_builtin_move_authenticators = val;
+    }
+
+    pub fn set_enable_smart_accounts_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_smart_accounts = val;
     }
 
     /// Turning the flag off also turns off `enable_pcool_flow`, which requires
