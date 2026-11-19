@@ -17,13 +17,13 @@ use iota_sdk_types::TypeTag;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    consistency::Checkpointed,
+    consistency::{Checkpointed, LiveCursor},
     data::{Db, DbConnection, QueryExecutor},
     error::Error,
     filter, query,
     raw_query::RawQuery,
     types::{
-        available_range::AvailableRange,
+        available_range::LedgerView,
         big_int::BigInt,
         cursor::{self, Page, RawPaginated, ScanLimited, Target},
         iota_address::IotaAddress,
@@ -84,13 +84,12 @@ impl Balance {
         let max_available_range = db.max_available_range;
         let stored: Option<StoredBalance> = db
             .execute_repeatable(move |conn| {
-                if !AvailableRange::is_checkpoint_in_backward_history_range(
-                    conn,
-                    checkpoint_viewed_at,
-                    max_available_range,
-                )? {
+                let ledger_view = LedgerView::resolve(conn, max_available_range)?;
+                let Some(checkpoint_viewed_at) =
+                    ledger_view.resolve_checkpoint(checkpoint_viewed_at)
+                else {
                     return Ok::<_, diesel::result::Error>(None);
-                }
+                };
 
                 conn.result(move || {
                     balance_query(address, Some(coin_type.clone()), checkpoint_viewed_at)
@@ -108,7 +107,7 @@ impl Balance {
     /// `address`.
     pub(crate) async fn paginate(
         db: &Db,
-        page: Page<Cursor>,
+        mut page: Page<Cursor>,
         address: IotaAddress,
         checkpoint_viewed_at: u64,
     ) -> Result<Connection<String, Balance>, Error> {
@@ -121,14 +120,17 @@ impl Balance {
 
         let max_available_range = db.max_available_range;
 
-        let Some((prev, next, results)) = db
+        let Some((checkpoint_viewed_at, (prev, next, results))) = db
             .execute_repeatable(move |conn| {
-                if !AvailableRange::is_checkpoint_in_backward_history_range(
-                    conn,
-                    checkpoint_viewed_at,
-                    max_available_range,
-                )? {
+                let ledger_view = LedgerView::resolve(conn, max_available_range)?;
+                let Some(checkpoint_viewed_at) =
+                    ledger_view.resolve_checkpoint(checkpoint_viewed_at)
+                else {
                     return Ok::<_, diesel::result::Error>(None);
+                };
+
+                if matches!(ledger_view, LedgerView::Live(_)) {
+                    page.set_live_view(checkpoint_viewed_at);
                 }
 
                 let result = page.paginate_raw_query::<StoredBalance>(
@@ -137,7 +139,7 @@ impl Balance {
                     balance_query(address, None, checkpoint_viewed_at),
                 )?;
 
-                Ok(Some(result))
+                Ok(Some((checkpoint_viewed_at, result)))
             })
             .await?
         else {
@@ -186,6 +188,15 @@ impl Target<Cursor> for StoredBalance {
 impl Checkpointed for Cursor {
     fn checkpoint_viewed_at(&self) -> u64 {
         self.checkpoint_viewed_at.into()
+    }
+}
+
+impl LiveCursor for Cursor {
+    fn set_checkpoint_viewed_at(&mut self, checkpoint_viewed_at: u64) {
+        *self = Cursor::new(BalanceCursor {
+            coin_type: self.coin_type.clone(),
+            checkpoint_viewed_at: UInt53::new_unchecked(checkpoint_viewed_at),
+        });
     }
 }
 
