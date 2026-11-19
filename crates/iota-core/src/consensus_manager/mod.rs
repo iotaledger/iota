@@ -14,7 +14,7 @@ use iota_config::{ConsensusConfig, NodeConfig};
 use iota_metrics::RegistryService;
 use iota_protocol_config::ProtocolVersion;
 use iota_types::{committee::EpochId, error::IotaResult, messages_consensus::ConsensusTransaction};
-use prometheus_filtered::{IntGauge, Registry, register_int_gauge_with_registry};
+use prometheus_filtered::{IntGauge, MetricLevel, Registry, register_int_gauge_with_registry};
 use starfish_core::{CommitConsumerMonitor, CommitIndex};
 use tokio::{
     sync::{Mutex, MutexGuard, broadcast},
@@ -258,15 +258,17 @@ impl ConsensusManagerMetrics {
     pub fn new(registry: &Registry) -> Self {
         Self {
             start_latency: register_int_gauge_with_registry!(
-                "consensus_manager_start_latency",
-                "The latency of starting up consensus nodes",
-                registry,
+                "consensus_manager_start_latency_ms",
+                "The latency of starting up consensus nodes in milliseconds",
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             shutdown_latency: register_int_gauge_with_registry!(
-                "consensus_manager_shutdown_latency",
-                "The latency of shutting down consensus nodes",
-                registry,
+                "consensus_manager_shutdown_latency_ms",
+                "The latency of shutting down consensus nodes in milliseconds",
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
         }
@@ -343,7 +345,7 @@ impl Drop for RunningLockGuard<'_> {
 
                 self.metrics
                     .shutdown_latency
-                    .set(self.start.elapsed().as_secs_f64() as i64);
+                    .set(self.start.elapsed().as_millis() as i64);
 
                 *self.state_guard = Running::False;
             }
@@ -358,7 +360,7 @@ impl Drop for RunningLockGuard<'_> {
 
                 self.metrics
                     .start_latency
-                    .set(self.start.elapsed().as_secs_f64() as i64);
+                    .set(self.start.elapsed().as_millis() as i64);
 
                 *self.state_guard =
                     Running::True(self.epoch.unwrap(), self.protocol_version.unwrap());

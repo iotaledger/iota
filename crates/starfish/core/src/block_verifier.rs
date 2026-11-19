@@ -177,11 +177,18 @@ impl BlockVerifier for SignedBlockVerifier {
         }
         let gc_depth = self.context.protocol_config.gc_depth();
         let min_ref_round = self.context.min_ref_round(block.round());
+        if let Some(reference) = block
+            .acknowledgments()
+            .iter()
+            .chain(block.ancestors())
+            .find(|reference| !committee.is_valid_index(reference.author))
+        {
+            return Err(ConsensusError::InvalidReferenceAuthority {
+                index: reference.author,
+                max: committee.size(),
+            });
+        }
         for acknowledgment in block.acknowledgments() {
-            ConsensusError::quick_validation_authority_indices(
-                &[acknowledgment.author],
-                committee,
-            )?;
             if acknowledgment.round >= block.round() {
                 return Err(ConsensusError::InvalidAcknowledgmentRound {
                     acknowledgment: acknowledgment.round,
@@ -200,7 +207,6 @@ impl BlockVerifier for SignedBlockVerifier {
         let mut seen_ancestors = vec![false; committee.size()];
         let mut parent_stakes = 0;
         for (i, ancestor) in block.ancestors().iter().enumerate() {
-            ConsensusError::quick_validation_authority_indices(&[ancestor.author], committee)?;
             if (i == 0 && ancestor.author != block.author())
                 || (i > 0 && ancestor.author == block.author())
             {
@@ -783,6 +789,28 @@ pub(crate) mod test {
             assert!(matches!(
                 verifier.verify(&signed_block),
                 Err(ConsensusError::AcknowledgmentRoundTooOld { .. })
+            ));
+        }
+
+        // Acknowledgment and ancestor from an authority outside the committee.
+        for block in [
+            test_block.clone().set_acknowledgments(vec![BlockRef::new(
+                9,
+                AuthorityIndex::new_for_test(4),
+                BlockHeaderDigest::MIN,
+            )]),
+            test_block.clone().set_ancestors(vec![
+                BlockRef::new(9, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
+                BlockRef::new(9, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
+                BlockRef::new(9, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),
+                BlockRef::new(9, AuthorityIndex::new_for_test(4), BlockHeaderDigest::MIN),
+            ]),
+        ] {
+            let signed_block =
+                SignedBlockHeader::new(block.build(), authority_2_protocol_keypair).unwrap();
+            assert!(matches!(
+                verifier.verify(&signed_block),
+                Err(ConsensusError::InvalidReferenceAuthority { .. })
             ));
         }
 

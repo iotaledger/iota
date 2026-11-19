@@ -1267,7 +1267,7 @@ mod tests {
                 // only write one block for the final round, which is the leader
                 // of the committed subdag.
                 if round == first_wave_rounds {
-                    leader = Some(block.clone());
+                    leader = Some(block);
                     break;
                 }
             }
@@ -1357,7 +1357,7 @@ mod tests {
                 // only write one block for the final round, which is the leader
                 // of the committed subdag.
                 if round == first_wave_rounds {
-                    leader = Some(block.clone());
+                    leader = Some(block);
                     break;
                 }
             }

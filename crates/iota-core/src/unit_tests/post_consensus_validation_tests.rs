@@ -3478,6 +3478,16 @@ impl HandlerObjectStateSetup {
         effects
     }
 
+    /// How many reads of `kind` the readers of this epoch answered from an
+    /// earlier read at the same commit.
+    fn reused_reads(&self, kind: &str) -> u64 {
+        self.epoch_store
+            .metrics
+            .consensus_handler_validation_reader_reused_verdicts
+            .with_label_values(&[kind])
+            .get()
+    }
+
     /// The commit-indexed reader as of `commit_index`.
     fn reader_at(&self, commit_index: CommitIndex) -> CommitIndexedReader {
         CommitIndexedReader::new(
@@ -5545,13 +5555,7 @@ async fn reader_keeps_its_first_shared_verdict_through_a_deletion_above_the_hori
     let shared_ref = *share_effects.created()[0].reference();
     let shared_id = shared_ref.object_id;
     let initial = initial_shared_version(share_effects.created()[0].owner());
-    let reused = || {
-        s.epoch_store
-            .metrics
-            .consensus_handler_validation_reader_reused_verdicts
-            .with_label_values(&["shared"])
-            .get()
-    };
+    let reused = || s.reused_reads("shared");
 
     // Commit 14, horizon 10: shared at 5, so it exists.
     let reader = s.reader_at(14);
@@ -11076,16 +11080,21 @@ impl SharedRegulatedCoin {
     }
 
     /// Executes the publisher's deletion of the shared coin on `s` as a root
-    /// of commit `deleting_commit`.
-    fn delete_shared_coin(&self, s: &HandlerObjectStateSetup, deleting_commit: CommitIndex) {
+    /// of commit `deleting_commit`, and returns its effects.
+    fn delete_shared_coin(
+        &self,
+        s: &HandlerObjectStateSetup,
+        deleting_commit: CommitIndex,
+    ) -> TransactionEffects {
         let deletion =
             self.destroy_shared_coin(s, self.publisher, &self.publisher_key, &self.publisher_gas);
         s.epoch_store.assign_commit_to_transactions(
             deleting_commit,
             vec![TransactionKey::Digest(*deletion.digest())],
         );
-        s.execute_with_assigned_shared_versions(deletion);
+        let effects = s.execute_with_assigned_shared_versions(deletion);
         assert!(s.authority.get_object(&self.coin_id).is_none());
+        effects
     }
 
     /// Executes `0x2::coin::<function>` of the deny list for the coin type
@@ -12292,6 +12301,239 @@ async fn read_at_the_horizon_follows_a_dynamic_field_child_and_needs_its_bytes()
         matches!(result, Err(IotaError::EpochEnded(epoch)) if epoch == s.epoch_store.epoch()),
         "unexpected result: {result:?}"
     );
+}
+
+/// A reader keeps its first read of a dynamic field for the rest of its
+/// commit, live or absent. The second read does not load the bytes again:
+/// once the bytes are removed the same reader still answers, and a new reader
+/// at the same commit fails.
+#[tokio::test]
+async fn reader_keeps_its_first_dynamic_field_read_for_the_rest_of_its_commit() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_handler_object_state(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+    let (field_ref, committed, remove_effects) =
+        consume_a_dynamic_field_child_without_a_lock(&s, &gas_id, sender, &sender_key);
+    let reused = || s.reused_reads("dynamic_field");
+    let live_ref = |field| match field {
+        DynamicFieldAtHorizon::Live(object) => Some(object.object_ref()),
+        DynamicFieldAtHorizon::Absent => None,
+    };
+
+    // Commit 8, horizon 4: created at 5, so absent.
+    let absent_reader = s.reader_at(8);
+    for _ in 0..2 {
+        assert_eq!(
+            absent_reader
+                .read_dynamic_field(field_ref.object_id)
+                .unwrap(),
+            DynamicFieldAtHorizon::Absent
+        );
+    }
+    assert_eq!(reused(), 1);
+
+    // Commit 9, horizon 5: live, past the deletion's row above the horizon.
+    let reader = s.reader_at(9);
+    assert_eq!(
+        live_ref(reader.read_dynamic_field(field_ref.object_id).unwrap()),
+        Some(field_ref)
+    );
+    assert_eq!(reused(), 1);
+
+    s.commit_outputs(&committed);
+    s.authority.clear_execution_caches_for_testing();
+    s.prune_versions_consumed_by(&committed, &remove_effects)
+        .await;
+    assert_eq!(
+        live_ref(reader.read_dynamic_field(field_ref.object_id).unwrap()),
+        Some(field_ref)
+    );
+    assert_eq!(reused(), 2);
+    let result = s.reader_at(9).read_dynamic_field(field_ref.object_id);
+    assert!(
+        matches!(result, Err(IotaError::Storage(_))),
+        "unexpected result: {result:?}"
+    );
+    assert_eq!(reused(), 2);
+}
+
+/// Callers on several threads that read one dynamic field through one reader
+/// share one read: one of them reads and the others wait for its result.
+#[tokio::test]
+async fn threads_reading_one_dynamic_field_share_one_read() {
+    const THREADS: u64 = 8;
+
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_handler_object_state(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+    let (field_ref, ..) =
+        consume_a_dynamic_field_child_without_a_lock(&s, &gas_id, sender, &sender_key);
+
+    // Commit 9, horizon 5: live, past the deletion's row above the horizon.
+    let reader = s.reader_at(9);
+    std::thread::scope(|scope| {
+        let callers: Vec<_> = (0..THREADS)
+            .map(|_| scope.spawn(|| reader.read_dynamic_field(field_ref.object_id).unwrap()))
+            .collect();
+        for caller in callers {
+            match caller.join().unwrap() {
+                DynamicFieldAtHorizon::Live(object) => assert_eq!(object.object_ref(), field_ref),
+                DynamicFieldAtHorizon::Absent => panic!("the field is live at the horizon"),
+            }
+        }
+    });
+    assert_eq!(s.reused_reads("dynamic_field"), THREADS - 1);
+}
+
+/// A commit with two transactions sent by one account reads the account's
+/// authenticator function field once and answers the second transaction from
+/// that read.
+#[tokio::test]
+async fn commit_with_two_transactions_of_one_account_reads_its_field_once() {
+    let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_ids = [ObjectId::random(), ObjectId::random()];
+    let account_id = ObjectId::random();
+    let s = setup_handler_object_state(
+        vec![
+            Object::with_id_owner_for_testing(gas_ids[0], sponsor),
+            Object::with_id_owner_for_testing(gas_ids[1], sponsor),
+            shared_object_with_id(account_id),
+        ],
+        true,
+    )
+    .await;
+    s.authority
+        .insert_genesis_object(authenticator_function_ref_field(
+            account_id,
+            s.package_id,
+            Version::OBJECT_START,
+        ));
+    let transactions = gas_ids.map(|gas_id| {
+        s.build_account_authenticated_transfer(
+            account_authenticator(account_id),
+            &gas_id,
+            sponsor,
+            &sponsor_key,
+        )
+    });
+
+    let result = s.validate_at(12, &transactions).await;
+
+    assert!(result.dropped.is_empty(), "{:?}", result.dropped);
+    assert_eq!(result.kept.len(), 2);
+    assert_eq!(s.reused_reads("dynamic_field"), 1);
+}
+
+/// A commit with two transfers of one regulated coin type, by a denied
+/// address and by another one, reads the type's deny list config and its
+/// global pause setting once each and answers the second transfer from those
+/// reads. The denial still drops only the denied address's transfer.
+#[tokio::test]
+async fn commit_with_two_transfers_of_one_regulated_coin_type_reads_its_deny_list_once() {
+    let (s, _, coin) =
+        setup_validators_with_a_shared_regulated_coin(RegulatedCoinOptions::default()).await;
+    let denied_transfer = coin.transfer_owned_coin(
+        &s,
+        coin.denied,
+        &coin.denied_key,
+        &coin.denied_gas,
+        &coin.denied_coin,
+    );
+    let other_transfer = coin.transfer_owned_coin(
+        &s,
+        coin.other,
+        &coin.other_key,
+        &coin.other_gas,
+        &coin.other_coin,
+    );
+    let reused_before = s.reused_reads("dynamic_field");
+
+    let result = s
+        .validate_at(14, &[denied_transfer.clone(), other_transfer.clone()])
+        .await;
+
+    assert_eq!(
+        result.dropped,
+        coin.address_denied(&denied_transfer, coin.denied)
+    );
+    assert_eq!(result.kept, vec![*other_transfer.digest()]);
+    assert_eq!(s.reused_reads("dynamic_field") - reused_before, 2);
+}
+
+/// A reader keeps the coin type of a shared input for the rest of its commit.
+/// The second read does not read the store: once the coin is deleted above
+/// the horizon and the version the deletion replaced is removed, the same
+/// reader still answers, and a new reader at the same commit fails.
+#[tokio::test]
+async fn reader_keeps_the_coin_type_of_a_shared_input_for_the_rest_of_its_commit() {
+    let (s, _, coin) =
+        setup_validators_with_a_shared_regulated_coin(RegulatedCoinOptions::default()).await;
+    let initial = initial_shared_version(&s.authority.get_object(&coin.coin_id).unwrap().owner);
+    let coin_type = Some(coin.coin_type.to_canonical_string(false));
+    let reused_before = s.reused_reads("shared_coin_type");
+    let reused = || s.reused_reads("shared_coin_type") - reused_before;
+
+    // Commit 14, horizon 10. The type read is for an input the reader kept.
+    let reader = s.reader_at(14);
+    assert_eq!(
+        reader.read_shared(coin.coin_id, initial).unwrap(),
+        SharedVerdict::Exists
+    );
+    assert_eq!(
+        reader.read_shared_coin_type(coin.coin_id, initial).unwrap(),
+        coin_type
+    );
+    assert_eq!(reused(), 0);
+
+    let deletion_effects = coin.delete_shared_coin(&s, 11);
+    s.commit_all_executed_and_clear_caches();
+    s.prune_versions_consumed_by(&[], &deletion_effects).await;
+    assert_eq!(
+        reader.read_shared_coin_type(coin.coin_id, initial).unwrap(),
+        coin_type
+    );
+    assert_eq!(reused(), 1);
+    // A new reader still keeps the input, deleted above the horizon, and
+    // then fails on its type.
+    let new_reader = s.reader_at(14);
+    assert_deleted_by(
+        new_reader.read_shared(coin.coin_id, initial).unwrap(),
+        &deletion_effects,
+    );
+    let result = new_reader.read_shared_coin_type(coin.coin_id, initial);
+    assert!(
+        matches!(result, Err(IotaError::Storage(_))),
+        "unexpected result: {result:?}"
+    );
+    assert_eq!(reused(), 1);
+}
+
+/// A commit with two transactions that name one shared coin reads the coin's
+/// type once and answers the second transaction from that read. The deny list
+/// still drops only the denied sender's transaction.
+#[tokio::test]
+async fn commit_with_two_transactions_on_one_shared_coin_reads_its_type_once() {
+    let (s, _, coin) =
+        setup_validators_with_a_shared_regulated_coin(RegulatedCoinOptions::default()).await;
+    let by_denied = coin.destroy_shared_coin(&s, coin.denied, &coin.denied_key, &coin.denied_gas);
+    let by_other = coin.destroy_shared_coin(&s, coin.other, &coin.other_key, &coin.other_gas);
+    let reused_before = s.reused_reads("shared_coin_type");
+
+    let result = s
+        .validate_at(14, &[by_denied.clone(), by_other.clone()])
+        .await;
+
+    assert_eq!(result.dropped, coin.address_denied(&by_denied, coin.denied));
+    assert_eq!(result.kept, vec![*by_other.digest()]);
+    assert_eq!(s.reused_reads("shared_coin_type") - reused_before, 1);
 }
 
 /// On a validator that lost the bytes of a dynamic-field child consumed

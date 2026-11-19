@@ -7,9 +7,9 @@
 The gRPC and GraphQL services each tell their clients the lowest version of
 the SDK client crate they support:
 
-- `MIN_IOTA_SDK_GRPC_CLIENT_VERSION` in
+- `IOTA_SDK_GRPC_CLIENT_VERSION_MIN` in
   crates/iota-grpc-server/src/constants.rs, for `iota-sdk-grpc-client`;
-- `MIN_IOTA_SDK_GRAPHQL_CLIENT_VERSION` in
+- `IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN` in
   crates/iota-graphql-rpc/src/server/version.rs, for `iota-sdk-graphql-client`.
 
 A client at that version must be able to decode every BCS value the node
@@ -67,12 +67,12 @@ class Minimum:
 
 MINIMUMS = [
     Minimum(
-        "MIN_IOTA_SDK_GRPC_CLIENT_VERSION",
+        "IOTA_SDK_GRPC_CLIENT_VERSION_MIN",
         "crates/iota-grpc-server/src/constants.rs",
         "iota-sdk-grpc-client",
     ),
     Minimum(
-        "MIN_IOTA_SDK_GRAPHQL_CLIENT_VERSION",
+        "IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN",
         "crates/iota-graphql-rpc/src/server/version.rs",
         "iota-sdk-graphql-client",
     ),

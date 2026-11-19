@@ -19,7 +19,7 @@ use iota_types::{
         AuthenticatorFunctionRef, authenticator_function_ref_v1_from_dynamic_field_object,
         derive_authenticator_function_ref_v1_dynamic_field_id,
     },
-    deny_list_v1::coin_deny_list_v1_denial,
+    deny_list_v1::{coin_deny_list_v1_denial, coin_type_of_object_for_denylist_check},
     error::{IotaError, IotaResult, UserInputError},
     object::Object,
     storage::{
@@ -29,6 +29,7 @@ use iota_types::{
 };
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
+use prometheus_filtered::IntCounter;
 
 use super::{
     AccountVerdict, DropKind, DropReason, DynamicFieldAtHorizon, KeptObject, MissingKind,
@@ -60,38 +61,58 @@ pub fn horizon(protocol_config: &ProtocolConfig, commit_index: CommitIndex) -> C
 }
 
 /// Reads inputs as of one consensus commit. Built once per commit and passed
-/// to every transition that touches a store. A shared or package input read
-/// a second time at the commit gets the first read's verdict.
+/// to every transition that touches a store. A shared input, a package input
+/// or a dynamic field read a second time at the commit gets the first read's
+/// result, and so does the coin type of a shared input.
 pub struct CommitIndexedReader {
     pub(super) cache: Arc<dyn ObjectCacheRead>,
     pub(super) epoch_store: Arc<AuthorityPerEpochStore>,
     /// The horizon, `C - K`.
     horizon: CommitIndex,
+    /// One verdict per shared object and declared initial shared version at
+    /// this commit. This is more than a saved read: a transaction and its Move
+    /// authenticator can declare one shared object with different mutability,
+    /// and [`iota_transaction_checks::checked_input_objects_union()`] asserts
+    /// that both declarations got the same result.
     shared_verdicts: Verdicts<(ObjectId, Version), SharedVerdict>,
     package_verdicts: Verdicts<ObjectId, PackageVerdict>,
+    dynamic_fields: Verdicts<ObjectId, DynamicFieldAtHorizon>,
+    /// Only the type is kept, never the object it was read from: that
+    /// object is the store's latest version, not an answer as of the horizon.
+    shared_coin_types: Verdicts<(ObjectId, Version), Option<String>>,
 }
 
-/// The verdict of each input read so far at a commit. One caller reads an
-/// input and every other caller of it, on any thread, waits for that read
-/// and gets its verdict. A read that fails is not kept, so a later caller
-/// reads again.
-struct Verdicts<K, V>(Mutex<HashMap<K, Arc<OnceCell<V>>>>);
+/// The result of each read so far at a commit: the verdict of an input, a
+/// dynamic field as of the horizon, or the coin type of a shared input. One
+/// caller reads a key and every other caller of it, on any thread, waits for
+/// that read and gets its result. A read that fails is not kept, so a later
+/// caller reads again.
+struct Verdicts<K, V> {
+    results: Mutex<HashMap<K, Arc<OnceCell<V>>>>,
+    /// Counts the calls answered without a read.
+    reused: IntCounter,
+}
 
 impl<K: Eq + Hash, V: Clone> Verdicts<K, V> {
-    fn new() -> Self {
-        Self(Mutex::new(HashMap::new()))
+    fn new(reused: IntCounter) -> Self {
+        Self {
+            results: Mutex::new(HashMap::new()),
+            reused,
+        }
     }
 
-    /// The verdict of `key`, from `read` when no caller has read it yet, and
-    /// whether this call got it without reading.
-    fn get_or_read(&self, key: K, read: impl FnOnce() -> IotaResult<V>) -> IotaResult<(V, bool)> {
-        let verdict = self.0.lock().entry(key).or_default().clone();
-        let mut reused = true;
-        let verdict = verdict.get_or_try_init(|| {
-            reused = false;
+    /// The result of `key`, from `read` when no caller has read it yet.
+    fn get_or_read(&self, key: K, read: impl FnOnce() -> IotaResult<V>) -> IotaResult<V> {
+        let result = self.results.lock().entry(key).or_default().clone();
+        let mut read_here = false;
+        let result = result.get_or_try_init(|| {
+            read_here = true;
             read()
         })?;
-        Ok((verdict.clone(), reused))
+        if !read_here {
+            self.reused.inc();
+        }
+        Ok(result.clone())
     }
 }
 
@@ -102,12 +123,20 @@ impl CommitIndexedReader {
         commit_index: CommitIndex,
     ) -> Self {
         let horizon = horizon(epoch_store.protocol_config(), commit_index);
+        let reused = |kind| {
+            epoch_store
+                .metrics
+                .consensus_handler_validation_reader_reused_verdicts
+                .with_label_values(&[kind])
+        };
         Self {
+            shared_verdicts: Verdicts::new(reused("shared")),
+            package_verdicts: Verdicts::new(reused("package")),
+            dynamic_fields: Verdicts::new(reused("dynamic_field")),
+            shared_coin_types: Verdicts::new(reused("shared_coin_type")),
             cache,
             epoch_store,
             horizon,
-            shared_verdicts: Verdicts::new(),
-            package_verdicts: Verdicts::new(),
         }
     }
 
@@ -179,19 +208,10 @@ impl CommitIndexedReader {
         id: ObjectId,
         initial_shared_version: Version,
     ) -> IotaResult<SharedVerdict> {
-        let (verdict, reused) = self
-            .shared_verdicts
+        self.shared_verdicts
             .get_or_read((id, initial_shared_version), || {
                 self.read_shared_once(id, initial_shared_version)
-            })?;
-        if reused {
-            self.epoch_store
-                .metrics
-                .consensus_handler_validation_reader_reused_verdicts
-                .with_label_values(&["shared"])
-                .inc();
-        }
-        Ok(verdict)
+            })
     }
 
     fn read_shared_once(
@@ -279,17 +299,8 @@ impl CommitIndexedReader {
     /// object (`UserInputError::MoveObjectAsPackage`). The same package read
     /// again at this commit gets the same verdict without another read.
     pub fn read_package(&self, id: ObjectId) -> IotaResult<PackageVerdict> {
-        let (verdict, reused) = self
-            .package_verdicts
-            .get_or_read(id, || self.read_package_once(id))?;
-        if reused {
-            self.epoch_store
-                .metrics
-                .consensus_handler_validation_reader_reused_verdicts
-                .with_label_values(&["package"])
-                .inc();
-        }
-        Ok(verdict)
+        self.package_verdicts
+            .get_or_read(id, || self.read_package_once(id))
     }
 
     fn read_package_once(&self, id: ObjectId) -> IotaResult<PackageVerdict> {
@@ -357,8 +368,14 @@ impl CommitIndexedReader {
     /// must change only through its shared parent object, as a field of the
     /// coin deny list or an account's authenticator function field does.
     /// Storage errors propagate, and so does a version the read needs but the
-    /// store no longer holds.
+    /// store no longer holds. The same field read again at this commit gets
+    /// the same result without another read.
     pub fn read_dynamic_field(&self, id: ObjectId) -> IotaResult<DynamicFieldAtHorizon> {
+        self.dynamic_fields
+            .get_or_read(id, || self.read_dynamic_field_once(id))
+    }
+
+    fn read_dynamic_field_once(&self, id: ObjectId) -> IotaResult<DynamicFieldAtHorizon> {
         let mut lookup = match DynamicFieldReader::start(id, self.horizon).read_highest_row(self)? {
             HighestRowLookup::Row(lookup) => lookup,
             HighestRowLookup::NoRow(no_row) => {
@@ -427,11 +444,36 @@ impl CommitIndexedReader {
         })
     }
 
+    /// The coin type of the shared input `id` declared at
+    /// `initial_shared_version`, as
+    /// [`coin_type_of_object_for_denylist_check`] gives it. The input must be
+    /// one [`Self::read_shared`] kept at this commit. The answer holds for
+    /// the rest of the commit.
+    ///
+    /// # Errors
+    ///
+    /// Storage errors, and an input with neither a live object nor the
+    /// version its deletion replaced.
+    pub fn read_shared_coin_type(
+        &self,
+        id: ObjectId,
+        initial_shared_version: Version,
+    ) -> IotaResult<Option<String>> {
+        // Reuse is correct because an object's type never changes, not
+        // because of the horizon: the object is read at whatever version the
+        // store holds.
+        self.shared_coin_types
+            .get_or_read((id, initial_shared_version), || {
+                let object = self.read_shared_object_for_type(id, initial_shared_version)?;
+                Ok(coin_type_of_object_for_denylist_check(&object))
+            })
+    }
+
     /// An object of the kept shared input `id` declared at
     /// `initial_shared_version`, for its type. Storage errors propagate, and
     /// so does an input with neither a live object nor the version its
     /// deletion replaced.
-    pub fn read_shared_object_for_type(
+    fn read_shared_object_for_type(
         &self,
         id: ObjectId,
         initial_shared_version: Version,
@@ -519,15 +561,57 @@ impl BackingPackageStore for CommitIndexedReader {
 
 #[cfg(test)]
 mod tests {
-    use std::cell::Cell;
+    use std::{cell::Cell, sync::mpsc, thread, time::Duration};
 
     use super::*;
 
+    /// A caller that arrives while another one reads the same key waits for
+    /// that read. It does not finish before the read does, it does not read
+    /// on its own, and it gets the read's result.
+    #[test]
+    fn a_caller_waits_for_a_read_in_progress() {
+        let reused = IntCounter::new("reused", "calls answered without a read").unwrap();
+        let verdicts = &Verdicts::<u8, u8>::new(reused.clone());
+        let (read_started, started) = mpsc::channel();
+        let (release, released) = mpsc::channel();
+        let (waiter_arriving, arrived) = mpsc::channel();
+
+        thread::scope(|scope| {
+            let reader = scope.spawn(move || {
+                verdicts.get_or_read(7, || {
+                    read_started.send(()).unwrap();
+                    released.recv().unwrap();
+                    Ok(3)
+                })
+            });
+            started.recv().unwrap();
+            let waiter = scope.spawn(move || {
+                waiter_arriving.send(()).unwrap();
+                verdicts.get_or_read(7, || panic!("a waiting caller must not read"))
+            });
+            arrived.recv().unwrap();
+            // Nothing signals that the waiter has reached the read in
+            // progress, so give it time to.
+            thread::sleep(Duration::from_millis(50));
+            // Asserted after the release, so a failure does not leave the
+            // reader blocked.
+            let finished_before_the_read = waiter.is_finished();
+
+            release.send(()).unwrap();
+            assert_eq!(reader.join().unwrap().unwrap(), 3);
+            assert_eq!(waiter.join().unwrap().unwrap(), 3);
+            assert!(!finished_before_the_read);
+        });
+        assert_eq!(reused.get(), 1);
+    }
+
     /// A read that fails is not kept, so the next caller reads again. A read
-    /// that succeeds is the last one for its input.
+    /// that succeeds is the last one for its input, and only a call answered
+    /// without a read is counted.
     #[test]
     fn a_failed_read_is_read_again_and_a_verdict_is_read_once() {
-        let verdicts = Verdicts::<u8, u8>::new();
+        let reused = IntCounter::new("reused", "calls answered without a read").unwrap();
+        let verdicts = Verdicts::<u8, u8>::new(reused.clone());
         let reads = Cell::new(0);
         let read = |result: IotaResult<u8>| {
             verdicts.get_or_read(7, || {
@@ -537,10 +621,10 @@ mod tests {
         };
 
         assert!(read(Err(IotaError::Storage("failed".to_string()))).is_err());
-        assert_eq!(reads.get(), 1);
-        assert_eq!(read(Ok(3)).unwrap(), (3, false));
-        assert_eq!(reads.get(), 2);
-        assert_eq!(read(Ok(9)).unwrap(), (3, true));
-        assert_eq!(reads.get(), 2);
+        assert_eq!((reads.get(), reused.get()), (1, 0));
+        assert_eq!(read(Ok(3)).unwrap(), 3);
+        assert_eq!((reads.get(), reused.get()), (2, 0));
+        assert_eq!(read(Ok(9)).unwrap(), 3);
+        assert_eq!((reads.get(), reused.get()), (2, 1));
     }
 }

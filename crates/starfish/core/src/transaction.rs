@@ -477,7 +477,7 @@ mod tests {
 
         for (i, t) in transactions.iter().enumerate() {
             let t: String = bcs::from_bytes(t.data()).unwrap();
-            assert_eq!(format!("transaction {i}").to_string(), t);
+            assert_eq!(format!("transaction {i}"), t);
         }
 
         assert!(
@@ -639,7 +639,7 @@ mod tests {
 
         for (i, t) in all_transactions.iter().enumerate() {
             let t: String = bcs::from_bytes(t.data()).unwrap();
-            assert_eq!(format!("transaction {i}").to_string(), t);
+            assert_eq!(format!("transaction {i}"), t);
         }
     }
 
@@ -740,7 +740,7 @@ mod tests {
                 assert_eq!(transactions.len(), 10);
                 for (i, transaction) in transactions.iter().enumerate() {
                     let t: String = bcs::from_bytes(transaction.data()).unwrap();
-                    assert_eq!(format!("transaction {i}").to_string(), t);
+                    assert_eq!(format!("transaction {i}"), t);
                 }
             // second batch will contain the soft bundle and the additional last
             // transaction.
@@ -748,7 +748,7 @@ mod tests {
                 assert_eq!(transactions.len(), 6);
                 for (i, transaction) in transactions.iter().enumerate() {
                     let t: String = bcs::from_bytes(transaction.data()).unwrap();
-                    assert_eq!(format!("transaction {}", i + 10).to_string(), t);
+                    assert_eq!(format!("transaction {}", i + 10), t);
                 }
             } else {
                 panic!("Unexpected batch index");
