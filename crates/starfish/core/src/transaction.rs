@@ -6,6 +6,7 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use iota_common::debug_fatal;
 use iota_metrics::monitored_mpsc::{Receiver, Sender, channel};
+use iota_protocol_config::ProtocolConfig;
 use parking_lot::Mutex;
 use tap::tap::TapFallible;
 use thiserror::Error;
@@ -251,9 +252,7 @@ pub struct TransactionClient {
     sender: Sender<TransactionsGuard>,
     // Reserved channel for the validator's own high-priority submissions.
     priority_sender: Sender<TransactionsGuard>,
-    max_transaction_size: u64,
-    max_transactions_in_block_bytes: u64,
-    max_transactions_in_block_count: u64,
+    limits: TransactionSubmissionLimits,
 }
 
 #[derive(Debug, Error)]
@@ -307,13 +306,7 @@ impl TransactionClient {
             Self {
                 sender,
                 priority_sender,
-                max_transaction_size: context.protocol_config.max_transaction_size_bytes(),
-                max_transactions_in_block_bytes: context
-                    .protocol_config
-                    .max_transactions_in_block_bytes(),
-                max_transactions_in_block_count: context
-                    .protocol_config
-                    .max_num_transactions_in_block(),
+                limits: TransactionSubmissionLimits::new(&context.protocol_config),
             },
             receiver,
             priority_receiver,
@@ -338,19 +331,15 @@ impl TransactionClient {
     }
 
     /// Submits a list of transactions to be sequenced.
-    /// If any transaction's length exceeds `max_transaction_size`, no
-    /// transaction will be submitted. That shouldn't be the common case as
-    /// sizes should be aligned between consensus and client. The method returns
-    /// a receiver to wait on until the transactions has been included in the
-    /// next block to get proposed. The consumer should wait on it to
+    /// If [`check_transactions_fit()`] refuses them, no transaction is
+    /// submitted and its error is returned. That shouldn't be the common case
+    /// as sizes should be aligned between consensus and client. The method
+    /// returns a receiver to wait on until the transactions has been included
+    /// in the next block to get proposed. The consumer should wait on it to
     /// consider as inclusion acknowledgement. If the receiver errors then
     /// consensus is shutting down and transaction has not been included to
     /// any block. If multiple transactions are submitted, the method will
-    /// attempt to bundle them together in a single block. If the total size of
-    /// the transactions exceeds `max_transactions_in_block_bytes`, no
-    /// transaction will be submitted and an error will be returned instead.
-    /// Similar if transactions exceed `max_transactions_in_block_count` an
-    /// error will be returned.
+    /// attempt to bundle them together in a single block.
     pub(crate) async fn submit_no_wait(
         &self,
         transactions: Vec<Vec<u8>>,
@@ -359,31 +348,11 @@ impl TransactionClient {
     {
         let (included_in_block_ack_send, included_in_block_ack_receive) = oneshot::channel();
 
-        let mut bundle_size = 0;
-
-        if transactions.len() as u64 > self.max_transactions_in_block_count {
-            return Err(ClientError::OversizedTransactionBundleCount(
-                transactions.len() as u64,
-                self.max_transactions_in_block_count,
-            ));
-        }
-
-        for transaction in &transactions {
-            if transaction.len() as u64 > self.max_transaction_size {
-                return Err(ClientError::OversizedTransaction(
-                    transaction.len() as u64,
-                    self.max_transaction_size,
-                ));
-            }
-            bundle_size += transaction.len() as u64;
-
-            if bundle_size > self.max_transactions_in_block_bytes {
-                return Err(ClientError::OversizedTransactionBundleBytes(
-                    bundle_size,
-                    self.max_transactions_in_block_bytes,
-                ));
-            }
-        }
+        let transaction_sizes: Vec<u64> = transactions
+            .iter()
+            .map(|transaction| transaction.len() as u64)
+            .collect();
+        check_transactions_fit(&transaction_sizes, self.limits)?;
 
         let t = TransactionsGuard {
             transactions: transactions.into_iter().map(Transaction::new).collect(),
@@ -400,6 +369,91 @@ impl TransactionClient {
             .map_err(|e| ClientError::ConsensusShuttingDown(e.to_string()))?;
         Ok(included_in_block_ack_receive)
     }
+}
+
+/// The limits of Starfish on one submission of transactions.
+#[derive(Clone, Copy, Debug)]
+pub struct TransactionSubmissionLimits {
+    /// The largest serialized size of one transaction, in bytes.
+    max_transaction_size: u64,
+    /// The largest total serialized size of the transactions, in bytes.
+    max_transactions_in_block_bytes: u64,
+    /// The largest number of transactions.
+    max_transactions_in_block_count: u64,
+}
+
+impl TransactionSubmissionLimits {
+    /// Returns the limits that `protocol_config` sets:
+    /// [`ProtocolConfig::max_transaction_size_bytes()`],
+    /// [`ProtocolConfig::max_transactions_in_block_bytes()`] and
+    /// [`ProtocolConfig::max_num_transactions_in_block()`].
+    pub fn new(protocol_config: &ProtocolConfig) -> Self {
+        Self {
+            max_transaction_size: protocol_config.max_transaction_size_bytes(),
+            max_transactions_in_block_bytes: protocol_config.max_transactions_in_block_bytes(),
+            max_transactions_in_block_count: protocol_config.max_num_transactions_in_block(),
+        }
+    }
+
+    /// Checks that a transaction of `size` bytes is no larger than one
+    /// transaction may be.
+    ///
+    /// # Errors
+    ///
+    /// [`ClientError::OversizedTransaction`] when it is larger.
+    pub fn check_transaction_size(&self, size: u64) -> Result<(), ClientError> {
+        if size > self.max_transaction_size {
+            return Err(ClientError::OversizedTransaction(
+                size,
+                self.max_transaction_size,
+            ));
+        }
+
+        Ok(())
+    }
+}
+
+/// Checks that Starfish accepts, as one submission, transactions whose
+/// serialized sizes are `transaction_sizes`: there are no more of them than
+/// `limits` allows, each is no larger than the size `limits` allows for one
+/// transaction, and together they are no larger than the total size `limits`
+/// allows.
+///
+/// # Errors
+///
+/// [`ClientError::OversizedTransactionBundleCount`] when there are more
+/// transactions than the limit, and otherwise
+/// [`ClientError::OversizedTransaction`] or
+/// [`ClientError::OversizedTransactionBundleBytes`] for the first transaction
+/// that is over the size limit or takes the total over its limit. The total
+/// in [`ClientError::OversizedTransactionBundleBytes`] is the total up to and
+/// including that transaction, not the size of the whole submission.
+pub fn check_transactions_fit(
+    transaction_sizes: &[u64],
+    limits: TransactionSubmissionLimits,
+) -> Result<(), ClientError> {
+    let max_count = limits.max_transactions_in_block_count;
+    let count = transaction_sizes.len() as u64;
+    if count > max_count {
+        return Err(ClientError::OversizedTransactionBundleCount(
+            count, max_count,
+        ));
+    }
+
+    let max_total_size = limits.max_transactions_in_block_bytes;
+    let mut total_size: u64 = 0;
+    for &size in transaction_sizes {
+        limits.check_transaction_size(size)?;
+        total_size = total_size.saturating_add(size);
+        if total_size > max_total_size {
+            return Err(ClientError::OversizedTransactionBundleBytes(
+                total_size,
+                max_total_size,
+            ));
+        }
+    }
+
+    Ok(())
 }
 
 /// `TransactionVerifier` implementation is supplied by IOTA to validate
@@ -440,11 +494,76 @@ mod tests {
         block_verifier::SignedBlockVerifier,
         context::Context,
         transaction::{
-            BlockStatus, LimitReached, NoopTransactionVerifier, Priority, TransactionClient,
-            TransactionConsumer,
+            BlockStatus, ClientError, LimitReached, NoopTransactionVerifier, Priority,
+            TransactionClient, TransactionConsumer, TransactionSubmissionLimits,
+            check_transactions_fit,
         },
         transaction_ref::TransactionRef,
     };
+
+    /// The limits the tests of [`check_transactions_fit()`] use: transactions
+    /// of up to 10 bytes, at most 4 of them, and 25 bytes in total.
+    const LIMITS: TransactionSubmissionLimits = TransactionSubmissionLimits {
+        max_transaction_size: 10,
+        max_transactions_in_block_bytes: 25,
+        max_transactions_in_block_count: 4,
+    };
+
+    /// [`check_transactions_fit()`] accepts a submission at each limit, and
+    /// refuses one with a transaction or a byte more.
+    #[test]
+    fn transactions_fit_exactly_at_each_limit() {
+        check_transactions_fit(&[0; 4], LIMITS).expect("four transactions should fit");
+        assert!(
+            matches!(
+                check_transactions_fit(&[0; 5], LIMITS),
+                Err(ClientError::OversizedTransactionBundleCount(5, 4))
+            ),
+            "a fifth transaction should not fit"
+        );
+
+        check_transactions_fit(&[10], LIMITS).expect("a transaction of 10 bytes should fit");
+        assert!(
+            matches!(
+                check_transactions_fit(&[11], LIMITS),
+                Err(ClientError::OversizedTransaction(11, 10))
+            ),
+            "a transaction of 11 bytes should not fit"
+        );
+
+        check_transactions_fit(&[10, 10, 5], LIMITS).expect("25 bytes in total should fit");
+        assert!(
+            matches!(
+                check_transactions_fit(&[10, 10, 6], LIMITS),
+                Err(ClientError::OversizedTransactionBundleBytes(26, 25))
+            ),
+            "26 bytes in total should not fit"
+        );
+    }
+
+    /// [`check_transactions_fit()`] checks the total after each transaction,
+    /// in the order of the submission. Its error for the total size reports
+    /// the total up to the transaction that takes it over the limit, not the
+    /// size of the whole submission, and it comes before the error for a
+    /// later transaction that is over the size limit.
+    #[test]
+    fn total_size_error_reports_running_total_before_later_oversized_transaction() {
+        // The third transaction takes the total to 30 bytes, over the limit.
+        assert!(
+            matches!(
+                check_transactions_fit(&[10, 10, 10, 1], LIMITS),
+                Err(ClientError::OversizedTransactionBundleBytes(30, 25))
+            ),
+            "the error should report the total up to the third transaction, not all 31 bytes"
+        );
+        assert!(
+            matches!(
+                check_transactions_fit(&[10, 10, 10, 11], LIMITS),
+                Err(ClientError::OversizedTransactionBundleBytes(30, 25))
+            ),
+            "the total error should come before the oversized fourth transaction"
+        );
+    }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn basic_submit_and_consume() {

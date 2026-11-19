@@ -164,11 +164,11 @@ impl ConsensusClient for LazyStarfishClient {
     }
 }
 
-/// Returns the error [`LazyStarfishClient`] reports for a Starfish refusal:
+/// Returns the [`IotaError`] for a Starfish refusal:
 /// [`UserInputError::SizeLimitExceeded`] for a submission larger than
 /// consensus accepts, and [`IotaError::FailedToSubmitToConsensus`] when
 /// consensus is shutting down.
-fn to_iota_error(error: ClientError) -> IotaError {
+pub(crate) fn to_iota_error(error: ClientError) -> IotaError {
     let size_limit_exceeded = |limit: String, value: u64| IotaError::UserInput {
         error: UserInputError::SizeLimitExceeded {
             limit,
