@@ -2160,6 +2160,9 @@
                 "pcool_deterministic_validation_horizon_distance": {
                   "u64": "4"
                 },
+                "pcool_max_input_objects_validated_per_commit": {
+                  "u64": "8192"
+                },
                 "poseidon_bn254_cost_base": {
                   "u64": "260"
                 },

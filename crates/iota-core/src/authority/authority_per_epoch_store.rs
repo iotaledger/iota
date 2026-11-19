@@ -5433,8 +5433,9 @@ impl AuthorityPerEpochStore {
                 authority_metrics
                     .consensus_handler_validation_dropped_transactions
                     .inc_by(dropped.len() as u64);
-                // A drop for an input not visible at the horizon yet is not
-                // final for the digest, so it is not recorded as its status.
+                // A drop for an input not visible at the horizon yet, or at
+                // the commit's limit on input objects, is not final for the
+                // digest, so it is not recorded as its status.
                 // A drop that may come from the signatures of the copy
                 // validated is not even reported to the current waiters:
                 // another copy can be kept, so they wait for its outcome, or
@@ -5447,7 +5448,8 @@ impl AuthorityPerEpochStore {
                 for (digest, error, decision) in dropped {
                     match decision {
                         PostConsensusDecision::DroppedCopy => dropped_copies.push((digest, error)),
-                        PostConsensusDecision::DroppedInputNotVisibleYet => {
+                        PostConsensusDecision::DroppedInputNotVisibleYet
+                        | PostConsensusDecision::DroppedOverInputLimit => {
                             not_final.push((digest, error))
                         }
                         _ => final_drops.push((digest, error)),

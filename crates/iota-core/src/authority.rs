@@ -402,6 +402,14 @@ pub struct AuthorityMetrics {
     /// or `unused`, read ahead for a transaction the loop dropped before
     /// its inputs mattered. Only with the P-COOL flow on.
     pub consensus_handler_validation_input_reads: IntCounterVec,
+    /// Input objects declared by the user transactions that post-consensus
+    /// validation counted toward the limit of one commit, those it then
+    /// dropped at the limit included. Only with the P-COOL flow on.
+    pub consensus_handler_validation_declared_inputs: Histogram,
+    /// User transactions that post-consensus validation dropped because their
+    /// declared inputs did not fit in the limit of the commit. Only with the
+    /// P-COOL flow on.
+    pub consensus_handler_validation_over_input_limit_transactions: IntCounter,
     /// The commit being validated minus the highest fully executed commit, set
     /// once per commit. Only with the P-COOL flow on.
     pub consensus_handler_commit_execution_lag: IntGauge,
@@ -967,6 +975,17 @@ impl AuthorityMetrics {
                 "consensus_handler_validation_input_reads",
                 "Transactions whose inputs post-consensus validation read, by when: ahead of the validation loop, inline in it, or unused",
                 &["when"],
+                registry,
+            ).unwrap(),
+            consensus_handler_validation_declared_inputs: register_histogram_with_registry!(
+                "consensus_handler_validation_declared_inputs",
+                "Input objects declared by the user transactions that post-consensus validation counted toward the limit of one commit",
+                POSITIVE_INT_BUCKETS.to_vec(),
+                registry,
+            ).unwrap(),
+            consensus_handler_validation_over_input_limit_transactions: register_int_counter_with_registry!(
+                "consensus_handler_validation_over_input_limit_transactions",
+                "Number of user transactions dropped by post-consensus validation at the limit on input objects per commit",
                 registry,
             ).unwrap(),
             consensus_handler_commit_execution_lag: register_int_gauge_with_registry!(

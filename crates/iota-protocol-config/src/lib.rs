@@ -295,6 +295,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Raise `max_auth_gas` to 0.001 IOTA on devnet.
 //             Set the attestation freshness window on devnet.
 //             Set the penalty for refuted attestations on devnet.
+//             Limit the input objects that post-consensus validation reads
+//             per commit on devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -1792,6 +1794,13 @@ pub struct ProtocolConfig {
     /// version.
     pcool_deterministic_validation_horizon_distance: Option<u64>,
 
+    /// Maximum number of input objects that post-consensus validation reads
+    /// for the user transactions of one consensus commit. A transaction whose
+    /// declared inputs do not fit in what is left of it is dropped at that
+    /// commit and can be kept when sequenced again. Unset means no limit. Set
+    /// on Devnet from protocol version 41.
+    pcool_max_input_objects_validated_per_commit: Option<u64>,
+
     /// Scorer version. When set to `None`, MisbehaviorReports are not sent nor
     /// considered valid. When set to `Some(version)`, scores are included in
     /// the MisbehaviorReports messages, where `version` determines the scoring
@@ -3207,6 +3216,7 @@ impl ProtocolConfig {
             max_concurrent_execution_workers: None,
 
             pcool_deterministic_validation_horizon_distance: None,
+            pcool_max_input_objects_validated_per_commit: None,
 
             scorer_version: None,
 
@@ -4050,6 +4060,12 @@ impl ProtocolConfig {
                     if chain != Chain::Mainnet {
                         cfg.feature_flags
                             .consensus_commit_transactions_once_traversed = true;
+                    }
+
+                    // Limit the input objects that post-consensus validation
+                    // reads per commit.
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        cfg.pcool_max_input_objects_validated_per_commit = Some(8_192);
                     }
 
                     // `ecdsa_r1::secp256r1_ecrecover` rejects a signature

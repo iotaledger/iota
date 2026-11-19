@@ -8319,6 +8319,14 @@ fn saved_post_consensus_decision_encoding_is_stable() {
         [2]
     );
     assert_eq!(
+        bcs::to_bytes(&PostConsensusDecision::DroppedCopy).unwrap(),
+        [3]
+    );
+    assert_eq!(
+        bcs::to_bytes(&PostConsensusDecision::DroppedOverInputLimit).unwrap(),
+        [4]
+    );
+    assert_eq!(
         bcs::to_bytes(&SavedPostConsensusDecision {
             decision: PostConsensusDecision::Dropped,
             error: vec![7, 8],
@@ -9498,6 +9506,282 @@ async fn missing_drop_and_its_kept_retry_replay_after_a_restart() {
     s.epoch_store
         .assign_commit_to_transactions(13, vec![producer_key]);
     assert_eq!(run(&s, &consumer, &produced).await, (dropped, kept));
+}
+
+/// Sets the limit on the input objects validated per commit while the guard
+/// lives.
+fn limit_input_objects_per_commit(limit: u64) -> OverrideGuard {
+    ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
+        config.set_pcool_max_input_objects_validated_per_commit_for_testing(limit);
+        config
+    })
+}
+
+/// A setup under a limit of `limit` input objects per commit, with `count`
+/// transfers of one sender, each of its own object paid by its own gas coin.
+/// A transfer declares two input objects.
+async fn setup_transfers_under_input_limit(
+    limit: u64,
+    count: usize,
+) -> (HandlerObjectStateSetup, Vec<VerifiedTransaction>) {
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let pairs: Vec<_> = (0..count)
+        .map(|_| (ObjectId::random(), ObjectId::random()))
+        .collect();
+    let s = setup_handler_object_state_with_config_guard(
+        pairs
+            .iter()
+            .flat_map(|(object, gas)| [*object, *gas])
+            .map(|id| Object::with_id_owner_for_testing(id, sender))
+            .collect(),
+        Some(limit_input_objects_per_commit(limit)),
+    )
+    .await;
+    let transfers = pairs
+        .iter()
+        .map(|(object, gas)| s.build_transfer(object, gas, sender, &key, Address::random()))
+        .collect();
+    (s, transfers)
+}
+
+/// A commit validates transactions up to its limit on input objects and
+/// drops the next one with an error the client retries. The inputs of the
+/// dropped transaction are not read ahead.
+#[tokio::test]
+async fn commit_drops_a_transaction_over_its_limit_on_input_objects() {
+    let (s, transfers) = setup_transfers_under_input_limit(4, 3).await;
+
+    let result = s.validate_at(1, &transfers).await;
+
+    assert_eq!(
+        result.kept,
+        vec![*transfers[0].digest(), *transfers[1].digest()]
+    );
+    assert_eq!(
+        result.dropped,
+        vec![(
+            *transfers[2].digest(),
+            IotaError::ValidatorOverloadedRetryAfter {
+                retry_after_secs: 1
+            }
+        )]
+    );
+    assert_eq!(
+        s.epoch_store
+            .post_consensus_decision(1, *transfers[2].digest())
+            .unwrap()
+            .map(|saved| saved.decision),
+        Some(PostConsensusDecision::DroppedOverInputLimit)
+    );
+    let metrics = &s.authority.metrics;
+    assert_eq!(
+        metrics
+            .consensus_handler_validation_over_input_limit_transactions
+            .get(),
+        1
+    );
+    assert_eq!(
+        metrics
+            .consensus_handler_validation_declared_inputs
+            .get_sample_sum(),
+        6.0
+    );
+    let input_reads = &metrics.consensus_handler_validation_input_reads;
+    assert_eq!(input_reads.with_label_values(&["ahead"]).get(), 2);
+    assert_eq!(input_reads.with_label_values(&["unused"]).get(), 0);
+}
+
+/// A transaction that does not fit in what is left of the limit is dropped
+/// and validation goes on, so a smaller one after it is still kept.
+#[tokio::test]
+async fn commit_keeps_a_smaller_transaction_after_one_over_its_limit() {
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let ids: Vec<_> = (0..8).map(|_| ObjectId::random()).collect();
+    let s = setup_handler_object_state_with_config_guard(
+        ids.iter()
+            .map(|id| Object::with_id_owner_for_testing(*id, sender))
+            .collect(),
+        Some(limit_input_objects_per_commit(5)),
+    )
+    .await;
+    let first = s.build_transfer(&ids[0], &ids[1], sender, &key, Address::random());
+    // Three objects and the gas coin: four input objects.
+    let large = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        for object in &ids[2..5] {
+            builder
+                .transfer_object(Address::random(), s.latest_ref(object))
+                .unwrap();
+        }
+        let tx = Transaction::new_programmable(
+            sender,
+            vec![s.latest_ref(&ids[5])],
+            builder.finish(),
+            TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * s.rgp,
+            s.rgp,
+        );
+        s.epoch_store
+            .verify_transaction(to_sender_signed_transaction(tx, &key))
+            .unwrap()
+    };
+    let last = s.build_transfer(&ids[6], &ids[7], sender, &key, Address::random());
+
+    let result = s
+        .validate_at(1, &[first.clone(), large.clone(), last.clone()])
+        .await;
+
+    assert_eq!(result.kept, vec![*first.digest(), *last.digest()]);
+    assert_eq!(
+        result.dropped,
+        vec![(
+            *large.digest(),
+            IotaError::ValidatorOverloadedRetryAfter {
+                retry_after_secs: 1
+            }
+        )]
+    );
+}
+
+/// A transaction dropped at the lock check does not count toward the limit,
+/// so the transactions after it have the same room as without it.
+#[tokio::test]
+async fn transaction_dropped_at_the_lock_check_does_not_count_toward_the_limit() {
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let ids: Vec<_> = (0..4).map(|_| ObjectId::random()).collect();
+    let s = setup_handler_object_state_with_config_guard(
+        ids.iter()
+            .map(|id| Object::with_id_owner_for_testing(*id, sender))
+            .collect(),
+        Some(limit_input_objects_per_commit(4)),
+    )
+    .await;
+    let winner = s.build_transfer(&ids[0], &ids[1], sender, &key, Address::random());
+    // Another recipient makes it another transaction on the same inputs.
+    let loser = s.build_transfer(&ids[0], &ids[1], sender, &key, Address::random());
+    let last = s.build_transfer(&ids[2], &ids[3], sender, &key, Address::random());
+
+    let result = s
+        .validate_at(1, &[winner.clone(), loser.clone(), last.clone()])
+        .await;
+
+    assert_eq!(result.kept, vec![*winner.digest(), *last.digest()]);
+    assert!(
+        matches!(
+            result.dropped.as_slice(),
+            [(digest, IotaError::ObjectLockConflict { .. })] if digest == loser.digest()
+        ),
+        "{:?}",
+        result.dropped
+    );
+}
+
+/// A transaction dropped because an input is not visible at the commit
+/// counts toward the limit: its inputs were read.
+#[tokio::test]
+async fn transaction_dropped_for_an_input_not_visible_counts_toward_the_limit() {
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let ids: Vec<_> = (0..5).map(|_| ObjectId::random()).collect();
+    let s = setup_handler_object_state_with_config_guard(
+        ids.iter()
+            .map(|id| Object::with_id_owner_for_testing(*id, sender))
+            .collect(),
+        Some(limit_input_objects_per_commit(4)),
+    )
+    .await;
+    // A transfer of an object the store does not hold.
+    let unseen = s
+        .epoch_store
+        .verify_transaction(make_transfer_object_transaction(
+            random_object_ref(),
+            s.latest_ref(&ids[0]),
+            sender,
+            &key,
+            Address::random(),
+            s.rgp,
+        ))
+        .unwrap();
+    let kept = s.build_transfer(&ids[1], &ids[2], sender, &key, Address::random());
+    let over = s.build_transfer(&ids[3], &ids[4], sender, &key, Address::random());
+
+    let result = s
+        .validate_at(1, &[unseen.clone(), kept.clone(), over.clone()])
+        .await;
+
+    assert_eq!(result.kept, vec![*kept.digest()]);
+    let at_the_limit = IotaError::ValidatorOverloadedRetryAfter {
+        retry_after_secs: 1,
+    };
+    assert_eq!(result.dropped.len(), 2, "{:?}", result.dropped);
+    assert_eq!(result.dropped[0].0, *unseen.digest());
+    assert_ne!(result.dropped[0].1, at_the_limit);
+    assert_eq!(result.dropped[1], (*over.digest(), at_the_limit));
+}
+
+/// A transaction deferred at an earlier commit is kept without checks and
+/// does not count toward the limit.
+#[tokio::test]
+async fn previously_deferred_transaction_does_not_count_toward_the_limit() {
+    let (s, transfers) = setup_transfers_under_input_limit(2, 2).await;
+    let previously_deferred = std::collections::HashMap::from([(
+        *transfers[0].digest(),
+        (
+            crate::authority::transaction_deferral::DeferralKey::new_for_consensus_round(2, 1),
+            None,
+        ),
+    )]);
+
+    let mut transactions: Vec<_> = transfers
+        .iter()
+        .cloned()
+        .map(make_user_tx_v1_verified)
+        .collect();
+    let (dropped, _, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &s.authority,
+        &s.epoch_store,
+        2,
+        &previously_deferred,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+
+    assert!(dropped.is_empty(), "{dropped:?}");
+    assert_eq!(transactions.len(), 2);
+}
+
+/// The account of a Move authenticator counts toward the limit with the
+/// transaction's own inputs. The transfer names its gas coin only, so under a
+/// limit of one it is the account that does not fit.
+#[tokio::test]
+async fn account_of_a_move_authenticator_counts_toward_the_limit() {
+    let (s, tx) =
+        setup_account_with_authenticator_in_object_basics(Some(limit_input_objects_per_commit(1)))
+            .await;
+
+    let result = s.validate_at(1, std::slice::from_ref(&tx)).await;
+
+    assert!(result.kept.is_empty());
+    assert_eq!(
+        result.dropped,
+        vec![(
+            *tx.digest(),
+            IotaError::ValidatorOverloadedRetryAfter {
+                retry_after_secs: 1
+            }
+        )]
+    );
+}
+
+/// A replayed commit repeats a drop at the limit on input objects as saved,
+/// and keeps what the first run kept.
+#[tokio::test]
+async fn replayed_commit_repeats_a_drop_at_its_limit_on_input_objects() {
+    let (s, transfers) = setup_transfers_under_input_limit(4, 3).await;
+
+    let first = s.validate_at(1, &transfers).await;
+    assert_eq!(first.dropped.len(), 1);
+
+    assert_eq!(s.validate_at(1, &transfers).await, first);
 }
 
 /// A commit whose candidate list is saved but one of whose decisions is
