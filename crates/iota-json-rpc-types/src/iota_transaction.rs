@@ -2643,8 +2643,8 @@ pub enum IotaCallArg {
     Object(IotaObjectArg),
     // pure value, bcs encoded
     Pure(IotaPureValue),
-    /// The transaction this transaction depends on: it executes only after
-    /// that transaction executed successfully. Not usable by a command.
+    /// The transaction this transaction depends on: it executes after that
+    /// transaction, and fails if that transaction failed. Not usable by a command.
     TransactionDependency {
         #[serde_as(as = "Base58Schema")]
         #[schemars(with = "Base58Schema")]

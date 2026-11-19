@@ -83,8 +83,8 @@ struct Pure {
     bytes: Base64,
 }
 
-/// The transaction this transaction depends on: it executes only after that
-/// transaction executed successfully. No command can use this input.
+/// The transaction this transaction depends on: it executes after that
+/// transaction, and fails if that transaction failed. No command can use this input.
 #[derive(SimpleObject, Clone, Eq, PartialEq)]
 struct TransactionDependencyInput {
     /// Digest of the transaction depended on.

@@ -1249,8 +1249,8 @@ pub trait TransactionAPI {
     fn expiration(&self) -> &TransactionExpiration;
 
     /// Returns the digest of the transaction this transaction depends on, if
-    /// it carries a transaction dependency input: it executes only after that
-    /// transaction executed successfully.
+    /// it carries a transaction dependency input: it executes after that
+    /// transaction, and fails if that transaction failed.
     fn transaction_dependency(&self) -> Option<TransactionDigest>;
 
     /// Returns a list of the transaction data shared input objects.

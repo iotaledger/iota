@@ -124,9 +124,9 @@ impl ProgrammableTransactionBuilder {
         }
     }
 
-    /// Adds a transaction dependency input: the transaction executes only
-    /// after `digest` executed successfully in the current epoch. The input
-    /// cannot be used as a command argument.
+    /// Adds a transaction dependency input: the transaction executes after
+    /// `digest`, a transaction of the current epoch, and fails if `digest`
+    /// failed. The input cannot be used as a command argument.
     pub fn transaction_dependency(&mut self, digest: TransactionDigest) {
         self.inputs.insert_full(
             BuilderArg::TransactionDependency(digest),
