@@ -11,10 +11,12 @@ use std::{net::SocketAddr, time::Duration};
 use iota_core::authority_client::validator::ValidatorAPI;
 use iota_macros::sim_test;
 use iota_sdk_types::{
-    Address, ExecutionError, ExecutionStatus, Input, TransactionDigest, TransactionEffects,
-    TransactionKind,
+    Address, ExecutionError, ExecutionStatus, Input, InputSharedObject, TransactionDigest,
+    TransactionEffects, TransactionKind,
 };
-use iota_test_transaction_builder::TestTransactionBuilder;
+use iota_test_transaction_builder::{
+    TestTransactionBuilder, publish_basics_package_and_make_counter,
+};
 use iota_types::{
     effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
@@ -272,6 +274,77 @@ async fn pipelined_chain_executes_in_order_pcool_flow() {
     pipelined_chain_executes_in_order(true).await;
 }
 
+async fn pipelined_chain_on_a_shared_object_executes_in_order(pcool: bool) {
+    let _pcool_guard = override_pcool_flow(pcool);
+    let cluster = TestClusterBuilder::new().build().await;
+    let (package, counter) = publish_basics_package_and_make_counter(&cluster.wallet).await;
+    let sender = cluster.get_address_0();
+    let rgp = cluster.get_reference_gas_price().await;
+    let increment = async |dependency: Option<TransactionDigest>| {
+        let gas = cluster
+            .fund_address_and_return_gas(rgp, Some(GAS_COIN_AMOUNT), sender)
+            .await;
+        let mut builder = TestTransactionBuilder::new(sender, gas, rgp).call_counter_increment(
+            package.object_id,
+            counter.object_id,
+            counter.version,
+        );
+        if let Some(dependency) = dependency {
+            builder = builder.with_transaction_dependency(dependency, current_epoch(&cluster));
+        }
+        cluster.sign_transaction(&builder.build())
+    };
+
+    let first = increment(None).await;
+    let first_digest = *first.digest();
+    let second = increment(Some(first_digest)).await;
+    let second_digest = *second.digest();
+    let third = increment(Some(second_digest)).await;
+
+    let (first_outcome, second_outcome, third_outcome) = futures::join!(
+        submit(&cluster, first),
+        submit(&cluster, second),
+        submit(&cluster, third)
+    );
+    let first_effects = assert_executed_successfully(&first_outcome);
+    let second_effects = assert_executed_successfully(&second_outcome);
+    let third_effects = assert_executed_successfully(&third_outcome);
+    for (dependency, dependent) in [
+        (first_effects, second_effects),
+        (second_effects, third_effects),
+    ] {
+        assert!(
+            dependent
+                .dependencies()
+                .contains(dependency.transaction_digest())
+        );
+        let counter_version = dependent
+            .input_shared_objects()
+            .into_iter()
+            .find_map(|object| match object {
+                InputSharedObject::Mutate(object) if object.object_id == counter.object_id => {
+                    Some(object.version)
+                }
+                _ => None,
+            });
+        assert_eq!(
+            counter_version,
+            Some(dependency.lamport_version()),
+            "the dependent must read the counter its dependency wrote: {dependent:?}"
+        );
+    }
+}
+
+#[sim_test]
+async fn pipelined_chain_on_a_shared_object_executes_in_order_certificate_flow() {
+    pipelined_chain_on_a_shared_object_executes_in_order(false).await;
+}
+
+#[sim_test]
+async fn pipelined_chain_on_a_shared_object_executes_in_order_pcool_flow() {
+    pipelined_chain_on_a_shared_object_executes_in_order(true).await;
+}
+
 async fn pipelined_dependent_of_a_failed_transaction_never_succeeds(pcool: bool) {
     let _pcool_guard = override_pcool_flow(pcool);
     let mut cluster = TestClusterBuilder::new().build().await;
@@ -510,7 +583,6 @@ async fn dependent_sequenced_before_its_dependency_fails_then_fails_at_execution
 #[sim_test]
 async fn deferred_dependency_chain_finishes_before_the_epoch_changes() {
     use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
-    use iota_test_transaction_builder::publish_basics_package_and_make_counter;
 
     // The per-object budget of a commit, counted in gas budget. The overshoot
     // lets one transaction run `DEBT_ROUNDS` budgets past it.
