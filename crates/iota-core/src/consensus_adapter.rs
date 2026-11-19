@@ -1748,8 +1748,11 @@ fn check_consensus_transactions_fit(
         })
         .collect::<IotaResult<Vec<_>>>()?;
 
-    starfish_core::check_transactions_fit(&transaction_sizes, protocol_config)
-        .map_err(to_iota_error)
+    starfish_core::check_transactions_fit(
+        &transaction_sizes,
+        starfish_core::TransactionSubmissionLimits::new(protocol_config),
+    )
+    .map_err(to_iota_error)
 }
 
 pub fn position_submit_certificate(

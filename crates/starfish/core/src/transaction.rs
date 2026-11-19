@@ -252,7 +252,7 @@ pub struct TransactionClient {
     sender: Sender<TransactionsGuard>,
     // Reserved channel for the validator's own high-priority submissions.
     priority_sender: Sender<TransactionsGuard>,
-    context: Arc<Context>,
+    limits: TransactionSubmissionLimits,
 }
 
 #[derive(Debug, Error)]
@@ -306,7 +306,7 @@ impl TransactionClient {
             Self {
                 sender,
                 priority_sender,
-                context,
+                limits: TransactionSubmissionLimits::new(&context.protocol_config),
             },
             receiver,
             priority_receiver,
@@ -352,7 +352,7 @@ impl TransactionClient {
             .iter()
             .map(|transaction| transaction.len() as u64)
             .collect();
-        check_transactions_fit(&transaction_sizes, &self.context.protocol_config)?;
+        check_transactions_fit(&transaction_sizes, self.limits)?;
 
         let t = TransactionsGuard {
             transactions: transactions.into_iter().map(Transaction::new).collect(),
@@ -371,12 +371,36 @@ impl TransactionClient {
     }
 }
 
+/// The limits of Starfish on one submission of transactions.
+#[derive(Clone, Copy, Debug)]
+pub struct TransactionSubmissionLimits {
+    /// The largest serialized size of one transaction, in bytes.
+    max_transaction_size: u64,
+    /// The largest total serialized size of the transactions, in bytes.
+    max_transactions_in_block_bytes: u64,
+    /// The largest number of transactions.
+    max_transactions_in_block_count: u64,
+}
+
+impl TransactionSubmissionLimits {
+    /// Returns the limits that `protocol_config` sets:
+    /// [`ProtocolConfig::max_transaction_size_bytes()`],
+    /// [`ProtocolConfig::max_transactions_in_block_bytes()`] and
+    /// [`ProtocolConfig::max_num_transactions_in_block()`].
+    pub fn new(protocol_config: &ProtocolConfig) -> Self {
+        Self {
+            max_transaction_size: protocol_config.max_transaction_size_bytes(),
+            max_transactions_in_block_bytes: protocol_config.max_transactions_in_block_bytes(),
+            max_transactions_in_block_count: protocol_config.max_num_transactions_in_block(),
+        }
+    }
+}
+
 /// Checks that Starfish accepts, as one submission, transactions whose
 /// serialized sizes are `transaction_sizes`: there are no more of them than
-/// [`ProtocolConfig::max_num_transactions_in_block()`], each is no larger
-/// than [`ProtocolConfig::max_transaction_size_bytes()`], and together they
-/// are no larger than [`ProtocolConfig::max_transactions_in_block_bytes()`].
-/// [`TransactionClient`] applies this check to every submission.
+/// `limits` allows, each is no larger than the size `limits` allows for one
+/// transaction, and together they are no larger than the total size `limits`
+/// allows. [`TransactionClient`] applies this check to every submission.
 ///
 /// # Errors
 ///
@@ -389,9 +413,14 @@ impl TransactionClient {
 /// including that transaction, not the size of the whole submission.
 pub fn check_transactions_fit(
     transaction_sizes: &[u64],
-    protocol_config: &ProtocolConfig,
+    limits: TransactionSubmissionLimits,
 ) -> Result<(), ClientError> {
-    let max_count = protocol_config.max_num_transactions_in_block();
+    let TransactionSubmissionLimits {
+        max_transaction_size: max_size,
+        max_transactions_in_block_bytes: max_total_size,
+        max_transactions_in_block_count: max_count,
+    } = limits;
+
     let count = transaction_sizes.len() as u64;
     if count > max_count {
         return Err(ClientError::OversizedTransactionBundleCount(
@@ -399,8 +428,6 @@ pub fn check_transactions_fit(
         ));
     }
 
-    let max_size = protocol_config.max_transaction_size_bytes();
-    let max_total_size = protocol_config.max_transactions_in_block_bytes();
     let mut total_size: u64 = 0;
     for &size in transaction_sizes {
         if size > max_size {
@@ -457,7 +484,8 @@ mod tests {
         context::Context,
         transaction::{
             BlockStatus, ClientError, LimitReached, NoopTransactionVerifier, Priority,
-            TransactionClient, TransactionConsumer, check_transactions_fit,
+            TransactionClient, TransactionConsumer, TransactionSubmissionLimits,
+            check_transactions_fit,
         },
         transaction_ref::TransactionRef,
     };
@@ -470,24 +498,25 @@ mod tests {
         let max_count = protocol_config.max_num_transactions_in_block();
         let max_size = protocol_config.max_transaction_size_bytes();
         let max_total_size = protocol_config.max_transactions_in_block_bytes();
+        let limits = TransactionSubmissionLimits::new(&protocol_config);
 
         let at_count = vec![0; max_count as usize];
-        check_transactions_fit(&at_count, &protocol_config)
+        check_transactions_fit(&at_count, limits)
             .expect("as many transactions as a block holds should fit");
         let over_count = vec![0; max_count as usize + 1];
         assert!(
             matches!(
-                check_transactions_fit(&over_count, &protocol_config),
+                check_transactions_fit(&over_count, limits),
                 Err(ClientError::OversizedTransactionBundleCount(..))
             ),
             "one transaction more than a block holds should not fit"
         );
 
-        check_transactions_fit(&[max_size], &protocol_config)
+        check_transactions_fit(&[max_size], limits)
             .expect("a transaction of exactly the size limit should fit");
         assert!(
             matches!(
-                check_transactions_fit(&[max_size + 1], &protocol_config),
+                check_transactions_fit(&[max_size + 1], limits),
                 Err(ClientError::OversizedTransaction(..))
             ),
             "a transaction one byte over the size limit should not fit"
@@ -498,12 +527,12 @@ mod tests {
         assert_eq!(max_total_size % max_size, 0);
         let mut at_total_size = vec![max_size; (max_total_size / max_size) as usize];
         assert!((at_total_size.len() as u64) < max_count);
-        check_transactions_fit(&at_total_size, &protocol_config)
+        check_transactions_fit(&at_total_size, limits)
             .expect("transactions of exactly the bytes of a block should fit");
         at_total_size.push(1);
         assert!(
             matches!(
-                check_transactions_fit(&at_total_size, &protocol_config),
+                check_transactions_fit(&at_total_size, limits),
                 Err(ClientError::OversizedTransactionBundleBytes(..))
             ),
             "transactions one byte over the bytes of a block should not fit"
@@ -521,9 +550,10 @@ mod tests {
         let max_count = protocol_config.max_num_transactions_in_block();
         let max_size = protocol_config.max_transaction_size_bytes();
         let max_total_size = protocol_config.max_transactions_in_block_bytes();
+        let limits = TransactionSubmissionLimits::new(&protocol_config);
         let reported_total = |sizes: &[u64]| {
             if let Err(ClientError::OversizedTransactionBundleBytes(total, _)) =
-                check_transactions_fit(sizes, &protocol_config)
+                check_transactions_fit(sizes, limits)
             {
                 Some(total)
             } else {
