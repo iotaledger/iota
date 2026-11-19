@@ -94,8 +94,8 @@ impl LeaderSchedule {
         let leader_swap_table = recover_leader_swap_table(&context, &dag_state);
 
         tracing::info!(
-            "LeaderSchedule recovered using {leader_swap_table:?}. There are {} committed subdags scored in DagState.",
-            dag_state.read().scoring_subdags_count(),
+            "LeaderSchedule recovered using {leader_swap_table:?}. There are {} commits since the last schedule update.",
+            dag_state.read().commits_since_schedule_update(),
         );
 
         // create the schedule
@@ -111,8 +111,8 @@ impl LeaderSchedule {
         let leader_swap_table = recover_leader_swap_table(&self.context, dag_state);
 
         tracing::info!(
-            "LeaderSchedule reinitialized using {leader_swap_table:?}. There are {} committed subdags scored in DagState.",
-            dag_state.read().scoring_subdags_count(),
+            "LeaderSchedule reinitialized using {leader_swap_table:?}. There are {} commits since the last schedule update.",
+            dag_state.read().commits_since_schedule_update(),
         );
 
         {
@@ -126,10 +126,11 @@ impl LeaderSchedule {
         &self,
         dag_state: Arc<RwLock<DagState>>,
     ) -> usize {
-        let subdag_count = dag_state.read().scoring_subdags_count() as u32;
+        let commit_count = dag_state.read().commits_since_schedule_update();
 
-        // In the normal online flow, `scoring_subdag` is cleared every time we
-        // update the schedule, so its size stays within `num_commits_per_schedule`.
+        // In the normal online flow, the schedule is updated as soon as
+        // `num_commits_per_schedule` commits have passed, so the count stays
+        // within it.
         //
         // The same bound holds for recovered state: every writer persists
         // `CommitInfo` in the same write batch as the commits it covers (the
@@ -140,9 +141,9 @@ impl LeaderSchedule {
         // occur — but it is a recoverable state, so recovering is preferred
         // over panicking: returning 0 forces an immediate schedule update,
         // which rebuilds the schedule from the backlog's last full window.
-        if subdag_count > self.num_commits_per_schedule {
+        if commit_count > self.num_commits_per_schedule {
             tracing::warn!(
-                "Recovered scoring backlog ({subdag_count} subdags) exceeds the schedule \
+                "Recovered scoring backlog ({commit_count} commits) exceeds the schedule \
                  window ({}): commits and CommitInfo are inconsistent on disk, which current \
                  persistence never produces. Forcing an immediate schedule update.",
                 self.num_commits_per_schedule,
@@ -151,22 +152,22 @@ impl LeaderSchedule {
         }
 
         // If the window is full, an update is due now.
-        if subdag_count == self.num_commits_per_schedule {
+        if commit_count == self.num_commits_per_schedule {
             return 0;
         }
 
         self.num_commits_per_schedule
-            .checked_sub(subdag_count)
+            .checked_sub(commit_count)
             .unwrap() as usize
     }
 
-    /// Checks whether the dag state sub dags list is empty. If yes
-    /// then that means that either (1) the system has just started and
-    /// there is no unscored sub dag available (2) the schedule has updated,
-    /// new scores have been calculated. Both cases we consider as valid cases
-    /// where the schedule has been updated.
+    /// Checks whether no commit happened since the last schedule update. That
+    /// means that either (1) the system has just started and there is no
+    /// commit yet or (2) the schedule has updated, new scores have been
+    /// calculated. Both cases we consider as valid cases where the schedule
+    /// has been updated.
     pub(crate) fn leader_schedule_updated(&self, dag_state: &RwLock<DagState>) -> bool {
-        dag_state.read().is_scoring_subdag_empty()
+        dag_state.read().commits_since_schedule_update() == 0
     }
 
     pub(crate) fn elect_leader(&self, round: u32, leader_offset: u32) -> AuthorityIndex {
@@ -216,8 +217,6 @@ impl LeaderSchedule {
         dag_state_write_lock: &mut DagState,
         reputation_scores: ReputationScores,
     ) {
-        // Clear scoring subdag as we have updated the leader schedule
-        dag_state_write_lock.clear_scoring_subdag();
         // Buffer score and last commit rounds in dag state to be persisted later
         dag_state_write_lock.add_commit_info(reputation_scores);
     }
@@ -246,15 +245,15 @@ impl LeaderSchedule {
             .scope_processing_time
             .with_label_values(&["LeaderSchedule::update_leader_schedule"])
             .start_timer();
-        if dag_state_write_lock.scoring_subdags_count() as u32 > self.num_commits_per_schedule {
+        if dag_state_write_lock.commits_since_schedule_update() > self.num_commits_per_schedule {
             self.update_leader_schedule_from_backlog(dag_state_write_lock);
             return;
         }
 
         // Scores are the running-window aggregate; commit_range is the committed
         // interval ending at the boundary L. Its end (L) is where a restarted
-        // node resumes the scoring subdag (from L+1). The window's scored
-        // frontier lags L by MAX_PENDING_COMMITS.
+        // node resumes counting commits toward the next update (from L+1). The
+        // window's scored frontier lags L by MAX_PENDING_COMMITS.
         let scores = self
             .sliding_window
             .lock()
@@ -272,13 +271,12 @@ impl LeaderSchedule {
     }
 
     /// Updates the leader schedule from reputation scores stored in a commit.
-    /// Used during fast sync where we don't have the scoring_subdag populated,
-    /// but the commits already contain the pre-computed reputation scores.
+    /// Used during fast sync, where the commits already contain the
+    /// pre-computed reputation scores.
     ///
     /// This method mirrors the flow in `update_leader_schedule`:
-    /// 1. Clear scoring_subdag (to maintain consistency)
-    /// 2. Add commit_info to DagState (for recovery/reinitialization)
-    /// 3. Update the leader swap table
+    /// 1. Add commit_info to DagState (for recovery/reinitialization)
+    /// 2. Update the leader swap table
     ///
     /// This bypasses the strict commit range checks since during fast sync
     /// we may be processing commits from far ahead.
@@ -299,8 +297,7 @@ impl LeaderSchedule {
         // Skip stale scores: if the incoming scores are for a range we've already
         // processed (i.e., range_end <= last_commit_info_index), don't update.
         // This can happen after a crash when fast sync fetches old commits that
-        // the node already has, while the node has recovered scoring_subdag from
-        // commits after the last persisted CommitInfo.
+        // the node already has.
         let last_commit_info_index = dag_state_write_lock.last_commit_info_index();
         if range_end <= last_commit_info_index {
             tracing::debug!(
@@ -349,9 +346,12 @@ impl LeaderSchedule {
     /// Only the last full window of the backlog is scored: it alone determines
     /// the swap table a continuously running node had at that point, and
     /// rotations stay on the same commit boundaries. The trailing partial
-    /// window becomes the live scoring subdag.
+    /// window counts toward the next update.
     fn update_leader_schedule_from_backlog(&self, dag_state_write_lock: &mut DagState) {
-        let backlog_range = dag_state_write_lock.scoring_subdag_commit_range();
+        let backlog_range = CommitRange::new(
+            dag_state_write_lock.last_commit_info_index() + 1
+                ..=dag_state_write_lock.last_commit_index(),
+        );
         let commits_per_schedule = self.num_commits_per_schedule;
         // The caller only routes here when the backlog exceeds
         // `commits_per_schedule`, so there is at least one full window.
@@ -363,8 +363,6 @@ impl LeaderSchedule {
             "Rebuilding leader schedule from the last full window \
              ({window_start}..={window_end}) of the recovered scoring backlog {backlog_range:?}"
         );
-
-        dag_state_write_lock.clear_scoring_subdag();
 
         // Rebuild the window aggregate a continuously running node had when it
         // rotated at window_end. The live scorer stays as recovered — current up
@@ -392,13 +390,6 @@ impl LeaderSchedule {
         // Recovery resumes from the end of the last persisted commit range, so
         // these are the only scores that need to be persisted.
         dag_state_write_lock.add_commit_info(reputation_scores);
-
-        let remainder_start = window_end + 1;
-        if remainder_start <= backlog_range.end() {
-            let remainder_subdags = dag_state_write_lock
-                .load_scoring_subdags_from_store((remainder_start..=backlog_range.end()).into());
-            dag_state_write_lock.add_scoring_subdags(remainder_subdags);
-        }
     }
 
     #[cfg(test)]
@@ -730,7 +721,7 @@ mod tests {
     use super::*;
     use crate::{
         block_header::{BlockHeaderDigest, BlockRef},
-        commit::{CommitDigest, CommitInfo, CommitRef, CommittedSubDag},
+        commit::{CommitDigest, CommitInfo, TrustedCommit},
         storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
     };
@@ -842,8 +833,8 @@ mod tests {
         };
 
         // CommitIndex '11' will be written to store. This should result in the cached
-        // last_committed_rounds & unscored subdags in DagState to be updated with the
-        // latest commit information on recovery.
+        // last_committed_rounds & commits since the last schedule update in DagState to
+        // be updated with the latest commit information on recovery.
         store
             .write(
                 WriteBatch::default()
@@ -860,11 +851,8 @@ mod tests {
             dag_builder.last_committed_rounds.clone(),
             dag_state.read().last_committed_rounds()
         );
-        assert_eq!(1, dag_state.read().scoring_subdags_count());
-        assert_eq!(
-            dag_state.read().scoring_subdag_commit_range(),
-            (11..=11).into()
-        );
+        assert_eq!(10, dag_state.read().last_commit_info_index());
+        assert_eq!(1, dag_state.read().commits_since_schedule_update());
 
         let leader_schedule = LeaderSchedule::from_store(context, dag_state);
 
@@ -900,7 +888,7 @@ mod tests {
             expected_last_committed_rounds,
             dag_state.read().last_committed_rounds()
         );
-        assert_eq!(0, dag_state.read().scoring_subdags_count());
+        assert_eq!(0, dag_state.read().commits_since_schedule_update());
 
         let leader_schedule = LeaderSchedule::from_store(context, dag_state);
 
@@ -920,7 +908,6 @@ mod tests {
         let mut dag_builder = DagBuilder::new(context.clone());
         dag_builder.layers(1..=2).build();
 
-        let mut expected_scored_subdags = vec![];
         let mut expected_commits = vec![];
 
         let mut headers_to_write = vec![];
@@ -930,14 +917,13 @@ mod tests {
                 headers_to_write.push(header.clone());
             }
             expected_commits.push(commit);
-            expected_scored_subdags.push(sub_dag);
         }
 
         // The CommitInfo for the first 2 commits are written to store. 10 commits
         // would have been required for a leader schedule update so at this point
         // no commit info should have been persisted and no leader schedule should
         // be recovered. However dag state should have properly recovered the
-        // unscored subdags & last committed rounds.
+        // commits since the last schedule update & last committed rounds.
         store
             .write(
                 WriteBatch::default()
@@ -953,14 +939,8 @@ mod tests {
             dag_builder.last_committed_rounds.clone(),
             dag_state.read().last_committed_rounds()
         );
-        assert_eq!(
-            expected_scored_subdags.len(),
-            dag_state.read().scoring_subdags_count()
-        );
-        assert_eq!(
-            dag_state.read().scoring_subdag_commit_range(),
-            (1..=2).into()
-        );
+        assert_eq!(0, dag_state.read().last_commit_info_index());
+        assert_eq!(2, dag_state.read().commits_since_schedule_update());
 
         let leader_schedule = LeaderSchedule::from_store(context, dag_state);
 
@@ -1037,20 +1017,16 @@ mod tests {
             context.clone(),
             Arc::new(MemStore::new()),
         )));
-        let unscored_subdags = vec![
-            CommittedSubDag::new(
+        dag_state
+            .write()
+            .set_last_commit(TrustedCommit::new_for_test(
+                1,
+                CommitDigest::MIN,
+                context.clock.timestamp_utc_ms(),
                 BlockRef::new(1, AuthorityIndex::ZERO, BlockHeaderDigest::MIN),
                 vec![],
                 vec![],
-                vec![],
-                context.clock.timestamp_utc_ms(),
-                CommitRef::new(1, CommitDigest::MIN),
-                vec![],
-                vec![],
-            )
-            .base,
-        ];
-        dag_state.write().add_scoring_subdags(unscored_subdags);
+            ));
 
         let commits_until_leader_schedule_update =
             leader_schedule.commits_until_leader_schedule_update(dag_state);
@@ -1523,7 +1499,7 @@ mod tests {
             .unwrap();
 
         let mut dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-        assert_eq!(dag_state.read().scoring_subdags_count(), 8);
+        assert_eq!(dag_state.read().commits_since_schedule_update(), 8);
 
         let mut leader_schedule = LeaderSchedule::from_store(context.clone(), dag_state.clone())
             .with_num_commits_per_schedule(INTERVAL);
@@ -1553,13 +1529,13 @@ mod tests {
             assert_eq!(table.good_nodes.len(), 4);
             assert!(table.bad_nodes.is_empty());
         }
-        assert_eq!(dag_state.read().scoring_subdags_count(), 2);
+        assert_eq!(dag_state.read().commits_since_schedule_update(), 2);
 
         if restart {
             dag_state.write().flush();
             assert_eq!(dag_state.read().last_commit_info_index(), 9);
             dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
-            assert_eq!(dag_state.read().scoring_subdags_count(), 2);
+            assert_eq!(dag_state.read().commits_since_schedule_update(), 2);
             leader_schedule = LeaderSchedule::from_store(context, dag_state.clone())
                 .with_num_commits_per_schedule(INTERVAL);
             assert_eq!(
@@ -1576,11 +1552,7 @@ mod tests {
         // (10..=12) continues on the same window boundaries.
         let (sub_dag, commit) = &rest[8];
         leader_schedule.feed_committed_subdags([sub_dag.base.clone()]);
-        {
-            let mut write = dag_state.write();
-            write.add_commit(commit.clone());
-            write.add_scoring_subdags(vec![sub_dag.base.clone()]);
-        }
+        dag_state.write().add_commit(commit.clone());
         assert_eq!(
             leader_schedule.commits_until_leader_schedule_update(dag_state.clone()),
             0
@@ -1632,7 +1604,6 @@ mod tests {
             leader_schedule_live.feed_committed_subdags([sub_dag.base.clone()]);
             let mut dag_state_write = dag_state_live.write();
             dag_state_write.set_last_commit(commit.clone());
-            dag_state_write.add_scoring_subdags(vec![sub_dag.base.clone()]);
             if (index + 1) % 5 == 0 {
                 leader_schedule_live.update_leader_schedule(&mut dag_state_write);
             }
@@ -1658,7 +1629,10 @@ mod tests {
             .unwrap();
 
         let dag_state_recovered = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
-        assert_eq!(dag_state_recovered.read().scoring_subdags_count(), 10);
+        assert_eq!(
+            dag_state_recovered.read().commits_since_schedule_update(),
+            10
+        );
 
         let leader_schedule_recovered =
             LeaderSchedule::from_store(context, dag_state_recovered.clone())
@@ -1668,7 +1642,10 @@ mod tests {
 
         // The backlog is an exact multiple of the interval, so nothing stays
         // live after the rebuild.
-        assert_eq!(dag_state_recovered.read().scoring_subdags_count(), 0);
+        assert_eq!(
+            dag_state_recovered.read().commits_since_schedule_update(),
+            0
+        );
 
         // The table rebuilt from the backlog (last full window) must match the
         // live node's window-2 table exactly.
