@@ -28,7 +28,7 @@ use crate::utils::{TestSim, assert_row_count, start_indexer_at_genesis};
 /// ```
 #[tokio::test]
 pub async fn test_insert_large_batch_event_indices() -> Result<(), IndexerError> {
-    let sim = TestSim::new(
+    let mut sim = TestSim::new(
         OperationalLevel::default(),
         "indexer_ingestion_event_indices_db",
     );

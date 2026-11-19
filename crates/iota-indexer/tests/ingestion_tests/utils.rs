@@ -17,6 +17,8 @@ use iota_types::{
     transaction::{TransactionAPI, TransactionEnvelope},
 };
 use simulacrum::Simulacrum;
+use tokio::task::JoinHandle;
+use tokio_util::sync::CancellationToken;
 
 use crate::common::{indexer_wait_for_checkpoint, start_simulacrum_grpc_with_write_indexer};
 
@@ -73,18 +75,27 @@ macro_rules! assert_row_count {
 pub(crate) use assert_row_count;
 pub(crate) use read_only_blocking;
 
+struct IndexerHandles {
+    /// The spawned task running the indexer writer.
+    writer: JoinHandle<Result<(), IndexerError>>,
+    /// The cancellation token of the writer task.
+    cancel: CancellationToken,
+}
+
 pub(crate) struct TestSim {
     pub(crate) inner: Arc<Simulacrum>,
     data_dir: TempDir,
     operational_level: OperationalLevel,
     database_name: String,
+    /// Handles on the indexer instance if running.
+    indexer: Option<IndexerHandles>,
 }
 
 impl TestSim {
-    /// Creates a simulacrum with an indexer writer.
+    /// Creates a simulacrum in preparation of starting an indexer writer.
     ///
-    /// The indexer ingests the tables of `operational_level` into the database
-    /// `database_name_{operational_level as u8}`.
+    /// The indexer started through [`Self::start_indexer`] ingests the tables of
+    /// `operational_level` into the database `database_name_{operational_level as u8}`.
     pub(crate) fn new(operational_level: OperationalLevel, database_name: &str) -> Self {
         let data_dir = iota_common::tempdir();
         let sim = Simulacrum::new();
@@ -94,20 +105,60 @@ impl TestSim {
             data_dir,
             operational_level,
             database_name: format!("{database_name}_{}", operational_level as u8),
+            indexer: None,
         }
     }
 
     /// Starts a writer indexer that ingests the checkpoints.
-    pub(crate) async fn start_indexer(&self, db_init_hook: Option<DBInitHook>) -> PgIndexerStore {
-        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
+    pub(crate) async fn start_indexer(
+        &mut self,
+        db_init_hook: Option<DBInitHook>,
+    ) -> PgIndexerStore {
+        assert!(self.indexer.is_none(), "writer already started");
+        self.start_indexer_on_level(db_init_hook, self.operational_level, true)
+            .await
+    }
+
+    /// Stops the running indexer, and starts a new one on `level` on the same
+    /// database.
+    ///
+    /// The new indexer continues from the checkpoint after the latest one in
+    /// the database.
+    ///
+    /// # Panics
+    ///
+    /// Panics if no indexer runs.
+    pub(crate) async fn restart_indexer(&mut self, level: OperationalLevel) -> PgIndexerStore {
+        let indexer = self.indexer.take().expect("an indexer runs");
+        indexer.cancel.cancel();
+        indexer
+            .writer
+            .await
+            .expect("the indexer task should stop without errors")
+            .expect("ingestion shutdown should occur without errors");
+        self.start_indexer_on_level(None, level, false).await
+    }
+
+    /// Starts a writer indexer on `level` and keeps it as the running indexer.
+    ///
+    /// The indexer resets the database only if `reset_db` is true.
+    async fn start_indexer_on_level(
+        &mut self,
+        db_init_hook: Option<DBInitHook>,
+        level: OperationalLevel,
+        reset_db: bool,
+    ) -> PgIndexerStore {
+        let (_, pg_store, writer, cancel) = start_simulacrum_grpc_with_write_indexer(
             self.inner.clone(),
             self.data_dir.path().to_path_buf(),
             None,
             Some(&self.database_name),
             db_init_hook,
-            self.operational_level,
+            level,
+            reset_db,
         )
         .await;
+        self.indexer = Some(IndexerHandles { writer, cancel });
         pg_store
     }
 
@@ -186,7 +237,7 @@ pub(crate) async fn start_indexer_at_genesis(
     level: OperationalLevel,
     database_name: &str,
 ) -> PgIndexerStore {
-    let sim = TestSim::new(level, database_name);
+    let mut sim = TestSim::new(level, database_name);
     let pg_store = sim.start_indexer(None).await;
     indexer_wait_for_checkpoint(&pg_store, 0).await;
     pg_store
