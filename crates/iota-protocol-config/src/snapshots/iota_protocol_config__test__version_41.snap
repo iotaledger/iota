@@ -75,7 +75,6 @@ feature_flags:
   validate_ptb_argument_indices: true
   allow_dkg_completion_after_timeout: true
   enable_builtin_move_authenticators: true
-  enable_claim_account_transaction: true
   consensus_dedup_only_recorded_messages: true
   reject_partially_signed_mixed_ed25519_multisig: true
   limit_groth16_pvk_inputs: true
