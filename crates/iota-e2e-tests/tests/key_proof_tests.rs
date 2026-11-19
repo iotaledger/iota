@@ -160,14 +160,14 @@ async fn sponsored_key_proof_names_the_nonce_of_the_sponsor_gas_coin() {
     send_from_account(&test_cluster, created_account(&effects), &key).await;
 }
 
-/// A MultiSig key can't sign a key proof: `builder_v1` refuses its signature
-/// of the right text.
+/// A MultiSig key can't sign a key proof: `builder_v1` refuses a MultiSig key
+/// whatever it signs.
 #[sim_test]
 async fn multisig_key_proof_is_refused() {
     let test_cluster = TestClusterBuilder::new().build().await;
     let key = KeyHolder::new_multisig([5, 6]);
 
-    let effects = try_create_account(&test_cluster, &key, VALID_UNTIL_EPOCH, |tx| {
+    let effects = try_create_account(&test_cluster, &key, &key, VALID_UNTIL_EPOCH, |tx| {
         key_proof_message_for_sender(&test_cluster, tx, true)
     })
     .await;
@@ -283,7 +283,7 @@ async fn same_key_proof_passes_twice_in_a_transaction_and_fails_in_a_later_one()
 }
 
 /// `builder_v1` refuses a proof for another network, for another sender or for
-/// an existing account, and an expired proof.
+/// an existing account, a proof by another key, and an expired proof.
 #[sim_test]
 async fn create_account_with_a_wrong_key_proof_fails() {
     let test_cluster = TestClusterBuilder::new().build().await;
@@ -291,27 +291,36 @@ async fn create_account_with_a_wrong_key_proof_fails() {
     let chain_identifier = chain_identifier(&test_cluster);
 
     let other_network = get_testnet_chain_identifier().into_bytes();
-    let effects = try_create_account(&test_cluster, &key, VALID_UNTIL_EPOCH, |tx| {
+    let effects = try_create_account(&test_cluster, &key, &key, VALID_UNTIL_EPOCH, |tx| {
         key_proof_message(&other_network, tx, tx.sender(), true, VALID_UNTIL_EPOCH)
     })
     .await;
     assert_key_proof_abort(&effects, INVALID_KEY_PROOF_ABORT_CODE);
 
     let other_sender = test_cluster.get_address_1();
-    let effects = try_create_account(&test_cluster, &key, VALID_UNTIL_EPOCH, |tx| {
+    let effects = try_create_account(&test_cluster, &key, &key, VALID_UNTIL_EPOCH, |tx| {
         key_proof_message(&chain_identifier, tx, other_sender, true, VALID_UNTIL_EPOCH)
     })
     .await;
     assert_key_proof_abort(&effects, INVALID_KEY_PROOF_ABORT_CODE);
 
-    let effects = try_create_account(&test_cluster, &key, VALID_UNTIL_EPOCH, |tx| {
+    let effects = try_create_account(&test_cluster, &key, &key, VALID_UNTIL_EPOCH, |tx| {
         key_proof_message_for_sender(&test_cluster, tx, false)
     })
     .await;
     assert_key_proof_abort(&effects, INVALID_KEY_PROOF_ABORT_CODE);
 
+    // An Ed25519 signature carries the signer's public key, so this fails only
+    // if the check uses the attached key.
+    let other_key = KeyHolder::ed25519(17);
+    let effects = try_create_account(&test_cluster, &key, &other_key, VALID_UNTIL_EPOCH, |tx| {
+        key_proof_message_for_sender(&test_cluster, tx, true)
+    })
+    .await;
+    assert_key_proof_abort(&effects, INVALID_KEY_PROOF_ABORT_CODE);
+
     test_cluster.force_new_epoch().await;
-    let effects = try_create_account(&test_cluster, &key, 0, |tx| {
+    let effects = try_create_account(&test_cluster, &key, &key, 0, |tx| {
         key_proof_message(&chain_identifier, tx, tx.sender(), true, 0)
     })
     .await;
@@ -732,7 +741,7 @@ fn key_proof_message_for_sender(
 /// Creates a `SmartAccount` with `key` attached, sent by address 0 of
 /// `test_cluster` with a valid proof, and returns it.
 async fn create_account(test_cluster: &TestCluster, key: &KeyHolder) -> ObjectReference {
-    let effects = try_create_account(test_cluster, key, VALID_UNTIL_EPOCH, |tx| {
+    let effects = try_create_account(test_cluster, key, key, VALID_UNTIL_EPOCH, |tx| {
         key_proof_message_for_sender(test_cluster, tx, true)
     })
     .await;
@@ -741,13 +750,14 @@ async fn create_account(test_cluster: &TestCluster, key: &KeyHolder) -> ObjectRe
 }
 
 /// Executes a transaction in which address 0 of `test_cluster` creates a
-/// `SmartAccount` with `key` attached, with `key`'s signature of `message` as
-/// the proof, valid until `valid_until_epoch`. `message` gets the transaction
-/// without the proof. Returns the effects, whether the transaction succeeded
-/// or not.
+/// `SmartAccount` with `key` attached, with `signer`'s signature of `message`
+/// as the proof, valid until `valid_until_epoch`. `message` gets the
+/// transaction without the proof. Returns the effects, whether the transaction
+/// succeeded or not.
 async fn try_create_account(
     test_cluster: &TestCluster,
     key: &KeyHolder,
+    signer: &KeyHolder,
     valid_until_epoch: u64,
     message: impl FnOnce(&Transaction) -> String,
 ) -> TransactionEffects {
@@ -766,7 +776,7 @@ async fn try_create_account(
         )
     };
     let message = message(&create_account_tx(vec![]));
-    let tx = create_account_tx(key.sign_personal_message(&message).await);
+    let tx = create_account_tx(signer.sign_personal_message(&message).await);
     execute(test_cluster, test_cluster.sign_transaction(&tx)).await
 }
 
