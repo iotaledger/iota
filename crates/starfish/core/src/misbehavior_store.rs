@@ -477,7 +477,8 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
 
         // Checks that run only after the author's signature is verified, so the
         // signed header itself proves the author produced a block that violates
-        // protocol rules.
+        // protocol rules. So does a payload that matches the commitment its
+        // author signed but fails to deserialize.
         ConsensusError::TooManyAncestors(..)
         | ConsensusError::InsufficientParentStakes { .. }
         | ConsensusError::InvalidAncestorPosition { .. }
@@ -496,7 +497,8 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::TransactionTooLarge { .. }
         | ConsensusError::TooManyTransactions { .. }
         | ConsensusError::TooManyTransactionBytes { .. }
-        | ConsensusError::InvalidTransaction(_) => FaultType::Provable,
+        | ConsensusError::InvalidTransaction(_)
+        | ConsensusError::MalformedTransactionsMatchingCommitment { .. } => FaultType::Provable,
 
         // Equivocation is counted once per slot when the header is dropped, so
         // the error that rejects the delivery carrying it is not charged again.
@@ -1510,6 +1512,10 @@ mod tests {
                 block_round: 5,
                 leader_round: 4,
                 leader_authority: AuthorityIndex::new_for_test(1),
+            },
+            ConsensusError::MalformedTransactionsMatchingCommitment {
+                transaction_ref: TransactionRef::default(),
+                error: bcs::Error::Custom("bad".to_string()),
             },
         ];
         for e in cases {

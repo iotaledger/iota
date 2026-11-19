@@ -467,7 +467,7 @@ pub(crate) fn verify_transactions_commitments(
             inner_serialized_transactions,
         )
         .inspect_err(|e| match e {
-            ConsensusError::MalformedTransactions(_) => misbehavior_store
+            ConsensusError::MalformedTransactionsMatchingCommitment { .. } => misbehavior_store
                 .record_faulty_transactions(
                     Some(Slot::new(transaction_ref.round, transaction_ref.author)),
                     [peer],
@@ -526,8 +526,13 @@ fn verify_transactions_commitment(
     }
 
     // Step 2: Deserialize the actual transactions vector.
-    let transactions: Vec<Transaction> = bcs::from_bytes(&inner_serialized_transactions)
-        .map_err(ConsensusError::MalformedTransactions)?;
+    let transactions: Vec<Transaction> =
+        bcs::from_bytes(&inner_serialized_transactions).map_err(|error| {
+            ConsensusError::MalformedTransactionsMatchingCommitment {
+                transaction_ref,
+                error,
+            }
+        })?;
 
     // Step 3: Create a CommitmentVerifiedTransactions instance.
     Ok(CommitmentVerifiedTransactions::new(
@@ -1417,7 +1422,7 @@ pub(crate) mod tests {
         );
         assert!(matches!(
             result,
-            Err(ConsensusError::MalformedTransactions(_))
+            Err(ConsensusError::MalformedTransactionsMatchingCommitment { .. })
         ));
         let counts = misbehavior_store.snapshot_totals();
         assert_eq!(counts[author.value()].as_v2().faulty_blocks_provable, 1);
