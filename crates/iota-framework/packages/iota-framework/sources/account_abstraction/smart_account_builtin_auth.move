@@ -66,7 +66,7 @@ const EInvalidKeyProof: vector<u8> = b"The key proof is not a valid signature by
 /// Creates a `SmartAccountBuilder` for a new account backed by the built-in authenticator, with
 /// `public_key` attached.
 ///
-/// `signature` is the key holder's proof (see the module documentation), for a new account
+/// `key_proof` is the key holder's proof (see the module documentation), for a new account
 /// created by the transaction sender. It is in the flag-prefixed wire format of the key's scheme.
 ///
 /// Finish it with `smart_account::build_v1`.
@@ -74,15 +74,15 @@ const EInvalidKeyProof: vector<u8> = b"The key proof is not a valid signature by
 /// Emits a `builtin_authenticator_functions::PublicKeyAttached` event on success.
 ///
 /// Aborts if the current epoch is later than `valid_until_epoch`.
-/// Aborts if `signature` is not a valid proof by `public_key`.
+/// Aborts if `key_proof` is not a valid proof by `public_key`.
 /// Aborts if `enable_builtin_move_authenticators` is not enabled in the protocol config.
 public fun builder_v1(
     public_key: PublicKey,
-    signature: vector<u8>,
+    key_proof: vector<u8>,
     valid_until_epoch: u64,
     ctx: &mut TxContext,
 ): SmartAccountBuilder {
-    verify_key_proof(&public_key, &signature, ctx.sender(), true, valid_until_epoch, ctx);
+    verify_key_proof(&public_key, &key_proof, ctx.sender(), true, valid_until_epoch, ctx);
 
     let builder = smart_account::builder_v1(builtin_authenticator_function_ref_v1(), ctx);
     with_public_key(builder, public_key)
@@ -114,7 +114,7 @@ public fun borrow_public_key(account: &SmartAccount): &PublicKey {
 /// Attaches `public_key` to the account and rotates its authenticator to the built-in one, which
 /// checks signatures against that key. Returns the previous authenticator.
 ///
-/// `signature` is the key holder's proof (see the module documentation), for this existing
+/// `key_proof` is the key holder's proof (see the module documentation), for this existing
 /// account. It is in the flag-prefixed wire format of the key's scheme.
 ///
 /// Emits a `builtin_authenticator_functions::PublicKeyAttached` event and an
@@ -124,12 +124,12 @@ public fun borrow_public_key(account: &SmartAccount): &PublicKey {
 /// Aborts if the built-in authenticator is already set; use `rotate_public_key` to replace its
 /// key.
 /// Aborts if the current epoch is later than `valid_until_epoch`.
-/// Aborts if `signature` is not a valid proof by `public_key`.
+/// Aborts if `key_proof` is not a valid proof by `public_key`.
 /// Aborts if `enable_builtin_move_authenticators` is not enabled in the protocol config.
 public fun rotate_to_builtin_auth_v1(
     account: &mut SmartAccount,
     public_key: PublicKey,
-    signature: vector<u8>,
+    key_proof: vector<u8>,
     valid_until_epoch: u64,
     ctx: &TxContext,
 ): AuthenticatorFunctionRefV1<SmartAccount> {
@@ -137,7 +137,7 @@ public fun rotate_to_builtin_auth_v1(
     assert!(!has_builtin_auth(account), EBuiltinAuthAlreadySet);
     verify_key_proof(
         &public_key,
-        &signature,
+        &key_proof,
         account.account_address(),
         false,
         valid_until_epoch,
@@ -181,7 +181,7 @@ public fun rotate_to_custom_auth_v1(
 /// Replaces the account's public key with `public_key` and returns the previous key. The built-in
 /// authenticator stays as it is and checks signatures against the new key.
 ///
-/// `signature` is the proof of the new key's holder (see the module documentation), for this
+/// `key_proof` is the proof of the new key's holder (see the module documentation), for this
 /// existing account. It is in the flag-prefixed wire format of the key's scheme.
 ///
 /// Emits a `builtin_authenticator_functions::PublicKeyRotated` event on success.
@@ -189,11 +189,11 @@ public fun rotate_to_custom_auth_v1(
 /// Aborts if the transaction sender is not the account.
 /// Aborts if the built-in authenticator is not set; use `rotate_to_builtin_auth_v1`.
 /// Aborts if the current epoch is later than `valid_until_epoch`.
-/// Aborts if `signature` is not a valid proof by `public_key`.
+/// Aborts if `key_proof` is not a valid proof by `public_key`.
 public fun rotate_public_key(
     account: &mut SmartAccount,
     public_key: PublicKey,
-    signature: vector<u8>,
+    key_proof: vector<u8>,
     valid_until_epoch: u64,
     ctx: &TxContext,
 ): PublicKey {
@@ -201,7 +201,7 @@ public fun rotate_public_key(
     assert!(has_builtin_auth(account), EBuiltinAuthNotSet);
     verify_key_proof(
         &public_key,
-        &signature,
+        &key_proof,
         account.account_address(),
         false,
         valid_until_epoch,
