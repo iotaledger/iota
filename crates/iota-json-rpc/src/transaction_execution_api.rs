@@ -46,6 +46,7 @@ use iota_types::{
     transaction_executor::{SimulateTransactionResult, VmChecks},
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
+use tokio::sync::OwnedSemaphorePermit;
 use tracing::{Instrument, instrument};
 
 use crate::{
@@ -321,6 +322,14 @@ impl TransactionExecutionApi {
         })
     }
 
+    fn try_acquire_simulation_permit(&self) -> Result<OwnedSemaphorePermit, Error> {
+        self.state.try_acquire_simulation_permit().ok_or_else(|| {
+            Error::ServerIsBusy(
+                "the node is running as many simulations as it allows, retry later".to_string(),
+            )
+        })
+    }
+
     pub fn prepare_dry_run_transaction_block(
         &self,
         tx_bytes: Base64,
@@ -420,10 +429,14 @@ impl TransactionExecutionApi {
         // Use spawn_blocking since simulating a transaction and resolving types
         // over its output are long-running synchronous operations
         let (simulation, input, events) = {
+            let permit = self.try_acquire_simulation_permit()?;
             let this = self.clone();
-            tokio::task::spawn_blocking(move || this.dry_run_transaction_block_impl(txn_data))
-                .await
-                .map_err(Error::from)??
+            tokio::task::spawn_blocking(move || {
+                let _permit = permit;
+                this.dry_run_transaction_block_impl(txn_data)
+            })
+            .await
+            .map_err(Error::from)??
         };
 
         let execution_error_source = simulation
@@ -565,10 +578,12 @@ impl TransactionExecutionApi {
         gas_price: Option<u64>,
         args: DevInspectArgs,
     ) -> Result<DevInspectResults, Error> {
+        let permit = self.try_acquire_simulation_permit()?;
+        let this = self.clone();
         // Use spawn_blocking since simulating a transaction is a long-running
         // synchronous operation
-        let this = self.clone();
         tokio::task::spawn_blocking(move || {
+            let _permit = permit;
             this.dev_inspect_transaction_impl(sender, transaction_kind, gas_price, args)
         })
         .await
