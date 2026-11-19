@@ -164,8 +164,7 @@ impl ConsensusClient for LazyStarfishClient {
     }
 }
 
-/// Returns the error for a Starfish refusal, as [`LazyStarfishClient`] and
-/// the consensus adapter's size check report it:
+/// Returns the [`IotaError`] for a Starfish refusal:
 /// [`UserInputError::SizeLimitExceeded`] for a submission larger than
 /// consensus accepts, and [`IotaError::FailedToSubmitToConsensus`] when
 /// consensus is shutting down.

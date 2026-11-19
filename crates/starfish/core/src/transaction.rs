@@ -400,7 +400,7 @@ impl TransactionSubmissionLimits {
 /// serialized sizes are `transaction_sizes`: there are no more of them than
 /// `limits` allows, each is no larger than the size `limits` allows for one
 /// transaction, and together they are no larger than the total size `limits`
-/// allows. [`TransactionClient`] applies this check to every submission.
+/// allows.
 ///
 /// # Errors
 ///
