@@ -231,15 +231,44 @@ fn plain_ptb_is_traced_in_every_mode() {
         ExecuteOptions::execute(),
     ] {
         let mode = opts.mode;
-        let opts = opts.with_debug(DebugConfig::default().with_tracing());
+        let run = |opts: ExecuteOptions| {
+            let mut store = InMemoryStore::with_framework();
+            store.insert(gas.clone());
+            let mut vm = LocalVm::new(chain_context(), store).expect("build LocalVm");
+            let result = vm
+                .execute(tx.clone(), opts)
+                .unwrap_or_else(|e| panic!("{mode:?} must succeed: {e}"));
+            let mut ids: Vec<_> = result.output_objects.iter().map(|o| o.id()).collect();
+            ids.push(gas.id());
+            let stored: Vec<_> = ids
+                .iter()
+                .map(|id| vm.store().get_object(id, None).expect("store lookup"))
+                .collect();
+            (result, stored)
+        };
 
-        let mut store = InMemoryStore::with_framework();
-        store.insert(gas.clone());
-        let mut vm = LocalVm::new(chain_context(), store).expect("build LocalVm");
+        let (untraced, untraced_store) = run(opts.clone());
+        let (result, traced_store) = run(opts.with_debug(DebugConfig::default().with_tracing()));
 
-        let result = vm
-            .execute(tx.clone(), opts)
-            .unwrap_or_else(|e| panic!("{mode:?} must succeed: {e}"));
+        assert_eq!(result.status, untraced.status, "{mode:?}: status");
+        assert_eq!(result.effects, untraced.effects, "{mode:?}: effects");
+        assert_eq!(result.events, untraced.events, "{mode:?}: events");
+        assert_eq!(
+            result.command_results, untraced.command_results,
+            "{mode:?}: per-command results"
+        );
+        assert_eq!(
+            result.output_objects, untraced.output_objects,
+            "{mode:?}: output objects"
+        );
+        assert_eq!(
+            result.committed, untraced.committed,
+            "{mode:?}: commit behaviour"
+        );
+        assert_eq!(
+            traced_store, untraced_store,
+            "{mode:?}: store after the run"
+        );
         assert!(result.status.is_success(), "{mode:?} run must succeed");
         assert_eq!(
             result.committed,
