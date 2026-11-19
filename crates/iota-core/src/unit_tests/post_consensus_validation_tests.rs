@@ -51,6 +51,7 @@ use iota_types::{
     },
     attestation::{
         Attestation, AttestationData, AttestationRecord, AttestationVerdict, AttestedTransaction,
+        SharedInputIndex,
     },
     base_types::{EpochId, random_object_ref},
     crypto::{AccountPrivateKey, get_key_pair},
@@ -146,10 +147,21 @@ fn make_attested_user_tx(
     authority_index: u8,
     computation_units: u64,
 ) -> VerifiedSequencedConsensusTransaction {
+    make_attested_user_tx_with_versions(tx, authority_index, computation_units, vec![])
+}
+
+/// Like [`make_attested_user_tx()`], with `shared_object_versions` as the
+/// versions the attestation records.
+fn make_attested_user_tx_with_versions(
+    tx: TransactionEnvelope,
+    authority_index: u8,
+    computation_units: u64,
+    shared_object_versions: Vec<(SharedInputIndex, Version)>,
+) -> VerifiedSequencedConsensusTransaction {
     let attestation = Attestation::Authority {
         payload: AttestationData::V1 {
             computation_units,
-            shared_object_versions: vec![],
+            shared_object_versions,
         },
         authority_index,
     };
@@ -2264,6 +2276,82 @@ async fn test_attested_tx_cost_out_of_bounds() {
             "digest must be collected before Check #3 for soft-lock release",
         );
     }
+}
+
+/// An attested transaction whose attestation records a version at an index
+/// where the transaction names no shared object is malformed and dropped by
+/// Check #3. A transfer of an owned object names no shared object at all, so
+/// its input 0 is such an index. The digest must still surface in
+/// `all_user_tx_digests` for soft-lock release.
+#[tokio::test]
+async fn attested_version_at_index_without_shared_object_is_dropped() {
+    let _guard = enable_validator_attestation();
+
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        Object::with_id_owner_for_testing(object_id, sender),
+        Object::with_id_owner_for_testing(gas_id, sender),
+    ])
+    .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let object_ref = authority.get_object(&object_id).unwrap().object_ref();
+    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
+
+    let tx = make_transfer_object_transaction(
+        object_ref,
+        gas_ref,
+        sender,
+        &sender_key,
+        Address::random(),
+        rgp,
+    );
+    let digest = *tx.digest();
+    // The most units the transaction pays for, so Check #3 passes the units.
+    let units = tx.data().transaction().gas_budget() / tx.data().transaction().gas_price();
+    let index = SharedInputIndex::TransactionInput(0);
+    let mut transactions = vec![make_attested_user_tx_with_versions(
+        tx,
+        0,
+        units,
+        vec![(index, object_ref.version)],
+    )];
+
+    let (dropped, locks, user_tx_digests) =
+        post_consensus_validation::validate_and_resolve_conflicts(
+            &authority,
+            &epoch_store,
+            1,
+            &Default::default(),
+            &mut transactions,
+        )
+        .await
+        .unwrap();
+
+    assert!(
+        transactions.is_empty(),
+        "the malformed record removes the transaction from the batch"
+    );
+    assert_eq!(dropped.len(), 1, "one dropped entry");
+    assert_eq!(
+        dropped[0].1,
+        IotaError::AttestationIndexNamesNoSharedObject { index }
+    );
+    assert!(
+        locks.is_empty(),
+        "no locks should be acquired for a dropped transaction"
+    );
+    assert_eq!(
+        user_tx_digests,
+        vec![digest],
+        "digest must be collected before Check #3 for soft-lock release",
+    );
 }
 
 /// An attested transaction whose declared gas price or budget is out of the

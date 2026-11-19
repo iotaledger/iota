@@ -58,7 +58,7 @@ pub enum AttestationData {
 
 /// Where a Move authenticator of a signed transaction names a shared object.
 /// The variant order is protocol-significant: a new variant goes at the end.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SharedInputIndex {
     /// The object is an argument of a Move authenticator: `authenticator` is
     /// the index of the authenticator among the signatures, and `argument`
