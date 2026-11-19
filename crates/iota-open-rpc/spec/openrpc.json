@@ -1640,7 +1640,7 @@
                   "u64": "2"
                 },
                 "ecdsa_k1_secp256k1_validate_pubkey_cost_base": {
-                  "u64": "52"
+                  "u64": "176"
                 },
                 "ecdsa_k1_secp256k1_verify_keccak256_cost_base": {
                   "u64": "1470"
@@ -1679,7 +1679,7 @@
                   "u64": "2"
                 },
                 "ecdsa_r1_secp256r1_validate_pubkey_cost_base": {
-                  "u64": "52"
+                  "u64": "325"
                 },
                 "ecdsa_r1_secp256r1_verify_keccak256_cost_base": {
                   "u64": "4225"
@@ -1709,7 +1709,7 @@
                   "u64": "4848"
                 },
                 "ed25519_ed25519_validate_pubkey_cost_base": {
-                  "u64": "52"
+                  "u64": "170"
                 },
                 "ed25519_ed25519_verify_cost_base": {
                   "u64": "1802"
@@ -2126,7 +2126,7 @@
                   "u32": "7"
                 },
                 "multisig_multisig_validate_pubkey_cost_base": {
-                  "u64": "52"
+                  "u64": "72"
                 },
                 "obj_access_cost_delete_per_byte": {
                   "u64": "40"
@@ -2183,7 +2183,7 @@
                   "u64": "388"
                 },
                 "public_key_to_iota_address_impl_cost_base": {
-                  "u64": "52"
+                  "u64": "341"
                 },
                 "random_beacon_dkg_timeout_round": {
                   "u32": "3000"
