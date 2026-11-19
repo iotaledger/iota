@@ -856,45 +856,56 @@ pub(crate) mod tests {
         let start_time = Instant::now();
         let mut last_committed_index = vec![0; num_of_authorities];
         let mut last_round_committed_blocks = vec![0; num_of_authorities];
+        let mut record_commit = |index: usize, committed_subdag: CommittedSubDag| {
+            for block_ref in &committed_subdag.base.committed_header_refs {
+                if block_ref.round > GENESIS_ROUND {
+                    let author_index = block_ref.author;
+                    last_round_committed_blocks[author_index] =
+                        max(last_round_committed_blocks[author_index], block_ref.round);
+                }
+            }
+
+            if index == stopped_authority_index.value() {
+                for txns in &committed_subdag.transactions {
+                    for txn in txns.transactions().iter().map(|t| t.data().to_vec()) {
+                        assert!(
+                            expected_transactions.remove(&txn),
+                            "Transaction not submitted or already seen: {txn:?}"
+                        );
+                    }
+                }
+            }
+            let commit_index = committed_subdag.commit_ref.index;
+            assert!(last_committed_index[index] < commit_index);
+            last_committed_index[index] = commit_index;
+            // Manually update the commit consumer monitor with the highest handled commit
+            consumer_monitors[index].set_highest_handled_commit(commit_index);
+        };
         loop {
             if start_time.elapsed() > Duration::from_secs(60) {
                 break;
             }
             for (index, receiver) in output_receivers.iter_mut().enumerate() {
-                // Manually update the commit consumer monitor with the highest handled commit
                 let deadline = Instant::now() + Duration::from_millis(25);
                 while Instant::now() < deadline {
                     let remaining = deadline - Instant::now();
                     if let Ok(Some(committed_subdag)) =
                         tokio::time::timeout(remaining, receiver.recv()).await
                     {
-                        for block_ref in &committed_subdag.base.committed_header_refs {
-                            if block_ref.round > GENESIS_ROUND {
-                                let author_index = block_ref.author;
-                                last_round_committed_blocks[author_index] =
-                                    max(last_round_committed_blocks[author_index], block_ref.round);
-                            }
-                        }
-
-                        if index == stopped_authority_index.value() {
-                            for txns in &committed_subdag.transactions {
-                                for txn in txns.transactions().iter().map(|t| t.data().to_vec()) {
-                                    assert!(
-                                        expected_transactions.remove(&txn),
-                                        "Transaction not submitted or already seen: {txn:?}"
-                                    );
-                                }
-                            }
-                        }
-                        let commit_index = committed_subdag.commit_ref.index;
-                        assert!(last_committed_index[index] < commit_index);
-                        last_committed_index[index] = commit_index;
-                        consumer_monitors[index].set_highest_handled_commit(commit_index);
+                        record_commit(index, committed_subdag);
                     } else {
                         // If we time out, we assume that no new dags were committed.
                         break;
                     }
                 }
+            }
+        }
+
+        // The loop above reads the receivers one after another while authorities keep
+        // committing; draining them without awaiting reads all of them at one moment.
+        for (index, receiver) in output_receivers.iter_mut().enumerate() {
+            while let Ok(committed_subdag) = receiver.try_recv() {
+                record_commit(index, committed_subdag);
             }
         }
 
