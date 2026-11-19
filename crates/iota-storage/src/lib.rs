@@ -127,10 +127,10 @@ pub fn compress<R: Read, W: Write>(reader: &mut R, writer: &mut W) -> Result<()>
     Ok(())
 }
 
-pub fn read<R: Read + 'static>(
+pub fn read<R: Read + Send + 'static>(
     expected_magic: u32,
     mut reader: R,
-) -> Result<(Box<dyn Read>, StorageFormat)> {
+) -> Result<(Box<dyn Read + Send>, StorageFormat)> {
     let magic = reader.read_u32::<BigEndian>()?;
     if magic != expected_magic {
         Err(anyhow!(
@@ -139,7 +139,7 @@ pub fn read<R: Read + 'static>(
     } else {
         let storage_format = StorageFormat::try_from(reader.read_u8()?)?;
         let file_compression = FileCompression::try_from(reader.read_u8()?)?;
-        let reader: Box<dyn Read> = match file_compression {
+        let reader: Box<dyn Read + Send> = match file_compression {
             FileCompression::Zstd => Box::new(zstd::stream::Decoder::new(reader)?),
             FileCompression::None => Box::new(BufReader::new(reader)),
         };
@@ -147,7 +147,7 @@ pub fn read<R: Read + 'static>(
     }
 }
 
-pub fn make_iterator<T: DeserializeOwned, R: Read + 'static>(
+pub fn make_iterator<T: DeserializeOwned, R: Read + Send + 'static>(
     expected_magic: u32,
     reader: R,
 ) -> Result<impl Iterator<Item = T>> {
