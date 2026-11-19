@@ -1337,7 +1337,7 @@
                 "disallow_self_identifier": true,
                 "disallow_self_identifier_in_transactions": true,
                 "enable_builtin_move_authenticators": true,
-                "enable_claim_account_transaction": true,
+                "enable_claim_account_transaction": false,
                 "enable_group_ops_native_function_msm": true,
                 "enable_move_authentication": true,
                 "enable_move_authentication_for_sponsor": true,
