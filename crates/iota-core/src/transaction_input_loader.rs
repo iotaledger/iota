@@ -565,7 +565,7 @@ mod tests {
             _: &ObjectId,
             _: Version,
             _: EpochId,
-        ) -> IotaResult<Option<Version>> {
+        ) -> IotaResult<Option<(Version, bool)>> {
             unreachable!("not read when loading shared inputs")
         }
 

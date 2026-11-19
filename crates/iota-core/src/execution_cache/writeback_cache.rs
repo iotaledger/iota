@@ -1738,7 +1738,7 @@ impl ObjectCacheRead for WritebackCache {
         object_id: &ObjectId,
         version: Version,
         epoch: EpochId,
-    ) -> IotaResult<Option<Version>> {
+    ) -> IotaResult<Option<(Version, bool)>> {
         // Uncommitted first: the commit writes the store before it drops the
         // uncommitted copy, so a racing commit cannot hide the version.
         let uncommitted = self.dirty.objects.get(object_id).and_then(|versions| {
@@ -1749,7 +1749,9 @@ impl ObjectCacheRead for WritebackCache {
         let committed = self
             .record_db_get("lowest_version_above")
             .find_lowest_version_above_in_epoch(object_id, version, epoch)?;
-        Ok(uncommitted.into_iter().chain(committed).min())
+        let lowest = uncommitted.into_iter().chain(committed).min();
+        // A version the store holds was written with its writer's effects.
+        Ok(lowest.map(|lowest| (lowest, committed != Some(lowest))))
     }
 
     #[instrument(level = "trace", skip_all)]

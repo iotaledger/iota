@@ -1391,7 +1391,7 @@ impl ObjectCacheRead for FakeStore {
         _object_id: &ObjectId,
         _version: Version,
         _epoch: EpochId,
-    ) -> IotaResult<Option<Version>> {
+    ) -> IotaResult<Option<(Version, bool)>> {
         unreachable!("post-consensus validation does not judge attestations")
     }
 

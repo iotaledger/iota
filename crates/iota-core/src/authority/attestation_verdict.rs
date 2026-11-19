@@ -97,7 +97,7 @@ impl AttestedObjectVersions<'_> {
         attested: Version,
     ) -> Option<SupersededAt> {
         let epoch = self.epoch_store.epoch();
-        let replacing = self
+        let (replacing, uncommitted) = self
             .object_cache
             .try_find_lowest_version_above_in_epoch(object_id, attested, epoch)
             .unwrap_or_else(|error| {
@@ -113,7 +113,7 @@ impl AttestedObjectVersions<'_> {
             // shared objects or dynamic fields, which are never wrapped.
             None => self.deleting_transaction(object_id, replacing)?,
         };
-        let effects = self.effects_in_epoch(&digest)?;
+        let effects = self.effects_in_epoch(&digest, uncommitted)?;
         // Consuming another version means `attested` was never a version of
         // the object, or was superseded before this epoch.
         let consumed = effects
@@ -129,24 +129,38 @@ impl AttestedObjectVersions<'_> {
     }
 
     /// The effects of `digest` when it executed in this epoch, `None` when it
-    /// ran in an earlier one, whose records a node may have pruned.
-    fn effects_in_epoch(&self, digest: &TransactionDigest) -> Option<TransactionEffects> {
+    /// ran in an earlier one, whose records a node may have pruned. Waits for
+    /// them when the version naming `digest` is `uncommitted`: a version is
+    /// readable before its writer records its effects.
+    fn effects_in_epoch(
+        &self,
+        digest: &TransactionDigest,
+        uncommitted: bool,
+    ) -> Option<TransactionEffects> {
         let epoch = self.epoch_store.epoch();
-        let effects_digest = self
-            .transaction_cache
-            .try_multi_get_executed_effects_digests_in_epoch(epoch, &[*digest])
-            .unwrap_or_else(|error| fatal!("cannot read whether {digest} executed: {error}"))
-            .pop()
-            .flatten()?;
-        let effects = self
-            .transaction_cache
-            .try_multi_get_effects_in_epoch(epoch, &[effects_digest])
-            .unwrap_or_else(|error| fatal!("cannot read the effects of {digest}: {error}"))
-            .pop()
-            .flatten()?;
-        // The committed caches outlive the epoch, so either read can answer
-        // for an earlier one.
-        (effects.epoch() == epoch).then_some(effects)
+        let read = || {
+            let effects_digest = self
+                .transaction_cache
+                .try_multi_get_executed_effects_digests_in_epoch(epoch, &[*digest])
+                .unwrap_or_else(|error| fatal!("cannot read whether {digest} executed: {error}"))
+                .pop()
+                .flatten()?;
+            self.transaction_cache
+                .try_multi_get_effects_in_epoch(epoch, &[effects_digest])
+                .unwrap_or_else(|error| fatal!("cannot read the effects of {digest}: {error}"))
+                .pop()
+                .flatten()
+        };
+        loop {
+            match read() {
+                // The committed caches outlive the epoch, so either read can
+                // answer for an earlier one.
+                Some(effects) => return (effects.epoch() == epoch).then_some(effects),
+                // The writer is inside the cache write that records them.
+                None if uncommitted => std::thread::yield_now(),
+                None => return None,
+            }
+        }
     }
 
     /// The transaction that deleted `object_id` at `version`: from the marker
