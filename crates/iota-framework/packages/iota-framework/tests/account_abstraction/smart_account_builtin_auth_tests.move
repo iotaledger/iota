@@ -6,6 +6,7 @@ module iota::smart_account_builtin_auth_tests;
 
 use iota::authenticator_function::{Self, AuthenticatorFunctionRefV1};
 use iota::builtin_authenticator_functions;
+use iota::protocol_config;
 use iota::public_key::{Self, PublicKey};
 use iota::signature_scheme;
 use iota::smart_account::{Self, SmartAccount};
@@ -74,6 +75,18 @@ fun claim_account_v1_aborts_on_address_mismatch() {
     smart_account_builtin_auth::claim_account_v1_for_testing(ed25519_public_key(), scenario.ctx());
 
     scenario.end();
+}
+
+#[test]
+#[expected_failure(abort_code = smart_account::ESmartAccountsNotEnabled)]
+fun claim_account_v1_aborts_without_smart_accounts() {
+    protocol_config::set_feature_enabled_for_testing(b"enable_smart_accounts", false);
+    let public_key = ed25519_public_key();
+    let mut scenario = test_scenario::begin(public_key.to_iota_address());
+
+    smart_account_builtin_auth::claim_account_v1_for_testing(public_key, scenario.ctx());
+
+    abort
 }
 
 // === View functions ===

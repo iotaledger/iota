@@ -3859,6 +3859,9 @@ uid
 uid_mut
 	public(package) fun
 	0x2::smart_account
+ensure_smart_accounts_enabled
+	fun
+	0x2::smart_account
 builder_v1
 	public fun
 	0x2::smart_account_builtin_auth
