@@ -261,7 +261,7 @@ fun builtin_authenticator_v1<Account: key>(account: &Account, signature: vector<
     check_builtin_authenticators_enabled();
 
     let public_key = borrow_public_key(borrow_account_uid(account));
-    assert!(verify_builtin_signature(public_key, &signature), EInvalidSignature);
+    assert!(public_key.verify_builtin_signature(&signature), EInvalidSignature);
 }
 
 /// A utility function to construct the dynamic field name for the public key field.
@@ -293,10 +293,6 @@ fun check_builtin_authenticators_enabled() {
 ///
 /// IMPORTANT: This function is allowed to be called only by the built-in authenticator.
 native fun borrow_account_uid<Account: key>(account: &Account): &UID;
-
-/// Returns true if `signature` is a valid signature of the transaction being authenticated
-/// by `public_key`, using the signature scheme of `public_key`.
-native fun verify_builtin_signature(public_key: &PublicKey, signature: &vector<u8>): bool;
 
 // === Test Functions ===
 
