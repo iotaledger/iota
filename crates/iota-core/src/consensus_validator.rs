@@ -66,21 +66,14 @@ impl IotaTxValidator {
     }
 
     /// Rejects the block when a transaction carries a transaction dependency
-    /// input, among its own inputs or a Move authenticator's, before the
-    /// protocol enables the input: a validator on a binary that predates the
-    /// input cannot decode such a block, so every validator must refuse it the
-    /// same way.
+    /// input among a Move authenticator's call arguments, where it is never
+    /// valid, or among its own inputs before the protocol enables the input: a
+    /// validator on a binary that predates the input cannot decode such a
+    /// block, so every validator must refuse it the same way.
     fn transaction_dependency_check(
         &self,
         signed_tx: &SenderSignedTransaction,
     ) -> Result<(), IotaError> {
-        if self
-            .epoch_store
-            .protocol_config()
-            .enable_transaction_dependencies()
-        {
-            return Ok(());
-        }
         // Every decoder refuses an object to authenticate that is not a shared
         // object, so only an authenticator's call arguments can hold the input.
         let in_authenticator = signed_tx
@@ -88,7 +81,17 @@ impl IotaTxValidator {
             .into_iter()
             .flat_map(|authenticator| authenticator.call_args())
             .any(|input| matches!(input, CallArg::TransactionDependency(_)));
-        if in_authenticator || signed_tx.transaction().transaction_dependency().is_some() {
+        if in_authenticator {
+            return Err(IotaError::UnsupportedFeature {
+                error: "transaction dependency input not supported in a Move authenticator".into(),
+            });
+        }
+        if !self
+            .epoch_store
+            .protocol_config()
+            .enable_transaction_dependencies()
+            && signed_tx.transaction().transaction_dependency().is_some()
+        {
             return Err(IotaError::UnsupportedFeature {
                 error: "transaction dependency input not supported at current protocol version"
                     .into(),
@@ -1185,5 +1188,21 @@ mod tests {
                 ),
             ])
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn reject_transaction_dependency_in_a_move_authenticator_with_the_flag() {
+        let _guard = transaction_dependencies_enabled(true);
+        let (state, _keypair, validator) = self_identifier_fixture(None).await;
+
+        let result =
+            validator.validate_transactions(vec![user_transaction(move_account_transfer(
+                &state,
+                CallArg::TransactionDependency(TransactionDigest::random()),
+            ))]);
+        assert!(
+            matches!(&result, Err(IotaError::UnsupportedFeature { .. })),
+            "{result:?}"
+        );
     }
 }
