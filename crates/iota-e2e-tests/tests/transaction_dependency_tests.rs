@@ -91,11 +91,17 @@ async fn submit_with_timeout(
     }
 }
 
-/// Whether `error` reports that `dependency` failed: the drivers render the
-/// error either with its message or with its variant name.
-fn is_dependency_failed_error(error: &str, dependency: TransactionDigest) -> bool {
-    let expected = UserInputError::TransactionDependencyFailed { digest: dependency };
+/// Whether `error` reports `expected`: the drivers render the error either
+/// with its message or with its variant name.
+fn is_user_input_error(error: &str, expected: UserInputError) -> bool {
     error.contains(&expected.to_string()) || error.contains(&format!("{expected:?}"))
+}
+
+fn is_dependency_failed_error(error: &str, dependency: TransactionDigest) -> bool {
+    is_user_input_error(
+        error,
+        UserInputError::TransactionDependencyFailed { digest: dependency },
+    )
 }
 
 fn assert_executed_successfully(outcome: &Outcome) -> &TransactionEffects {
@@ -687,7 +693,7 @@ async fn dependency_from_an_earlier_epoch_is_rejected(pcool: bool) {
 
     let dependency = signed(&cluster, 1_000, None).await;
     let dependency_digest = *dependency.digest();
-    assert_executed_successfully(&submit(&cluster, dependency).await);
+    let executed_epoch = assert_executed_successfully(&submit(&cluster, dependency).await).epoch();
 
     cluster.force_new_epoch().await;
 
@@ -697,7 +703,13 @@ async fn dependency_from_an_earlier_epoch_is_rejected(pcool: bool) {
         panic!("a dependent of an earlier-epoch transaction was not rejected: {outcome:?}");
     };
     assert!(
-        error.contains("current epoch") || error.contains("NotInCurrentEpoch"),
+        is_user_input_error(
+            error,
+            UserInputError::TransactionDependencyNotInCurrentEpoch {
+                digest: dependency_digest,
+                executed_epoch,
+            }
+        ),
         "{error}"
     );
 }
