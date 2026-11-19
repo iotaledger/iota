@@ -235,10 +235,12 @@ async fn test_submit_single_tx_attest_failure_rejected_without_reaching_consensu
 
 /// Submits to `submit_single_tx`, with `enable_validator_attestation` on, a
 /// transaction that passes its own size check, but whose attestation, one
-/// object reference per shared input, makes the consensus transaction larger
-/// than consensus accepts. Asserts that the validator rejects it with the size
-/// limit and a traffic weight of one, without taking a soft lock or handing
-/// anything to the consensus adapter.
+/// entry per shared input, makes the consensus transaction larger than
+/// consensus accepts. The test lowers the consensus limit to the transaction's
+/// own limit for this: with the limits of the protocol config, the largest
+/// attested transaction fits. Asserts that the validator rejects it with the
+/// size limit and a traffic weight of one, without taking a soft lock or
+/// handing anything to the consensus adapter.
 #[tokio::test]
 async fn test_submit_single_tx_rejects_an_attested_transaction_too_large_for_consensus() {
     telemetry_subscribers::init_for_testing();
@@ -247,13 +249,14 @@ async fn test_submit_single_tx_rejects_an_attested_transaction_too_large_for_con
         config.set_enable_pcool_flow_for_testing(true);
         config.set_enable_validator_attestation_for_testing(true);
         config.set_checkpoint_summary_version_specific_data_for_testing(2);
+        config.set_consensus_max_transaction_size_bytes_for_testing(config.max_tx_size_bytes());
         config
     });
 
-    // A read-only shared input takes about 43 bytes in the transaction and 73
-    // in the attestation's object reference. With the pure padding, the
-    // transaction stays under `max_tx_size_bytes` and the attested transaction
-    // exceeds `max_transaction_size_bytes`.
+    // A read-only shared input takes about 43 bytes in the transaction and 11
+    // in the attestation. With the pure padding, the transaction stays under
+    // `max_tx_size_bytes` and the attested transaction exceeds the lowered
+    // `max_transaction_size_bytes`.
     const SHARED_INPUTS: usize = 2_040;
     const PADDING_INPUTS: u8 = 3;
     const PADDING_BYTES: usize = 12_000;

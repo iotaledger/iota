@@ -1029,7 +1029,7 @@ fn attest(
             attestation: Attestation::Authority {
                 payload: AttestationData::V1 {
                     computation_units,
-                    object_versions: vec![],
+                    shared_object_versions: vec![],
                 },
                 authority_index: 0,
             },

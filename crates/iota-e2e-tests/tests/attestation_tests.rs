@@ -795,7 +795,7 @@ mod faulty_attestor {
     use iota_protocol_config::{OverrideGuard, ProtocolConfig};
     use iota_sdk_types::{
         EndOfEpochTransactionKind, ExecutionError, ExecutionStatus, GasCostSummary,
-        SignatureScheme, TransactionEffects, TransactionKind,
+        SignatureScheme, TransactionEffects, TransactionKind, Version,
     };
     use iota_simulator::task::NodeId;
     use iota_swarm_config::genesis_config::{
@@ -803,7 +803,7 @@ mod faulty_attestor {
     };
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        attestation::AttestationRecord,
+        attestation::{AttestationRecord, SharedInputIndex},
         base_types::{ConciseableName, EpochId},
         crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, PublicKey, get_key_pair_from_rng},
         error::IotaError,
@@ -922,15 +922,13 @@ mod faulty_attestor {
         expected_verdict: ExpectedVerdict,
     }
 
-    /// Runs an honest attestation and seven attestations of the faulty
-    /// attestor in one epoch. Move authentication of the seven fails at
-    /// execution, and the account version the attestor records decides the
-    /// verdict:
+    /// Runs an honest attestation and six attestations of the faulty attestor
+    /// in one epoch. Move authentication of the six fails at execution, and
+    /// the account version the attestor records decides the verdict:
     /// - the version the attestor read: [`Refuted`], no re-run;
     /// - a version superseded in the previous epoch: [`Refuted`], no re-run;
     /// - a version ahead of the executed one: [`Refuted`], no re-run;
     /// - a version superseded this epoch, holding the signer's key: [`Valid`];
-    /// - the same version with a wrong digest, signer's key: [`Valid`];
     /// - the same version, with a wrong signature: [`Refuted`] by the re-run;
     /// - the same version, signer's key, internal re-run error: [`Undecided`].
     ///
@@ -941,11 +939,9 @@ mod faulty_attestor {
     /// superseded in the previous epoch. The judge re-runs authentication only
     /// at versions superseded this epoch, so that validator refutes like the
     /// others. The judge reads only the current epoch's versions, so that
-    /// validator is there to catch a judge that reads older ones. The judge
-    /// compares only the ids and versions a record names, so a wrong digest
-    /// leaves the verdict unchanged. The last re-run ends in an internal error
-    /// through the `judge-rerun-internal-error` fail point, which no
-    /// transaction can cause.
+    /// validator is there to catch a judge that reads older ones. The last
+    /// re-run ends in an internal error through the
+    /// `judge-rerun-internal-error` fail point, which no transaction can cause.
     ///
     /// Every node must execute each transaction with the same effects, which
     /// charge the gas owner for a valid attestation and nobody for a refuted
@@ -1024,7 +1020,7 @@ mod faulty_attestor {
                     tx,
                     &attestor,
                     attestor_sim_id,
-                    Some(vec![account_with_first_key]),
+                    Some(account_with_first_key.version),
                 )
                 .await,
             attestor,
@@ -1033,23 +1029,14 @@ mod faulty_attestor {
         });
 
         let account_with_second_key = env.account_ref().await;
-        let version_ahead = ObjectReference::new(
-            account_with_second_key.object_id,
-            account_with_second_key.version + 1,
-            account_with_second_key.digest,
-        );
+        let version_ahead = account_with_second_key.version + 1;
         let tx = env
             .craft_account_transaction_signed_over_another_digest_by(&second_key)
             .await?;
         scenarios.push(Scenario {
             name: "recorded version ahead of the executed one",
             digest: env
-                .submit_to_faulty_attestor(
-                    tx,
-                    &attestor,
-                    attestor_sim_id,
-                    Some(vec![version_ahead]),
-                )
+                .submit_to_faulty_attestor(tx, &attestor, attestor_sim_id, Some(version_ahead))
                 .await,
             attestor,
             authenticates: false,
@@ -1073,28 +1060,7 @@ mod faulty_attestor {
                     tx,
                     &attestor,
                     attestor_sim_id,
-                    Some(vec![account_with_second_key]),
-                )
-                .await,
-            attestor,
-            authenticates: false,
-            expected_verdict: ExpectedVerdict::Valid,
-        });
-
-        let account_with_a_wrong_digest = ObjectReference::new(
-            account_with_second_key.object_id,
-            account_with_second_key.version,
-            account_with_first_key.digest,
-        );
-        let tx = env.craft_account_transaction_signed_by(&second_key).await?;
-        scenarios.push(Scenario {
-            name: "recorded version superseded this epoch, with a wrong digest",
-            digest: env
-                .submit_to_faulty_attestor(
-                    tx,
-                    &attestor,
-                    attestor_sim_id,
-                    Some(vec![account_with_a_wrong_digest]),
+                    Some(account_with_second_key.version),
                 )
                 .await,
             attestor,
@@ -1112,7 +1078,7 @@ mod faulty_attestor {
                     tx,
                     &attestor,
                     attestor_sim_id,
-                    Some(vec![account_with_second_key]),
+                    Some(account_with_second_key.version),
                 )
                 .await,
             attestor,
@@ -1133,7 +1099,7 @@ mod faulty_attestor {
                     tx,
                     &attestor,
                     attestor_sim_id,
-                    Some(vec![account_with_second_key]),
+                    Some(account_with_second_key.version),
                 )
                 .await,
             attestor,
@@ -2062,35 +2028,38 @@ mod faulty_attestor {
         /// the faulty attestor and `attestor_sim_id` is its simulator node id.
         /// The attestor attests `tx` although the Move authentication of `tx`
         /// fails there, and claims every unit the budget pays for, so that the
-        /// claim never cuts the judge's re-run short. When `recorded_versions`
-        /// is given, the attestor records them in place of the versions its dry
-        /// run read. `recorded_versions` need not be a whole record, which also
-        /// holds the account's fields the authenticator read: the judge
-        /// compares only the versions a record names, and its re-run resolves
-        /// the fields under the recorded account version, so the account's
-        /// version alone decides the verdict.
+        /// claim does not cut the judge's re-run short. When
+        /// `recorded_account_version` is given, the attestor records it for the
+        /// account of the Move authenticator at signature 0 in place of what
+        /// its dry run read. An account transaction names no other shared
+        /// object, so that entry is the whole record, and the judge's re-run
+        /// resolves the account's fields under the recorded account version.
         async fn submit_to_faulty_attestor(
             &self,
             tx: TransactionEnvelope,
             attestor: &AuthorityName,
             attestor_sim_id: NodeId,
-            recorded_versions: Option<Vec<ObjectReference>>,
+            recorded_account_version: Option<Version>,
         ) -> TransactionDigest {
             let transaction = tx.data().transaction();
             let claimed_units = transaction.gas_budget() / transaction.gas_price();
             register_fail_point_arg("attest-ignore-auth-failure", move || {
                 (iota_simulator::current_simnode_id() == attestor_sim_id).then_some(claimed_units)
             });
-            if let Some(versions) = recorded_versions.clone() {
-                register_fail_point_arg("attest-object-versions", move || {
+            if let Some(version) = recorded_account_version {
+                let versions = vec![(
+                    SharedInputIndex::AuthenticatorAccount { authenticator: 0 },
+                    version,
+                )];
+                register_fail_point_arg("attest-shared-object-versions", move || {
                     (iota_simulator::current_simnode_id() == attestor_sim_id)
                         .then(|| versions.clone())
                 });
             }
             let digest = self.submit_to(tx, attestor).await;
             clear_fail_point("attest-ignore-auth-failure");
-            if recorded_versions.is_some() {
-                clear_fail_point("attest-object-versions");
+            if recorded_account_version.is_some() {
+                clear_fail_point("attest-shared-object-versions");
             }
 
             digest

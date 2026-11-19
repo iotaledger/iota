@@ -200,7 +200,7 @@ fn attest_without_dry_run(transaction: &VerifiedTransaction) -> AttestationData 
             .gas_budget()
             .checked_div(transaction.gas_price())
             .unwrap_or(u64::MAX),
-        object_versions: Vec::new(),
+        shared_object_versions: Vec::new(),
     }
 }
 
@@ -780,14 +780,16 @@ impl ValidatorService {
             ConsensusTransaction::new_user_transaction(verified_tx.into_inner())
         };
 
-        // The attestation adds object references for the shared inputs and the
-        // objects the dry run loaded, after the transaction passed its own size
-        // check, so a valid transaction can become larger than consensus
-        // accepts. The consensus adapter refuses such a transaction as well,
-        // but its refusal weighs nothing. A rejection by
-        // `check_consensus_transaction_size()` weighs one: the dry run has
-        // already run, and with no soft lock kept, the in-flight check does
-        // not stop a resend.
+        // The attestation is added after the transaction passed its own size
+        // check. The protocol config's limits `max_tx_size_bytes` and
+        // `consensus_max_transaction_size_bytes` leave room for the largest
+        // attestation beside the largest transaction, so
+        // `check_consensus_transaction_size()` refuses a transaction only if
+        // the limits no longer leave that room. The consensus adapter refuses
+        // such a transaction as well, but its refusal weighs nothing. A
+        // rejection by `check_consensus_transaction_size()` weighs one: the dry
+        // run has already run, and with no soft lock kept, the in-flight check
+        // does not stop a resend.
         if let Err(error) =
             check_consensus_transaction_size(&consensus_tx, epoch_store.protocol_config())
         {

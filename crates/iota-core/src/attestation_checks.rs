@@ -64,7 +64,7 @@ mod tests {
         let attestation = Attestation::new_authority(
             AttestationData::V1 {
                 computation_units: u64::MAX,
-                object_versions: vec![],
+                shared_object_versions: vec![],
             },
             0,
         );

@@ -23,7 +23,7 @@ use iota_common::fatal;
 use iota_execution::Executor;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Digest, GasPayment, MoveAuthenticator, ObjectId, ObjectReference, Transaction,
+    Address, Digest, GasPayment, MoveAuthenticator, ObjectId, SenderSignedTransaction,
     TransactionDigest, TransactionEffects, TransactionKind, Version,
 };
 use iota_types::{
@@ -268,8 +268,10 @@ pub(crate) struct AttestationVerdictContext<'a> {
     /// Versions of the authenticator inputs and function-ref fields execution
     /// ran against.
     pub executed_versions: BTreeMap<ObjectId, Version>,
-    /// Serialized, and its kind cloned, only when a re-run needs them.
-    pub transaction: &'a Transaction,
+    /// The signed transaction. The entries of the attestation name objects by
+    /// their index in it. Its data is serialized, and its kind cloned, only
+    /// when a re-run needs them.
+    pub transaction: &'a SenderSignedTransaction,
     pub transaction_signer: Address,
     pub transaction_digest: TransactionDigest,
     pub sender_auth_digest: Digest,
@@ -384,7 +386,7 @@ impl AttestationVerdictContext<'_> {
             .map(|input| input.id())
             .collect();
         if !should_reauthenticate(
-            self.attestation.object_versions(),
+            &collect_attested_versions(self.attestation, self.transaction),
             &self.executed_versions,
             &pinned_by_transaction,
             |object_id, version| {
@@ -404,23 +406,40 @@ impl AttestationVerdictContext<'_> {
     }
 }
 
+/// Returns the object id and the version of each entry that `attestation`
+/// records, in the order of the record. `transaction` is the signed
+/// transaction in which the entries name objects by index. An entry is left
+/// out when [`SharedInputIndex::find_object_id_in()`] finds no object at its
+/// index.
+///
+/// [`SharedInputIndex::find_object_id_in()`]: iota_types::attestation::SharedInputIndex::find_object_id_in
+fn collect_attested_versions(
+    attestation: &Attestation,
+    transaction: &SenderSignedTransaction,
+) -> Vec<(ObjectId, Version)> {
+    attestation
+        .shared_object_versions()
+        .iter()
+        .filter_map(|(index, version)| Some((index.find_object_id_in(transaction)?, *version)))
+        .collect()
+}
+
 /// Whether authentication should be re-run at the recorded versions. `false`
 /// either when nothing the authentication read drifted, so the failure
 /// reproduces at the recorded state, or when a recorded version is refuted
 /// without a re-run. `pinned_by_transaction` holds the authenticator inputs
 /// whose versions the transaction fixes itself.
 fn should_reauthenticate(
-    attested_versions: &[ObjectReference],
+    attested_versions: &[(ObjectId, Version)],
     executed_versions: &BTreeMap<ObjectId, Version>,
     pinned_by_transaction: &BTreeSet<ObjectId>,
     superseded_within_window: impl Fn(&ObjectId, Version) -> bool,
 ) -> bool {
     let mut drifted = false;
-    for object_ref in attested_versions {
-        let Some(&executed) = executed_versions.get(object_ref.object_id()) else {
+    for &(object_id, attested) in attested_versions {
+        let Some(&executed) = executed_versions.get(&object_id) else {
             continue;
         };
-        let attested = object_ref.version();
         if attested == executed {
             continue;
         }
@@ -432,8 +451,8 @@ fn should_reauthenticate(
         // would send the re-run against an object the transaction never named
         // at that version.
         if attested > executed
-            || pinned_by_transaction.contains(object_ref.object_id())
-            || !superseded_within_window(object_ref.object_id(), attested)
+            || pinned_by_transaction.contains(&object_id)
+            || !superseded_within_window(&object_id, attested)
         {
             return false;
         }
@@ -455,12 +474,10 @@ impl AttestationVerdictContext<'_> {
     /// cannot be combined, or the re-run ends in a cancellation or an invariant
     /// violation: here, all three can only be internal errors.
     fn reauthenticate_at_attested_versions(&self) -> AuthenticationFailureBlame {
-        let attested_versions: BTreeMap<ObjectId, &ObjectReference> = self
-            .attestation
-            .object_versions()
-            .iter()
-            .map(|object_ref| (*object_ref.object_id(), object_ref))
-            .collect();
+        let attested_versions: BTreeMap<ObjectId, Version> =
+            collect_attested_versions(self.attestation, self.transaction)
+                .into_iter()
+                .collect();
 
         // The re-run is metered on its own, capped by the attestor's claimed
         // computation units: exceeding them refutes the attestation by its own
@@ -598,14 +615,14 @@ impl AttestationVerdictContext<'_> {
                     .map(|(_, function_ref, _)| function_ref.clone())
             });
         let auth_context_data = AuthContextData {
-            transaction_data_bytes: bcs::to_bytes(self.transaction)
+            transaction_data_bytes: bcs::to_bytes(self.transaction.transaction())
                 .expect("Transaction serialization cannot fail"),
             sender_auth_digest: self.sender_auth_digest,
             sponsor_auth_digest: self.sponsor_auth_digest,
             sender_authenticator_function_ref,
             sponsor_authenticator_function_ref,
         };
-        let (transaction_kind, _, _) = self.transaction.execution_parts();
+        let (transaction_kind, _, _) = self.transaction.transaction().execution_parts();
 
         // No gas coins: the attested budget is charged to nobody.
         let gas_data = GasPayment {
@@ -666,14 +683,13 @@ impl AttestationVerdictContext<'_> {
     fn reload_input_objects_at_attested_versions(
         &self,
         input_objects: &InputObjects,
-        attested_versions: &BTreeMap<ObjectId, &ObjectReference>,
+        attested_versions: &BTreeMap<ObjectId, Version>,
     ) -> InputObjects {
         let mut reloaded = Vec::with_capacity(input_objects.len());
         for object_read_result in input_objects.iter() {
             let object_id = object_read_result.id();
             match attested_versions.get(&object_id) {
-                Some(object_ref) if object_ref.version() != object_read_result.version() => {
-                    let version = object_ref.version();
+                Some(&version) if version != object_read_result.version() => {
                     // The drift check only admits versions superseded this
                     // epoch, which the epoch's historic bucket keeps.
                     let object = self
@@ -746,7 +762,15 @@ fn is_pre_execution_failure(kind: &ExecutionErrorKind) -> bool {
 mod tests {
     use std::collections::BTreeSet;
 
-    use iota_types::base_types::random_object_ref;
+    use iota_sdk_types::{
+        MoveAuthenticatorV1, ProgrammableTransaction, SharedObjectReference, Transaction,
+        UserSignature,
+    };
+    use iota_types::{
+        attestation::{AttestationData, SharedInputIndex},
+        base_types::random_object_ref,
+        transaction::CallArg,
+    };
     use move_core_types::gas_algebra::InternalGas;
 
     use super::*;
@@ -885,15 +909,15 @@ mod tests {
         assert_eq!(consumed_units(gas_status), budget_units);
     }
 
-    fn ref_at(version: u64) -> ObjectReference {
-        let base = random_object_ref();
-        ObjectReference::new(base.object_id, Version::from(version), base.digest)
+    /// Returns a new object id, paired with `version`.
+    fn object_at(version: u64) -> (ObjectId, Version) {
+        (ObjectId::random(), Version::from(version))
     }
 
     /// Runs the drift check against the versions a test marked as superseded
     /// during the current epoch; anything else is unresolvable.
     fn reauthenticates(
-        attested: &[ObjectReference],
+        attested: &[(ObjectId, Version)],
         executed: &BTreeMap<ObjectId, Version>,
         superseded: BTreeSet<(ObjectId, Version)>,
     ) -> bool {
@@ -909,10 +933,10 @@ mod tests {
     /// version for one is a lie, however plausible the version.
     #[test]
     fn differing_version_of_a_pinned_input_skips_reauthentication() {
-        let input = ref_at(3);
-        let superseded: BTreeSet<(ObjectId, Version)> = [(input.object_id, input.version())].into();
-        let executed = BTreeMap::from([(input.object_id, Version::from(5u64))]);
-        let pinned = BTreeSet::from([input.object_id]);
+        let input = object_at(3);
+        let superseded: BTreeSet<(ObjectId, Version)> = [input].into();
+        let executed = BTreeMap::from([(input.0, Version::from(5u64))]);
+        let pinned = BTreeSet::from([input.0]);
 
         assert!(!should_reauthenticate(
             &[input],
@@ -927,8 +951,8 @@ mod tests {
     /// fails at the versions it saw.
     #[test]
     fn no_drift_skips_reauthentication() {
-        let account = ref_at(3);
-        let executed = BTreeMap::from([(account.object_id, account.version())]);
+        let account = object_at(3);
+        let executed = BTreeMap::from([account]);
 
         assert!(!reauthenticates(&[account], &executed, Default::default()));
     }
@@ -937,9 +961,9 @@ mod tests {
     /// still has to be checked before anyone is charged.
     #[test]
     fn drift_within_the_epoch_reauthenticates() {
-        let account = ref_at(3);
-        let superseded = [(account.object_id, account.version())].into();
-        let executed = BTreeMap::from([(account.object_id, Version::from(5u64))]);
+        let account = object_at(3);
+        let superseded = [account].into();
+        let executed = BTreeMap::from([(account.0, Version::from(5u64))]);
 
         assert!(reauthenticates(&[account], &executed, superseded));
     }
@@ -949,34 +973,34 @@ mod tests {
     /// attestation is never taken on trust without checking it.
     #[test]
     fn stale_version_skips_reauthentication() {
-        let account = ref_at(3);
-        let executed = BTreeMap::from([(account.object_id, Version::from(5u64))]);
+        let account = object_at(3);
+        let executed = BTreeMap::from([(account.0, Version::from(5u64))]);
 
         assert!(!reauthenticates(&[account], &executed, Default::default()));
     }
 
     #[test]
     fn version_ahead_of_execution_skips_reauthentication() {
-        let account = ref_at(7);
-        let superseded = [(account.object_id, account.version())].into();
-        let executed = BTreeMap::from([(account.object_id, Version::from(5u64))]);
+        let account = object_at(7);
+        let superseded = [account].into();
+        let executed = BTreeMap::from([(account.0, Version::from(5u64))]);
 
         assert!(!reauthenticates(&[account], &executed, superseded));
     }
 
-    /// An attestation also records the versions the transaction body read.
-    /// Those cannot change whether authentication would have succeeded, so a
-    /// stale one must not decide the verdict.
+    /// An attestation also records the versions of the shared objects that
+    /// only the transaction names. Those cannot change whether authentication
+    /// would have succeeded, so a stale one must not decide the verdict.
     #[test]
     fn versions_the_reauthentication_does_not_read_are_ignored() {
-        let account = ref_at(3);
-        let body_object = ref_at(9);
-        let superseded = [(account.object_id, account.version())].into();
-        let executed = BTreeMap::from([(account.object_id, Version::from(5u64))]);
+        let account = object_at(3);
+        let transaction_input = object_at(9);
+        let superseded = [account].into();
+        let executed = BTreeMap::from([(account.0, Version::from(5u64))]);
 
         assert!(
-            reauthenticates(&[account, body_object], &executed, superseded),
-            "a stale body-side version must not suppress the re-run"
+            reauthenticates(&[account, transaction_input], &executed, superseded),
+            "a stale version of a transaction input must not suppress the re-run"
         );
     }
 
@@ -984,12 +1008,12 @@ mod tests {
     /// drifted honestly.
     #[test]
     fn any_refuted_version_skips_reauthentication() {
-        let account = ref_at(3);
-        let input = ref_at(4);
-        let superseded = [(account.object_id, account.version())].into();
+        let account = object_at(3);
+        let input = object_at(4);
+        let superseded = [account].into();
         let executed = BTreeMap::from([
-            (account.object_id, Version::from(5u64)),
-            (input.object_id, Version::from(2u64)),
+            (account.0, Version::from(5u64)),
+            (input.0, Version::from(2u64)),
         ]);
 
         assert!(!reauthenticates(&[account, input], &executed, superseded));
@@ -1040,5 +1064,73 @@ mod tests {
             sequenced_at(20, 25),
             10
         ));
+    }
+
+    /// The transaction takes the account as a mutable shared input. Its Move
+    /// authenticator authenticates the account and takes an immutable object.
+    /// Each entry becomes the id of the object at its index, shared or not,
+    /// with the recorded version. The two entries for the account are both
+    /// kept, with their different versions, and the entry whose index is out
+    /// of range is left out.
+    #[test]
+    fn entries_become_object_ids_in_record_order() {
+        let account = SharedObjectReference {
+            object_id: ObjectId::random(),
+            initial_shared_version: Version::from(1u64),
+            mutable: false,
+        };
+        let immutable_argument = random_object_ref();
+        let programmable = ProgrammableTransaction {
+            inputs: vec![CallArg::Shared(SharedObjectReference {
+                mutable: true,
+                ..account
+            })],
+            commands: vec![],
+        };
+        let authenticator = MoveAuthenticator::V1(MoveAuthenticatorV1::new(
+            vec![CallArg::ImmutableOrOwned(immutable_argument)],
+            vec![],
+            account,
+        ));
+        let transaction = SenderSignedTransaction::new(
+            Transaction::new_programmable(
+                Address::ZERO,
+                vec![random_object_ref()],
+                programmable,
+                1,
+                1,
+            ),
+            vec![UserSignature::MoveAuthenticator(authenticator)],
+        );
+        let attestation = Attestation::new_authority(
+            AttestationData::V1 {
+                computation_units: 1,
+                shared_object_versions: vec![
+                    (SharedInputIndex::TransactionInput(0), Version::from(3u64)),
+                    (
+                        SharedInputIndex::AuthenticatorArgument {
+                            authenticator: 0,
+                            argument: 0,
+                        },
+                        Version::from(7u64),
+                    ),
+                    (SharedInputIndex::TransactionInput(1), Version::from(9u64)),
+                    (
+                        SharedInputIndex::AuthenticatorAccount { authenticator: 0 },
+                        Version::from(4u64),
+                    ),
+                ],
+            },
+            0,
+        );
+
+        assert_eq!(
+            collect_attested_versions(&attestation, &transaction),
+            vec![
+                (account.object_id, Version::from(3u64)),
+                (immutable_argument.object_id, Version::from(7u64)),
+                (account.object_id, Version::from(4u64)),
+            ]
+        );
     }
 }
