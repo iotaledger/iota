@@ -2,13 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::str::FromStr;
+use std::{
+    net::{IpAddr, SocketAddr},
+    str::FromStr,
+};
 
 use async_graphql::{connection::Connection, *};
 use fastcrypto::encoding::{Base64, Encoding};
 use iota_indexer::apis::{ReadApi, SimulationFields};
 use iota_json::IotaJsonValue;
-use iota_json_rpc_api::{ReadApiServer, WriteApiServer};
+use iota_json_rpc_api::ReadApiServer;
 use iota_json_rpc_types::IotaTypeTag;
 use iota_sdk_types::{
     GasPayment, ObjectReference, StructTag, Transaction, TransactionExpiration, TransactionKind,
@@ -20,7 +23,7 @@ use serde::de::DeserializeOwned;
 use crate::{
     config::{DEFAULT_PAGE_SIZE, ServiceConfig},
     connection::ScanConnection,
-    error::Error,
+    error::{Error, view_call_error},
     mutation::Mutation,
     server::{builder::get_write_api, watermark_task::Watermark},
     types::{
@@ -104,15 +107,16 @@ impl Query {
             .extend()?;
         let write_api = get_write_api(ctx).extend()?;
         let results = write_api
-            .view_function_call(
-                // The fullnode limits the simulation when the write API
-                // forwards it.
-                &axum::http::Extensions::new(),
+            .view_function_call_impl(
                 function_name,
                 type_args,
                 call_args,
+                // The fullnode charges the simulation to this user when it
+                // lists this service as a forwarder.
+                client_ip(ctx),
             )
-            .await?;
+            .await
+            .map_err(view_call_error)?;
 
         results.try_into().extend()
     }
@@ -201,6 +205,9 @@ impl Query {
                     execution_error: true,
                     ..Default::default()
                 },
+                // The fullnode charges the simulation to this user when it
+                // lists this service as a forwarder.
+                client_ip(ctx),
             )
             .await
             .map_err(Error::from)
@@ -681,6 +688,12 @@ impl Query {
             .await
             .extend()
     }
+}
+
+/// The IP address of the client of the request, which this service names to
+/// the fullnode for the simulations it runs for the client.
+fn client_ip(ctx: &Context<'_>) -> Option<IpAddr> {
+    ctx.data_opt::<SocketAddr>().map(SocketAddr::ip)
 }
 
 fn deserialize_tx_data<T>(tx_bytes: &str) -> Result<T>

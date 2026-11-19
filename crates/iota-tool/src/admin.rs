@@ -720,7 +720,11 @@ fn print_rules(rules: &AccessRules, output: &mut Output<'_>) -> Result<()> {
     }
     let mut table = Table::new();
     table.set_header(["List", "Rule"]);
-    for (list, rules) in [("allow", &rules.allow), ("deny", &rules.deny)] {
+    for (list, rules) in [
+        ("allow", &rules.allow),
+        ("deny", &rules.deny),
+        ("forwarders", &rules.forwarders),
+    ] {
         for rule in rules {
             table.add_row([list, rule]);
         }
@@ -934,6 +938,7 @@ mod tests {
                 get(|| async {
                     Json(AccessRules {
                         allow: vec!["198.51.100.0/24".to_string()],
+                        forwarders: vec!["10.0.0.5".to_string()],
                         ..Default::default()
                     })
                 }),
@@ -1250,6 +1255,11 @@ mod tests {
             .unwrap()
             .out;
         assert!(out.contains("198.51.100.0/24"), "{out}");
+        assert!(
+            out.lines()
+                .any(|line| line.contains("forwarders") && line.contains("10.0.0.5")),
+            "{out}"
+        );
         assert!(out.ends_with("Default action: limit\n"), "{out}");
     }
 

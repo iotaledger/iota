@@ -30,8 +30,8 @@ use iota_types::{
     messages_grpc::{GetTxStatusRequest, TxStatusQuery, TxStatusUpdate},
     quorum_driver_types::ExecuteTransactionRequestType,
     traffic_control::{
-        AccessRules, DefaultAction, FreqThresholdConfig, PolicyConfig, PolicyType,
-        SimulationGasLimitConfig, TrafficControlReconfigParams, Weight,
+        AccessRules, DefaultAction, FORWARDED_CLIENT_IP_HEADER, FreqThresholdConfig, PolicyConfig,
+        PolicyType, SimulationGasLimitConfig, TrafficControlReconfigParams, Weight,
     },
     transaction::{SenderSignedTransactionAPI, TransactionEnvelope},
 };
@@ -476,6 +476,147 @@ async fn test_fullnode_json_rpc_simulation_gas_limit() -> Result<(), anyhow::Err
         .request("iota_getObject", rpc_params![gas.object_id])
         .await
         .expect("the client's other requests are served");
+    Ok(())
+}
+
+/// A fullnode that serves one simulation per client, and lists `forwarders`
+/// as forwarders.
+async fn cluster_with_forwarders(forwarders: &[&str]) -> TestCluster {
+    let policy_config = PolicyConfig {
+        simulation_gas_limit: Some(SimulationGasLimitConfig {
+            gas_per_sec: 1,
+            burst_gas: 5_000_000,
+        }),
+        access_rules: AccessRules {
+            forwarders: forwarders.iter().map(|rule| rule.to_string()).collect(),
+            ..Default::default()
+        },
+        dry_run: false,
+        ..Default::default()
+    };
+    TestClusterBuilder::new()
+        .with_fullnode_policy_config(Some(policy_config))
+        .build()
+        .await
+}
+
+/// A gRPC client of the fullnode that names `user` as its client.
+fn grpc_client_for(test_cluster: &TestCluster, user: &str) -> iota_grpc_client::GrpcClient {
+    let client = test_cluster.grpc_client();
+    let mut headers = client.headers().clone();
+    headers
+        .headers_mut()
+        .insert(FORWARDED_CLIENT_IP_HEADER, user.parse().unwrap());
+    client.with_headers(headers)
+}
+
+/// A fullnode charges the simulations of a forwarder to the users it names:
+/// a user over the gas limit is refused, while another user behind the same
+/// forwarder, and the forwarder's own requests, are served.
+#[tokio::test]
+async fn test_fullnode_charges_a_forwarded_simulation_to_its_user() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+    let test_cluster = cluster_with_forwarders(&["127.0.0.1", "::1"]).await;
+    let (sender, gas) = test_cluster.wallet.get_one_gas_object().await?.unwrap();
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let transaction = TestTransactionBuilder::new(sender, gas, rgp)
+        .transfer_iota(None, sender)
+        .build();
+
+    let user = grpc_client_for(&test_cluster, "198.51.100.7");
+    user.simulate_transaction(transaction.clone())
+        .await
+        .expect("the first simulation of the user is within its limit");
+    let error = user
+        .simulate_transaction(transaction.clone())
+        .await
+        .expect_err("the second simulation of the user is over its limit");
+    assert!(
+        error.to_string().contains("simulation gas limit reached"),
+        "{error}"
+    );
+    grpc_client_for(&test_cluster, "198.51.100.8")
+        .simulate_transaction(transaction.clone())
+        .await
+        .expect("another user behind the forwarder has its own balance");
+    test_cluster
+        .grpc_client()
+        .simulate_transaction(transaction)
+        .await
+        .expect("a request of the forwarder without the header is its own");
+    Ok(())
+}
+
+/// A fullnode ignores the client IP header of a client that is not a
+/// forwarder, and charges the request to that client.
+#[tokio::test]
+async fn test_fullnode_ignores_the_client_ip_header_of_another_client() -> Result<(), anyhow::Error>
+{
+    telemetry_subscribers::init_for_testing();
+    let test_cluster = cluster_with_forwarders(&["192.0.2.1"]).await;
+    let (sender, gas) = test_cluster.wallet.get_one_gas_object().await?.unwrap();
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let transaction = TestTransactionBuilder::new(sender, gas, rgp)
+        .transfer_iota(None, sender)
+        .build();
+
+    grpc_client_for(&test_cluster, "198.51.100.7")
+        .simulate_transaction(transaction.clone())
+        .await
+        .expect("the first simulation of the client is within its limit");
+    let error = grpc_client_for(&test_cluster, "198.51.100.8")
+        .simulate_transaction(transaction)
+        .await
+        .expect_err("naming another user does not give the client another balance");
+    assert!(
+        error.to_string().contains("simulation gas limit reached"),
+        "{error}"
+    );
+    Ok(())
+}
+
+/// A deny rule refuses a user that a forwarder names, on JSON-RPC, and the
+/// node serves the other users of the forwarder and the forwarder itself.
+#[tokio::test]
+async fn test_fullnode_deny_rule_refuses_a_forwarded_user() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+    let policy_config = PolicyConfig {
+        access_rules: AccessRules {
+            deny: vec!["198.51.100.7".to_string()],
+            forwarders: vec!["127.0.0.1".to_string(), "::1".to_string()],
+            ..Default::default()
+        },
+        dry_run: false,
+        ..Default::default()
+    };
+    let test_cluster = TestClusterBuilder::new()
+        .with_fullnode_policy_config(Some(policy_config))
+        .build()
+        .await;
+    let client_for = |user: &str| {
+        let mut headers = jsonrpsee::http_client::HeaderMap::new();
+        headers.insert(FORWARDED_CLIENT_IP_HEADER, user.parse().unwrap());
+        jsonrpsee::http_client::HttpClientBuilder::default()
+            .set_headers(headers)
+            .build(test_cluster.rpc_url())
+            .unwrap()
+    };
+
+    let error = client_for("198.51.100.7")
+        .request::<String, _>("iota_getChainIdentifier", rpc_params![])
+        .await
+        .expect_err("the deny rule refuses the forwarded user");
+    assert!(error.to_string().contains("Too many requests"), "{error}");
+    client_for("198.51.100.8")
+        .request::<String, _>("iota_getChainIdentifier", rpc_params![])
+        .await
+        .expect("another user of the forwarder is served");
+    test_cluster
+        .fullnode_handle
+        .rpc_client
+        .request::<String, _>("iota_getChainIdentifier", rpc_params![])
+        .await
+        .expect("the forwarder itself is served");
     Ok(())
 }
 

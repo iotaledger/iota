@@ -17,6 +17,7 @@ pub(crate) mod code {
     pub const DATA_PRUNED: &str = "DATA_PRUNED";
     pub const INTERNAL_SERVER_ERROR: &str = "INTERNAL_SERVER_ERROR";
     pub const REQUEST_TIMEOUT: &str = "REQUEST_TIMEOUT";
+    pub const TOO_MANY_REQUESTS: &str = "TOO_MANY_REQUESTS";
     pub const UNKNOWN: &str = "UNKNOWN";
 }
 
@@ -88,6 +89,10 @@ pub enum Error {
     ServerInit(String),
     #[error("Unsupported feature: {0}")]
     UnsupportedFeature(String),
+    /// The fullnode refused the request for now, and the client can retry it
+    /// later.
+    #[error("{0}")]
+    TooManyRequests(String),
 }
 
 impl ErrorExtensions for Error {
@@ -114,6 +119,9 @@ impl ErrorExtensions for Error {
             Error::UnsupportedFeature(_) => {
                 e.set("code", code::BAD_REQUEST);
             }
+            Error::TooManyRequests(_) => {
+                e.set("code", code::TOO_MANY_REQUESTS);
+            }
         })
     }
 }
@@ -122,8 +130,20 @@ impl From<IndexerError> for Error {
     fn from(e: IndexerError) -> Self {
         match e {
             IndexerError::DataPruned { message, .. } => Error::DataPruned(message),
+            IndexerError::ServerBusy(message) => Error::TooManyRequests(message),
             _ => Error::Internal(e.to_string()),
         }
+    }
+}
+
+/// The GraphQL error for a view call that failed in the write API of the
+/// indexer. A refusal of the fullnode stays a refusal; any other error reaches
+/// the client as the text of the JSON-RPC error of the write API, with no
+/// GraphQL error code.
+pub(crate) fn view_call_error(err: IndexerError) -> async_graphql::Error {
+    match err {
+        IndexerError::ServerBusy(message) => Error::TooManyRequests(message).extend(),
+        err => jsonrpsee::types::ErrorObjectOwned::from(err).into(),
     }
 }
 
@@ -134,5 +154,49 @@ impl From<IndexerStreamingError> for Error {
             | IndexerStreamingError::NotFound(_) => Error::Client(e.to_string()),
             _ => Error::Internal(e.to_string()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A refusal of the fullnode reaches a GraphQL client with the code
+    /// `TOO_MANY_REQUESTS` and the message of the fullnode.
+    #[test]
+    fn a_refusal_of_the_fullnode_reaches_the_client_as_a_refusal() {
+        let error = Error::from(IndexerError::ServerBusy("Too many requests".to_string())).extend();
+        assert_eq!(error.message, "Too many requests");
+        assert_eq!(
+            error.extensions.unwrap().get("code"),
+            Some(&async_graphql::Value::from(code::TOO_MANY_REQUESTS))
+        );
+        let error = Error::from(IndexerError::Grpc("down".to_string())).extend();
+        assert_eq!(
+            error.extensions.unwrap().get("code"),
+            Some(&async_graphql::Value::from(code::INTERNAL_SERVER_ERROR))
+        );
+    }
+
+    /// A view call refused by the fullnode reaches a GraphQL client as a
+    /// refusal, and other errors of a view call reach it as the text of the
+    /// JSON-RPC error of the write API, with no GraphQL error code.
+    #[test]
+    fn a_view_call_refusal_is_a_refusal_and_other_errors_are_unchanged() {
+        let error = view_call_error(IndexerError::ServerBusy("Too many requests".to_string()));
+        assert_eq!(error.message, "Too many requests");
+        assert_eq!(
+            error.extensions.unwrap().get("code"),
+            Some(&async_graphql::Value::from(code::TOO_MANY_REQUESTS))
+        );
+        let error = view_call_error(IndexerError::InvalidArgument(
+            "no such function".to_string(),
+        ));
+        assert!(
+            error.message.contains("no such function"),
+            "{}",
+            error.message
+        );
+        assert!(error.extensions.is_none());
     }
 }

@@ -25,8 +25,8 @@ use iota_types::{
     error::IotaError,
     traffic_control::{
         AccessRuleList, AccessRules, BlockedClient, BlockedClients, ClientGasBalance,
-        ClientIdSource, ClientUsage, DefaultAction, PolicyConfig, PolicyType,
-        TrafficControlReconfigParams, TrafficControlStatus,
+        ClientIdSource, ClientUsage, DefaultAction, FORWARDED_CLIENT_IP_HEADER, PolicyConfig,
+        PolicyType, TrafficControlReconfigParams, TrafficControlStatus,
     },
 };
 use tracing::{error, warn};
@@ -232,6 +232,23 @@ impl TrafficController {
         config.access_rules = self.client_access.access_rules();
         config.simulation_gas_limit = self.simulation_gas.settings();
         config
+    }
+
+    /// The client of a request that `client` sent with `headers`: the user
+    /// that a forwarder names in one [`FORWARDED_CLIENT_IP_HEADER`] header,
+    /// and `client` for any other request. Check and tally the request to the
+    /// client this returns.
+    pub fn forwarded_client(
+        &self,
+        client: Option<IpAddr>,
+        headers: &http::HeaderMap,
+    ) -> Option<IpAddr> {
+        let forwarded: Vec<&[u8]> = headers
+            .get_all(FORWARDED_CLIENT_IP_HEADER)
+            .iter()
+            .map(http::HeaderValue::as_bytes)
+            .collect();
+        self.client_access.forwarded_client(client, &forwarded)
     }
 
     /// The access rules in force, each in its canonical form.
@@ -1597,6 +1614,7 @@ mod tests {
                 allow: vec!["198.51.100.0/24".to_string()],
                 deny: vec![],
                 default: DefaultAction::Deny,
+                forwarders: vec![],
             }
         );
         assert_eq!(

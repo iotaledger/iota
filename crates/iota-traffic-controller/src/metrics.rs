@@ -24,6 +24,7 @@ pub struct TrafficControllerMetrics {
     pub allow_rules: IntGauge,
     pub deny_rules: IntGauge,
     pub default_deny: IntGauge,
+    pub forwarded_requests: IntCounter,
     pub simulation_gas_charged: IntCounter,
     pub simulation_gas_refusals: IntCounter,
     pub num_dry_run_simulation_gas_refusals: IntCounter,
@@ -130,6 +131,13 @@ impl TrafficControllerMetrics {
             default_deny: register_int_gauge_with_registry!(
                 "traffic_control_default_deny",
                 "If 1, the default action is deny; if 0, it is limit",
+                registry
+            )
+            .unwrap(),
+            forwarded_requests: register_int_counter_with_registry!(
+                "traffic_control_forwarded_requests",
+                "Number of requests from a forwarder that the node took as requests of the user \
+                    the forwarder named",
                 registry
             )
             .unwrap(),

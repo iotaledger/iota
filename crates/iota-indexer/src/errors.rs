@@ -15,7 +15,10 @@ use iota_types::{
 };
 use jsonrpsee::{
     core::ClientError as RpcError,
-    types::{ErrorObjectOwned, error::INTERNAL_ERROR_CODE},
+    types::{
+        ErrorObjectOwned,
+        error::{ErrorCode, INTERNAL_ERROR_CODE},
+    },
 };
 use thiserror::Error;
 
@@ -188,6 +191,11 @@ pub enum IndexerError {
     #[error("grpc error: `{0}`")]
     Grpc(String),
 
+    /// The fullnode refused the request for now, and the client can retry it
+    /// later.
+    #[error("{0}")]
+    ServerBusy(String),
+
     #[error(transparent)]
     SdkTypeConversion(#[from] SdkTypeConversionError),
 
@@ -232,6 +240,10 @@ impl From<IndexerError> for ErrorObjectOwned {
             );
         }
 
+        if let IndexerError::ServerBusy(message) = value {
+            return ErrorObjectOwned::owned(ErrorCode::ServerIsBusy.code(), message, None::<()>);
+        }
+
         internal_error(value)
     }
 }
@@ -255,8 +267,25 @@ impl From<url::ParseError> for IndexerError {
 }
 
 impl From<iota_grpc_client::GrpcError> for IndexerError {
+    /// A refusal of the fullnode stays a refusal, which its caller can retry.
     fn from(err: iota_grpc_client::GrpcError) -> Self {
-        IndexerError::Grpc(err.to_string())
+        let refusal = match &err {
+            iota_grpc_client::GrpcError::Server(status)
+                if tonic::Code::from(status.code) == tonic::Code::ResourceExhausted =>
+            {
+                Some(status.message.clone())
+            }
+            iota_grpc_client::GrpcError::Grpc(status)
+                if status.code() == tonic::Code::ResourceExhausted =>
+            {
+                Some(status.message().to_string())
+            }
+            _ => None,
+        };
+        match refusal {
+            Some(message) => IndexerError::ServerBusy(message),
+            None => IndexerError::Grpc(err.to_string()),
+        }
     }
 }
 
@@ -271,6 +300,30 @@ mod tests {
     use jsonrpsee::types::error::INTERNAL_ERROR_CODE;
 
     use super::*;
+
+    /// A refusal of the fullnode reaches an RPC client as `ServerIsBusy` with
+    /// the message of the fullnode, and other gRPC errors stay internal.
+    #[test]
+    fn a_refusal_of_the_fullnode_reaches_the_client_as_a_refusal() {
+        for err in [
+            iota_grpc_client::GrpcError::Grpc(Box::new(tonic::Status::resource_exhausted(
+                "Too many requests",
+            ))),
+            iota_grpc_client::GrpcError::Server(iota_grpc_client::RpcStatus::new(
+                tonic::Code::ResourceExhausted,
+                "Too many requests",
+            )),
+        ] {
+            let object: ErrorObjectOwned = IndexerError::from(err).into();
+            assert_eq!(object.code(), ErrorCode::ServerIsBusy.code());
+            assert_eq!(object.message(), "Too many requests");
+        }
+        let object: ErrorObjectOwned = IndexerError::from(iota_grpc_client::GrpcError::Grpc(
+            Box::new(tonic::Status::unavailable("down")),
+        ))
+        .into();
+        assert_eq!(object.code(), INTERNAL_ERROR_CODE);
+    }
 
     /// A database failure reaches an RPC client as a fixed message, while the
     /// wrapped diesel error keeps its detail for server-side logs.

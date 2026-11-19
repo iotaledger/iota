@@ -114,6 +114,9 @@ where
                 None
             }
         };
+        // Before the check, so that the rules and every policy apply to the
+        // user a forwarder names rather than to the forwarder.
+        let client = traffic_controller.forwarded_client(client, req.headers());
 
         // Tower contract: `self.inner` is the ready one (poll_ready set it up),
         // so call it and leave the clone for the next request.
