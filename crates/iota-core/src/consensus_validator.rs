@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use eyre::WrapErr;
-use fastcrypto_tbls::dkg_v1;
+use fastcrypto_threshold::dkg_v1;
 use iota_metrics::monitored_scope;
 use iota_sdk_types::SenderSignedTransaction;
 use iota_types::{

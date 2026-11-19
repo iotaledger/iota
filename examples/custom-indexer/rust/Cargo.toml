@@ -31,8 +31,12 @@ path = "hybrid_reader.rs"
 name = "remote_reader_with_filters"
 path = "remote_reader_with_filters.rs"
 
-# fastcrypto-tbls/-vdf/-zkp (pulled transitively via the monorepo crates) fetch
-# fastcrypto through an in-repo path dep. Redirect it to the crates.io release
-# so this workspace shares a single fastcrypto instead of two conflicting copies.
-[patch."https://github.com/MystenLabs/fastcrypto"]
-fastcrypto = "=0.1.11"
+[patch.crates-io]
+iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9be66f5538f5fcadab94bab0b0c4df61d743922f" }
+iota-sdk-graphql-client = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9be66f5538f5fcadab94bab0b0c4df61d743922f" }
+iota-sdk-graphql-client-build = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9be66f5538f5fcadab94bab0b0c4df61d743922f" }
+iota-sdk-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9be66f5538f5fcadab94bab0b0c4df61d743922f" }
+iota-sdk-grpc-types = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9be66f5538f5fcadab94bab0b0c4df61d743922f" }
+iota-sdk-move-types = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9be66f5538f5fcadab94bab0b0c4df61d743922f" }
+iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9be66f5538f5fcadab94bab0b0c4df61d743922f" }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9be66f5538f5fcadab94bab0b0c4df61d743922f" }

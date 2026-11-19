@@ -13,7 +13,7 @@ use arc_swap::{ArcSwap, ArcSwapOption};
 use dashmap::DashMap;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::{groups::bls12381, traits::ToFromBytes};
-use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
+use fastcrypto_threshold::{dkg_v1, nodes::PartyId};
 use futures::{
     StreamExt,
     future::{Either, join_all},
