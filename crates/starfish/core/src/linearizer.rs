@@ -118,26 +118,20 @@ impl Linearizer {
         // votes; the quorum check fires only once, so commit it on first traversal,
         // before this commit's acknowledgments are counted.
         let mut traversed_with_quorum = Vec::new();
-        if self
+        let commit_once_traversed = self
             .context
             .protocol_config
-            .consensus_commit_transactions_only_for_traversed_headers()
-        {
-            let commit_once_traversed = self
-                .context
-                .protocol_config
-                .consensus_commit_transactions_once_traversed();
-            for block_header in &to_commit {
-                let block_ref = block_header.reference();
-                if self.traversed_headers_tracker.insert(block_ref)
-                    && commit_once_traversed
-                    && self
-                        .transactions_ack_tracker
-                        .get(&block_ref)
-                        .is_some_and(|acks| acks.reached_threshold(&self.context.committee))
-                {
-                    traversed_with_quorum.push(block_ref);
-                }
+            .consensus_commit_transactions_once_traversed();
+        for block_header in &to_commit {
+            let block_ref = block_header.reference();
+            if self.traversed_headers_tracker.insert(block_ref)
+                && commit_once_traversed
+                && self
+                    .transactions_ack_tracker
+                    .get(&block_ref)
+                    .is_some_and(|acks| acks.reached_threshold(&self.context.committee))
+            {
+                traversed_with_quorum.push(block_ref);
             }
         }
 
@@ -363,15 +357,9 @@ impl Linearizer {
 
         self.transactions_ack_tracker =
             self.transactions_ack_tracker.split_off(&lower_header_bound);
-        if self
-            .context
-            .protocol_config
-            .consensus_commit_transactions_only_for_traversed_headers()
-        {
-            self.traversed_headers_tracker = self
-                .traversed_headers_tracker
-                .split_off(&lower_header_bound);
-        }
+        self.traversed_headers_tracker = self
+            .traversed_headers_tracker
+            .split_off(&lower_header_bound);
     }
 
     /// This function is called to add the transaction acknowledgments to the
@@ -396,15 +384,10 @@ impl Linearizer {
             let was_below_threshold = !votes_collector.reached_threshold(&self.context.committee);
 
             if votes_collector.add(authority, &self.context.committee) && was_below_threshold {
-                // With traversal gating, commit now only if the header is already
-                // traversed; otherwise, with `consensus_commit_transactions_once_traversed`,
-                // the commit that traverses it commits the transactions.
-                if !self
-                    .context
-                    .protocol_config
-                    .consensus_commit_transactions_only_for_traversed_headers()
-                    || self.traversed_headers_tracker.contains(&block_ref)
-                {
+                // Commit now only if the header is already traversed; otherwise,
+                // with `consensus_commit_transactions_once_traversed`, the commit
+                // that traverses it commits the transactions.
+                if self.traversed_headers_tracker.contains(&block_ref) {
                     transactions_to_commit.push(block_ref);
                 }
             }
@@ -448,14 +431,6 @@ impl Linearizer {
         &mut self,
         headers: impl IntoIterator<Item = &'a VerifiedBlockHeader>,
     ) {
-        if !self
-            .context
-            .protocol_config
-            .consensus_commit_transactions_only_for_traversed_headers()
-        {
-            return;
-        }
-
         for header in headers {
             self.traversed_headers_tracker.insert(header.reference());
         }
@@ -1479,8 +1454,6 @@ mod tests {
         let (mut ctx, _) = Context::new_for_test(num_authorities);
         ctx.protocol_config
             .set_consensus_commit_transactions_once_traversed_for_testing(commit_once_traversed);
-        ctx.protocol_config
-            .set_consensus_commit_transactions_only_for_traversed_headers_for_testing(true);
         let context = Arc::new(ctx);
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),

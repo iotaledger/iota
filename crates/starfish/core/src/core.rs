@@ -3252,30 +3252,9 @@ mod test {
     #[tokio::test]
     #[serial]
     async fn test_sequenced_transactions_no_headers() {
-        test_sequenced_transactions_no_headers_impl(true).await;
-    }
-
-    #[tokio::test]
-    #[serial]
-    #[should_panic(
-        expected = "consensus_fast_commit_sync requires consensus_commit_transactions_only_for_traversed_headers to be enabled"
-    )]
-    async fn test_sequenced_transactions_no_headers_invalid_config() {
-        test_sequenced_transactions_no_headers_impl(false).await;
-    }
-
-    async fn test_sequenced_transactions_no_headers_impl(commit_only_for_traversed_headers: bool) {
         telemetry_subscribers::init_for_testing();
         let committee_size = 10;
-        let (mut context, _key_pairs) = Context::new_for_test(committee_size);
-        context
-            .protocol_config
-            .set_consensus_commit_transactions_only_for_traversed_headers_for_testing(
-                commit_only_for_traversed_headers,
-            );
-        // Enforce the protocol-config invariant before exercising the pipeline:
-        // fast commit sync requires committing only for traversed headers.
-        assert!(context.protocol_config.consensus_fast_commit_sync());
+        let (context, _key_pairs) = Context::new_for_test(committee_size);
         let own_index = AuthorityIndex::new_for_test(0);
         let core_fixture_own = CoreTestFixture::new(
             context.clone(),
@@ -3347,36 +3326,18 @@ mod test {
                 existing_headers.insert(*block_ref);
             }
             for transaction in &transactions {
-                // Transactions from all authors except authority_to_skip should also have a
-                // corresponding block_ref being traversed in the committed sub_dag
-                // Same after num_rounds_with_skip_ancestors
-                if transaction.author() != authority_to_skip
-                    || transaction.round() >= num_rounds_with_skip_ancestors
-                {
-                    assert!(
-                        existing_headers.contains(
-                            &transaction
-                                .block_ref()
-                                .expect("block_ref should be set in test")
-                        ),
-                        "{}",
-                        transaction
-                            .block_ref()
-                            .expect("block_ref should be set in test")
-                    );
-                } else {
-                    assert!(
-                        !existing_headers.contains(
-                            &transaction
-                                .block_ref()
-                                .expect("block_ref should be set in test")
-                        ) && !commit_only_for_traversed_headers,
-                        "{}",
-                        transaction
-                            .block_ref()
-                            .expect("block_ref should be set in test")
-                    );
-                }
+                // Every sequenced transaction has its block_ref traversed in the
+                // committed sub_dags, so none of authority_to_skip's transactions
+                // before num_rounds_with_skip_ancestors is sequenced.
+                let block_ref = transaction
+                    .block_ref()
+                    .expect("block_ref should be set in test");
+                assert!(
+                    transaction.author() != authority_to_skip
+                        || transaction.round() >= num_rounds_with_skip_ancestors,
+                    "{block_ref}"
+                );
+                assert!(existing_headers.contains(&block_ref), "{block_ref}");
             }
             all_sequenced_transactions.extend(transactions);
             if sub_dag_leader_round == total_rounds - 2 {
@@ -3399,17 +3360,12 @@ mod test {
             .find(|(a, _)| a.author == authority_to_skip)
             .unwrap()
             .0;
-        if commit_only_for_traversed_headers {
-            assert_eq!(
-                first_missing_transaction_from_skipped.round,
-                num_rounds_with_skip_ancestors
-            );
-        } else {
-            assert_eq!(first_missing_transaction_from_skipped.round, 1);
-        }
-        // Ensure that the block header corresponding to the
-        // first_missing_transaction_from_skipped is not in dag_state
-        // if commit_only_for_traversed_headers=false and in dag_state otherwise
+        assert_eq!(
+            first_missing_transaction_from_skipped.round,
+            num_rounds_with_skip_ancestors
+        );
+        // The block header corresponding to the first_missing_transaction_from_skipped
+        // is in dag_state.
         let is_in_dag_state = {
             let dag = core_catch_up.dag_state.read();
             // resolve_block_refs is empty iff the block header is absent from
@@ -3418,7 +3374,7 @@ mod test {
                 .iter()
                 .any(|block_ref| dag.get_verified_block_headers(&[*block_ref])[0].is_some())
         };
-        assert_eq!(is_in_dag_state, commit_only_for_traversed_headers);
+        assert!(is_in_dag_state);
         // No commit is solid (with all transactions being locally available) yet:
         // the round 1 leader is committed optimistically, so even the first commit
         // sequences round 1 transactions, and none of them are synced yet.
@@ -3453,18 +3409,13 @@ mod test {
         assert_eq!(last_solid_commit_round, last_commit_round);
         // Flush to evict verified transactions from first rounds;
         core_catch_up.dag_state.write().flush();
-        // Try to get a verified transaction from skipped authority. It should be
-        // impossible if commit_only_for_traversed_headers = false with
-        // get_verified_transactions() method since the header is not available;
-        // should be possible with commit_only_for_traversed_headers = true
+        // A verified transaction from the skipped authority is available, since its
+        // header is in dag_state.
         let opt_verified_transaction = core_catch_up
             .dag_state
             .read()
             .get_verified_transactions(&[first_missing_transaction_from_skipped]);
-        assert_eq!(
-            opt_verified_transaction[0].is_some(),
-            commit_only_for_traversed_headers
-        );
+        assert!(opt_verified_transaction[0].is_some());
         // The transaction from the skipped authority was flushed, so its bytes
         // are in the store.
         let opt_serialized_transaction = core_fixture_catch_up
