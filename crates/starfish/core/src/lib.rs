@@ -87,5 +87,6 @@ pub use storage::delete_all_transactions_from_store;
 pub use transaction::NoopTransactionVerifier;
 pub use transaction::{
     BlockStatus, ClientError, Priority, TransactionClient, TransactionVerifier, ValidationError,
+    check_transactions_fit,
 };
 pub use transaction_ref::TransactionRef;

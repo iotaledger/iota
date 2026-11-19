@@ -56,6 +56,7 @@ use crate::{
     consensus_handler::{SequencedConsensusTransactionKey, classify},
     epoch::reconfiguration::{ReconfigState, ReconfigurationInitiator},
     metrics::LatencyObserver,
+    starfish_adapter::to_iota_error,
 };
 
 #[cfg(test)]
@@ -1721,12 +1722,9 @@ impl SubmitToConsensus for Arc<ConsensusAdapter> {
     }
 }
 
-/// Checks that consensus accepts `transactions` as one submission: each one
-/// is no larger than [`ProtocolConfig::max_transaction_size_bytes()`] once
-/// serialized, there are no more of them than
-/// [`ProtocolConfig::max_num_transactions_in_block()`], and together they are
-/// no larger than [`ProtocolConfig::max_transactions_in_block_bytes()`].
-/// Starfish refuses a submission that exceeds any of these limits.
+/// Checks that consensus accepts `transactions` as one submission, by the
+/// rule Starfish applies to their serialized sizes,
+/// [`starfish_core::check_transactions_fit()`].
 ///
 /// # Errors
 ///
@@ -1737,57 +1735,19 @@ fn check_consensus_transactions_fit(
     transactions: &[ConsensusTransaction],
     protocol_config: &ProtocolConfig,
 ) -> IotaResult {
-    let max_count = protocol_config.max_num_transactions_in_block();
-    fp_ensure!(
-        transactions.len() as u64 <= max_count,
-        IotaError::UserInput {
-            error: UserInputError::SizeLimitExceeded {
-                limit: format!(
-                    "number of consensus transactions in one submission exceeded maximum of \
-                        {max_count}"
-                ),
-                value: transactions.len().to_string(),
-            }
-        }
-    );
+    let transaction_sizes = transactions
+        .iter()
+        .map(|transaction| {
+            bcs::serialized_size(transaction)
+                .map(|size| size as u64)
+                .map_err(|error| IotaError::TransactionSerialization {
+                    error: error.to_string(),
+                })
+        })
+        .collect::<IotaResult<Vec<_>>>()?;
 
-    let max_size = protocol_config.max_transaction_size_bytes();
-    let mut total_size: u64 = 0;
-    for transaction in transactions {
-        let size = bcs::serialized_size(transaction).map_err(|error| {
-            IotaError::TransactionSerialization {
-                error: error.to_string(),
-            }
-        })? as u64;
-        fp_ensure!(
-            size <= max_size,
-            IotaError::UserInput {
-                error: UserInputError::SizeLimitExceeded {
-                    limit: format!(
-                        "serialized consensus transaction size exceeded maximum of {max_size}"
-                    ),
-                    value: size.to_string(),
-                }
-            }
-        );
-        total_size = total_size.saturating_add(size);
-    }
-
-    let max_total_size = protocol_config.max_transactions_in_block_bytes();
-    fp_ensure!(
-        total_size <= max_total_size,
-        IotaError::UserInput {
-            error: UserInputError::SizeLimitExceeded {
-                limit: format!(
-                    "total serialized size of consensus transactions in one submission exceeded \
-                        maximum of {max_total_size}"
-                ),
-                value: total_size.to_string(),
-            }
-        }
-    );
-
-    Ok(())
+    starfish_core::check_transactions_fit(transaction_sizes.into_iter(), protocol_config)
+        .map_err(to_iota_error)
 }
 
 pub fn position_submit_certificate(
