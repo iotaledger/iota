@@ -189,7 +189,7 @@ fun key_proof_message_is_the_text_for_the_transaction() {
     let ctx = ctx_in_epoch(@0x0, 0);
 
     assert_eq(
-        smart_account_builtin_auth::key_proof_message(
+        smart_account_builtin_auth::key_proof_message_for_testing(
             ctx.chain_identifier(),
             @0x0,
             true,
@@ -203,7 +203,7 @@ fun key_proof_message_is_the_text_for_the_transaction() {
 #[test]
 fun key_proof_message_matches_the_example_of_the_design() {
     assert_eq(
-        smart_account_builtin_auth::key_proof_message(
+        smart_account_builtin_auth::key_proof_message_for_testing(
             EXAMPLE_CHAIN_IDENTIFIER,
             EXAMPLE_ACCOUNT,
             true,
@@ -217,7 +217,7 @@ fun key_proof_message_matches_the_example_of_the_design() {
 #[test]
 #[expected_failure(abort_code = 5, location = iota::smart_account_builtin_auth)]
 fun key_proof_message_aborts_for_a_short_chain_identifier() {
-    smart_account_builtin_auth::key_proof_message(
+    smart_account_builtin_auth::key_proof_message_for_testing(
         x"2304aa97",
         EXAMPLE_ACCOUNT,
         true,
@@ -229,7 +229,7 @@ fun key_proof_message_aborts_for_a_short_chain_identifier() {
 #[test]
 #[expected_failure(abort_code = 5, location = iota::smart_account_builtin_auth)]
 fun key_proof_message_aborts_for_a_short_nonce() {
-    smart_account_builtin_auth::key_proof_message(
+    smart_account_builtin_auth::key_proof_message_for_testing(
         EXAMPLE_CHAIN_IDENTIFIER,
         EXAMPLE_ACCOUNT,
         true,
