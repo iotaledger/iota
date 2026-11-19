@@ -2534,6 +2534,12 @@ impl ProtocolConfig {
                     .expect("failed to parse ProtocolConfig feature flags override env variables");
 
             feature_flag_overrides.apply_to(&mut ret.feature_flags);
+
+            // An environment override can switch attestation off but cannot
+            // unset a parameter, so the window goes with the flag.
+            if !ret.feature_flags.enable_validator_attestation {
+                ret.attestation_freshness_window_commits = None;
+            }
         }
 
         // Devnet runs the P-COOL flow from version 32, before the settings it
