@@ -4,7 +4,7 @@
 // Exercises GraphQL transaction-by-digest queries under pruning, with no
 // historical fallback configured. Covers:
 // - `Query.transactionBlock(digest)` for pruned, unpruned and unknown digests
-// - `Query.transactionBlocksByDigests` for pruned and unpruned digests
+// - `Query.transactionsByDigests` for pruned and unpruned digests
 // - `Event.transactionBlock` on an event from an unpruned tx
 // - `MoveObject.previousTransactionBlock` where the prior-tx digest is pruned
 
@@ -72,11 +72,13 @@ module Test::M {
 }
 
 //# run-graphql
-# C: mixed case - one pruned and one unpruned. The list answers per digest, so
-# the pruned one is left out instead of failing the request.
+# C: mixed case - one pruned and one unpruned. The page has one node per
+# digest, so the pruned one is null instead of failing the request.
 {
-  transactionBlocksByDigests(digests: ["@{digest_2}", "@{digest_10}"]) {
-    digest
+  transactionsByDigests(digests: ["@{digest_2}", "@{digest_10}"]) {
+    nodes {
+      digest
+    }
   }
 }
 

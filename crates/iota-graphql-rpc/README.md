@@ -161,7 +161,7 @@ The remaining options tune batching, concurrency, and caching of the fallback re
 These queries use the fallback when the requested data has been pruned from Postgres:
 
 - Checkpoints: `checkpoint(id)` (by sequence number or digest), `checkpoints`, `Epoch.checkpoints`
-- Transactions by digest: `transactionBlock(digest)`, `transactionBlocksByDigests`
+- Transactions by digest: `transactionBlock(digest)`, `transactionsByDigests`
 - Transactions by filter: `transactionBlocks(filter: { atCheckpoint })` and `Checkpoint.transactionBlocks`; `transactionBlocks(filter: { affectedAddress })` and `Address.transactionBlocks(relation: AFFECTED)`; `transactionBlocks(filter: { transactionIds })`
 - Events of a transaction: `events(filter: { transactionDigest })`
 - Objects at a past version: `object(address, version)`, including dynamic fields resolved at a parent object's version
