@@ -272,7 +272,7 @@ pub(crate) struct DagState {
 
     /// Commit index of the last leader schedule update, including one whose
     /// `CommitInfo` is not flushed yet.
-    last_commit_info_index: CommitIndex,
+    last_schedule_update_index: CommitIndex,
 
     /// Commit votes pending to be included in new blocks. Ordered by
     /// `(index, digest)` so eviction below a threshold uses `split_off`.
@@ -362,10 +362,10 @@ impl DagState {
         let commit_info = store
             .read_last_commit_info()
             .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
-        let (mut last_committed_rounds, last_commit_info_index) =
+        let (mut last_committed_rounds, last_schedule_update_index) =
             if let Some((commit_ref, commit_info)) = commit_info {
                 tracing::info!("Recovering committed state from {commit_ref} {commit_info:?}");
-                let index = commit_info_index(&commit_ref, &commit_info);
+                let index = commit_info.reputation_scores.commit_range.end();
                 (commit_info.committed_rounds, index)
             } else {
                 tracing::info!("Found no stored CommitInfo to recover from");
@@ -381,7 +381,7 @@ impl DagState {
         // state once it completes.
         if !fast_sync_ongoing {
             if let Some(last_commit) = last_commit.as_ref() {
-                let recovery_start = last_commit_info_index.saturating_add(1);
+                let recovery_start = last_schedule_update_index.saturating_add(1);
                 store
                     .scan_commits((recovery_start..=last_commit.index()).into())
                     .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"))
@@ -397,7 +397,8 @@ impl DagState {
 
         info!(
             "DagState initialized: {last_commit:?}; {last_committed_rounds:?}; \
-            last_commit_info_index={last_commit_info_index}; fast_sync_ongoing={fast_sync_ongoing}"
+            last_schedule_update_index={last_schedule_update_index}; \
+            fast_sync_ongoing={fast_sync_ongoing}"
         );
 
         let mut state = Self {
@@ -424,7 +425,7 @@ impl DagState {
             fast_sync_ongoing_flag_to_write: None,
             commit_info_to_write: vec![],
             pending_acknowledgments: BTreeSet::new(),
-            last_commit_info_index,
+            last_schedule_update_index,
             misbehavior_store,
             store: store.clone(),
             cached_rounds,
@@ -1992,18 +1993,17 @@ impl DagState {
     /// Add commit info is called before the first commit in a new leader
     /// scheduler window
     pub(crate) fn add_commit_info(&mut self, reputation_scores: ReputationScores) {
+        self.last_schedule_update_index = reputation_scores.commit_range.end();
         let commit_info = CommitInfo {
             committed_rounds: self.last_committed_rounds.clone(),
             reputation_scores,
         };
-        let last_commit_ref = self
+        let last_commit = self
             .last_commit
             .as_ref()
-            .expect("Last commit should already be set.")
-            .reference();
-        self.last_commit_info_index = commit_info_index(&last_commit_ref, &commit_info);
+            .expect("Last commit should already be set.");
         self.commit_info_to_write
-            .push((last_commit_ref, commit_info));
+            .push((last_commit.reference(), commit_info));
     }
 
     pub(crate) fn take_commit_votes(&mut self, limit: usize) -> Vec<CommitVote> {
@@ -2501,16 +2501,15 @@ impl DagState {
 
     /// Returns the commit index of the last leader schedule update, including
     /// one whose commit info is not flushed yet, or GENESIS_COMMIT_INDEX if
-    /// none. This is the end of the reputation score commit range (or the
-    /// commit ref index for genesis).
-    pub(crate) fn last_commit_info_index(&self) -> CommitIndex {
-        self.last_commit_info_index
+    /// none. This is the end of the commit range of its reputation scores.
+    pub(crate) fn last_schedule_update_index(&self) -> CommitIndex {
+        self.last_schedule_update_index
     }
 
     /// Returns the number of commits since the last leader schedule update.
     pub(crate) fn commits_since_schedule_update(&self) -> CommitIndex {
         self.last_commit_index()
-            .saturating_sub(self.last_commit_info_index)
+            .saturating_sub(self.last_schedule_update_index)
     }
 
     /// The last round that should get evicted after a cache-clean-up operation.
@@ -2700,19 +2699,6 @@ impl DagState {
             .map(|empty| empty.serialized().clone())
     }
 }
-
-/// The commit index a `CommitInfo` stored at `commit_ref` records the leader
-/// schedule update at: the end of its reputation score commit range, or the
-/// commit ref index for genesis.
-fn commit_info_index(commit_ref: &CommitRef, commit_info: &CommitInfo) -> CommitIndex {
-    let range_end = commit_info.reputation_scores.commit_range.end();
-    if range_end == GENESIS_COMMIT_INDEX {
-        commit_ref.index
-    } else {
-        range_end
-    }
-}
-
 #[cfg(test)]
 mod test {
     use std::vec;
@@ -3201,7 +3187,7 @@ mod test {
         for commit in commits.clone() {
             dag_state.add_commit(commit.clone());
             if commit.index() == 2 {
-                dag_state.add_commit_info(ReputationScores::default());
+                dag_state.add_commit_info(ReputationScores::new((1..=2).into(), vec![]));
             }
         }
         dag_state.update_last_solid_subdag_base(subdag_bases.last().unwrap().clone());
