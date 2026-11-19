@@ -40,7 +40,7 @@ use iota::public_key::PublicKey;
 const ETransactionSenderIsNotTheSmartAccount: vector<u8> =
     b"Transaction must be signed by the smart account.";
 #[error(code = 1)]
-const EBuiltinAuthenticatorsNotEnabled: vector<u8> = b"Built-in Move authenticators not enabled.";
+const ESmartAccountsNotEnabled: vector<u8> = b"Smart accounts not enabled.";
 
 // === Structs ===
 
@@ -76,14 +76,14 @@ public struct SmartAccountBuilder {
 /// `build_v1` aborts for a builder made here with the built-in authenticator, since it has no
 /// key.
 ///
-/// Aborts if `enable_builtin_move_authenticators` is not enabled in the protocol config.
+/// Aborts if `enable_smart_accounts` is not enabled in the protocol config.
 public fun builder_v1(
     authenticator: AuthenticatorFunctionRefV1<SmartAccount>,
     ctx: &mut TxContext,
 ): SmartAccountBuilder {
     assert!(
-        protocol_config::is_feature_enabled(b"enable_builtin_move_authenticators"),
-        EBuiltinAuthenticatorsNotEnabled,
+        protocol_config::is_feature_enabled(b"enable_smart_accounts"),
+        ESmartAccountsNotEnabled,
     );
 
     SmartAccountBuilder {

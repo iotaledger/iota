@@ -16,7 +16,7 @@ use std::ascii;
 
 #[test]
 fun builder_v1_builds_shared_account() {
-    protocol_config::set_feature_enabled_for_testing(b"enable_builtin_move_authenticators", true);
+    protocol_config::set_feature_enabled_for_testing(b"enable_smart_accounts", true);
     let mut scenario = test_scenario::begin(@0x0);
 
     let authenticator = test_authenticator();
@@ -33,9 +33,9 @@ fun builder_v1_builds_shared_account() {
 }
 
 #[test]
-#[expected_failure(abort_code = smart_account::EBuiltinAuthenticatorsNotEnabled)]
-fun builder_v1_aborts_without_builtin_authenticators() {
-    protocol_config::set_feature_enabled_for_testing(b"enable_builtin_move_authenticators", false);
+#[expected_failure(abort_code = smart_account::ESmartAccountsNotEnabled)]
+fun builder_v1_aborts_without_smart_accounts() {
+    protocol_config::set_feature_enabled_for_testing(b"enable_smart_accounts", false);
     let mut scenario = test_scenario::begin(@0x0);
 
     smart_account::builder_v1(test_authenticator(), scenario.ctx()).build_v1();
