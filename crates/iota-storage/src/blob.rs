@@ -231,20 +231,11 @@ mod tests {
     #[test]
     fn blob_iter_reads_until_end_of_input() {
         for count in [0u64, 1, 3] {
-            let mut blobs = Vec::new();
-            for value in 0..count {
-                Blob::encode(&value, BlobEncoding::Bcs)
-                    .unwrap()
-                    .write(&mut blobs)
-                    .unwrap();
-            }
-            let mut file = MAGIC.to_be_bytes().to_vec();
-            file.push(StorageFormat::Blob.into());
-            file.push(FileCompression::None.into());
-            file.extend(blobs);
+            let expected: Vec<u64> = (0..count).collect();
+            let file = uncompressed_blob_file(&expected);
 
             let values: Vec<u64> = make_iterator(MAGIC, Cursor::new(file)).unwrap().collect();
-            assert_eq!(values, (0..count).collect::<Vec<_>>());
+            assert_eq!(values, expected);
         }
     }
 
@@ -308,12 +299,13 @@ mod tests {
         assert_eq!(values, vec![0, 1, 2]);
     }
 
-    /// The iterator also accepts a reader that is not `Send`. When
-    /// `make_iterator` requires a `Send` reader, this test does not compile.
+    /// The iterator also accepts a reader that is not `Send` and borrows its
+    /// input. When `make_iterator` requires a `Send` or a `'static` reader,
+    /// this test does not compile.
     #[test]
-    fn blob_iter_accepts_reader_that_is_not_send() {
+    fn blob_iter_accepts_borrowed_reader_that_is_not_send() {
         let file: Rc<[u8]> = uncompressed_blob_file(&[0, 1, 2]).into();
-        let values: Vec<u64> = make_iterator(MAGIC, Cursor::new(file)).unwrap().collect();
+        let values: Vec<u64> = make_iterator(MAGIC, Cursor::new(&file)).unwrap().collect();
         assert_eq!(values, vec![0, 1, 2]);
     }
 }
