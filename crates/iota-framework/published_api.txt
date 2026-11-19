@@ -3901,9 +3901,6 @@ rotate_to_custom_auth_v1
 rotate_public_key
 	public fun
 	0x2::smart_account_builtin_auth
-key_proof_message
-	public(package) fun
-	0x2::smart_account_builtin_auth
 claim_account_v1
 	fun
 	0x2::smart_account_builtin_auth
@@ -3911,6 +3908,9 @@ with_public_key
 	fun
 	0x2::smart_account_builtin_auth
 verify_key_proof
+	fun
+	0x2::smart_account_builtin_auth
+key_proof_message
 	fun
 	0x2::smart_account_builtin_auth
 IotaSystemAdminCap
