@@ -33,13 +33,14 @@ use iota_sdk_crypto::{
 };
 use iota_sdk_types::{
     Address, Argument, ExecutionError, Identifier, MoveAuthenticatorV1, MoveLocation, ObjectId,
-    ObjectReference, OwnedObjectReference, Owner, ProgrammableTransaction, SenderSignedTransaction,
-    SharedObjectReference, SignatureScheme, Transaction, TransactionEffects, TypeTag,
-    UserSignature, WriteKind,
+    ObjectReference, OwnedObjectReference, Owner, PersonalMessage, ProgrammableTransaction,
+    SenderSignedTransaction, SharedObjectReference, SignatureScheme, Transaction,
+    TransactionEffects, TypeTag, UserSignature, WriteKind,
     crypto::{
         Intent, IntentMessage, MultisigAggregatedSignature, MultisigCommittee, MultisigMember,
         PasskeyAuthenticator, SimpleSignature,
     },
+    key_proof::key_proof_message_v1,
 };
 use iota_test_transaction_builder::{
     publish_basics_package, publish_package, publish_package_with_unpublished_deps,
@@ -111,6 +112,9 @@ const SMART_ACCOUNT_FREE_ACCESS_MODULE_NAME: &str = "smart_account_free_access";
 const SMART_ACCOUNT_FREE_ACCESS_FN_NAME: &str = "authenticate";
 /// The code of `smart_account::ESmartAccountsNotEnabled`.
 const SMART_ACCOUNTS_NOT_ENABLED_ERROR_CODE: u8 = 1;
+/// The last epoch in which the key proofs of the `SmartAccount` tests are
+/// valid.
+const KEY_PROOF_VALID_UNTIL_EPOCH: u64 = 10;
 const AA_BUILTIN_MODULE_NAME: &str = "builtin_keyed_aa";
 const AA_BUILTIN_CREATE_FN: &str = "create";
 
@@ -5878,30 +5882,40 @@ async fn test_smart_account_key_rotation() -> Result<(), anyhow::Error> {
     let account = test_env.create_builtin_smart_account(&old_kp).await?;
     let sender: Address = account.object_id.into();
 
-    let pt = {
+    let new_pk = new_kp.public_key();
+    let rotate_pt = |key_proof: Vec<u8>| -> anyhow::Result<ProgrammableTransaction> {
         let mut builder = ProgrammableTransactionBuilder::new();
-        let account_arg = builder.obj(CallArg::Shared(SharedObjectReference::new(
-            account.object_id,
-            account.version,
-            true,
-        )))?;
-        let new_pk = new_kp.public_key();
-        let public_key = move_public_key_arg(&mut builder, new_pk.scheme(), new_pk.as_ref())?;
+        let arguments = vec![
+            builder.obj(CallArg::Shared(SharedObjectReference::new(
+                account.object_id,
+                account.version,
+                true,
+            )))?,
+            move_public_key_arg(&mut builder, new_pk.scheme(), new_pk.as_ref())?,
+            builder.pure(key_proof)?,
+            builder.pure(KEY_PROOF_VALID_UNTIL_EPOCH)?,
+        ];
         builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
             Identifier::from_static("smart_account_builtin_auth"),
             Identifier::from_static("rotate_public_key"),
             vec![],
-            vec![account_arg, public_key],
+            arguments,
         );
-        builder.finish()
+        Ok(builder.finish())
     };
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
     let gas = test_env
         .test_cluster
         .fund_address_and_return_gas(rgp, Some(20_000_000_000), sender)
         .await;
-    let tx_data = test_env.craft_tx_from_pt(pt, gas, sender, None).await?;
+    let unsigned_tx = test_env
+        .craft_tx_from_pt(rotate_pt(vec![])?, gas, sender, None)
+        .await?;
+    let key_proof = test_env.sign_key_proof(&new_kp, &unsigned_tx, sender, false)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(rotate_pt(key_proof)?, gas, sender, None)
+        .await?;
     let sig = builtin_sig_for_keypair(&old_kp, &tx_data, account)?;
     test_env
         .execute_and_check_tx_correctness(TransactionEnvelope::new(SenderSignedTransaction::new(
@@ -6003,11 +6017,8 @@ async fn test_smart_account_created_after_the_protocol_upgrade() -> Result<(), a
     let kp = SimpleKeypair::from(Ed25519PrivateKey::random_with(StdRng::from_seed(
         [27u8; 32],
     )));
-    let pk = kp.public_key();
 
-    let before = test_env
-        .craft_create_builtin_smart_account(pk.scheme(), pk.as_ref())
-        .await?;
+    let before = test_env.craft_create_builtin_smart_account(&kp).await?;
     match test_env
         .test_cluster
         .wallet
@@ -7057,10 +7068,7 @@ impl TestEnvironment {
         &self,
         kp: &SimpleKeypair,
     ) -> anyhow::Result<ObjectReference> {
-        let pk = kp.public_key();
-        let transaction = self
-            .craft_create_builtin_smart_account(pk.scheme(), pk.as_ref())
-            .await?;
+        let transaction = self.craft_create_builtin_smart_account(kp).await?;
         let (effects, _) = self
             .test_cluster
             .execute_transaction_return_raw_effects(transaction)
@@ -7070,22 +7078,28 @@ impl TestEnvironment {
         ))
     }
 
-    /// Crafts a signed transaction that creates a `SmartAccount` through
-    /// `smart_account_builtin_auth::builder_v1` and `smart_account::build_v1`.
+    /// Crafts a transaction, sent and signed by address 0 of the test
+    /// cluster, that creates a `SmartAccount` through
+    /// `smart_account_builtin_auth::builder_v1` and `smart_account::build_v1`
+    /// with `kp`'s public key and `kp`'s key proof.
     async fn craft_create_builtin_smart_account(
         &self,
-        scheme: SignatureScheme,
-        raw_bytes: &[u8],
+        kp: &SimpleKeypair,
     ) -> anyhow::Result<TransactionEnvelope> {
-        let pt = {
+        let pk = kp.public_key();
+        let create_account_pt = |key_proof: Vec<u8>| -> anyhow::Result<ProgrammableTransaction> {
             let mut builder = ProgrammableTransactionBuilder::new();
-            let public_key = move_public_key_arg(&mut builder, scheme, raw_bytes)?;
+            let arguments = vec![
+                move_public_key_arg(&mut builder, pk.scheme(), pk.as_ref())?,
+                builder.pure(key_proof)?,
+                builder.pure(KEY_PROOF_VALID_UNTIL_EPOCH)?,
+            ];
             let account_builder = builder.programmable_move_call(
                 IOTA_FRAMEWORK_PACKAGE_ID,
                 Identifier::from_static("smart_account_builtin_auth"),
                 Identifier::from_static("builder_v1"),
                 vec![],
-                vec![public_key],
+                arguments,
             );
             builder.programmable_move_call(
                 IOTA_FRAMEWORK_PACKAGE_ID,
@@ -7094,15 +7108,59 @@ impl TestEnvironment {
                 vec![],
                 vec![account_builder],
             );
-            builder.finish()
+            Ok(builder.finish())
         };
-        let tx_data = self
+        let sender = self.test_cluster.get_address_0();
+        let rgp = self.test_cluster.get_reference_gas_price().await;
+        let gas = self
             .test_cluster
-            .test_transaction_builder()
-            .await
-            .programmable(pt)
-            .build();
+            .fund_address_and_return_gas(rgp, Some(20_000_000_000), sender)
+            .await;
+        let unsigned_tx = self
+            .craft_tx_from_pt(create_account_pt(vec![])?, gas, sender, None)
+            .await?;
+        let key_proof = self.sign_key_proof(kp, &unsigned_tx, sender, true)?;
+        let tx_data = self
+            .craft_tx_from_pt(create_account_pt(key_proof)?, gas, sender, None)
+            .await?;
         Ok(self.test_cluster.wallet.sign_transaction(&tx_data))
+    }
+
+    /// Returns `kp`'s key proof for attaching its key to `account` in `tx`,
+    /// valid until `KEY_PROOF_VALID_UNTIL_EPOCH`: its signature, as an IOTA
+    /// personal message, of the key proof text. `new_account` tells whether
+    /// `tx` creates the account; then `account` is the sender of `tx`.
+    ///
+    /// The nonce in the text comes from the gas payment of `tx` only, so `tx`
+    /// may be built with an empty proof.
+    fn sign_key_proof(
+        &self,
+        kp: &SimpleKeypair,
+        tx: &Transaction,
+        account: Address,
+        new_account: bool,
+    ) -> anyhow::Result<Vec<u8>> {
+        let chain_identifier: [u8; 32] = *self
+            .test_cluster
+            .swarm
+            .config()
+            .genesis
+            .checkpoint()
+            .digest()
+            .bytes();
+        let nonce = tx
+            .nonce()
+            .ok_or_else(|| anyhow::anyhow!("a transaction with a gas coin has a nonce"))?;
+        let message = key_proof_message_v1(
+            &chain_identifier,
+            &account,
+            new_account,
+            &nonce,
+            KEY_PROOF_VALID_UNTIL_EPOCH,
+        );
+        let signature: SimpleSignature =
+            kp.sign(&PersonalMessage(message.as_bytes().into()).signing_digest());
+        Ok(UserSignature::Simple(signature).to_bytes())
     }
 
     /// Publishes the package with a custom authenticator for `SmartAccount`.
