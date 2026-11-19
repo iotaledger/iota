@@ -18,10 +18,12 @@ use crate::{
     transaction::{TransactionAPI, TransactionKind},
 };
 
-/// The latest version on a chain other than testnet and mainnet enables the
-/// claim kind and the built-in authenticators it requires.
+/// The latest version on a chain other than testnet and mainnet, which enables
+/// the built-in authenticators, with the claim kind turned on.
 fn config() -> ProtocolConfig {
-    ProtocolConfig::get_for_version(ProtocolVersion::MAX, Chain::Unknown)
+    let mut config = ProtocolConfig::get_for_version(ProtocolVersion::MAX, Chain::Unknown);
+    config.set_enable_claim_account_transaction_for_testing(true);
+    config
 }
 
 fn gas_ref() -> ObjectReference {
