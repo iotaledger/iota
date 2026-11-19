@@ -1,10 +1,10 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! A transaction with a transaction dependency input executes only after the
-//! transaction it names succeeded in the current epoch, and never executes
-//! when that transaction failed. Every transaction here goes through the
-//! fullnode's transaction orchestrator, the path a client's request takes.
+//! A transaction with a transaction dependency input runs its commands only if
+//! the transaction it names succeeded in the current epoch. Every transaction
+//! here goes through the fullnode's transaction orchestrator, the path a
+//! client's request takes.
 
 use std::{net::SocketAddr, time::Duration};
 
