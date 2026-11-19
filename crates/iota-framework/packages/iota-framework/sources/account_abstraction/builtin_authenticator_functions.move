@@ -147,13 +147,13 @@ public fun builtin_authenticator_function_ref_v1<Account: key>(): AuthenticatorF
 /// `account::create_account_v1`.
 ///
 /// Emits a `PublicKeyAttached` event on success.
-public fun attach_public_key(account_id: &mut UID, public_key: PublicKey) {
-    assert!(!has_public_key(account_id), EPublicKeyAlreadyAttached);
+public fun attach_public_key(account_uid: &mut UID, public_key: PublicKey) {
+    assert!(!has_public_key(account_uid), EPublicKeyAlreadyAttached);
 
-    add_public_key(account_id, public_key);
+    add_public_key(account_uid, public_key);
 
     let event = PublicKeyAttached {
-        account_id: account_id.to_inner(),
+        account_id: account_uid.to_inner(),
         public_key,
     };
     event::emit(event);
@@ -165,13 +165,13 @@ public fun attach_public_key(account_id: &mut UID, public_key: PublicKey) {
 /// Use this when migrating away from a built-in authenticator to a custom one.
 ///
 /// Emits a `PublicKeyDetached` event on success.
-public fun detach_public_key(account_id: &mut UID): PublicKey {
-    assert!(has_public_key(account_id), EPublicKeyMissing);
+public fun detach_public_key(account_uid: &mut UID): PublicKey {
+    assert!(has_public_key(account_uid), EPublicKeyMissing);
 
-    let public_key = remove_public_key(account_id);
+    let public_key = remove_public_key(account_uid);
 
     let event = PublicKeyDetached {
-        account_id: account_id.to_inner(),
+        account_id: account_uid.to_inner(),
         public_key,
     };
     event::emit(event);
@@ -183,14 +183,14 @@ public fun detach_public_key(account_id: &mut UID): PublicKey {
 /// Aborts if no public key is currently attached.
 ///
 /// Emits a `PublicKeyRotated` event on success.
-public fun rotate_public_key(account_id: &mut UID, public_key: PublicKey): PublicKey {
-    assert!(has_public_key(account_id), EPublicKeyMissing);
+public fun rotate_public_key(account_uid: &mut UID, public_key: PublicKey): PublicKey {
+    assert!(has_public_key(account_uid), EPublicKeyMissing);
 
-    let prev_public_key = remove_public_key(account_id);
-    add_public_key(account_id, public_key);
+    let prev_public_key = remove_public_key(account_uid);
+    add_public_key(account_uid, public_key);
 
     let event = PublicKeyRotated {
-        account_id: account_id.to_inner(),
+        account_id: account_uid.to_inner(),
         from: prev_public_key,
         to: public_key,
     };
@@ -208,10 +208,10 @@ public fun rotate_public_key(account_id: &mut UID, public_key: PublicKey): Publi
 /// Aborts if `authenticator` is the built-in one and no public key is attached.
 /// Aborts if `authenticator` is not the built-in one and a public key is attached.
 public fun ensure_builtin_auth_and_public_key_together<Account: key>(
-    account_id: &UID,
+    account_uid: &UID,
     authenticator: &AuthenticatorFunctionRefV1<Account>,
 ) {
-    let public_key_attached = has_public_key(account_id);
+    let public_key_attached = has_public_key(account_uid);
     if (is_builtin_auth(authenticator)) {
         assert!(public_key_attached, EBuiltinAuthWithoutPublicKey);
     } else {
@@ -234,16 +234,16 @@ public fun is_builtin_auth<Account: key>(
 }
 
 /// Returns true if the account has a public key attached.
-public fun has_public_key(account_id: &UID): bool {
-    df::exists_(account_id, public_key_field_name())
+public fun has_public_key(account_uid: &UID): bool {
+    df::exists_(account_uid, public_key_field_name())
 }
 
 /// Borrows the public key attached to the account. Aborts if no public key is
 /// currently attached.
-public fun borrow_public_key(account_id: &UID): &PublicKey {
-    assert!(has_public_key(account_id), EPublicKeyMissing);
+public fun borrow_public_key(account_uid: &UID): &PublicKey {
+    assert!(has_public_key(account_uid), EPublicKeyMissing);
 
-    df::borrow(account_id, public_key_field_name())
+    df::borrow(account_uid, public_key_field_name())
 }
 
 // === Admin Functions ===
@@ -270,13 +270,13 @@ fun public_key_field_name(): PublicKeyFieldName {
 }
 
 /// Adds the account's public key field, holding `public_key`.
-fun add_public_key(account_id: &mut UID, public_key: PublicKey) {
-    df::add(account_id, public_key_field_name(), public_key);
+fun add_public_key(account_uid: &mut UID, public_key: PublicKey) {
+    df::add(account_uid, public_key_field_name(), public_key);
 }
 
 /// Removes and returns the public key in the account's public key field.
-fun remove_public_key(account_id: &mut UID): PublicKey {
-    df::remove(account_id, public_key_field_name())
+fun remove_public_key(account_uid: &mut UID): PublicKey {
+    df::remove(account_uid, public_key_field_name())
 }
 
 /// Aborts if the built-in Move authenticators feature is disabled in the protocol config.
