@@ -1100,12 +1100,6 @@ impl CommitRange {
         self.0.end.saturating_sub(1)
     }
 
-    pub(crate) fn extend_to(&mut self, other: CommitIndex) {
-        let new_end = other.saturating_add(1);
-        assert!(self.0.end <= new_end);
-        self.0 = self.0.start..new_end;
-    }
-
     pub(crate) fn size(&self) -> usize {
         self.0
             .end
@@ -1400,7 +1394,7 @@ mod tests {
     #[tokio::test]
     async fn test_commit_range() {
         telemetry_subscribers::init_for_testing();
-        let mut range1 = CommitRange::new(1..=5);
+        let range1 = CommitRange::new(1..=5);
         let range2 = CommitRange::new(2..=6);
         let range3 = CommitRange::new(5..=10);
         let range4 = CommitRange::new(6..=10);
@@ -1432,15 +1426,5 @@ mod tests {
         assert!(range2 < range3);
         assert!(range3 < range4);
         assert!(range5 < range4);
-
-        // Test extending range
-        range1.extend_to(10);
-        assert_eq!(range1.start(), 1);
-        assert_eq!(range1.end(), 10);
-        assert_eq!(range1.size(), 10);
-        range1.extend_to(20);
-        assert_eq!(range1.start(), 1);
-        assert_eq!(range1.end(), 20);
-        assert_eq!(range1.size(), 20);
     }
 }

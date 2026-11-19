@@ -659,10 +659,9 @@ impl Core {
                 let reputation_scores = commit.reputation_scores();
                 if !reputation_scores.is_empty() {
                     // update_from_commit_scores will:
-                    // 1. Clear scoring_subdag
-                    // 2. Add commit_info for previous commit index to DagState
-                    // 3. Update leader swap table
-                    // 4. Update metrics
+                    // 1. Add commit_info for previous commit index to DagState
+                    // 2. Update leader swap table
+                    // 3. Update metrics
                     self.leader_schedule.update_from_commit_scores(
                         &mut dag_state,
                         commit.index(),
@@ -1423,14 +1422,9 @@ impl Core {
 
             // After a positive commit advance, refresh the quorum commit index
             // on `DagState` so the eviction of `pending_commit_votes` is bounded.
-            // Both pending and solid sub DAGs should be added to scoring subdags.
-            {
-                let mut dag_state = self.dag_state.write();
-                dag_state.set_last_known_quorum_commit_index(
-                    self.commit_vote_monitor.quorum_commit_index(),
-                );
-                dag_state.add_scoring_subdags(subdags.iter().map(|s| s.base.clone()).collect());
-            }
+            self.dag_state
+                .write()
+                .set_last_known_quorum_commit_index(self.commit_vote_monitor.quorum_commit_index());
             self.leader_schedule
                 .feed_committed_subdags(subdags.iter().map(|s| s.base.clone()));
 
@@ -3088,8 +3082,9 @@ mod test {
     }
 
     /// Drives the gossip network until `cores[0]` has performed at least one
-    /// leader-schedule rotation and then sits mid-interval: its scoring-subdag
-    /// count is strictly between 0 and `num_commits_per_schedule` (10 here,
+    /// leader-schedule rotation and then sits mid-interval: its count of
+    /// commits since the last schedule update is strictly between 0 and
+    /// `num_commits_per_schedule` (10 here,
     /// matching `CoreTestFixture`'s `with_num_commits_per_schedule(10)`). It
     /// loops until that state holds rather than running a fixed number of
     /// gossip rounds, because the number of commits per round is not fixed.
@@ -3132,7 +3127,11 @@ mod test {
                 rotated = true;
             }
 
-            let count = cores[0].core.dag_state.read().scoring_subdags_count() as u64;
+            let count = cores[0]
+                .core
+                .dag_state
+                .read()
+                .commits_since_schedule_update() as u64;
             if rotated && count > 0 && count < NUM_COMMITS_PER_SCHEDULE {
                 break;
             }
@@ -3147,9 +3146,8 @@ mod test {
     /// commits-until-next-rotation as one that never restarted.
     ///
     /// The scorer's scored frontier lags the rotation boundary by
-    /// `MAX_PENDING_COMMITS = 3`, while recovery rebuilds the
-    /// rotation-counting scoring subdag from the persisted
-    /// `commit_range.end() + 1`. The count stays invariant because the
+    /// `MAX_PENDING_COMMITS = 3`, while recovery counts commits from the
+    /// persisted `commit_range.end() + 1`. The count stays invariant because the
     /// persisted end is the rotation boundary (the last committed index), not
     /// the lagging frontier. The assertions compare live vs. restarted directly
     /// (no hard-coded count).
@@ -3188,9 +3186,17 @@ mod test {
 
         // Root cause: the rotation count is restart-invariant.
         assert_eq!(
-            restarted.core.dag_state.read().scoring_subdags_count(),
-            cores[0].core.dag_state.read().scoring_subdags_count(),
-            "scoring_subdags_count must be restart-invariant"
+            restarted
+                .core
+                .dag_state
+                .read()
+                .commits_since_schedule_update(),
+            cores[0]
+                .core
+                .dag_state
+                .read()
+                .commits_since_schedule_update(),
+            "commits_since_schedule_update must be restart-invariant"
         );
         // The same fact, as commits-until-next-rotation.
         assert_eq!(
