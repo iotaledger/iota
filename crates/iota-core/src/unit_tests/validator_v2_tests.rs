@@ -11,7 +11,9 @@ use iota_types::{
     attestation::Attestation,
     base_types::dbg_addr,
     crypto::{AccountPrivateKey, get_key_pair},
+    effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
+    executable_transaction::VerifiedExecutableTransaction,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     messages_grpc::TxStatusUpdate,
     object::{OBJECT_START_VERSION, Object},
@@ -21,11 +23,12 @@ use iota_types::{
     utils::to_sender_signed_transaction,
 };
 use tokio::sync::mpsc;
+use typed_store::Map;
 
 use super::{ValidatorService, weigh_owned_input_rejection};
 use crate::{
     authority::{
-        AuthorityState, abstract_account_test_utils::AbstractAccountTestEnv,
+        AuthorityState, ExecutionEnv, abstract_account_test_utils::AbstractAccountTestEnv,
         authority_per_epoch_store::AuthorityPerEpochStore,
         test_authority_builder::TestAuthorityBuilder,
     },
@@ -1237,4 +1240,87 @@ async fn test_submit_single_tx_reports_an_unknown_dependency_after_the_other_che
         submit(rgp).await,
         UserInputError::TransactionDependencyNotFound { digest: dependency }
     );
+}
+
+/// A dependency that executed with success here does not admit its dependent
+/// by itself: post-consensus validation drops the dependent unless the
+/// dependency is a root of a commit. Until this validator has it as one, the
+/// dependent gets the retriable `TransactionDependencyNotFound` without a dry
+/// run and does not reach consensus.
+#[tokio::test]
+async fn dependent_is_admitted_only_once_its_executed_dependency_is_a_commit_root() {
+    telemetry_subscribers::init_for_testing();
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(true);
+        config.set_checkpoint_summary_version_specific_data_for_testing(2);
+        config.set_enable_transaction_dependencies_for_testing(true);
+        config
+    });
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let (ids, objects) = objects_owned_by(sender, 3);
+    let (validator, mut submitted) =
+        TestValidator::new(&objects, AuthorityOverloadConfig::default()).await;
+
+    let dependency = transfer(&validator.state, sender, &sender_key, ids[0], ids[1]);
+    let dependency_digest = *dependency.digest();
+    let executable = VerifiedExecutableTransaction::new_from_checkpoint(
+        validator
+            .epoch_store
+            .verify_transaction(dependency)
+            .unwrap(),
+        validator.epoch_store.epoch(),
+        1,
+    );
+    validator
+        .epoch_store
+        .assign_to_a_new_commit_for_testing(&[executable.key()]);
+    let (effects, _) = validator
+        .state
+        .try_execute_immediately(&executable, ExecutionEnv::new(), &validator.epoch_store)
+        .unwrap();
+    assert!(effects.status().is_success(), "{effects:?}");
+
+    let rgp = validator.state.reference_gas_price_for_testing().unwrap();
+    let gas = validator.state.get_object(&ids[2]).unwrap();
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.transfer_iota(dbg_addr(2), Some(1));
+    let dependent = TestTransactionBuilder::new(sender, gas.object_ref(), rgp)
+        .programmable(builder.finish())
+        .with_transaction_dependency(dependency_digest, validator.epoch_store.epoch())
+        .build_and_sign(&sender_key);
+    let dependent_digest = *dependent.digest();
+
+    let (update, _) = validator.submit(dependent.clone()).await;
+    assert!(
+        matches!(
+            &update,
+            TxStatusUpdate::Rejected {
+                error: IotaError::UserInput {
+                    error: UserInputError::TransactionDependencyNotFound { digest },
+                },
+            } if *digest == dependency_digest
+        ),
+        "expected the dependency not to be found, got {update:?}"
+    );
+    assert_eq!(validator.state.metrics.attestation_dry_runs_total.get(), 0);
+    assert!(submitted.try_recv().is_err());
+
+    validator
+        .epoch_store
+        .tables()
+        .unwrap()
+        .root_commits
+        .insert(&dependency_digest, &1)
+        .unwrap();
+
+    let (update, _) = validator.submit(dependent).await;
+    assert!(
+        matches!(update, TxStatusUpdate::Submitted),
+        "expected Submitted, got {update:?}"
+    );
+    assert_eq!(digest_of(submitted.recv().await.unwrap()), dependent_digest);
+    assert_eq!(validator.state.metrics.attestation_dry_runs_total.get(), 1);
 }

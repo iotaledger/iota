@@ -26,7 +26,8 @@ use iota_types::{
     },
     traffic_control::Weight,
     transaction::{
-        InputObjectKind, SenderSignedTransactionAPI, TransactionEnvelope, VerifiedTransaction,
+        InputObjectKind, SenderSignedTransactionAPI, TransactionAPI, TransactionEnvelope,
+        VerifiedTransaction,
     },
 };
 use starfish_core::TransactionSubmissionLimits;
@@ -122,26 +123,25 @@ const MAX_CONCURRENT_SUBMIT_TASKS: usize = 16;
 /// spam-policy contribution decided by the producing code path.
 type TxUpdateItem = Result<((TransactionDigest, TxStatusUpdate), Weight), tonic::Status>;
 
-/// Admits a transaction with a transaction dependency input only with local
-/// evidence that its dependency exists: executed with success in this epoch,
-/// a root or deferred at a commit this validator processed, or submitted to
+/// Admits a transaction with a transaction dependency input only with the
+/// local evidence post-consensus validation requires of its dependency: a
+/// root or deferred at a commit this validator processed, or submitted to
 /// consensus through this validator and still in flight. A dependency known
 /// to have failed, been dropped for good, or run in an earlier epoch is
-/// rejected for good; an unknown one with a retriable error. Local by
-/// design: post-consensus validation decides the same way on every validator.
+/// rejected for good; any other with a retriable error, also one that
+/// executed with success without being a root. Local by design:
+/// post-consensus validation decides the same way on every validator.
 fn check_transaction_dependency_for_submission(
     state: &AuthorityState,
     epoch_store: &AuthorityPerEpochStore,
     soft_locks: &PreConsensusSoftLocks,
     transaction: &VerifiedTransaction,
 ) -> IotaResult<()> {
-    let Some(digest) = state.check_transaction_dependency_known_outcome(
-        transaction.data().transaction(),
-        epoch_store.epoch(),
-    )?
-    else {
+    let transaction = transaction.data().transaction();
+    let Some(digest) = transaction.transaction_dependency() else {
         return Ok(());
     };
+    state.check_transaction_dependency_known_outcome(transaction, epoch_store.epoch())?;
     if epoch_store.root_commit_of(&digest)?.is_some()
         || epoch_store.is_deferred_transaction(&digest)
         || epoch_store.is_pending_consensus_user_transaction(&digest)?
