@@ -23,6 +23,10 @@ mod universal_committer_tests;
 #[path = "tests/pipelined_committer_tests.rs"]
 mod pipelined_committer_tests;
 
+#[cfg(test)]
+#[path = "tests/pipelined_committers_comparison_tests.rs"]
+mod pipelined_committers_comparison_tests;
+
 /// The first round of each wave has one leader by default. We leave this as a
 /// parameter of UniversalCommitter as we might change this in future
 pub(crate) const DEFAULT_NUMBER_OF_LEADERS_IN_ROUND: usize = 1;
