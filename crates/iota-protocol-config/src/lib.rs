@@ -287,6 +287,14 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             if its acknowledgment quorum was reached first, outside Mainnet.
 //             `ecdsa_r1::secp256r1_ecrecover` rejects a signature whose
 //             restored x-coordinate is not below the field modulus.
+//             Outside Mainnet and Testnet, a programmable transaction may
+//             carry a transaction dependency input: its commands run only if
+//             the named transaction succeeded in the current epoch. If that
+//             transaction fails after the dependent was sequenced, the
+//             dependent executes as failed with `TransactionDependencyFailed`.
+//             Raise `max_auth_gas` to 0.001 IOTA on devnet.
+//             Set the attestation freshness window on devnet.
+//             Set the penalty for refuted attestations on devnet.
 //             Enable built-in Move authenticators in devnet.
 //             Accept the `ClaimAccount` transaction kind in devnet, which
 //             creates an account object at the sender's address.
@@ -294,6 +302,9 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Ed25519, Secp256k1, Secp256r1, and MultiSig signature schemes,
 //             deriving IOTA addresses from public keys, and verifying a
 //             signature of a personal message by a public key.
+//             Introduce the Move native functions that return the nonce of the
+//             transaction and the text a key holder signs to approve attaching
+//             their key to a SmartAccount.
 //             Set the gas costs of those natives and of the built-in Move
 //             authenticators on all networks.
 //             Add `tx_context::chain_identifier`, which returns the digest of
@@ -1475,6 +1486,12 @@ pub struct ProtocolConfig {
     tx_context_gas_budget_cost_base: Option<u64>,
     tx_context_ids_created_cost_base: Option<u64>,
     tx_context_replace_cost_base: Option<u64>,
+    // Cost param for the Move native function `tx_context::native_tx_nonce(): vector<u8>`
+    tx_context_tx_nonce_cost_base: Option<u64>,
+    // Cost param for the Move native function
+    // `smart_account_builtin_auth::key_proof_message(chain_identifier: vector<u8>, account:
+    // address, new_account: bool, nonce: vector<u8>, valid_until_epoch: u64): vector<u8>`
+    smart_account_builtin_auth_key_proof_message_cost_base: Option<u64>,
 
     // Types
     // Cost params for the Move native function `is_one_time_witness<T: drop>(_: &T): bool`
@@ -3041,6 +3058,8 @@ impl ProtocolConfig {
             tx_context_gas_budget_cost_base: None,
             tx_context_ids_created_cost_base: None,
             tx_context_replace_cost_base: None,
+            tx_context_tx_nonce_cost_base: None,
+            smart_account_builtin_auth_key_proof_message_cost_base: None,
 
             // `types` module
             // Cost params for the Move native function `is_one_time_witness<T: drop>(_: &T): bool`
@@ -4168,6 +4187,21 @@ impl ProtocolConfig {
                     // modulus.
                     cfg.feature_flags.secp256r1_ecrecover_checks_x_below_p = true;
 
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        // A programmable transaction may carry a transaction
+                        // dependency input.
+                        cfg.feature_flags.enable_transaction_dependencies = true;
+                        // Raise max_auth_gas to 0.001 IOTA, the minimum transaction
+                        // cost at a gas price of 1000.
+                        cfg.max_auth_gas = Some(1_000_000);
+
+                        // Ten minutes at devnet's 20 commits a second.
+                        cfg.attestation_freshness_window_commits = Some(12_000);
+
+                        // Cuts an attestor off after no more than 100 refuted
+                        // attestations per epoch at the current `max_auth_gas`.
+                        cfg.attestation_max_refuted_units_squared = Some(100_000_000);
+                    }
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         // Enable built-in Move authenticators in devnet.
                         cfg.feature_flags.enable_builtin_move_authenticators = true;
@@ -4194,6 +4228,8 @@ impl ProtocolConfig {
                     cfg.public_key_verify_personal_message_signature_impl_sig_cost_per_byte =
                         Some(2);
                     cfg.tx_context_chain_identifier_cost_base = Some(30);
+                    cfg.tx_context_tx_nonce_cost_base = Some(30);
+                    cfg.smart_account_builtin_auth_key_proof_message_cost_base = Some(52);
                 }
                 // Use this template when making changes:
                 //
