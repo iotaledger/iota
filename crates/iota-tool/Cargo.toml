@@ -28,8 +28,13 @@ hex.workspace = true
 indicatif.workspace = true
 inquire = "0.6.0"
 itertools.workspace = true
+reqwest = { workspace = true, features = ["query"] }
 ron = "0.8.0"
+rustls.workspace = true
 serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+similar.workspace = true
 strum.workspace = true
 strum_macros.workspace = true
 tempfile.workspace = true
@@ -64,6 +69,7 @@ typed-store.workspace = true
 
 [dev-dependencies]
 # external dependencies
+axum.workspace = true
 rand.workspace = true
 
 # internal dependencies
