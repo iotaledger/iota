@@ -330,27 +330,43 @@ impl IotaNode {
         let authority_name = state.name;
 
         Some(spawn_monitored_task!(async move {
-            // Seed from the percentage this authority last broadcasted
-            let mut last_notified_percentage: u32 = epoch_store
-                .load_overload_notification(&authority_name)
-                .unwrap_or(0) as u32;
+            // The percentage of the latest notification submitted, and the
+            // task that ends once this authority has processed it.
+            let mut latest_notification: Option<(u32, JoinHandle<()>)> = None;
             loop {
                 tokio::time::sleep(poll_interval).await;
                 let current = state
                     .overload_info
                     .local_load_shedding_percentage
                     .load(std::sync::atomic::Ordering::Relaxed);
-                if current != last_notified_percentage {
-                    last_notified_percentage = current;
+                let last_notified_percentage = match &latest_notification {
+                    // The recorded percentage is about to become this one.
+                    // Waiting for it would delay a change of the local
+                    // percentage by as long as this authority takes to
+                    // process its own notification.
+                    Some((percentage, task)) if !task.is_finished() => *percentage,
+                    _ => epoch_store
+                        .load_overload_notification(&authority_name)
+                        .unwrap_or(0) as u32,
+                };
+                // A notification processed once the epoch has stopped
+                // accepting certificates is not recorded, so the recorded
+                // percentage would never match and every poll would submit.
+                if current != last_notified_percentage
+                    && epoch_store
+                        .get_reconfig_state_read_lock_guard()
+                        .should_accept_consensus_certs()
+                {
                     let transaction = ConsensusTransaction::new_overload_notification_v1(
                         authority_name,
                         current as u8,
                     );
-                    if let Err(e) = consensus_adapter.submit(transaction, None, &epoch_store) {
-                        tracing::warn!(
+                    match consensus_adapter.submit(transaction, None, &epoch_store) {
+                        Ok(task) => latest_notification = Some((current, task)),
+                        Err(e) => tracing::warn!(
                             "Failed to submit overload notification to consensus: {:?}",
                             e
-                        );
+                        ),
                     }
                 }
             }
