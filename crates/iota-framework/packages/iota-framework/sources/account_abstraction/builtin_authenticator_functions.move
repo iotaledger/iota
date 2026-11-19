@@ -8,6 +8,11 @@
 /// The built-in authenticator verifies a signature with the public key attached to the account,
 /// using that key's signature scheme.
 ///
+/// `attach_public_key` and `rotate_public_key` don't check that the key's holder approved the
+/// attach: the module that owns the account type decides who may attach a key and checks any
+/// proof before calling them. For `SmartAccount`, `smart_account_builtin_auth` requires a
+/// signature by the key.
+///
 /// # Account creation
 /// To create a new account backed by the built-in authenticator, attach the public key and obtain
 /// the authenticator function ref, then pass it to `account::create_account_v1`:

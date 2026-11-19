@@ -3910,6 +3910,9 @@ claim_account_v1
 with_public_key
 	fun
 	0x2::smart_account_builtin_auth
+verify_key_proof
+	fun
+	0x2::smart_account_builtin_auth
 IotaSystemAdminCap
 	public struct
 	0x2::system_admin_cap
