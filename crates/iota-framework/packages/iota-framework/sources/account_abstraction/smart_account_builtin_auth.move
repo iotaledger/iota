@@ -93,9 +93,7 @@ public fun builder_v1(
 
 /// Returns `true` if and only if the account's authenticator is the built-in one.
 public fun has_builtin_auth(account: &SmartAccount): bool {
-    builtin_authenticator_functions::is_builtin_authenticator(
-        account.borrow_auth_function_ref_v1(),
-    )
+    builtin_authenticator_functions::is_builtin_auth(account.borrow_auth_function_ref_v1())
 }
 
 /// Returns `true` if and only if the account has a public key attached.
@@ -169,7 +167,7 @@ public fun rotate_to_custom_auth_v1(
 ): PublicKey {
     account.ensure_tx_sender_is_smart_account(ctx);
     assert!(
-        !builtin_authenticator_functions::is_builtin_authenticator(&authenticator),
+        !builtin_authenticator_functions::is_builtin_auth(&authenticator),
         EAuthenticatorIsBuiltin,
     );
     assert!(has_builtin_auth(account), EBuiltinAuthNotSet);

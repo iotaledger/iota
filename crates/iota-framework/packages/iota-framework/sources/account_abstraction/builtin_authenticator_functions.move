@@ -212,7 +212,7 @@ public fun ensure_builtin_auth_and_public_key_together<Account: key>(
     authenticator: &AuthenticatorFunctionRefV1<Account>,
 ) {
     let public_key_attached = has_public_key(account_id);
-    if (is_builtin_authenticator(authenticator)) {
+    if (is_builtin_auth(authenticator)) {
         assert!(public_key_attached, EBuiltinAuthWithoutPublicKey);
     } else {
         assert!(!public_key_attached, EPublicKeyWithoutBuiltinAuth);
@@ -222,7 +222,7 @@ public fun ensure_builtin_auth_and_public_key_together<Account: key>(
 // === View Functions ===
 
 /// Returns true if `authenticator` references the built-in authenticator.
-public fun is_builtin_authenticator<Account: key>(
+public fun is_builtin_auth<Account: key>(
     authenticator: &AuthenticatorFunctionRefV1<Account>,
 ): bool {
     let module_name = ascii::string(BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME);

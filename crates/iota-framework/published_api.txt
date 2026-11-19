@@ -2560,7 +2560,7 @@ rotate_public_key
 ensure_builtin_auth_and_public_key_together
 	public fun
 	0x2::builtin_authenticator_functions
-is_builtin_authenticator
+is_builtin_auth
 	public fun
 	0x2::builtin_authenticator_functions
 has_public_key
