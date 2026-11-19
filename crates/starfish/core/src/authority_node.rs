@@ -351,7 +351,9 @@ impl ConsensusAuthority {
             }
         }
 
-        network_manager.install_service(network_service).await;
+        network_manager
+            .install_service(network_service, misbehavior_store)
+            .await;
 
         // Optionally start the DAG visualizer server.
         #[cfg(feature = "dag-visualizer")]

@@ -11,6 +11,9 @@
 //! fetch is not counted node-wide: the cap bounds only the further fetches all
 //! peers share, so it limits how much a peer can be crowded out, never whether
 //! it is served at all. Caps are local parameters; `0` turns a cap off.
+//!
+//! Whatever the caps, a peer whose request is refused for carrying more entries
+//! than its type allows is charged a misbehavior.
 
 use std::{
     future::Future,
@@ -35,8 +38,13 @@ use tower::{Layer, Service};
 
 use crate::{
     context::Context,
-    network::tonic_network::{
-        CONSENSUS_SERVICE_PATH_PREFIX, DEPRECATED_METHOD, DEPRECATED_METHOD_MESSAGE, PeerInfo,
+    error::ConsensusError,
+    misbehavior_store::MisbehaviorStore,
+    network::{
+        bounded_codec::TOO_MANY_ENTRIES_IN_REQUEST,
+        tonic_network::{
+            CONSENSUS_SERVICE_PATH_PREFIX, DEPRECATED_METHOD, DEPRECATED_METHOD_MESSAGE, PeerInfo,
+        },
     },
 };
 
@@ -271,21 +279,29 @@ impl Drop for AdmissionGuard {
 
 /// Tower layer taking an inbound request's slots before tonic reads the request
 /// body. The peer's slot is held until the response ends, the node-wide slot
-/// until then or until `send_timeout` passes with the peer not reading it.
+/// until then or until `send_timeout` passes with the peer not reading it. A
+/// request refused for carrying more entries than its type allows is charged
+/// to the peer in `misbehavior_store`.
 #[derive(Clone)]
 pub(crate) struct AdmissionLayer {
     context: Arc<Context>,
     admission: Arc<AdmissionControl>,
     send_timeout: Duration,
+    misbehavior_store: Arc<MisbehaviorStore>,
 }
 
 impl AdmissionLayer {
-    pub(crate) fn new(context: Arc<Context>, send_timeout: Duration) -> Self {
+    pub(crate) fn new(
+        context: Arc<Context>,
+        send_timeout: Duration,
+        misbehavior_store: Arc<MisbehaviorStore>,
+    ) -> Self {
         let admission = Arc::new(AdmissionControl::new(&context));
         Self {
             context,
             admission,
             send_timeout,
+            misbehavior_store,
         }
     }
 }
@@ -299,6 +315,7 @@ impl<S> Layer<S> for AdmissionLayer {
             context: self.context.clone(),
             admission: self.admission.clone(),
             send_timeout: self.send_timeout,
+            misbehavior_store: self.misbehavior_store.clone(),
         }
     }
 }
@@ -315,6 +332,7 @@ pub(crate) struct AdmissionService<S> {
     context: Arc<Context>,
     admission: Arc<AdmissionControl>,
     send_timeout: Duration,
+    misbehavior_store: Arc<MisbehaviorStore>,
 }
 
 impl<S, ReqBody, ResBody> Service<Request<ReqBody>> for AdmissionService<S>
@@ -358,13 +376,18 @@ where
                     .with_label_values(&[group.as_str()]),
             )
         });
+        let sender = Some((peer, self.misbehavior_store.clone()));
         match self.admission.try_admit(group, peer) {
             Admission::UnknownPeer => {
                 AdmissionFuture::rejected(Status::internal("peer index outside the committee"))
             }
-            Admission::Unlimited => {
-                AdmissionFuture::admitted(self.inner.call(request), None, None, send_deadline)
-            }
+            Admission::Unlimited => AdmissionFuture::admitted(
+                self.inner.call(request),
+                None,
+                None,
+                send_deadline,
+                sender,
+            ),
             Admission::Admitted(AdmissionSlots {
                 peer_slot,
                 total_slot,
@@ -379,6 +402,7 @@ where
                     Some(guard),
                     total_slot,
                     send_deadline,
+                    sender,
                 )
             }
             Admission::Rejected(limit) => {
@@ -412,6 +436,9 @@ pin_project! {
             // The send deadline and the counter of responses it reclaims;
             // `None` for a response that may stay open.
             send_deadline: Option<(Duration, IntCounter)>,
+            // The peer that sent the request and the store that records its
+            // misbehavior; `None` for a request outside every budget.
+            sender: Option<(AuthorityIndex, Arc<MisbehaviorStore>)>,
         },
         Rejected {
             status: Status,
@@ -425,18 +452,20 @@ impl<F> AdmissionFuture<F> {
         guard: Option<Arc<AdmissionGuard>>,
         total: Option<TotalSlot>,
         send_deadline: Option<(Duration, IntCounter)>,
+        sender: Option<(AuthorityIndex, Arc<MisbehaviorStore>)>,
     ) -> Self {
         Self::Admitted {
             inner,
             guard,
             total,
             send_deadline,
+            sender,
         }
     }
 
     /// A request in no RPC group, passed on untouched.
     fn passed_through(inner: F) -> Self {
-        Self::admitted(inner, None, None, None)
+        Self::admitted(inner, None, None, None, None)
     }
 
     fn rejected(status: Status) -> Self {
@@ -459,24 +488,47 @@ where
                 guard,
                 total,
                 send_deadline,
-            } => Poll::Ready(ready!(inner.poll(cx)).map(|response| {
-                response.map(|body| match send_deadline.take() {
-                    Some((deadline, reclaimed)) => ReclaimableBody::with_deadline(
-                        Body::new(body),
-                        total.take(),
-                        guard.take(),
-                        deadline,
-                        move || reclaimed.inc(),
-                    ),
-                    None => ReclaimableBody::new(Body::new(body), total.take(), guard.take()),
-                })
-            })),
+                sender,
+            } => {
+                let response = ready!(inner.poll(cx));
+                if let (Ok(response), Some((peer, misbehavior_store))) = (&response, sender.take())
+                {
+                    if refuses_too_many_entries(response) {
+                        misbehavior_store.record_fault(
+                            &ConsensusError::TooManyEntriesInRequest { peer },
+                            None,
+                            [peer],
+                        );
+                    }
+                }
+                Poll::Ready(response.map(|response| {
+                    response.map(|body| match send_deadline.take() {
+                        Some((deadline, reclaimed)) => ReclaimableBody::with_deadline(
+                            Body::new(body),
+                            total.take(),
+                            guard.take(),
+                            deadline,
+                            move || reclaimed.inc(),
+                        ),
+                        None => ReclaimableBody::new(Body::new(body), total.take(), guard.take()),
+                    })
+                }))
+            }
             AdmissionFutureProj::Rejected { status } => Poll::Ready(Ok(status
                 .clone()
                 .into_http()
                 .map(|body| ReclaimableBody::new(body, None, None)))),
         }
     }
+}
+
+/// Whether `response` refuses its request for carrying more entries than the
+/// request type allows. The code alone does not tell, since tonic refuses a
+/// request over the message size limit with the same code.
+fn refuses_too_many_entries<B>(response: &Response<B>) -> bool {
+    Status::from_header_map(response.headers()).is_some_and(|status| {
+        status.code() == tonic::Code::OutOfRange && status.message() == TOO_MANY_ENTRIES_IN_REQUEST
+    })
 }
 
 #[cfg(test)]

@@ -378,7 +378,9 @@ fn classify_fault(error: &ConsensusError) -> FaultType {
         // probe with another author's header: the server returns only the
         // headers asked for. So is a fetched payload that was not asked for or
         // comes out of commit order, and a payload reconstructed from relayed
-        // shards that does not match its commitment.
+        // shards that does not match its commitment. So is a fetch request with
+        // more entries than its type allows: a node checks its fetch caps
+        // against the ceilings at startup.
         ConsensusError::WrongEpoch { .. }
         | ConsensusError::UnexpectedGenesisHeader
         | ConsensusError::UnexpectedAuthority(..)
@@ -410,7 +412,8 @@ fn classify_fault(error: &ConsensusError) -> FaultType {
         | ConsensusError::UnrequestedTransactionFetched { .. }
         | ConsensusError::UnexpectedTransactionForCommit { .. }
         | ConsensusError::TransactionsOutOfCommitOrder { .. }
-        | ConsensusError::TransactionCommitmentMismatch { .. } => FaultType::Unprovable,
+        | ConsensusError::TransactionCommitmentMismatch { .. }
+        | ConsensusError::TooManyEntriesInRequest { .. } => FaultType::Unprovable,
 
         // Relayed bundle parts that are corrupt or invalid (additional-header
         // round, shard author, structure or proof) or that the peer had no
@@ -1542,6 +1545,9 @@ mod tests {
             },
             ConsensusError::TransactionCommitmentMismatch {
                 transaction_ref: TransactionRef::default(),
+            },
+            ConsensusError::TooManyEntriesInRequest {
+                peer: AuthorityIndex::new_for_test(0),
             },
         ];
         for e in cases {
