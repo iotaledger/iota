@@ -1387,3 +1387,30 @@ fun test_tx_context_bad_epoch_timestamp() {
 
     scenario.end();
 }
+
+#[test]
+fun tx_nonce_set_through_the_builder() {
+    use std::unit_test::assert_eq;
+
+    let nonce = x"39d2ed96b7a160ff74b50a57de17a67b61053a9cead0ec25191d7231bcf08cbd";
+    let ctx_builder = test_scenario::ctx_builder_from_sender(@0xB).set_tx_nonce(nonce);
+    let mut scenario = test_scenario::begin_with_context(ctx_builder);
+
+    assert_eq!(scenario.ctx().tx_nonce(), nonce);
+
+    scenario.end();
+}
+
+#[test]
+#[expected_failure(abort_code = 3, location = iota::tx_context)]
+fun tx_nonce_is_not_kept_for_the_next_transaction() {
+    let nonce = x"39d2ed96b7a160ff74b50a57de17a67b61053a9cead0ec25191d7231bcf08cbd";
+    let ctx_builder = test_scenario::ctx_builder_from_sender(@0xB).set_tx_nonce(nonce);
+    let mut scenario = test_scenario::begin_with_context(ctx_builder);
+
+    let ctx_builder = scenario.ctx_builder();
+    scenario.next_with_context(ctx_builder);
+    scenario.ctx().tx_nonce();
+
+    scenario.end();
+}
