@@ -5,7 +5,9 @@
 /// the `UID` of a new on-chain object.
 ///
 /// The `ClaimAccount` transaction kind drives `claim_address` through
-/// `iota::smart_account`. Double-claim prevention is not enforced here.
+/// `iota::smart_account`. Nothing here stops a second claim of an address:
+/// the node's post-consensus validation keeps at most one claim per address,
+/// and drops any later one before it executes.
 module iota::claim;
 
 use iota::public_key::PublicKey;
@@ -22,8 +24,8 @@ const EAddressMismatch: vector<u8> =
 /// immediately use the `UID` as the `id` field of a new on-chain object —
 /// `UID` has no `drop` ability, so leaving it unconsumed is a compile error.
 ///
-/// Double-claim prevention is not enforced here: the caller is responsible for
-/// ensuring an address is claimed at most once.
+/// It does not check whether the address was claimed before: the node's
+/// post-consensus validation keeps at most one claim per address.
 ///
 /// Aborts with `EAddressMismatch` if `public_key` does not derive to the
 /// sender.
