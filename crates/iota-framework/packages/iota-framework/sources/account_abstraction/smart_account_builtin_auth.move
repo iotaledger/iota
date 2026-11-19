@@ -49,7 +49,8 @@ const EAuthenticatorIsBuiltin: vector<u8> =
 ///
 /// Emits a `builtin_authenticator_functions::PublicKeyAttached` event on success.
 ///
-/// Aborts if `enable_builtin_move_authenticators` is not enabled in the protocol config.
+/// Aborts if `enable_builtin_move_authenticators` or `enable_smart_accounts` is not enabled in the
+/// protocol config.
 public fun builder_v1(public_key: PublicKey, ctx: &mut TxContext): SmartAccountBuilder {
     let builder = smart_account::builder_v1(builtin_authenticator_function_ref_v1(), ctx);
     with_public_key(builder, public_key)
@@ -165,7 +166,8 @@ public fun rotate_public_key(
 /// `account::MutableAccountCreated` event.
 ///
 /// Aborts if `public_key` does not derive the sender's address.
-/// Aborts if `enable_builtin_move_authenticators` is not enabled in the protocol config.
+/// Aborts if `enable_builtin_move_authenticators` or `enable_smart_accounts` is not enabled in the
+/// protocol config.
 #[allow(unused_function)]
 fun claim_account_v1(public_key: PublicKey, ctx: &TxContext) {
     let builder = smart_account::claim_builder(

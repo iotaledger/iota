@@ -803,6 +803,11 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     enable_claim_account_transaction: bool,
 
+    // If true, `smart_account::builder_v1` and a smart account `ClaimAccount` create a
+    // `SmartAccount`; otherwise they abort.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_smart_accounts: bool,
+
     // If true, a consensus message is skipped as a duplicate of an earlier message with the same
     // key that was recorded as processed or passed verification in the same commit:
     // - The consensus handler adds a message to its processed-transaction cache only after the
@@ -2449,6 +2454,10 @@ impl ProtocolConfig {
         enable_claim_account_transaction
     }
 
+    pub fn enable_smart_accounts(&self) -> bool {
+        self.feature_flags.enable_smart_accounts
+    }
+
     pub fn disallow_self_identifier_in_transactions(&self) -> bool {
         self.feature_flags.disallow_self_identifier_in_transactions
     }
@@ -4037,6 +4046,8 @@ impl ProtocolConfig {
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         // Enable built-in Move authenticators in devnet.
                         cfg.feature_flags.enable_builtin_move_authenticators = true;
+                        // Enable creating smart accounts in devnet only.
+                        cfg.feature_flags.enable_smart_accounts = true;
 
                         // Bounds on a ClaimAccount's cost, so a claim cannot run
                         // out of gas at any admissible gas price or key size.
@@ -4505,6 +4516,10 @@ impl ProtocolConfig {
 
     pub fn set_enable_builtin_move_authenticators_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_builtin_move_authenticators = val;
+    }
+
+    pub fn set_enable_smart_accounts_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_smart_accounts = val;
     }
 
     /// Turning the flag off also turns off `enable_pcool_flow`, which requires
