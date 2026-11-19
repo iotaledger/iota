@@ -117,6 +117,11 @@ native fun native_gas_budget(): u64;
 /// Return the nonce of this transaction: 32 bytes that at most one executed transaction has.
 /// Every call in the transaction returns the same value. The nonce does not name the network.
 ///
+/// The nonce comes from the first gas coin of the transaction. A dry run or dev-inspect without
+/// a gas coin runs with a mock gas coin, so it reads a different nonce than the transaction will
+/// have with its real gas coin: pick the gas coin before asking a key holder to sign over the
+/// nonce, and simulate with that coin.
+///
 /// Aborts with code 3 if the transaction has no nonce, which is the case while authenticators
 /// run and for transactions without a gas coin.
 public fun tx_nonce(_self: &TxContext): vector<u8> {
