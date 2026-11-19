@@ -1730,7 +1730,9 @@ impl SubmitToConsensus for Arc<ConsensusAdapter> {
 ///
 /// [`UserInputError::SizeLimitExceeded`] naming the limit exceeded, and
 /// [`IotaError::TransactionSerialization`] when a transaction cannot be
-/// serialized.
+/// serialized. For the total size, `value` is the total up to and including
+/// the first transaction that takes it over the limit, not the size of the
+/// whole submission.
 fn check_consensus_transactions_fit(
     transactions: &[ConsensusTransaction],
     protocol_config: &ProtocolConfig,

@@ -384,7 +384,9 @@ impl TransactionClient {
 /// transactions than the limit, and otherwise
 /// [`ClientError::OversizedTransaction`] or
 /// [`ClientError::OversizedTransactionBundleBytes`] for the first transaction
-/// that is over the size limit or takes the total over its limit.
+/// that is over the size limit or takes the total over its limit. The total
+/// in [`ClientError::OversizedTransactionBundleBytes`] is the total up to and
+/// including that transaction, not the size of the whole submission.
 pub fn check_transactions_fit(
     transaction_sizes: &[u64],
     protocol_config: &ProtocolConfig,
@@ -505,6 +507,51 @@ mod tests {
                 Err(ClientError::OversizedTransactionBundleBytes(..))
             ),
             "transactions one byte over the bytes of a block should not fit"
+        );
+    }
+
+    /// [`check_transactions_fit()`] checks the total after each transaction,
+    /// in the order of the submission. Its error for the total size reports
+    /// the total up to the transaction that takes it over the limit, not the
+    /// size of the whole submission, and it comes before the error for a
+    /// later transaction that is over the size limit.
+    #[test]
+    fn total_size_error_reports_running_total_before_later_oversized_transaction() {
+        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+        let max_count = protocol_config.max_num_transactions_in_block();
+        let max_size = protocol_config.max_transaction_size_bytes();
+        let max_total_size = protocol_config.max_transactions_in_block_bytes();
+        let reported_total = |sizes: &[u64]| {
+            if let Err(ClientError::OversizedTransactionBundleBytes(total, _)) =
+                check_transactions_fit(sizes, &protocol_config)
+            {
+                Some(total)
+            } else {
+                None
+            }
+        };
+
+        // Transactions of the size limit, of which the last one takes the
+        // total over its limit.
+        let crossing = vec![max_size; (max_total_size / max_size) as usize + 1];
+        let total_at_crossing = max_size * crossing.len() as u64;
+        assert!(
+            (crossing.len() as u64) < max_count,
+            "the submissions need room for one more transaction"
+        );
+
+        let with_one_more = [crossing.as_slice(), &[max_size]].concat();
+        assert_eq!(
+            reported_total(&with_one_more),
+            Some(total_at_crossing),
+            "the error should report the total up to the transaction that crosses the limit"
+        );
+
+        let with_oversized_last = [crossing.as_slice(), &[max_size + 1]].concat();
+        assert_eq!(
+            reported_total(&with_oversized_last),
+            Some(total_at_crossing),
+            "the total error should come before a later transaction over the size limit"
         );
     }
 
