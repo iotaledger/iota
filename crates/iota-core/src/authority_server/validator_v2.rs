@@ -127,10 +127,13 @@ type TxUpdateItem = Result<((TransactionDigest, TxStatusUpdate), Weight), tonic:
 /// local evidence post-consensus validation requires of its dependency: a
 /// root or deferred at a commit this validator processed, or submitted to
 /// consensus through this validator and still in flight. A dependency known
-/// to have failed, been dropped for good, or run in an earlier epoch is
-/// rejected for good; any other with a retriable error, also one that
-/// executed with success without being a root. Local by design:
-/// post-consensus validation decides the same way on every validator.
+/// to have failed or to have run in an earlier epoch, or recorded as dropped,
+/// is rejected for good. Any other is rejected with a retriable error, also
+/// one that executed with success without being a root, and one recorded as
+/// dropped by the deny rules or the coin deny list: either can change in the
+/// epoch, so the dependency can be kept when it is submitted again. Local by
+/// design: post-consensus validation decides the same way on every
+/// validator.
 fn check_transaction_dependency_for_submission(
     state: &AuthorityState,
     epoch_store: &AuthorityPerEpochStore,
@@ -149,10 +152,25 @@ fn check_transaction_dependency_for_submission(
     {
         return Ok(());
     }
-    if epoch_store.recorded_dropped_transaction(&digest).is_some() {
+    if epoch_store
+        .recorded_dropped_transaction(&digest)
+        .is_some_and(|error| !is_denial(&error))
+    {
         return Err(UserInputError::TransactionDependencyFailed { digest }.into());
     }
     Err(UserInputError::TransactionDependencyNotFound { digest }.into())
+}
+
+/// Whether `error` is a denial by the deny rules or the coin deny list.
+fn is_denial(error: &IotaError) -> bool {
+    matches!(
+        error,
+        IotaError::UserInput {
+            error: UserInputError::TransactionDenied { .. }
+                | UserInputError::AddressDeniedForCoin { .. }
+                | UserInputError::CoinTypeGlobalPause { .. },
+        }
+    )
 }
 
 /// Whether admission checks the transaction's inputs against local state: that

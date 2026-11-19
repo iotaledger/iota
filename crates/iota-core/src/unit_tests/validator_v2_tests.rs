@@ -1424,3 +1424,69 @@ async fn failed_authentication_weighs_one_while_dependency_is_in_flight() {
 async fn failed_authentication_weighs_one_while_dependency_is_in_flight_with_attestation() {
     assert_failed_authentication_weighs_one_while_dependency_is_in_flight(true).await;
 }
+
+/// A dependent of a transaction this validator recorded as dropped is
+/// rejected for good, unless the deny rules or the coin deny list dropped the
+/// transaction: both can change in the epoch, so it can be kept when it is
+/// submitted again, and the dependent gets the retriable
+/// `TransactionDependencyNotFound`.
+#[tokio::test]
+async fn dependent_of_a_denied_dependency_gets_a_retriable_error() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = enable_transaction_dependencies(true);
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let (ids, objects) = objects_owned_by(sender, 1);
+    let (validator, mut submitted) =
+        TestValidator::new(&objects, AuthorityOverloadConfig::default()).await;
+    let rgp = validator.state.reference_gas_price_for_testing().unwrap();
+    let gas = validator.state.get_object(&ids[0]).unwrap();
+    let submit_dependent_of = async |drop: UserInputError| {
+        let dependency = TransactionDigest::random();
+        validator
+            .epoch_store
+            .insert_dropped_digests_for_testing(&[(dependency, drop.into())]);
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.transfer_iota(dbg_addr(2), Some(1));
+        let dependent = TestTransactionBuilder::new(sender, gas.object_ref(), rgp)
+            .programmable(builder.finish())
+            .with_transaction_dependency(dependency, validator.epoch_store.epoch())
+            .build_and_sign(&sender_key);
+
+        (dependency, validator.submit(dependent).await)
+    };
+
+    let (dependency, (update, _)) =
+        submit_dependent_of(UserInputError::InputObjectNotAvailableAtCommit {
+            object_id: ids[0],
+            version: Some(gas.version()),
+        })
+        .await;
+    assert!(
+        matches!(
+            &update,
+            TxStatusUpdate::Rejected {
+                error: IotaError::UserInput {
+                    error: UserInputError::TransactionDependencyFailed { digest },
+                },
+            } if *digest == dependency
+        ),
+        "expected the dependency to have failed, got {update:?}"
+    );
+
+    let coin_type = "0x2::iota::IOTA".to_string();
+    for denial in [
+        UserInputError::TransactionDenied {
+            error: "denied".to_string(),
+        },
+        UserInputError::AddressDeniedForCoin {
+            address: sender,
+            coin_type: coin_type.clone(),
+        },
+        UserInputError::CoinTypeGlobalPause { coin_type },
+    ] {
+        let (dependency, result) = submit_dependent_of(denial).await;
+        assert_eq!(assert_dependency_not_found(result, dependency), 0.0);
+    }
+    assert!(submitted.try_recv().is_err());
+}
