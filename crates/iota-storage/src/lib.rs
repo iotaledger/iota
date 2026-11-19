@@ -15,6 +15,7 @@ use std::{
 use anyhow::{Result, anyhow};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use bytes::{Buf, Bytes};
+use either::Either;
 use fastcrypto::hash::{HashFunction, Sha3_256};
 use iota_common::debug_fatal;
 use iota_types::{
@@ -127,10 +128,7 @@ pub fn compress<R: Read, W: Write>(reader: &mut R, writer: &mut W) -> Result<()>
     Ok(())
 }
 
-pub fn read<R: Read + 'static>(
-    expected_magic: u32,
-    mut reader: R,
-) -> Result<(Box<dyn Read>, StorageFormat)> {
+pub fn read<R: Read>(expected_magic: u32, mut reader: R) -> Result<(impl Read, StorageFormat)> {
     let magic = reader.read_u32::<BigEndian>()?;
     if magic != expected_magic {
         Err(anyhow!(
@@ -139,15 +137,15 @@ pub fn read<R: Read + 'static>(
     } else {
         let storage_format = StorageFormat::try_from(reader.read_u8()?)?;
         let file_compression = FileCompression::try_from(reader.read_u8()?)?;
-        let reader: Box<dyn Read> = match file_compression {
-            FileCompression::Zstd => Box::new(zstd::stream::Decoder::new(reader)?),
-            FileCompression::None => Box::new(BufReader::new(reader)),
+        let reader = match file_compression {
+            FileCompression::Zstd => Either::Left(zstd::stream::Decoder::new(reader)?),
+            FileCompression::None => Either::Right(BufReader::new(reader)),
         };
         Ok((reader, storage_format))
     }
 }
 
-pub fn make_iterator<T: DeserializeOwned, R: Read + 'static>(
+pub fn make_iterator<T: DeserializeOwned, R: Read>(
     expected_magic: u32,
     reader: R,
 ) -> Result<impl Iterator<Item = T>> {

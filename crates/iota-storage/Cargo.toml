@@ -20,6 +20,7 @@ byteorder.workspace = true
 bytes.workspace = true
 chrono.workspace = true
 clap.workspace = true
+either.workspace = true
 eyre.workspace = true
 fastcrypto.workspace = true
 futures.workspace = true

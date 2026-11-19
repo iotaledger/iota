@@ -8204,6 +8204,7 @@ dependencies = [
  "bytes",
  "chrono",
  "clap",
+ "either",
  "eyre",
  "fastcrypto",
  "futures",
