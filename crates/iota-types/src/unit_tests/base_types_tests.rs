@@ -487,3 +487,27 @@ fn next_lexicographical_digest() {
         Digest::from(output)
     );
 }
+
+/// Validators compute the nonce of a transaction with the SDK's
+/// `GasPayment::nonce` to check key proofs, so its bytes for a given gas coin
+/// must never change. The expected bytes are the Blake2b256 hash of
+/// 0x00 || 0x11 * 32 || 42u64 (little-endian) || 0x20 || 0x22 * 32, the same
+/// value the SDK tests. An SDK bump that changes them fails here.
+#[test]
+fn tx_nonce_of_a_fixed_gas_coin_never_changes() {
+    let gas_payment = iota_sdk_types::GasPayment {
+        objects: vec![ObjectReference::new(
+            ObjectId::new([0x11; 32]),
+            Version::from_u64(42),
+            ObjectDigest::new([0x22; 32]),
+        )],
+        owner: Address::ZERO,
+        price: 1000,
+        budget: 1_000_000,
+    };
+
+    assert_eq!(
+        gas_payment.nonce().map(hex::encode).as_deref(),
+        Some("39d2ed96b7a160ff74b50a57de17a67b61053a9cead0ec25191d7231bcf08cbd"),
+    );
+}
