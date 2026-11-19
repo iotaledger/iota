@@ -16,7 +16,7 @@ use iota_types::{
     attestation::{Attestation, AttestedTransaction},
     deny_rule_governance::DenyRuleConfig,
     effects::TransactionEffectsAPI,
-    error::{IotaError, IotaResult, UserInputError},
+    error::{IotaError, IotaResult},
     fp_ensure,
     messages_consensus::ConsensusTransaction,
     messages_grpc::{
@@ -27,6 +27,7 @@ use iota_types::{
     traffic_control::Weight,
     transaction::{InputObjectKind, SenderSignedTransactionAPI, TransactionEnvelope},
 };
+use starfish_core::TransactionSubmissionLimits;
 use tokio_stream::wrappers::ReceiverStream;
 
 use crate::{
@@ -38,6 +39,7 @@ use crate::{
     consensus_adapter::ConsensusAdapter,
     epoch::reconfiguration::ReconfigState,
     execution_scheduler::ExecutionSchedulerAPI,
+    starfish_adapter::to_iota_error,
 };
 
 /// Maximum number of transactions allowed in a single `submit_tx` request,
@@ -159,20 +161,10 @@ fn check_consensus_transaction_size(
             error: error.to_string(),
         }
     })?;
-    let max_size = protocol_config.max_transaction_size_bytes();
-    fp_ensure!(
-        size as u64 <= max_size,
-        IotaError::UserInput {
-            error: UserInputError::SizeLimitExceeded {
-                limit: format!(
-                    "serialized consensus transaction size exceeded maximum of {max_size}"
-                ),
-                value: size.to_string(),
-            }
-        }
-    );
 
-    Ok(())
+    TransactionSubmissionLimits::new(protocol_config)
+        .check_transaction_size(size as u64)
+        .map_err(to_iota_error)
 }
 
 /// Rejects a submission because the validator is overloaded, and counts it in

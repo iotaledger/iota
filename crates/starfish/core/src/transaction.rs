@@ -394,6 +394,23 @@ impl TransactionSubmissionLimits {
             max_transactions_in_block_count: protocol_config.max_num_transactions_in_block(),
         }
     }
+
+    /// Checks that a transaction of `size` bytes is no larger than one
+    /// transaction may be.
+    ///
+    /// # Errors
+    ///
+    /// [`ClientError::OversizedTransaction`] when it is larger.
+    pub fn check_transaction_size(&self, size: u64) -> Result<(), ClientError> {
+        if size > self.max_transaction_size {
+            return Err(ClientError::OversizedTransaction(
+                size,
+                self.max_transaction_size,
+            ));
+        }
+
+        Ok(())
+    }
 }
 
 /// Checks that Starfish accepts, as one submission, transactions whose
@@ -415,12 +432,7 @@ pub fn check_transactions_fit(
     transaction_sizes: &[u64],
     limits: TransactionSubmissionLimits,
 ) -> Result<(), ClientError> {
-    let TransactionSubmissionLimits {
-        max_transaction_size: max_size,
-        max_transactions_in_block_bytes: max_total_size,
-        max_transactions_in_block_count: max_count,
-    } = limits;
-
+    let max_count = limits.max_transactions_in_block_count;
     let count = transaction_sizes.len() as u64;
     if count > max_count {
         return Err(ClientError::OversizedTransactionBundleCount(
@@ -428,11 +440,10 @@ pub fn check_transactions_fit(
         ));
     }
 
+    let max_total_size = limits.max_transactions_in_block_bytes;
     let mut total_size: u64 = 0;
     for &size in transaction_sizes {
-        if size > max_size {
-            return Err(ClientError::OversizedTransaction(size, max_size));
-        }
+        limits.check_transaction_size(size)?;
         total_size = total_size.saturating_add(size);
         if total_size > max_total_size {
             return Err(ClientError::OversizedTransactionBundleBytes(
