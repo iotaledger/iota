@@ -512,6 +512,19 @@ fn enable_attestation() -> impl Drop {
     })
 }
 
+/// Enables the P-COOL flow and transaction dependencies, with validator
+/// attestation as `attestation` says, until the returned guard is dropped.
+fn enable_transaction_dependencies(attestation: bool) -> impl Drop {
+    ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(attestation);
+        config.set_checkpoint_summary_version_specific_data_for_testing(2);
+        config.set_enable_transaction_dependencies_for_testing(true);
+
+        config
+    })
+}
+
 /// Returns an overload config that allows `max_concurrent` attestation dry
 /// runs at once and `max_queued` submissions waiting for one, with a wait
 /// limit longer than any test waits.
@@ -649,6 +662,48 @@ fn digest_of(consensus_transaction: ConsensusTransaction) -> TransactionDigest {
     };
 
     *attested.transaction.digest()
+}
+
+/// Executes `transaction` on `validator` with success, without recording it
+/// as a root of a commit.
+fn execute_without_root_commit(validator: &TestValidator, transaction: TransactionEnvelope) {
+    let executable = VerifiedExecutableTransaction::new_from_checkpoint(
+        validator
+            .epoch_store
+            .verify_transaction(transaction)
+            .unwrap(),
+        validator.epoch_store.epoch(),
+        1,
+    );
+    validator
+        .epoch_store
+        .assign_to_a_new_commit_for_testing(&[executable.key()]);
+    let (effects, _) = validator
+        .state
+        .try_execute_immediately(&executable, ExecutionEnv::new(), &validator.epoch_store)
+        .unwrap();
+    assert!(effects.status().is_success(), "{effects:?}");
+}
+
+/// Asserts that a submission was rejected with the retriable
+/// `TransactionDependencyNotFound` for `dependency`, and returns its weight.
+fn assert_dependency_not_found(
+    (update, weight): (TxStatusUpdate, Weight),
+    dependency: TransactionDigest,
+) -> f32 {
+    assert!(
+        matches!(
+            &update,
+            TxStatusUpdate::Rejected {
+                error: IotaError::UserInput {
+                    error: UserInputError::TransactionDependencyNotFound { digest },
+                },
+            } if *digest == dependency
+        ),
+        "expected the dependency not to be found, got {update:?}"
+    );
+
+    weight.value()
 }
 
 /// Waits until `count` submissions wait for a dry run on `validator`.
@@ -1250,14 +1305,7 @@ async fn test_submit_single_tx_reports_an_unknown_dependency_after_the_other_che
 #[tokio::test]
 async fn dependent_is_admitted_only_once_its_executed_dependency_is_a_commit_root() {
     telemetry_subscribers::init_for_testing();
-
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config.set_enable_validator_attestation_for_testing(true);
-        config.set_checkpoint_summary_version_specific_data_for_testing(2);
-        config.set_enable_transaction_dependencies_for_testing(true);
-        config
-    });
+    let _guard = enable_transaction_dependencies(true);
 
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let (ids, objects) = objects_owned_by(sender, 3);
@@ -1266,22 +1314,7 @@ async fn dependent_is_admitted_only_once_its_executed_dependency_is_a_commit_roo
 
     let dependency = transfer(&validator.state, sender, &sender_key, ids[0], ids[1]);
     let dependency_digest = *dependency.digest();
-    let executable = VerifiedExecutableTransaction::new_from_checkpoint(
-        validator
-            .epoch_store
-            .verify_transaction(dependency)
-            .unwrap(),
-        validator.epoch_store.epoch(),
-        1,
-    );
-    validator
-        .epoch_store
-        .assign_to_a_new_commit_for_testing(&[executable.key()]);
-    let (effects, _) = validator
-        .state
-        .try_execute_immediately(&executable, ExecutionEnv::new(), &validator.epoch_store)
-        .unwrap();
-    assert!(effects.status().is_success(), "{effects:?}");
+    execute_without_root_commit(&validator, dependency);
 
     let rgp = validator.state.reference_gas_price_for_testing().unwrap();
     let gas = validator.state.get_object(&ids[2]).unwrap();
@@ -1293,18 +1326,7 @@ async fn dependent_is_admitted_only_once_its_executed_dependency_is_a_commit_roo
         .build_and_sign(&sender_key);
     let dependent_digest = *dependent.digest();
 
-    let (update, _) = validator.submit(dependent.clone()).await;
-    assert!(
-        matches!(
-            &update,
-            TxStatusUpdate::Rejected {
-                error: IotaError::UserInput {
-                    error: UserInputError::TransactionDependencyNotFound { digest },
-                },
-            } if *digest == dependency_digest
-        ),
-        "expected the dependency not to be found, got {update:?}"
-    );
+    assert_dependency_not_found(validator.submit(dependent.clone()).await, dependency_digest);
     assert_eq!(validator.state.metrics.attestation_dry_runs_total.get(), 0);
     assert!(submitted.try_recv().is_err());
 
@@ -1323,4 +1345,82 @@ async fn dependent_is_admitted_only_once_its_executed_dependency_is_a_commit_roo
     );
     assert_eq!(digest_of(submitted.recv().await.unwrap()), dependent_digest);
     assert_eq!(validator.state.metrics.attestation_dry_runs_total.get(), 1);
+}
+
+/// A dependent whose dependency is not found is rejected at weight zero
+/// without running its Move authenticators, here ones that would fail.
+#[tokio::test]
+async fn dependent_of_a_dependency_not_found_is_rejected_without_running_its_authenticators() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = enable_transaction_dependencies(true);
+
+    let mut env = AbstractAccountTestEnv::new().await;
+    let (validator, mut submitted) = TestValidator::from_state(env.authority.clone());
+    // Signed with a key the account has never held.
+    let (_, unrelated_key): (_, AccountPrivateKey) = get_key_pair();
+
+    let unknown = TransactionDigest::random();
+    let dependent = env.dependent_account_transaction_signed_with(unknown, &unrelated_key);
+    let weight = assert_dependency_not_found(validator.submit(dependent).await, unknown);
+    assert_eq!(weight, 0.0);
+
+    // With a dependency that has no effects here, a failed authentication is
+    // reported as the dependency not found as well. One that executed without
+    // being a root of a commit is not found either, and its effects make a
+    // failed authentication reported as such, so only this rejection shows
+    // that the authenticators did not run.
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let (ids, objects) = objects_owned_by(sender, 2);
+    validator.state.insert_genesis_objects(&objects);
+    let executed = transfer(&validator.state, sender, &sender_key, ids[0], ids[1]);
+    let executed_digest = *executed.digest();
+    execute_without_root_commit(&validator, executed);
+    let dependent = env.dependent_account_transaction_signed_with(executed_digest, &unrelated_key);
+    let weight = assert_dependency_not_found(validator.submit(dependent).await, executed_digest);
+    assert_eq!(weight, 0.0);
+
+    assert!(submitted.try_recv().is_err());
+}
+
+/// Submits a Move account's key rotation and, while it is in flight, a
+/// dependent of it signed with the new key. The dependent's authentication
+/// fails until the rotation executes here, so it is rejected with the
+/// retriable `TransactionDependencyNotFound`. The rejection weighs one: the
+/// validator ran the authenticators for nothing.
+async fn assert_failed_authentication_weighs_one_while_dependency_is_in_flight(attestation: bool) {
+    telemetry_subscribers::init_for_testing();
+    let _guard = enable_transaction_dependencies(attestation);
+
+    let mut env = AbstractAccountTestEnv::new().await;
+    let (_, new_key): (_, AccountPrivateKey) = get_key_pair();
+    let rotation = env.rotate_owner_key_transaction(&new_key);
+    let rotation_digest = *rotation.digest();
+    let dependent = env.dependent_account_transaction_signed_with(rotation_digest, &new_key);
+    let (validator, mut submitted) = TestValidator::from_state(env.authority.clone());
+
+    let (update, _) = validator.submit(rotation).await;
+    assert!(
+        matches!(update, TxStatusUpdate::Submitted),
+        "expected Submitted, got {update:?}"
+    );
+    assert_eq!(digest_of(submitted.recv().await.unwrap()), rotation_digest);
+
+    let weight = assert_dependency_not_found(validator.submit(dependent).await, rotation_digest);
+    assert_eq!(weight, 1.0);
+    assert!(submitted.try_recv().is_err());
+}
+
+/// [`assert_failed_authentication_weighs_one_while_dependency_is_in_flight()`]
+/// without validator attestation, where the validation checks run the
+/// authenticators.
+#[tokio::test]
+async fn failed_authentication_weighs_one_while_dependency_is_in_flight() {
+    assert_failed_authentication_weighs_one_while_dependency_is_in_flight(false).await;
+}
+
+/// Like [`failed_authentication_weighs_one_while_dependency_is_in_flight()`],
+/// with validator attestation, where the attestation runs the authenticators.
+#[tokio::test]
+async fn failed_authentication_weighs_one_while_dependency_is_in_flight_with_attestation() {
+    assert_failed_authentication_weighs_one_while_dependency_is_in_flight(true).await;
 }

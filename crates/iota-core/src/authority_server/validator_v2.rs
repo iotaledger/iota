@@ -286,6 +286,26 @@ fn weigh_sender_rejection(error: &IotaError, after_dry_run: bool) -> Weight {
 }
 
 /// Returns the traffic weight of a rejection by
+/// [`AuthorityState::attest_transaction()`] or
+/// [`AuthorityState::handle_transaction_validation_checks()`]:
+/// [`Weight::one()`] for `TransactionDependencyNotFound`, and otherwise what
+/// [`normalize()`] gives `error`. The two return that error only for a Move
+/// authentication that failed while the transaction's dependency has not
+/// executed here, so the validator ran the authenticators for nothing.
+fn weigh_validation_rejection(error: &IotaError) -> Weight {
+    if matches!(
+        error,
+        IotaError::UserInput {
+            error: UserInputError::TransactionDependencyNotFound { .. },
+        }
+    ) {
+        Weight::one()
+    } else {
+        normalize(error)
+    }
+}
+
+/// Returns the traffic weight of a rejection by
 /// [`ExecutionCacheWrite::validate_owned_object_versions()`]: what
 /// [`weigh_sender_rejection()`] gives for an [`IotaError::UserInput`] error,
 /// and otherwise what [`normalize()`] gives `error`.
@@ -384,13 +404,14 @@ impl ValidatorService {
     /// consensus. Returns the terminal status together with the per-item
     /// traffic weight derived from the outcome: `Weight::one()` for an
     /// already-executed duplicate (spam-like), for a transaction too large for
-    /// consensus once attested, and for a changed owned input or a refused
-    /// soft lock after the attestation's dry run (the locks are taken after
-    /// the dry run only when the transaction's Move authenticators did not
-    /// run on their own first); `Weight::zero()` for a rejection because the
-    /// validator is overloaded and for a successful submission; and
-    /// `normalize(&error)` for any other rejection (signature/epoch errors
-    /// weigh, others don't).
+    /// consensus once attested, for a Move authentication that failed while
+    /// the transaction's dependency has not executed here, and for a changed
+    /// owned input or a refused soft lock after the attestation's dry run
+    /// (the locks are taken after the dry run only when the transaction's
+    /// Move authenticators did not run on their own first); `Weight::zero()`
+    /// for a rejection because the validator is overloaded and for a
+    /// successful submission; and `normalize(&error)` for any other rejection
+    /// (signature/epoch errors weigh, others don't).
     async fn submit_single_tx(
         state: &Arc<AuthorityState>,
         consensus_adapter: &Arc<ConsensusAdapter>,
@@ -513,7 +534,8 @@ impl ValidatorService {
 
         // A dependency not visible here yet is reported only after the checks
         // below, so an error that rejects the transaction for good comes
-        // first. They then run without the attestation's dry run.
+        // first. They then run without the Move authenticators and without
+        // the attestation's dry run.
         let mut dependency_not_found = None;
         if checks_admitted_inputs() {
             match check_transaction_dependency_for_submission(
@@ -546,10 +568,12 @@ impl ValidatorService {
 
         // With validator attestation enabled, `attest_transaction` runs the
         // deny checks, object loading, input checks, coin deny list and a full
-        // dry run in one call and produces the attestation payload; otherwise,
-        // or while the dependency is not found, the validation-only function
-        // runs. The attestation takes the soft locks itself before its dry
-        // run, once the transaction's signers have authorized it.
+        // dry run in one call and produces the attestation payload; otherwise
+        // the validation-only function runs. While the dependency is not
+        // found, only its checks before the Move authenticators run: the
+        // transaction is rejected whatever the authenticators answer. The
+        // attestation takes the soft locks itself before its dry run, once
+        // the transaction's signers have authorized it.
         let mut soft_lock = None;
         let (attestation_data, owned_objects, verified_tx, permit) = if !checks_admitted_inputs() {
             // Only tests take this branch, through the fail point of
@@ -644,7 +668,7 @@ impl ValidatorService {
                     (Some(data), objs, verified_tx, Some(permit))
                 }
                 Err(e) => {
-                    let weight = normalize(&e);
+                    let weight = weigh_validation_rejection(&e);
                     return (TxStatusUpdate::Rejected { error: e }, weight);
                 }
             }
@@ -661,21 +685,29 @@ impl ValidatorService {
                 }
                 None => local_deny_config,
             };
+            if let Some(not_found) = dependency_not_found {
+                let error = state
+                    .handle_transaction_validation_checks_without_authentication(
+                        &verified_tx,
+                        epoch_store,
+                        deny_config,
+                    )
+                    .err()
+                    .unwrap_or(not_found);
+                let weight = normalize(&error);
+                return (TxStatusUpdate::Rejected { error }, weight);
+            }
             match state
                 .handle_transaction_validation_checks(&verified_tx, epoch_store, deny_config)
                 .await
             {
                 Ok(objs) => (None, objs, verified_tx, None),
                 Err(e) => {
-                    let weight = normalize(&e);
+                    let weight = weigh_validation_rejection(&e);
                     return (TxStatusUpdate::Rejected { error: e }, weight);
                 }
             }
         };
-        if let Some(error) = dependency_not_found {
-            let weight = normalize(&error);
-            return (TxStatusUpdate::Rejected { error }, weight);
-        }
 
         // From here on, a rejection the sender causes weighs one if the
         // attestation's dry run ran.

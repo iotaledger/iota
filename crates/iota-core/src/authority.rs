@@ -1398,6 +1398,21 @@ impl AuthorityState {
         Ok(tx_checked_input_objects.inner().filter_owned_objects())
     }
 
+    /// Runs the checks of [`Self::handle_transaction_validation_checks`]
+    /// without running the Move authenticators, for a transaction that is
+    /// rejected whatever they answer.
+    #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
+    pub(crate) fn handle_transaction_validation_checks_without_authentication(
+        &self,
+        transaction: &VerifiedTransaction,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+        deny_config: &dyn DenyRuleConfig,
+    ) -> IotaResult<()> {
+        self.run_validation_checks(transaction, epoch_store, deny_config, false)?;
+
+        Ok(())
+    }
+
     /// Runs `authenticators` on their own, metered by `gas_status`, and fails
     /// as admission does when one rejects the transaction or runs out of gas,
     /// with the error of [`Self::authentication_failure`].
