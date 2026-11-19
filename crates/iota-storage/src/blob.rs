@@ -119,12 +119,12 @@ impl Blob {
 /// An iterator over blobs in a blob file. It ends at the end of the input, or
 /// logs an error and ends at the first blob it cannot read.
 pub struct BlobIter<T> {
-    reader: Box<dyn Read>,
+    reader: Box<dyn Read + Send>,
     _phantom: PhantomData<T>,
 }
 
 impl<T: DeserializeOwned> BlobIter<T> {
-    pub fn new(reader: Box<dyn Read>) -> Self {
+    pub fn new(reader: Box<dyn Read + Send>) -> Self {
         Self {
             reader,
             _phantom: PhantomData,
@@ -272,5 +272,32 @@ mod tests {
             let values: Vec<u64> = make_iterator(MAGIC, Cursor::new(file)).unwrap().collect();
             assert_eq!(values, vec![7]);
         }
+    }
+
+    /// A spawned task can keep the iterator across an `.await`.
+    #[tokio::test]
+    async fn blob_iter_can_be_held_across_await_in_spawned_task() {
+        let mut file = MAGIC.to_be_bytes().to_vec();
+        file.push(StorageFormat::Blob.into());
+        file.push(FileCompression::None.into());
+        for value in 0..3u64 {
+            Blob::encode(&value, BlobEncoding::Bcs)
+                .unwrap()
+                .write(&mut file)
+                .unwrap();
+        }
+
+        let iter = make_iterator::<u64, _>(MAGIC, Cursor::new(file)).unwrap();
+        let values = tokio::spawn(async move {
+            let mut values = Vec::new();
+            for value in iter {
+                tokio::task::yield_now().await;
+                values.push(value);
+            }
+            values
+        })
+        .await
+        .unwrap();
+        assert_eq!(values, vec![0, 1, 2]);
     }
 }
