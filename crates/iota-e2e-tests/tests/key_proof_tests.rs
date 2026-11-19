@@ -15,6 +15,7 @@ use std::path::PathBuf;
 
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_crypto::{
     Signer, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
     secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
@@ -435,6 +436,10 @@ async fn simulation_without_gas_coins_reads_the_nonce_of_the_mock_gas_coin() {
 /// then sends a transaction with the built-in authenticator.
 #[sim_test]
 async fn claim_account_needs_no_key_proof() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_claim_account_transaction_for_testing(true);
+        config
+    });
     let test_cluster = TestClusterBuilder::new().build().await;
     let owner = test_cluster.get_address_0();
     let keypair = test_cluster
