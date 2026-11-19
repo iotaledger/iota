@@ -105,6 +105,12 @@ const AA_RECEIVE_OBJECT_FN_NAME_NO_SENDER_CHECK: &str = "receive_object_without_
 // The package of the `builtin_keyed_aa` Move module, published together with
 // the `abstract_account` package it depends on.
 const AA_BUILTIN_PACKAGE_PATH: &str = "tests/abstract_account/builtin_abstract_account";
+const SMART_ACCOUNT_FREE_ACCESS_PACKAGE_PATH: &str =
+    "tests/abstract_account/smart_account_free_access";
+const SMART_ACCOUNT_FREE_ACCESS_MODULE_NAME: &str = "smart_account_free_access";
+const SMART_ACCOUNT_FREE_ACCESS_FN_NAME: &str = "authenticate";
+/// The code of `smart_account::ESmartAccountsNotEnabled`.
+const SMART_ACCOUNTS_NOT_ENABLED_ERROR_CODE: u8 = 1;
 const AA_BUILTIN_MODULE_NAME: &str = "builtin_keyed_aa";
 const AA_BUILTIN_CREATE_FN: &str = "create";
 
@@ -4984,6 +4990,349 @@ async fn test_builtin_move_gate_blocks_account_creation() -> Result<(), anyhow::
 }
 
 // ---------------------------------------------------
+// --- SmartAccount tests ----------------------------
+// ---------------------------------------------------
+
+/// A `SmartAccount` created by `smart_account_builtin_auth::builder_v1` and
+/// `smart_account::build_v1` sends a transaction authorized by its key under
+/// the P-COOL flow.
+#[sim_test]
+async fn test_smart_account_sends_a_transaction() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    let test_env = TestEnvironment::new().await;
+    assert_pcool_flow_on(&test_env.test_cluster);
+    let kp = SimpleKeypair::from(Ed25519PrivateKey::random_with(StdRng::from_seed(
+        [20u8; 32],
+    )));
+    let account = test_env.create_builtin_smart_account(&kp).await?;
+
+    let (tx_data, _) = test_env.smart_account_transfer(account).await?;
+    let sig = builtin_sig_for_keypair(&kp, &tx_data, account)?;
+    test_env
+        .execute_and_check_tx_correctness(TransactionEnvelope::new(SenderSignedTransaction::new(
+            tx_data,
+            vec![sig],
+        )))
+        .await
+}
+
+/// Under the P-COOL flow, every validator refuses a transaction of a
+/// `SmartAccount` signed by a key other than the account's when it is
+/// submitted, so it never executes and nobody pays for it.
+#[sim_test]
+async fn test_smart_account_wrong_key_refused_at_submission() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    let test_env = TestEnvironment::new().await;
+    assert_pcool_flow_on(&test_env.test_cluster);
+    let kp = SimpleKeypair::from(Ed25519PrivateKey::random_with(StdRng::from_seed(
+        [21u8; 32],
+    )));
+    let account = test_env.create_builtin_smart_account(&kp).await?;
+
+    let (tx_data, gas) = test_env.smart_account_transfer(account).await?;
+    let other_kp = SimpleKeypair::from(Ed25519PrivateKey::random_with(StdRng::from_seed(
+        [22u8; 32],
+    )));
+    let sig = builtin_sig_for_keypair(&other_kp, &tx_data, account)?;
+    let tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx_data, vec![sig]));
+    assert_refused_for_an_invalid_builtin_signature(&test_env.test_cluster, tx, gas).await
+}
+
+/// A sponsored transaction whose sender is a `SmartAccount` and whose sponsor
+/// is a key account executes under the P-COOL flow.
+#[sim_test]
+async fn test_smart_account_sends_a_sponsored_transaction() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    let test_env = TestEnvironment::new().await;
+    assert_pcool_flow_on(&test_env.test_cluster);
+    let kp = SimpleKeypair::from(Ed25519PrivateKey::random_with(StdRng::from_seed(
+        [23u8; 32],
+    )));
+    let account = test_env.create_builtin_smart_account(&kp).await?;
+    let sender: Address = account.object_id.into();
+    let sponsor = test_env.test_cluster.get_address_0();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let sponsor_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), sponsor)
+        .await;
+    let coin = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(1_000_000), sender)
+        .await;
+    let pt = test_env.craft_object_transfer(coin, Address::random())?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, sponsor_gas, sender, Some(sponsor))
+        .await?;
+
+    let sender_sig = builtin_sig_for_keypair(&kp, &tx_data, account)?;
+    let sponsor_sig = UserSignature::Simple(
+        test_env
+            .test_cluster
+            .wallet
+            .config()
+            .keystore()
+            .sign_secure(&sponsor, &tx_data, Intent::iota_transaction())?,
+    );
+    test_env
+        .execute_and_check_tx_correctness(TransactionEnvelope::from_user_sig_data(
+            tx_data,
+            vec![sender_sig, sponsor_sig],
+        ))
+        .await
+}
+
+/// A sponsored transaction whose sender is a key account and whose sponsor is
+/// a `SmartAccount` executes under the P-COOL flow.
+#[sim_test]
+async fn test_smart_account_sponsors_a_transaction() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    let test_env = TestEnvironment::new().await;
+    assert_pcool_flow_on(&test_env.test_cluster);
+    let kp = SimpleKeypair::from(Ed25519PrivateKey::random_with(StdRng::from_seed(
+        [24u8; 32],
+    )));
+    let account = test_env.create_builtin_smart_account(&kp).await?;
+    let sponsor: Address = account.object_id.into();
+    let sender = test_env.test_cluster.get_address_0();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let sponsor_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), sponsor)
+        .await;
+    let coin = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(1_000_000), sender)
+        .await;
+    let pt = test_env.craft_object_transfer(coin, Address::random())?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, sponsor_gas, sender, Some(sponsor))
+        .await?;
+
+    let sender_sig = UserSignature::Simple(
+        test_env
+            .test_cluster
+            .wallet
+            .config()
+            .keystore()
+            .sign_secure(&sender, &tx_data, Intent::iota_transaction())?,
+    );
+    let sponsor_sig = builtin_sig_for_keypair(&kp, &tx_data, account)?;
+    test_env
+        .execute_and_check_tx_correctness(TransactionEnvelope::from_user_sig_data(
+            tx_data,
+            vec![sender_sig, sponsor_sig],
+        ))
+        .await
+}
+
+/// After `smart_account_builtin_auth::rotate_public_key`, the new key
+/// authorizes the account's transactions and the old key is refused when a
+/// transaction is submitted.
+#[sim_test]
+async fn test_smart_account_key_rotation() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    let test_env = TestEnvironment::new().await;
+    assert_pcool_flow_on(&test_env.test_cluster);
+    let old_kp = SimpleKeypair::from(Ed25519PrivateKey::random_with(StdRng::from_seed(
+        [25u8; 32],
+    )));
+    let new_kp = SimpleKeypair::from(Secp256k1PrivateKey::random_with(StdRng::from_seed(
+        [26u8; 32],
+    )));
+    let account = test_env.create_builtin_smart_account(&old_kp).await?;
+    let sender: Address = account.object_id.into();
+
+    let pt = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let account_arg = builder.obj(CallArg::Shared(SharedObjectReference::new(
+            account.object_id,
+            account.version,
+            true,
+        )))?;
+        let new_pk = new_kp.public_key();
+        let public_key = move_public_key_arg(&mut builder, new_pk.scheme(), new_pk.as_ref())?;
+        builder.programmable_move_call(
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            Identifier::from_static("smart_account_builtin_auth"),
+            Identifier::from_static("rotate_public_key"),
+            vec![],
+            vec![account_arg, public_key],
+        );
+        builder.finish()
+    };
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), sender)
+        .await;
+    let tx_data = test_env.craft_tx_from_pt(pt, gas, sender, None).await?;
+    let sig = builtin_sig_for_keypair(&old_kp, &tx_data, account)?;
+    test_env
+        .execute_and_check_tx_correctness(TransactionEnvelope::new(SenderSignedTransaction::new(
+            tx_data,
+            vec![sig],
+        )))
+        .await?;
+
+    let (tx_data, _) = test_env.smart_account_transfer(account).await?;
+    let sig = builtin_sig_for_keypair(&new_kp, &tx_data, account)?;
+    test_env
+        .execute_and_check_tx_correctness(TransactionEnvelope::new(SenderSignedTransaction::new(
+            tx_data,
+            vec![sig],
+        )))
+        .await?;
+
+    let (tx_data, gas) = test_env.smart_account_transfer(account).await?;
+    let sig = builtin_sig_for_keypair(&old_kp, &tx_data, account)?;
+    let tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx_data, vec![sig]));
+    assert_refused_for_an_invalid_builtin_signature(&test_env.test_cluster, tx, gas).await
+}
+
+/// Where `enable_smart_accounts` is off, as on testnet and mainnet,
+/// `smart_account::builder_v1` refuses an account with a custom authenticator
+/// too.
+#[sim_test]
+async fn test_smart_account_with_custom_authenticator_refused_without_smart_accounts()
+-> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_smart_accounts_for_testing(false);
+        config
+    });
+
+    let mut test_env = TestEnvironment::new().await;
+    let package_id = test_env.publish_smart_account_free_access_package().await;
+    let transaction = test_env
+        .craft_create_custom_auth_smart_account(package_id)
+        .await?;
+    let (effects, _) = test_env
+        .test_cluster
+        .execute_transaction_return_raw_effects(transaction)
+        .await?;
+
+    let status = effects.into_status();
+    anyhow::ensure!(
+        matches!(
+            &status,
+            iota_sdk_types::ExecutionStatus::Failure {
+                error: ExecutionError::MoveAbort {
+                    location: MoveLocation { module, .. },
+                    code,
+                },
+                ..
+            } if module.as_str() == "smart_account"
+                && ErrorBitset::from_u64(*code).unwrap().error_code()
+                    == Some(SMART_ACCOUNTS_NOT_ENABLED_ERROR_CODE)
+        ),
+        "expected an abort with ESmartAccountsNotEnabled in smart_account, got: \
+         {status:?}"
+    );
+    Ok(())
+}
+
+/// The `SmartAccount` modules and the built-in authenticators come with the
+/// latest protocol version. On a network one version below, a `SmartAccount`
+/// cannot be created. After the upgrade, an account with the built-in
+/// authenticator and one with a custom authenticator are created and send
+/// transactions under the P-COOL flow.
+///
+/// Simulator only: every node must run the new framework from the upgrade on,
+/// and only the simulator gives the test that control over the nodes.
+#[cfg(msim)]
+#[sim_test]
+async fn test_smart_account_created_after_the_protocol_upgrade() -> Result<(), anyhow::Error> {
+    use iota_protocol_config::ProtocolVersion;
+    use iota_types::{
+        iota_system_state::IotaSystemStateTrait,
+        supported_protocol_versions::SupportedProtocolVersions,
+    };
+
+    telemetry_subscribers::init_for_testing();
+
+    let latest = ProtocolVersion::MAX.as_u64();
+    let mut test_env = TestEnvironment::with_cluster(
+        TestClusterBuilder::new()
+            .with_num_validators(4)
+            .with_epoch_duration_ms(30_000)
+            .with_protocol_version((latest - 1).into())
+            .with_supported_protocol_versions(SupportedProtocolVersions::new_for_testing(
+                latest - 1,
+                latest,
+            ))
+            .build()
+            .await,
+    );
+    let kp = SimpleKeypair::from(Ed25519PrivateKey::random_with(StdRng::from_seed(
+        [27u8; 32],
+    )));
+    let pk = kp.public_key();
+
+    let before = test_env
+        .craft_create_builtin_smart_account(pk.scheme(), pk.as_ref())
+        .await?;
+    match test_env
+        .test_cluster
+        .wallet
+        .execute_transaction_may_fail(before)
+        .await
+    {
+        Err(_) => {}
+        Ok(response) => anyhow::ensure!(
+            response
+                .effects
+                .as_ref()
+                .is_some_and(|effects| effects.status().is_err()),
+            "a SmartAccount must not be created before the upgrade, got: {response:?}"
+        ),
+    }
+
+    let system_state = test_env
+        .test_cluster
+        .wait_for_protocol_version_with_timeout(latest.into(), UPGRADE_TEST_TIMEOUT)
+        .await;
+    wait_for_running_nodes_to_reach_epoch(&test_env.test_cluster, system_state.epoch()).await;
+    assert_pcool_flow_on(&test_env.test_cluster);
+
+    let account = test_env.create_builtin_smart_account(&kp).await?;
+    let (tx_data, _) = test_env.smart_account_transfer(account).await?;
+    let sig = builtin_sig_for_keypair(&kp, &tx_data, account)?;
+    test_env
+        .execute_and_check_tx_correctness(TransactionEnvelope::new(SenderSignedTransaction::new(
+            tx_data,
+            vec![sig],
+        )))
+        .await?;
+
+    let package_id = test_env.publish_smart_account_free_access_package().await;
+    let transaction = test_env
+        .craft_create_custom_auth_smart_account(package_id)
+        .await?;
+    let (effects, _) = test_env
+        .test_cluster
+        .execute_transaction_return_raw_effects(transaction)
+        .await?;
+    let custom_account = abstract_account_from_all_changed_objects(&effects.all_changed_objects());
+    let (tx_data, _) = test_env.smart_account_transfer(custom_account).await?;
+    let sig = test_env.create_move_authenticator_for_free_access_for_ref(custom_account)?;
+    test_env
+        .execute_and_check_tx_correctness(TransactionEnvelope::new(SenderSignedTransaction::new(
+            tx_data,
+            vec![sig],
+        )))
+        .await
+}
+
+// ---------------------------------------------------
 // --- Test Environment for Abstract Account tests ---
 // ---------------------------------------------------
 
@@ -5919,32 +6268,7 @@ impl TestEnvironment {
 
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
-            // Pure args can only carry primitives / vector<u8>.  Construct the Move
-            // PublicKey by calling signature_scheme::<scheme>() and public_key::create()
-            // in the PTB, then forward the result to the account create function.
-            let scheme_fn = match scheme {
-                SignatureScheme::Ed25519 => "ed25519",
-                SignatureScheme::Secp256k1 => "secp256k1",
-                SignatureScheme::Secp256r1 => "secp256r1",
-                SignatureScheme::Multisig => "multisig",
-                SignatureScheme::PasskeyAuthenticator => "passkey",
-                _ => anyhow::bail!("Unsupported scheme for built-in account: {scheme:?}"),
-            };
-            let scheme_arg = builder.programmable_move_call(
-                IOTA_FRAMEWORK_PACKAGE_ID,
-                Identifier::new("signature_scheme")?,
-                Identifier::new(scheme_fn)?,
-                vec![],
-                vec![],
-            );
-            let raw_arg = builder.pure(raw_bytes.to_vec())?;
-            let public_key = builder.programmable_move_call(
-                IOTA_FRAMEWORK_PACKAGE_ID,
-                Identifier::new("public_key")?,
-                Identifier::new("create")?,
-                vec![],
-                vec![scheme_arg, raw_arg],
-            );
+            let public_key = move_public_key_arg(&mut builder, scheme, raw_bytes)?;
             builder.programmable_move_call(
                 aa_package_id,
                 Identifier::new(AA_BUILTIN_MODULE_NAME)?,
@@ -5962,6 +6286,149 @@ impl TestEnvironment {
             .programmable(pt)
             .build();
         Ok(self.test_cluster.wallet.sign_transaction(&tx_data))
+    }
+
+    // -----------------------------------------------
+    // --- SmartAccount helpers ----------------------
+    // -----------------------------------------------
+
+    /// Creates a `SmartAccount` with the built-in authenticator and `kp`'s
+    /// public key, and returns the reference it was created with.
+    async fn create_builtin_smart_account(
+        &self,
+        kp: &SimpleKeypair,
+    ) -> anyhow::Result<ObjectReference> {
+        let pk = kp.public_key();
+        let transaction = self
+            .craft_create_builtin_smart_account(pk.scheme(), pk.as_ref())
+            .await?;
+        let (effects, _) = self
+            .test_cluster
+            .execute_transaction_return_raw_effects(transaction)
+            .await?;
+        Ok(abstract_account_from_all_changed_objects(
+            &effects.all_changed_objects(),
+        ))
+    }
+
+    /// Crafts a signed transaction that creates a `SmartAccount` through
+    /// `smart_account_builtin_auth::builder_v1` and `smart_account::build_v1`.
+    async fn craft_create_builtin_smart_account(
+        &self,
+        scheme: SignatureScheme,
+        raw_bytes: &[u8],
+    ) -> anyhow::Result<TransactionEnvelope> {
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            let public_key = move_public_key_arg(&mut builder, scheme, raw_bytes)?;
+            let account_builder = builder.programmable_move_call(
+                IOTA_FRAMEWORK_PACKAGE_ID,
+                Identifier::from_static("smart_account_builtin_auth"),
+                Identifier::from_static("builder_v1"),
+                vec![],
+                vec![public_key],
+            );
+            builder.programmable_move_call(
+                IOTA_FRAMEWORK_PACKAGE_ID,
+                Identifier::from_static("smart_account"),
+                Identifier::from_static("build_v1"),
+                vec![],
+                vec![account_builder],
+            );
+            builder.finish()
+        };
+        let tx_data = self
+            .test_cluster
+            .test_transaction_builder()
+            .await
+            .programmable(pt)
+            .build();
+        Ok(self.test_cluster.wallet.sign_transaction(&tx_data))
+    }
+
+    /// Publishes the package with a custom authenticator for `SmartAccount`.
+    async fn publish_smart_account_free_access_package(&mut self) -> ObjectId {
+        let path = [
+            env!("CARGO_MANIFEST_DIR"),
+            SMART_ACCOUNT_FREE_ACCESS_PACKAGE_PATH,
+        ]
+        .iter()
+        .collect();
+        publish_package(self.test_cluster.wallet(), path)
+            .await
+            .object_id
+    }
+
+    /// Crafts a signed transaction that creates a `SmartAccount` through
+    /// `smart_account::builder_v1` and `smart_account::build_v1`, with the
+    /// free-access authenticator of the package `package_id`.
+    async fn craft_create_custom_auth_smart_account(
+        &self,
+        package_id: ObjectId,
+    ) -> anyhow::Result<TransactionEnvelope> {
+        let metadata_ref = self
+            .test_cluster
+            .get_latest_object_ref(&move_package::derive_package_metadata_id(package_id))
+            .await;
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            let arguments = vec![
+                builder.obj(CallArg::ImmutableOrOwned(metadata_ref))?,
+                builder.pure(SMART_ACCOUNT_FREE_ACCESS_MODULE_NAME)?,
+                builder.pure(SMART_ACCOUNT_FREE_ACCESS_FN_NAME)?,
+            ];
+            let authenticator = builder.programmable_move_call(
+                IOTA_FRAMEWORK_PACKAGE_ID,
+                Identifier::from_static("authenticator_function"),
+                Identifier::from_static("create_auth_function_ref_v1"),
+                vec![TypeTag::from_str("0x2::smart_account::SmartAccount")?],
+                arguments,
+            );
+            let account_builder = builder.programmable_move_call(
+                IOTA_FRAMEWORK_PACKAGE_ID,
+                Identifier::from_static("smart_account"),
+                Identifier::from_static("builder_v1"),
+                vec![],
+                vec![authenticator],
+            );
+            builder.programmable_move_call(
+                IOTA_FRAMEWORK_PACKAGE_ID,
+                Identifier::from_static("smart_account"),
+                Identifier::from_static("build_v1"),
+                vec![],
+                vec![account_builder],
+            );
+            builder.finish()
+        };
+        let tx_data = self
+            .test_cluster
+            .test_transaction_builder()
+            .await
+            .programmable(pt)
+            .build();
+        Ok(self.test_cluster.wallet.sign_transaction(&tx_data))
+    }
+
+    /// Funds the account `account` with a gas coin and a coin to send, and
+    /// returns a transfer of that coin to a random address sent by the
+    /// account, together with the gas coin it pays with.
+    async fn smart_account_transfer(
+        &self,
+        account: ObjectReference,
+    ) -> anyhow::Result<(Transaction, ObjectReference)> {
+        let sender: Address = account.object_id.into();
+        let rgp = self.test_cluster.get_reference_gas_price().await;
+        let gas = self
+            .test_cluster
+            .fund_address_and_return_gas(rgp, Some(20_000_000_000), sender)
+            .await;
+        let coin = self
+            .test_cluster
+            .fund_address_and_return_gas(rgp, Some(1_000_000), sender)
+            .await;
+        let pt = self.craft_object_transfer(coin, Address::random())?;
+        let tx_data = self.craft_tx_from_pt(pt, gas, sender, None).await?;
+        Ok((tx_data, gas))
     }
 
     async fn handle_tx(
@@ -6064,6 +6531,112 @@ fn builtin_sig_for_keypair(
             object_arg,
         )
         .into(),
+    ))
+}
+
+/// Panics unless the test cluster's fullnode runs the P-COOL flow.
+fn assert_pcool_flow_on(test_cluster: &TestCluster) {
+    assert!(
+        test_cluster.fullnode_handle.iota_node.with(|node| {
+            node.state()
+                .epoch_store_for_testing()
+                .protocol_config()
+                .enable_pcool_flow()
+        }),
+        "the test must run with the P-COOL flow on"
+    );
+}
+
+/// Submits `tx` to every validator and checks that each one refuses it because
+/// the built-in authenticator found its signature invalid, that no node
+/// executed it, and that its gas coin `gas` is unchanged.
+async fn assert_refused_for_an_invalid_builtin_signature(
+    test_cluster: &TestCluster,
+    tx: TransactionEnvelope,
+    gas: ObjectReference,
+) -> anyhow::Result<()> {
+    use iota_core::authority_client::validator_v2::ValidatorV2API;
+    use iota_types::{base_types::ConciseableName, messages_grpc::TxStatusUpdate};
+
+    let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
+    let aggregator = test_cluster.authority_aggregator();
+    for (name, client) in aggregator.authority_clients.iter() {
+        let answer = client
+            .authority_client()
+            .submit_tx(vec![tx.clone()], Some(client_ip))
+            .await?;
+        let [
+            (
+                _,
+                TxStatusUpdate::Rejected {
+                    error: IotaError::MoveAuthenticatorExecutionFailure { error },
+                },
+            ),
+        ] = answer.as_slice()
+        else {
+            anyhow::bail!(
+                "validator {} must refuse the transaction for its signature, got {answer:?}",
+                name.concise()
+            );
+        };
+        assert_move_authentication_abort(
+            error,
+            BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str(),
+            BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME,
+            INVALID_SIGNATURE_ERROR_CODE,
+        );
+    }
+    for handle in test_cluster.all_node_handles() {
+        anyhow::ensure!(
+            handle.with(|node| {
+                node.state()
+                    .get_transaction_cache_reader()
+                    .get_executed_effects(tx.digest())
+                    .is_none()
+            }),
+            "a refused transaction must not execute"
+        );
+    }
+    anyhow::ensure!(
+        test_cluster.get_latest_object_ref(&gas.object_id).await == gas,
+        "nobody must pay for a refused transaction"
+    );
+    Ok(())
+}
+
+/// Adds the commands that build the Move `PublicKey` of `scheme` and
+/// `raw_bytes` to `builder`, and returns their result.
+///
+/// Pure arguments can only carry primitives and `vector<u8>`, so the key is
+/// built by `signature_scheme::<scheme>()` and `public_key::create()` in the
+/// PTB.
+fn move_public_key_arg(
+    builder: &mut ProgrammableTransactionBuilder,
+    scheme: SignatureScheme,
+    raw_bytes: &[u8],
+) -> anyhow::Result<Argument> {
+    let scheme_fn = match scheme {
+        SignatureScheme::Ed25519 => "ed25519",
+        SignatureScheme::Secp256k1 => "secp256k1",
+        SignatureScheme::Secp256r1 => "secp256r1",
+        SignatureScheme::Multisig => "multisig",
+        SignatureScheme::PasskeyAuthenticator => "passkey",
+        _ => anyhow::bail!("Unsupported scheme for built-in account: {scheme:?}"),
+    };
+    let scheme_arg = builder.programmable_move_call(
+        IOTA_FRAMEWORK_PACKAGE_ID,
+        Identifier::new("signature_scheme")?,
+        Identifier::new(scheme_fn)?,
+        vec![],
+        vec![],
+    );
+    let raw_arg = builder.pure(raw_bytes.to_vec())?;
+    Ok(builder.programmable_move_call(
+        IOTA_FRAMEWORK_PACKAGE_ID,
+        Identifier::new("public_key")?,
+        Identifier::new("create")?,
+        vec![],
+        vec![scheme_arg, raw_arg],
     ))
 }
 
