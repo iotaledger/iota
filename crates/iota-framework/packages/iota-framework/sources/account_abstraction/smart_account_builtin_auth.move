@@ -232,7 +232,7 @@ public fun rotate_public_key(
 /// protocol config.
 #[allow(unused_function)]
 fun claim_account_v1(public_key: PublicKey, ctx: &TxContext) {
-    let builder = smart_account::claim_builder(
+    let builder = smart_account::claim_builder_v1(
         public_key,
         builtin_authenticator_function_ref_v1(),
         ctx,

@@ -3865,7 +3865,7 @@ rotate_field
 rotate_auth_function_ref_v1
 	public fun
 	0x2::smart_account
-claim_builder
+claim_builder_v1
 	public(package) fun
 	0x2::smart_account
 account_uid_mut
