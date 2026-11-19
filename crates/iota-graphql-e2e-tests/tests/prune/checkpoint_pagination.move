@@ -6,7 +6,8 @@
 // `CheckpointConnection`, and:
 // - top-level `Query.checkpoints` after pruning
 // - paginating with a cursor that points below the pruning watermark
-// - `Query.checkpoint(sequenceNumber)` for both pruned and unpruned seqs
+// - `Query.checkpoint(sequenceNumber)` for pruned, unpruned and unknown seqs
+// - `Query.checkpoint(digest)` for an unknown digest
 // - nested `Epoch.checkpoints` on a fully-pruned epoch and on the current one
 // - nested `Epoch.checkpoints` with a cursor below the pruning watermark
 
@@ -98,11 +99,30 @@ module Test::M {
 }
 
 //# run-graphql
-# E: Query.checkpoint(seq) for a pruned seq.
-# Should resolve to `null` -- the DataLoader can't find the row in either
-# Postgres or the (absent) fallback.
+# E: Query.checkpoint(seq) for a pruned seq. The row is in neither Postgres
+# nor the (absent) fallback, and the seq is below the watermark, so the
+# request fails with DATA_PRUNED.
 {
   pruned: checkpoint(id: { sequenceNumber: 0 }) {
+    sequenceNumber
+  }
+}
+
+//# run-graphql
+# E2: Query.checkpoint(seq) for a seq above the watermark that does not exist
+# yet -- resolves to `null`.
+{
+  unknown: checkpoint(id: { sequenceNumber: 100 }) {
+    sequenceNumber
+  }
+}
+
+//# run-graphql
+# E3: Query.checkpoint(digest) for a digest that never existed. Without a
+# fallback it cannot be told apart from a pruned one, so it fails with
+# DATA_PRUNED.
+{
+  unknown: checkpoint(id: { digest: "11111111111111111111111111111111" }) {
     sequenceNumber
   }
 }
