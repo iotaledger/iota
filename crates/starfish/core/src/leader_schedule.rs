@@ -19,7 +19,7 @@ use crate::{
     context::Context,
     dag_state::DagState,
     error::ConsensusResult,
-    leader_scoring::{ReputationScores, ScoringSubdag},
+    leader_scoring::ReputationScores,
     sliding_window_schedule::SlidingWindowSchedule,
 };
 
@@ -62,25 +62,17 @@ pub(crate) struct LeaderSchedule {
     pub leader_swap_table: Arc<RwLock<LeaderSwapTable>>,
     context: Arc<Context>,
     num_commits_per_schedule: u32,
-    /// When set (the `consensus_enable_sliding_window_leader_schedule` flag is
-    /// on), reputation scores are sourced from this sliding-window scorer
-    /// instead of the `ScoringSubdag` snapshot, and the base election is
-    /// uniform. `None` runs the V2 path.
-    sliding_window: Option<Arc<Mutex<SlidingWindowSchedule>>>,
+    /// Sliding-window scorer the reputation scores come from.
+    sliding_window: Arc<Mutex<SlidingWindowSchedule>>,
 }
 
 impl LeaderSchedule {
     pub(crate) fn new(context: Arc<Context>, leader_swap_table: LeaderSwapTable) -> Self {
         let num_commits_per_schedule = context.protocol_config.commits_per_schedule();
-        let sliding_window = context
-            .protocol_config
-            .consensus_enable_sliding_window_leader_schedule()
-            .then(|| {
-                Arc::new(Mutex::new(SlidingWindowSchedule::new(
-                    context.clone(),
-                    context.protocol_config.leader_schedule_window_size(),
-                )))
-            });
+        let sliding_window = Arc::new(Mutex::new(SlidingWindowSchedule::new(
+            context.clone(),
+            context.protocol_config.leader_schedule_window_size(),
+        )));
         Self {
             context,
             num_commits_per_schedule,
@@ -186,51 +178,11 @@ impl LeaderSchedule {
                 let table = self.leader_swap_table.read();
                 table.swap(leader, round, leader_offset).unwrap_or(leader)
             } else {
-                let leader = if self.sliding_window.is_some() {
-                    self.elect_leader_uniform(round, leader_offset)
-                } else {
-                    self.elect_leader_stake_based(round, leader_offset)
-                };
+                let leader = self.elect_leader_uniform(round, leader_offset);
                 let table = self.leader_swap_table.read();
                 table.swap(leader, round, leader_offset).unwrap_or(leader)
             }
         }
-    }
-
-    /// Stake-weighted base election. `offset` selects among multiple leaders in
-    /// a round; with one leader per round today it is always 0.
-    pub(crate) fn elect_leader_stake_based(&self, round: u32, offset: u32) -> AuthorityIndex {
-        assert!((offset as usize) < self.context.committee.size());
-
-        // To ensure that we elect different leaders for the same round (using
-        // different offset) we are using the round number as seed to shuffle in
-        // a weighted way the results, but skip based on the offset.
-        // TODO: use a cache in case this proves to be computationally expensive
-        let mut seed_bytes = [0u8; 32];
-        seed_bytes[32 - 4..].copy_from_slice(&(round).to_le_bytes());
-        // Every authority has to elect the same leader from this seed, so both
-        // the generator and the sampling below are named rather than left to
-        // `rand`: `StdRng` and `rand`'s own samplers are free to change between
-        // versions, and 0.9 did change them.
-        let mut rng = ChaCha12Rng::from_seed(seed_bytes);
-
-        let choices = self
-            .context
-            .committee
-            .authorities()
-            .map(|(index, authority)| (index, authority.stake as f32))
-            .collect::<Vec<_>>();
-
-        portable_random::sample_weighted(
-            &mut rng,
-            choices.len(),
-            |i| choices[i].1 as f64,
-            self.context.committee.size(),
-        )
-        .into_iter()
-        .nth(offset as usize)
-        .map(|i| choices[i].0)
-        .unwrap()
     }
 
     fn range_validation(&self, new_table: &LeaderSwapTable, old_table: &LeaderSwapTable) {
@@ -299,34 +251,20 @@ impl LeaderSchedule {
             return;
         }
 
-        // Both paths feed the same swap table and go through range_validation and
-        // persist below; they differ only in where the scores and commit_range
-        // come from.
-        //
-        // Sliding-window: scores are the running-window aggregate; commit_range is
-        // the committed interval ending at the boundary L — the same shape V2
-        // produces, so it satisfies the shared range_validation. Its end (L) is
-        // where a restarted node resumes the scoring subdag (from L+1). The
-        // window's scored frontier lags L by MAX_PENDING_COMMITS.
-        //
-        // V2: scores and commit_range both come from the ScoringSubdag snapshot.
-        let (reputation_scores, boundary) = if let Some(sliding_window) = &self.sliding_window {
-            let scores = sliding_window
-                .lock()
-                .reputation_scores()
-                .scores_per_authority;
-            let boundary = dag_state_write_lock.last_commit_index();
-            let interval = self.num_commits_per_schedule;
-            let start = boundary.saturating_sub(interval).saturating_add(1);
-            (
-                ReputationScores::new(CommitRange::new(start..=boundary), scores),
-                boundary,
-            )
-        } else {
-            let reputation_scores = dag_state_write_lock.calculate_scoring_subdag_scores();
-            let boundary = dag_state_write_lock.scoring_subdag_commit_range().end();
-            (reputation_scores, boundary)
-        };
+        // Scores are the running-window aggregate; commit_range is the committed
+        // interval ending at the boundary L. Its end (L) is where a restarted
+        // node resumes the scoring subdag (from L+1). The window's scored
+        // frontier lags L by MAX_PENDING_COMMITS.
+        let scores = self
+            .sliding_window
+            .lock()
+            .reputation_scores()
+            .scores_per_authority;
+        let boundary = dag_state_write_lock.last_commit_index();
+        let start = boundary
+            .saturating_sub(self.num_commits_per_schedule)
+            .saturating_add(1);
+        let reputation_scores = ReputationScores::new(CommitRange::new(start..=boundary), scores);
         let table = LeaderSwapTable::new(self.context.clone(), boundary, reputation_scores.clone());
         self.persist_scores(dag_state_write_lock, reputation_scores);
         self.range_validation(&table, &self.leader_swap_table.read());
@@ -428,31 +366,23 @@ impl LeaderSchedule {
 
         dag_state_write_lock.clear_scoring_subdag();
 
-        let reputation_scores = if self.sliding_window.is_some() {
-            // Rebuild the window aggregate a continuously running node had when
-            // it rotated at window_end. The live scorer stays as recovered —
-            // current up to the last commit — for the rotations that follow.
-            let scorer_window_size = self.context.protocol_config.leader_schedule_window_size();
-            let replay_start = SlidingWindowSchedule::replay_start(window_end, scorer_window_size);
-            let mut scorer = SlidingWindowSchedule::new(self.context.clone(), scorer_window_size);
-            for subdag in dag_state_write_lock
-                .load_scoring_subdags_from_store((replay_start..=window_end).into())
-            {
-                scorer.add_commit(subdag);
-            }
-            let scores = scorer.reputation_scores().scores_per_authority;
-            // The recorded range is the span between the previous schedule
-            // update and this one: recovery resumes the commit count after
-            // its end, and the next update's range must directly follow it.
-            ReputationScores::new(CommitRange::new(window_start..=window_end), scores)
-        } else {
-            let mut scoring_subdag = ScoringSubdag::new(self.context.clone());
-            scoring_subdag.add_subdags(
-                dag_state_write_lock
-                    .load_scoring_subdags_from_store((window_start..=window_end).into()),
-            );
-            scoring_subdag.calculate_distributed_vote_scores()
-        };
+        // Rebuild the window aggregate a continuously running node had when it
+        // rotated at window_end. The live scorer stays as recovered — current up
+        // to the last commit — for the rotations that follow.
+        let scorer_window_size = self.context.protocol_config.leader_schedule_window_size();
+        let replay_start = SlidingWindowSchedule::replay_start(window_end, scorer_window_size);
+        let mut scorer = SlidingWindowSchedule::new(self.context.clone(), scorer_window_size);
+        for subdag in
+            dag_state_write_lock.load_scoring_subdags_from_store((replay_start..=window_end).into())
+        {
+            scorer.add_commit(subdag);
+        }
+        let scores = scorer.reputation_scores().scores_per_authority;
+        // The recorded range is the span between the previous schedule update
+        // and this one: recovery resumes the commit count after its end, and
+        // the next update's range must directly follow it.
+        let reputation_scores =
+            ReputationScores::new(CommitRange::new(window_start..=window_end), scores);
         // The window is interval-wide and lands on the rotation boundaries by
         // construction, so the steady-state range validation is not repeated.
         let table =
@@ -478,9 +408,8 @@ impl LeaderSchedule {
         self.apply_reputation_scores_inner(&mut old, table);
     }
 
-    /// Uniform (non-stake-weighted) base election, used when the sliding-window
-    /// leader schedule is enabled. Round-seeded so all authorities draw the
-    /// same candidate for a given round. `offset` selects among multiple
+    /// Uniform (non-stake-weighted) base election. Round-seeded so all
+    /// authorities draw the same candidate for a given round. `offset` selects among multiple
     /// leaders in a round; with one leader per round today it is always 0.
     pub(crate) fn elect_leader_uniform(&self, round: u32, offset: u32) -> AuthorityIndex {
         assert!((offset as usize) < self.context.committee.size());
@@ -500,28 +429,21 @@ impl LeaderSchedule {
             .unwrap()
     }
 
-    /// Feeds newly committed subdags to the sliding-window scorer when enabled.
-    /// Called on every commit; returns without effect on the V2 path (no
-    /// scorer).
+    /// Feeds newly committed subdags to the sliding-window scorer. Called on
+    /// every commit.
     pub(crate) fn feed_committed_subdags(&self, subdags: impl IntoIterator<Item = SubDagBase>) {
-        if let Some(sliding_window) = &self.sliding_window {
-            let mut scorer = sliding_window.lock();
-            for subdag in subdags {
-                scorer.add_commit(subdag);
-            }
+        let mut scorer = self.sliding_window.lock();
+        for subdag in subdags {
+            scorer.add_commit(subdag);
         }
     }
 
-    /// Rebuilds the sliding-window scorer (when enabled) by replaying the last
-    /// `window_size` committed subdags from storage, so the running aggregate
-    /// is current after a restart or fast-sync. No-op while fast sync is
-    /// ongoing; `reinitialize` rebuilds the window once fast sync completes.
-    /// Does not recover the in-effect swap table. Returns without effect on
-    /// the V2 path (no scorer).
+    /// Rebuilds the sliding-window scorer by replaying the last `window_size`
+    /// committed subdags from storage, so the running aggregate is current
+    /// after a restart or fast-sync. No-op while fast sync is ongoing;
+    /// `reinitialize` rebuilds the window once fast sync completes. Does not
+    /// recover the in-effect swap table.
     fn recover_sliding_window(&self, dag_state: &RwLock<DagState>) {
-        let Some(sliding_window) = &self.sliding_window else {
-            return;
-        };
         // Skip if fast sync is ongoing - committed block headers may not be
         // available and the window is rebuilt on reinitialize anyway
         if dag_state.read().fast_sync_ongoing() {
@@ -539,7 +461,7 @@ impl LeaderSchedule {
         for subdag in subdags {
             fresh.add_commit(subdag);
         }
-        *sliding_window.lock() = fresh;
+        *self.sliding_window.lock() = fresh;
     }
 }
 
@@ -788,9 +710,7 @@ impl LeaderSwapTable {
     /// (swap-in) and bad sets by performance relative to the top scorer. Each
     /// score is normalized against the highest score in the window, so the
     /// thresholds mean the same thing regardless of how close the scoring
-    /// strategy gets to its theoretical ceiling — V2 batch and sliding-window
-    /// reach very different absolute levels for the same network, but their top
-    /// performers both normalize to 100%. A node below the low threshold is
+    /// strategy gets to its theoretical ceiling. A node below the low threshold is
     /// bad; a node at or above the high threshold is good. The good pool
     /// extends down the ranking until it holds at least the minimum number
     /// of validators; the bad set is capped at the maximum bad-node count.
@@ -911,10 +831,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        block_header::{
-            BlockHeaderDigest, BlockRef, BlockTimestampMs, TestBlockHeader, VerifiedBlockHeader,
-        },
-        commit::{CommitAPI, CommitDigest, CommitInfo, CommitRef, CommittedSubDag, TrustedCommit},
+        block_header::{BlockHeaderDigest, BlockRef},
+        commit::{CommitDigest, CommitInfo, CommitRef, CommittedSubDag},
         storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
     };
@@ -939,60 +857,9 @@ mod tests {
         // ensure we elect different leaders for the same round for the multi-leader
         // case
         assert_ne!(
-            leader_schedule.elect_leader_stake_based(1, 1),
-            leader_schedule.elect_leader_stake_based(1, 2)
+            leader_schedule.elect_leader_uniform(1, 1),
+            leader_schedule.elect_leader_uniform(1, 2)
         );
-    }
-
-    #[tokio::test]
-    async fn test_elect_leader_stake_based() {
-        let context = Arc::new(Context::new_for_test(4).0);
-        let leader_schedule = LeaderSchedule::new(context, LeaderSwapTable::default());
-
-        assert_eq!(
-            leader_schedule.elect_leader_stake_based(0, 0),
-            AuthorityIndex::new_for_test(1)
-        );
-        assert_eq!(
-            leader_schedule.elect_leader_stake_based(1, 0),
-            AuthorityIndex::new_for_test(1)
-        );
-        assert_eq!(
-            leader_schedule.elect_leader_stake_based(5, 0),
-            AuthorityIndex::new_for_test(3)
-        );
-        // ensure we elect different leaders for the same round for the multi-leader
-        // case
-        assert_ne!(
-            leader_schedule.elect_leader_stake_based(1, 1),
-            leader_schedule.elect_leader_stake_based(1, 2)
-        );
-    }
-
-    // Every authority must elect the same leader for a round, so the exact
-    // result of the stake-weighted draw is checked, with uneven stakes so that
-    // the weights matter.
-    // If this fails, don't update the values: gate the change behind a
-    // protocol feature flag.
-    #[tokio::test]
-    async fn test_elect_leader_stake_based_uneven_stake_exact_values() {
-        let (committee, _) =
-            starfish_config::local_committee_and_keys(0, vec![1, 2, 3, 5, 10, 25, 54]);
-        let context = Arc::new(Context::new_for_test(7).0.with_committee(committee));
-        let leader_schedule = LeaderSchedule::new(context, LeaderSwapTable::default());
-
-        for (round, expected) in [
-            (0, [4, 5, 6, 1, 3, 2, 0]),
-            (1, [5, 6, 1, 4, 2, 3, 0]),
-            (7, [5, 6, 2, 4, 3, 0, 1]),
-            (1000, [6, 5, 4, 0, 2, 3, 1]),
-        ] {
-            let leaders = (0..7)
-                .map(|offset| leader_schedule.elect_leader_stake_based(round, offset))
-                .collect::<Vec<_>>();
-            let expected = expected.map(AuthorityIndex::new_for_test).to_vec();
-            assert_eq!(leaders, expected, "round {round}");
-        }
     }
 
     #[tokio::test]
@@ -1100,9 +967,10 @@ mod tests {
             dag_state.read().last_committed_rounds()
         );
         assert_eq!(1, dag_state.read().scoring_subdags_count());
-        let recovered_scores = dag_state.read().calculate_scoring_subdag_scores();
-        let expected_scores = ReputationScores::new((11..=11).into(), vec![0, 0, 0, 0]);
-        assert_eq!(recovered_scores, expected_scores);
+        assert_eq!(
+            dag_state.read().scoring_subdag_commit_range(),
+            (11..=11).into()
+        );
 
         let leader_schedule = LeaderSchedule::from_store(context, dag_state);
 
@@ -1203,9 +1071,10 @@ mod tests {
             expected_scored_subdags.len(),
             dag_state.read().scoring_subdags_count()
         );
-        let recovered_scores = dag_state.read().calculate_scoring_subdag_scores();
-        let expected_scores = ReputationScores::new((1..=2).into(), vec![0, 0, 0, 0]);
-        assert_eq!(recovered_scores, expected_scores);
+        assert_eq!(
+            dag_state.read().scoring_subdag_commit_range(),
+            (1..=2).into()
+        );
 
         let leader_schedule = LeaderSchedule::from_store(context, dag_state);
 
@@ -1218,11 +1087,7 @@ mod tests {
     #[tokio::test]
     async fn test_leader_schedule_from_store_during_fast_sync() {
         telemetry_subscribers::init_for_testing();
-        let mut context = Context::new_for_test(4).0;
-        context
-            .protocol_config
-            .set_consensus_enable_sliding_window_leader_schedule_for_testing(true);
-        let context = Arc::new(context);
+        let context = Arc::new(Context::new_for_test(4).0);
         let store = Arc::new(MemStore::new());
 
         let mut dag_builder = DagBuilder::new(context.clone());
@@ -1252,7 +1117,7 @@ mod tests {
         // Recovery must not replay subdags (their headers are absent) and is
         // deferred until fast sync completes.
         let leader_schedule = LeaderSchedule::from_store(context, dag_state.clone());
-        let sliding_window = leader_schedule.sliding_window.as_ref().unwrap();
+        let sliding_window = &leader_schedule.sliding_window;
         assert_eq!(
             sliding_window.lock().reputation_scores().commit_range,
             CommitRange::default()
@@ -1307,148 +1172,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_leader_schedule_update_leader_schedule() {
-        telemetry_subscribers::init_for_testing();
-        let mut context = Context::new_for_test(4).0;
-        context
-            .protocol_config
-            .set_consensus_bad_nodes_stake_threshold_for_testing(33);
-        // Scores feed the V2 batch path and the good/bad split assumes
-        // stake-rank selection; run with the sliding-window schedule and
-        // absolute-score selection off.
-        context
-            .protocol_config
-            .set_consensus_enable_sliding_window_leader_schedule_for_testing(false);
-        context
-            .protocol_config
-            .set_consensus_enable_absolute_score_leader_schedule_for_testing(false);
-        let context = Arc::new(context);
-        let leader_schedule = Arc::new(LeaderSchedule::new(
-            context.clone(),
-            LeaderSwapTable::default(),
-        ));
-        let dag_state = Arc::new(RwLock::new(DagState::new(
-            context.clone(),
-            Arc::new(MemStore::new()),
-        )));
-
-        // Populate fully connected test blocks for round 0 ~ 4, authorities 0 ~ 3.
-        let max_round: u32 = 4;
-        let num_authorities: u8 = 4;
-
-        let mut blocks = Vec::new();
-        let (genesis_references, genesis): (Vec<_>, Vec<_>) = context
-            .committee
-            .authorities()
-            .map(|index| {
-                let author_idx = index.0.value() as u8;
-                let block = TestBlockHeader::new(0, author_idx).build();
-                VerifiedBlockHeader::new_for_test(block)
-            })
-            .map(|block| (block.reference(), block))
-            .unzip();
-        blocks.extend(genesis);
-
-        let mut ancestors = genesis_references;
-        let mut leader = None;
-        for round in 1..=max_round {
-            let mut new_ancestors = vec![];
-            for author in 0..num_authorities {
-                let base_ts = round as BlockTimestampMs * 1000;
-                let block = VerifiedBlockHeader::new_for_test(
-                    TestBlockHeader::new(round, author)
-                        .set_timestamp_ms(base_ts + (author as u32 + round) as u64)
-                        .set_ancestors(ancestors.clone())
-                        .build(),
-                );
-                new_ancestors.push(block.reference());
-
-                // Simulate referenced block which was part of another committed
-                // subdag.
-                if round == 3 && author == 0 {
-                    tracing::info!("Skipping {block} in committed subdags blocks");
-                    continue;
-                }
-
-                blocks.push(block.clone());
-
-                // only write one block for the final round, which is the leader
-                // of the committed subdag.
-                if round == max_round {
-                    leader = Some(block);
-                    break;
-                }
-            }
-            ancestors = new_ancestors;
-        }
-
-        let leader_block = leader.unwrap();
-        let leader_ref = leader_block.reference();
-        let commit_index = 1;
-
-        let last_commit = TrustedCommit::new_for_test(
-            commit_index,
-            CommitDigest::MIN,
-            context.clock.timestamp_utc_ms(),
-            leader_ref,
-            blocks
-                .iter()
-                .map(|block| block.reference())
-                .collect::<Vec<_>>(),
-            vec![],
-        );
-
-        let unscored_subdags = vec![
-            CommittedSubDag::new(
-                leader_ref,
-                blocks,
-                last_commit.block_headers().to_vec(),
-                vec![], // Committed transactions are not important for this test.
-                context.clock.timestamp_utc_ms(),
-                last_commit.reference(),
-                vec![],
-                vec![],
-            )
-            .base,
-        ];
-        {
-            let mut dag_state_write = dag_state.write();
-            dag_state_write.set_last_commit(last_commit);
-            dag_state_write.add_scoring_subdags(unscored_subdags);
-
-            assert_eq!(
-                leader_schedule.elect_leader(4, 0),
-                AuthorityIndex::new_for_test(0)
-            );
-
-            leader_schedule.update_leader_schedule(&mut dag_state_write);
-        }
-
-        let leader_swap_table = leader_schedule.leader_swap_table.read();
-        assert_eq!(leader_swap_table.good_nodes.len(), 1);
-        assert_eq!(
-            leader_swap_table.good_nodes[0].0,
-            AuthorityIndex::new_for_test(2)
-        );
-        assert_eq!(leader_swap_table.bad_nodes.len(), 1);
-        assert!(
-            leader_swap_table
-                .bad_nodes
-                .contains_key(&AuthorityIndex::new_for_test(0))
-        );
-        assert_eq!(
-            leader_schedule.elect_leader(4, 0),
-            AuthorityIndex::new_for_test(2)
-        );
-    }
-
-    #[tokio::test]
     async fn test_update_leader_schedule_sliding_window() {
-        let mut context = Context::new_for_test(4).0;
-        context
-            .protocol_config
-            .set_consensus_enable_sliding_window_leader_schedule_for_testing(true);
-        let context = Arc::new(context);
+        let context = Arc::new(Context::new_for_test(4).0);
         let leader_schedule = LeaderSchedule::new(context.clone(), LeaderSwapTable::default())
             .with_num_commits_per_schedule(3);
         let dag_state = Arc::new(RwLock::new(DagState::new(
@@ -1464,10 +1189,9 @@ mod tests {
             .collect::<Vec<_>>();
 
         // Feed the first 6 commits, then rebuild: scores come from the sliding
-        // window (commits 1..=3 are scored, given the 3-commit lookback), not a
-        // ScoringSubdag snapshot. commit_range is the committed interval ending at
-        // the boundary — with num_commits_per_schedule = 3 and last committed
-        // index 6, that is 4..=6.
+        // window (commits 1..=3 are scored, given the 3-commit lookback).
+        // commit_range is the committed interval ending at the boundary — with
+        // num_commits_per_schedule = 3 and last committed index 6, that is 4..=6.
         leader_schedule.feed_committed_subdags(commits[..6].iter().map(|(s, _)| s.base.clone()));
         {
             let mut ds = dag_state.write();
@@ -1483,8 +1207,8 @@ mod tests {
         assert_eq!(range, (4..=6).into());
 
         // Feed 3 more and rebuild again. The committed-interval ranges are
-        // contiguous and equal-size (4..=6 then 7..=9), so range_validation — now
-        // shared with the V2 path — accepts them.
+        // contiguous and equal-size (4..=6 then 7..=9), so range_validation
+        // accepts them.
         leader_schedule.feed_committed_subdags(commits[6..].iter().map(|(s, _)| s.base.clone()));
         {
             let mut ds = dag_state.write();
@@ -1885,236 +1609,18 @@ mod tests {
         leader_schedule.update_leader_swap_table_strict_for_test(leader_swap_table);
     }
 
-    // Recovers a schedule from a store whose last CommitInfo lags the last
-    // commit by more than one rotation interval, and checks that the schedule
-    // is rebuilt onto the same rotation boundaries a continuously running
-    // node used.
-    async fn run_update_after_recovery_backlog(restart: bool) {
-        telemetry_subscribers::init_for_testing();
-        let mut context = Context::new_for_test(4).0;
-        context
-            .protocol_config
-            .set_consensus_bad_nodes_stake_threshold_for_testing(33);
-        // Scores feed the V2 batch path and the good/bad split assumes
-        // stake-rank selection; run with the sliding-window schedule and
-        // absolute-score selection off.
-        context
-            .protocol_config
-            .set_consensus_enable_sliding_window_leader_schedule_for_testing(false);
-        context
-            .protocol_config
-            .set_consensus_enable_absolute_score_leader_schedule_for_testing(false);
-        let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
-
-        const INTERVAL: u32 = 3;
-
-        // Persist commits 1..=11 but only one CommitInfo, covering (1..=3):
-        // recovery rebuilds a backlog of 8 commits — two full windows (4..=6)
-        // and (7..=9) plus the partial window (10..=11).
-        let mut dag_builder = DagBuilder::new(context.clone());
-        dag_builder.layers(1..=12).build();
-        let first_window = dag_builder.get_sub_dag_and_commits(1..=INTERVAL);
-        let committed_rounds = dag_builder.last_committed_rounds.clone();
-        let rest = dag_builder.get_sub_dag_and_commits(INTERVAL + 1..=12);
-
-        let mut headers_to_write = vec![];
-        let mut commits_to_write = vec![];
-        for (sub_dag, commit) in first_window.iter().chain(&rest[..8]) {
-            headers_to_write.extend(sub_dag.headers.iter().cloned());
-            commits_to_write.push(commit.clone());
-        }
-        let commit_info = CommitInfo {
-            reputation_scores: ReputationScores::new((1..=INTERVAL).into(), vec![1, 2, 4, 3]),
-            committed_rounds,
-        };
-        let commit_ref = first_window.last().unwrap().1.reference();
-        store
-            .write(
-                WriteBatch::default()
-                    .commit_info(vec![(commit_ref, commit_info)])
-                    .block_headers(headers_to_write)
-                    .commits(commits_to_write),
-            )
-            .unwrap();
-
-        let mut dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-        assert_eq!(dag_state.read().scoring_subdags_count(), 8);
-
-        let mut leader_schedule = LeaderSchedule::from_store(context.clone(), dag_state.clone())
-            .with_num_commits_per_schedule(INTERVAL);
-        assert_eq!(
-            leader_schedule
-                .leader_swap_table
-                .read()
-                .reputation_scores
-                .commit_range,
-            (1..=3).into()
-        );
-
-        // The backlog forces an immediate schedule update.
-        assert_eq!(
-            leader_schedule.commits_until_leader_schedule_update(dag_state.clone()),
-            0
-        );
-
-        // The last full window rebuilds the table; the partial window stays
-        // live.
-        leader_schedule.update_leader_schedule(&mut dag_state.write());
-        {
-            let table = leader_schedule.leader_swap_table.read();
-            assert_eq!(table.reputation_scores.commit_range, (7..=9).into());
-            assert_eq!(table.good_nodes.len(), 1);
-            assert_eq!(table.bad_nodes.len(), 1);
-        }
-        assert_eq!(dag_state.read().scoring_subdags_count(), 2);
-
-        if restart {
-            dag_state.write().flush();
-            assert_eq!(dag_state.read().last_commit_info_index(), 9);
-            dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
-            assert_eq!(dag_state.read().scoring_subdags_count(), 2);
-            leader_schedule = LeaderSchedule::from_store(context, dag_state.clone())
-                .with_num_commits_per_schedule(INTERVAL);
-            assert_eq!(
-                leader_schedule
-                    .leader_swap_table
-                    .read()
-                    .reputation_scores
-                    .commit_range,
-                (7..=9).into()
-            );
-        }
-
-        // The next rotation triggers after commit 12 and validates strictly:
-        // (10..=12) continues on the same window boundaries.
-        let (sub_dag, commit) = &rest[8];
-        {
-            let mut write = dag_state.write();
-            write.add_commit(commit.clone());
-            write.add_scoring_subdags(vec![sub_dag.base.clone()]);
-        }
-        assert_eq!(
-            leader_schedule.commits_until_leader_schedule_update(dag_state.clone()),
-            0
-        );
-        leader_schedule.update_leader_schedule(&mut dag_state.write());
-        assert_eq!(
-            leader_schedule
-                .leader_swap_table
-                .read()
-                .reputation_scores
-                .commit_range,
-            (10..=12).into()
-        );
-    }
-
-    #[tokio::test]
-    async fn test_leader_schedule_update_after_recovery_backlog() {
-        run_update_after_recovery_backlog(false).await;
-    }
-
-    #[tokio::test]
-    async fn test_leader_schedule_update_after_recovery_backlog_with_restart() {
-        run_update_after_recovery_backlog(true).await;
-    }
-
-    /// Verifies that rebuilding the schedule from an oversized recovered
-    /// backlog produces the exact same `LeaderSwapTable` as a node that never
-    /// crashed and updated its schedule incrementally over the same commits.
-    #[tokio::test]
-    async fn test_update_leader_schedule_from_backlog_matches_live_schedule() {
-        telemetry_subscribers::init_for_testing();
-        let mut context = Context::new_for_test(4).0;
-        context
-            .protocol_config
-            .set_consensus_bad_nodes_stake_threshold_for_testing(33);
-        // Scores feed the V2 batch path and the good/bad split assumes
-        // stake-rank selection; run with the sliding-window schedule and
-        // absolute-score selection off.
-        context
-            .protocol_config
-            .set_consensus_enable_sliding_window_leader_schedule_for_testing(false);
-        context
-            .protocol_config
-            .set_consensus_enable_absolute_score_leader_schedule_for_testing(false);
-        let context = Arc::new(context);
-
-        // Two full 5-commit windows, built once and shared by both scenarios so
-        // both operate on identical committed subdags.
-        let mut dag_builder = DagBuilder::new(context.clone());
-        dag_builder.layers(1..=10).build();
-        let sub_dags_and_commits = dag_builder.get_sub_dag_and_commits(1..=10);
-
-        // Live scenario: commits are added one at a time and the schedule is
-        // updated as soon as each 5-commit window fills up.
-        let dag_state_live = Arc::new(RwLock::new(DagState::new(
-            context.clone(),
-            Arc::new(MemStore::new()),
-        )));
-        let leader_schedule_live = LeaderSchedule::new(context.clone(), LeaderSwapTable::default())
-            .with_num_commits_per_schedule(5);
-        for (index, (sub_dag, commit)) in sub_dags_and_commits.iter().enumerate() {
-            let mut dag_state_write = dag_state_live.write();
-            dag_state_write.set_last_commit(commit.clone());
-            dag_state_write.add_scoring_subdags(vec![sub_dag.base.clone()]);
-            if (index + 1) % 5 == 0 {
-                leader_schedule_live.update_leader_schedule(&mut dag_state_write);
-            }
-        }
-        let live_table_window_2 = leader_schedule_live.leader_swap_table.read().clone();
-
-        // Recovered scenario: the same 10 commits are persisted with no
-        // CommitInfo at all, so DagState recovers them as a single 10-commit
-        // backlog exceeding the 5-commit schedule window.
-        let store = Arc::new(MemStore::new());
-        let mut headers_to_write = vec![];
-        let mut commits_to_write = vec![];
-        for (sub_dag, commit) in &sub_dags_and_commits {
-            headers_to_write.extend(sub_dag.headers.iter().cloned());
-            commits_to_write.push(commit.clone());
-        }
-        store
-            .write(
-                WriteBatch::default()
-                    .block_headers(headers_to_write)
-                    .commits(commits_to_write),
-            )
-            .unwrap();
-
-        let dag_state_recovered = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
-        assert_eq!(dag_state_recovered.read().scoring_subdags_count(), 10);
-
-        let leader_schedule_recovered =
-            LeaderSchedule::from_store(context, dag_state_recovered.clone())
-                .with_num_commits_per_schedule(5);
-        leader_schedule_recovered.update_leader_schedule(&mut dag_state_recovered.write());
-        let recovered_table = leader_schedule_recovered.leader_swap_table.read().clone();
-
-        // The table rebuilt from the backlog (last full window) must match the
-        // live node's window-2 table exactly.
-        assert_eq!(
-            recovered_table.reputation_scores,
-            live_table_window_2.reputation_scores
-        );
-        assert_eq!(recovered_table.good_nodes, live_table_window_2.good_nodes);
-        assert_eq!(recovered_table.bad_nodes, live_table_window_2.bad_nodes);
-    }
-
     #[test]
     fn test_leader_schedule_window_invariant_for_all_protocol_configs() {
         use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 
-        // The getter assert enforcing this only fires once consensus starts at
-        // the adopting epoch; check every defined config here so that a
-        // misconfigured version fails CI, which runs this without msim and so
-        // compares the real, unclamped values.
+        // Check every defined config so that a misconfigured version fails CI,
+        // which runs this without msim and so compares the real, unclamped
+        // values.
         for chain in [Chain::Unknown, Chain::Mainnet, Chain::Testnet] {
             for version in ProtocolVersion::MIN.as_u64()..=ProtocolVersion::MAX.as_u64() {
                 let config = ProtocolConfig::get_for_version(ProtocolVersion::new(version), chain);
                 assert!(
-                    !config.consensus_enable_sliding_window_leader_schedule()
-                        || config.leader_schedule_window_size() >= config.commits_per_schedule(),
+                    config.leader_schedule_window_size() >= config.commits_per_schedule(),
                     "{chain:?} v{version}: leader_schedule_window_size must be >= commits_per_schedule"
                 );
             }
@@ -2131,9 +1637,6 @@ mod tests {
         context
             .protocol_config
             .set_consensus_bad_nodes_stake_threshold_for_testing(33);
-        context
-            .protocol_config
-            .set_consensus_enable_sliding_window_leader_schedule_for_testing(true);
         // The good/bad split assumes stake-rank selection; run with
         // absolute-score selection off.
         context
@@ -2265,9 +1768,6 @@ mod tests {
         context
             .protocol_config
             .set_consensus_bad_nodes_stake_threshold_for_testing(33);
-        context
-            .protocol_config
-            .set_consensus_enable_sliding_window_leader_schedule_for_testing(true);
         let context = Arc::new(context);
 
         // Two full 5-commit rotation windows, built once and shared by both

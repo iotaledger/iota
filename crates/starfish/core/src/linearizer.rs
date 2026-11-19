@@ -619,13 +619,7 @@ mod tests {
     async fn test_handle_commit_with_schedule_update() {
         telemetry_subscribers::init_for_testing();
         let num_authorities = 4;
-        // The expected scores come from V2 vote scoring, which is skipped
-        // when the sliding-window schedule is on; run with it off.
-        let mut context = Context::new_for_test(num_authorities).0;
-        context
-            .protocol_config
-            .set_consensus_enable_sliding_window_leader_schedule_for_testing(false);
-        let context = Arc::new(context);
+        let context = Arc::new(Context::new_for_test(num_authorities).0);
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
             Arc::new(MemStore::new()),
@@ -655,6 +649,7 @@ mod tests {
 
         // Create some commits
         let commits = linearizer.get_pending_sub_dags(with_standard_metastate(leaders));
+        leader_schedule.feed_committed_subdags(commits.iter().map(|d| d.base.clone()));
         {
             // Write them in DagState
             let mut write = dag_state.write();
@@ -678,11 +673,14 @@ mod tests {
         // other should be empty
         let commits = linearizer.get_pending_sub_dags(with_standard_metastate(leaders));
         assert_eq!(commits.len(), 10);
+        // Commits 1..=7 are scored (the window lags the last commit by 3). In a
+        // fully connected DAG each scored commit credits every authority the
+        // full committee stake (4), doubled for strong votes.
         let scores = vec![
-            (AuthorityIndex::new_for_test(1), 29),
-            (AuthorityIndex::new_for_test(0), 29),
-            (AuthorityIndex::new_for_test(3), 29),
-            (AuthorityIndex::new_for_test(2), 29),
+            (AuthorityIndex::new_for_test(1), 56),
+            (AuthorityIndex::new_for_test(0), 56),
+            (AuthorityIndex::new_for_test(3), 56),
+            (AuthorityIndex::new_for_test(2), 56),
         ];
         assert_eq!(commits[0].reputation_scores_desc, scores);
         for commit in commits.into_iter().skip(1) {

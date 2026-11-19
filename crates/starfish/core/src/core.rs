@@ -2948,12 +2948,8 @@ mod test {
         let default_params = Parameters::default();
 
         let (mut context, _) = Context::new_for_test(4);
-        // The expected scores come from V2 vote scoring and the good/bad split
-        // assumes stake-rank selection; run with the sliding-window schedule
-        // and absolute-score selection off.
-        context
-            .protocol_config
-            .set_consensus_enable_sliding_window_leader_schedule_for_testing(false);
+        // The good/bad split assumes stake-rank selection; run with
+        // absolute-score selection off.
         context
             .protocol_config
             .set_consensus_enable_absolute_score_leader_schedule_for_testing(false);
@@ -3014,8 +3010,11 @@ mod test {
                     .len(),
                 1
             );
+            // Commits 1..=17 are scored (the window lags the boundary at 20 by
+            // 3). Each credits every authority the full committee stake (4),
+            // doubled for strong votes.
             let expected_reputation_scores =
-                ReputationScores::new((11..=20).into(), vec![29, 29, 29, 29]);
+                ReputationScores::new((11..=20).into(), vec![136, 136, 136, 136]);
             assert_eq!(
                 core_fixture
                     .core
@@ -3155,21 +3154,18 @@ mod test {
     /// restart-invariant: a recovered node resumes with the same
     /// commits-until-next-rotation as one that never restarted.
     ///
-    /// On the sliding-window path the scorer's scored frontier lags the
-    /// rotation boundary by `MAX_PENDING_COMMITS = 3`, while recovery rebuilds
-    /// the rotation-counting scoring subdag from the persisted
+    /// The scorer's scored frontier lags the rotation boundary by
+    /// `MAX_PENDING_COMMITS = 3`, while recovery rebuilds the
+    /// rotation-counting scoring subdag from the persisted
     /// `commit_range.end() + 1`. The count stays invariant because the
     /// persisted end is the rotation boundary (the last committed index), not
     /// the lagging frontier. The assertions compare live vs. restarted directly
-    /// (no hard-coded count) and run for both the sliding-window and V2 paths.
+    /// (no hard-coded count).
     #[rstest]
-    #[case::v2(false, false)]
-    #[case::v2_absolute_scores(false, true)]
-    #[case::sliding_window(true, false)]
-    #[case::sliding_window_absolute_scores(true, true)]
+    #[case::default_flags(false)]
+    #[case::absolute_scores(true)]
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn test_leader_schedule_restart_invariant_rotation(
-        #[case] enable_sliding_window: bool,
         #[case] enable_absolute_score_leader_schedule: bool,
     ) {
         telemetry_subscribers::init_for_testing();
@@ -3181,20 +3177,14 @@ mod test {
                 .protocol_config
                 .set_consensus_enable_absolute_score_leader_schedule_for_testing(true);
         }
-        if enable_sliding_window {
-            context
-                .protocol_config
-                .set_consensus_enable_sliding_window_leader_schedule_for_testing(true);
-            // Pin the rotation interval small and keep `window_size >=
-            // commits_per_schedule` (a protocol-config invariant the flag
-            // getter asserts).
-            context
-                .protocol_config
-                .set_commits_per_schedule_for_testing(10);
-            context
-                .protocol_config
-                .set_leader_schedule_window_size_for_testing(20);
-        }
+        // Pin the rotation interval small and keep `window_size >=
+        // commits_per_schedule`.
+        context
+            .protocol_config
+            .set_commits_per_schedule_for_testing(10);
+        context
+            .protocol_config
+            .set_leader_schedule_window_size_for_testing(20);
 
         // Drive a real 4-core network until it has done >= 1 rotation and sits
         // mid-interval, persisting a real `CommitInfo`.
@@ -3538,12 +3528,8 @@ mod test {
         let default_params = Parameters::default();
 
         let (mut context, _) = Context::new_for_test(6);
-        // The expected scores come from V2 vote scoring and the good/bad split
-        // assumes stake-rank selection; run with the sliding-window schedule
-        // and absolute-score selection off.
-        context
-            .protocol_config
-            .set_consensus_enable_sliding_window_leader_schedule_for_testing(false);
+        // The good/bad split assumes stake-rank selection; run with
+        // absolute-score selection off.
         context
             .protocol_config
             .set_consensus_enable_absolute_score_leader_schedule_for_testing(false);
@@ -3671,8 +3657,13 @@ mod test {
                     .len(),
                 1
             );
+            // Commits 1..=27 are scored (the window lags the boundary at 30 by
+            // 3). Each credits every authority the full committee stake (6),
+            // doubled for strong votes, except the one whose leader the rotation
+            // swapped: its votes were pinned to the previous leader, so they
+            // are ordinary votes. 26 * 12 + 6 = 318.
             let expected_reputation_scores =
-                ReputationScores::new((21..=30).into(), vec![43, 43, 43, 43, 43, 43]);
+                ReputationScores::new((21..=30).into(), vec![318, 318, 318, 318, 318, 318]);
             assert_eq!(
                 core_fixture
                     .core
