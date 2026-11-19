@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
+use std::{net::IpAddr, sync::Arc};
 
 use futures::{StreamExt, future::Either, stream};
 use iota_common::debug_fatal;
@@ -37,7 +37,7 @@ use crate::{
     authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
     authority_server::{
         StreamResponse, ValidatorService, ValidatorServiceMetrics, normalize,
-        soft_lock::PreConsensusSoftLocks,
+        soft_lock::PreConsensusSoftLocks, tx_status_query_limiter::ExceededTxStatusQueryLimit,
     },
     consensus_adapter::ConsensusAdapter,
     epoch::reconfiguration::ReconfigState,
@@ -856,10 +856,17 @@ impl ValidatorService {
     /// Waits for one or more previously submitted transactions to reach
     /// finality and streams one status per digest: Executed, Rejected,
     /// Expired when the epoch ended first, or TimedOut when the wait ended
-    /// first.
+    /// first. The queries count toward the limits on the queries served at
+    /// once, for `client` and in total, until each has its status or the
+    /// response stream is dropped.
+    ///
+    /// # Errors
+    ///
+    /// `RESOURCE_EXHAUSTED` when the request would exceed one of those limits.
     async fn get_tx_status_impl(
         &self,
         request: DomainGetTxStatusRequest,
+        client: Option<IpAddr>,
     ) -> Result<ReceiverStream<TxUpdateItem>, tonic::Status> {
         let state = self.state.clone();
         let epoch_store = state.load_epoch_store_one_call_per_task();
@@ -886,13 +893,32 @@ impl ValidatorService {
             ))
         );
 
+        let permits = self
+            .tx_status_query_limiter
+            .try_acquire(client, request.queries.len())
+            .map_err(|limit| {
+                self.metrics
+                    .num_rejected_tx_status_requests
+                    .with_label_values(&[limit.as_label()])
+                    .inc();
+                tonic::Status::resource_exhausted(match limit {
+                    ExceededTxStatusQueryLimit::PerClient => {
+                        "too many transaction status queries in progress for this client"
+                    }
+                    ExceededTxStatusQueryLimit::Total => {
+                        "too many transaction status queries in progress"
+                    }
+                })
+            })?;
+
         let (tx_sender, rx) = tokio::sync::mpsc::channel(request.queries.len().max(1));
 
-        for query in request.queries {
+        for (query, permit) in request.queries.into_iter().zip(permits) {
             let state = state.clone();
             let epoch_store = epoch_store.clone();
             let tx_sender = tx_sender.clone();
             spawn_monitored_task!(async move {
+                let _permit = permit;
                 tokio::select! {
                     biased;
                     _ = tx_sender.closed() => {}
@@ -1213,10 +1239,14 @@ impl ValidatorV2 for ValidatorService {
         &self,
         request: tonic::Request<GetTxStatusRequest>,
     ) -> Result<tonic::Response<Self::GetTxStatusStream>, tonic::Status> {
+        let peer = request.remote_addr().map(|address| address.ip());
         let (req, ip) = self.pre_handle(request).await?;
+        // Traffic control may name no client, and the limit per client must
+        // still hold then.
+        let client = ip.or(peer);
         // A rejection a status query reports is the outcome of an earlier
         // submission, not an error in this request.
-        self.post_handle_stream(ip, self.get_tx_status_impl(req).await, |_| None)
+        self.post_handle_stream(ip, self.get_tx_status_impl(req, client).await, |_| None)
     }
 
     async fn notify_capabilities(
