@@ -1801,9 +1801,6 @@ mod tests {
         let (mut context, _) = Context::new_for_test(4);
         context
             .protocol_config
-            .set_consensus_starfish_speed_for_testing(true);
-        context
-            .protocol_config
             .set_consensus_commit_transactions_once_traversed_for_testing(true);
         let context = Arc::new(context);
 
