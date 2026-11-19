@@ -54,6 +54,10 @@ const OTHER_KEY_NEW_ACCOUNT_SIGNATURE: vector<u8> =
 /// K2's proof for the existing account `@0x1`.
 const OTHER_KEY_OTHER_ACCOUNT_SIGNATURE: vector<u8> =
     x"00403a3896d7b465c7120f8b42070ac894f3f45441bf5a5a3d6e61c247f62da9ceb6ccc4c1cb6a89d4c9703bf8daf3a1c9cd99f3fee6caa2bc3ede130bcfd8100faef3f4a4b8eca1dfc343361bf8e436bd42de9259c04b8314eb8e2054dd6e82ab";
+/// K's signature over `NEW_ACCOUNT_KEY_PROOF_MESSAGE` with the first line replaced by the check of
+/// another package, `check: 0xabc::smart_account_builtin_auth::verify_key_proof`.
+const OTHER_CHECK_NEW_ACCOUNT_SIGNATURE: vector<u8> =
+    x"0076050ce08582818f2af8bc081a6d5303d64c9672e94d63e9f58d2a9a04fec9b6e7099c143af9c9508973ba74971d9bdc46a8d699ec5f51e77fdd1e3f09fdd106b9c6ee1630ef3e711144a648db06bbb2284f7274cfbee53ffcee503cc1a49200";
 
 // === builder_v1 ===
 
@@ -159,6 +163,19 @@ fun builder_v1_aborts_for_another_valid_until_epoch() {
         key(),
         NEW_ACCOUNT_SIGNATURE,
         VALID_UNTIL_EPOCH + 1,
+        &mut ctx,
+    ).build_v1();
+}
+
+#[test]
+#[expected_failure(abort_code = iota::smart_account_builtin_auth::EInvalidKeyProof)]
+fun builder_v1_aborts_for_a_proof_for_another_check() {
+    let mut ctx = ctx_in_epoch(@0x0, 0);
+
+    smart_account_builtin_auth::builder_v1(
+        key(),
+        OTHER_CHECK_NEW_ACCOUNT_SIGNATURE,
+        VALID_UNTIL_EPOCH,
         &mut ctx,
     ).build_v1();
 }
