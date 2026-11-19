@@ -467,17 +467,17 @@ impl LeaderSchedule {
 
 #[derive(Default, Clone)]
 pub(crate) struct LeaderSwapTable {
-    /// The list of `f` (by configurable stake) authorities with best scores as
-    /// those defined by the provided `ReputationScores`. Those authorities will
-    /// be used in the position of the `bad_nodes` on the final leader schedule.
+    /// The authorities scoring close to the top score, as defined by the
+    /// provided `ReputationScores`. Those authorities will be used in the
+    /// position of the `bad_nodes` on the final leader schedule.
     /// Storing the hostname & stake along side the authority index for
     /// debugging.
     pub(crate) good_nodes: Vec<(AuthorityIndex, String, Stake)>,
 
-    /// The set of `f` (by configurable stake) authorities with the worst scores
-    /// as those defined by the provided `ReputationScores`. Every time where
-    /// such authority is elected as leader on the schedule, it will swapped
-    /// by one of the authorities of the `good_nodes`.
+    /// The authorities scoring far below the top score, as defined by the
+    /// provided `ReputationScores`. Every time where such authority is
+    /// elected as leader on the schedule, it will swapped by one of the
+    /// authorities of the `good_nodes`.
     /// Storing the hostname & stake along side the authority index for
     /// debugging.
     pub(crate) bad_nodes: BTreeMap<AuthorityIndex, (String, Stake)>,
@@ -494,42 +494,12 @@ pub(crate) struct LeaderSwapTable {
 }
 
 impl LeaderSwapTable {
-    // Constructs a new table based on the provided reputation scores. The
-    // `swap_stake_threshold` designates the total (by stake) nodes that will be
-    // considered as "bad" based on their scores and will be replaced by good nodes.
-    // The `swap_stake_threshold` should be in the range of [0 - 33].
+    // Constructs a new table based on the provided reputation scores.
     pub(crate) fn new(
         context: Arc<Context>,
         commit_index: CommitIndex,
         reputation_scores: ReputationScores,
     ) -> Self {
-        let swap_stake_threshold = context
-            .protocol_config
-            .consensus_bad_nodes_stake_threshold();
-        Self::new_inner(
-            context,
-            swap_stake_threshold,
-            commit_index,
-            reputation_scores,
-        )
-    }
-
-    fn new_inner(
-        context: Arc<Context>,
-        // Ignore linter warning in simtests.
-        // TODO: maybe override protocol configs in tests for swap_stake_threshold, and call new().
-        #[cfg_attr(msim, expect(unused_variables))] swap_stake_threshold: u64,
-        commit_index: CommitIndex,
-        reputation_scores: ReputationScores,
-    ) -> Self {
-        #[cfg(msim)]
-        let swap_stake_threshold = 33;
-
-        assert!(
-            (0..=33).contains(&swap_stake_threshold),
-            "The swap_stake_threshold ({swap_stake_threshold}) should be in range [0 - 33], out of bounds parameter detected"
-        );
-
         // When reputation scores are disabled or at genesis, use the default value.
         if reputation_scores.scores_per_authority.is_empty() {
             return Self::default();
@@ -547,14 +517,8 @@ impl LeaderSwapTable {
         // the same score is preserved.
         authorities_by_score.sort_by_key(|a2| std::cmp::Reverse(a2.1));
 
-        let (good_nodes, bad_nodes) = if context
-            .protocol_config
-            .consensus_enable_absolute_score_leader_schedule()
-        {
-            Self::select_by_absolute_score(&context, &authorities_by_score)
-        } else {
-            Self::select_by_stake_rank(&context, &authorities_by_score, swap_stake_threshold)
-        };
+        let (good_nodes, bad_nodes) =
+            Self::select_by_absolute_score(&context, &authorities_by_score);
 
         good_nodes.iter().for_each(|(idx, hostname, stake)| {
             tracing::debug!(
@@ -623,69 +587,6 @@ impl LeaderSwapTable {
             return Some(*idx);
         }
         None
-    }
-
-    /// Retrieves the first nodes provided by the iterator `authorities` until
-    /// the `stake_threshold` has been reached. The `stake_threshold` should
-    /// be between [0, 100] and expresses the percentage of stake that is
-    /// considered the cutoff. It's the caller's responsibility to ensure
-    /// that the elements of the `authorities` input is already sorted.
-    fn retrieve_first_nodes<'a>(
-        context: Arc<Context>,
-        authorities: impl Iterator<Item = &'a (AuthorityIndex, u64)>,
-        stake_threshold: u64,
-    ) -> Vec<(AuthorityIndex, String, Stake)> {
-        let mut filtered_authorities = Vec::new();
-
-        let mut stake = 0;
-        for &(authority_idx, _score) in authorities {
-            stake += context.committee.stake(authority_idx);
-
-            // If the total accumulated stake has surpassed the stake threshold
-            // then we omit this last authority and we exit the loop. Important to
-            // note that this means if the threshold is too low we may not have
-            // any nodes returned.
-            if stake > (stake_threshold * context.committee.total_stake()) / 100 as Stake {
-                break;
-            }
-
-            let authority = context.committee.authority(authority_idx);
-            filtered_authorities.push((authority_idx, authority.hostname.clone(), authority.stake));
-        }
-
-        filtered_authorities
-    }
-
-    /// Splits the score-descending `authorities_by_score` into the good
-    /// (swap-in) and bad sets using the fixed stake cut: the top scorers up to
-    /// `swap_stake_threshold`% of stake are good, the lowest scorers up to the
-    /// same stake are bad.
-    fn select_by_stake_rank(
-        context: &Arc<Context>,
-        authorities_by_score: &[(AuthorityIndex, u64)],
-        swap_stake_threshold: u64,
-    ) -> (
-        Vec<(AuthorityIndex, String, Stake)>,
-        BTreeMap<AuthorityIndex, (String, Stake)>,
-    ) {
-        let good_nodes = Self::retrieve_first_nodes(
-            context.clone(),
-            authorities_by_score.iter(),
-            swap_stake_threshold,
-        );
-
-        // Reverse to score ascending so we take the lowest scorers up to the
-        // stake threshold.
-        let bad_nodes = Self::retrieve_first_nodes(
-            context.clone(),
-            authorities_by_score.iter().rev(),
-            swap_stake_threshold,
-        )
-        .into_iter()
-        .map(|(idx, hostname, stake)| (idx, (hostname, stake)))
-        .collect::<BTreeMap<AuthorityIndex, (String, Stake)>>();
-
-        (good_nodes, bad_nodes)
     }
 
     /// High threshold (percent) for the absolute leader-schedule selection: a
@@ -912,11 +813,7 @@ mod tests {
     #[tokio::test]
     async fn test_leader_schedule_from_store() {
         telemetry_subscribers::init_for_testing();
-        let mut context = Context::new_for_test(4).0;
-        context
-            .protocol_config
-            .set_consensus_bad_nodes_stake_threshold_for_testing(33);
-        let context = Arc::new(context);
+        let context = Arc::new(Context::new_for_test(4).0);
         let store = Arc::new(MemStore::new());
 
         // Populate fully connected test blocks for round 0 ~ 11, authorities 0 ~ 3.
@@ -994,11 +891,7 @@ mod tests {
     #[tokio::test]
     async fn test_leader_schedule_from_store_no_commits() {
         telemetry_subscribers::init_for_testing();
-        let mut context = Context::new_for_test(4).0;
-        context
-            .protocol_config
-            .set_consensus_bad_nodes_stake_threshold_for_testing(33);
-        let context = Arc::new(context);
+        let context = Arc::new(Context::new_for_test(4).0);
         let store = Arc::new(MemStore::new());
 
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
@@ -1023,11 +916,7 @@ mod tests {
     #[tokio::test]
     async fn test_leader_schedule_from_store_no_commit_info() {
         telemetry_subscribers::init_for_testing();
-        let mut context = Context::new_for_test(4).0;
-        context
-            .protocol_config
-            .set_consensus_bad_nodes_stake_threshold_for_testing(33);
-        let context = Arc::new(context);
+        let context = Arc::new(Context::new_for_test(4).0);
         let store = Arc::new(MemStore::new());
 
         // Populate fully connected test blocks for round 0 ~ 2, authorities 0 ~ 3.
@@ -1225,17 +1114,66 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_update_leader_schedule_swaps_authority_without_votes() {
+        let context = Arc::new(Context::new_for_test(4).0);
+        let leader_schedule = LeaderSchedule::new(context.clone(), LeaderSwapTable::default());
+        let dag_state = Arc::new(RwLock::new(DagState::new(
+            context.clone(),
+            Arc::new(MemStore::new()),
+        )));
+
+        // Authority 3 proposes no blocks, so it never votes and scores 0. Its
+        // leader rounds (3, 7, 11) have no leader block and are not committed.
+        let silent = AuthorityIndex::new_for_test(3);
+        let mut dag_builder = DagBuilder::new(context);
+        dag_builder
+            .layers(1..=12)
+            .authorities(vec![silent])
+            .skip_block()
+            .build();
+        let commits = dag_builder.get_sub_dag_and_commits(1..=12);
+        assert_eq!(commits.len(), 9);
+
+        leader_schedule.feed_committed_subdags(commits.iter().map(|(s, _)| s.base.clone()));
+        {
+            let mut ds = dag_state.write();
+            ds.set_last_commit(commits.last().unwrap().1.clone());
+            leader_schedule.update_leader_schedule(&mut ds);
+        }
+
+        // Authorities 0..=2 score equally and are good; authority 3 is the
+        // only one below half of the top score.
+        let good_nodes = {
+            let table = leader_schedule.leader_swap_table.read();
+            assert_eq!(
+                table.bad_nodes.keys().copied().collect::<Vec<_>>(),
+                [silent]
+            );
+            assert_eq!(table.reputation_scores.scores_per_authority[silent], 0);
+            table
+                .good_nodes
+                .iter()
+                .map(|(index, _, _)| *index)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(good_nodes.len(), 3);
+        assert!(!good_nodes.contains(&silent));
+
+        // Authority 3 is the base leader of round 15; the swap elects a good
+        // node instead.
+        assert!(good_nodes.contains(&leader_schedule.elect_leader(15, 0)));
+    }
+
+    #[tokio::test]
     async fn test_leader_swap_table() {
         telemetry_subscribers::init_for_testing();
         let context = Arc::new(Context::new_for_test(4).0);
 
-        let swap_stake_threshold = 33;
         let reputation_scores = ReputationScores::new(
             (0..=10).into(),
             (0..4).map(|i| i as u64).collect::<Vec<_>>(),
         );
-        let leader_swap_table =
-            LeaderSwapTable::new_inner(context, swap_stake_threshold, 0, reputation_scores);
+        let leader_swap_table = LeaderSwapTable::new(context, 0, reputation_scores);
 
         assert_eq!(leader_swap_table.good_nodes.len(), 1);
         assert_eq!(
@@ -1255,13 +1193,11 @@ mod tests {
         telemetry_subscribers::init_for_testing();
         let context = Arc::new(Context::new_for_test(4).0);
 
-        let swap_stake_threshold = 33;
         let reputation_scores = ReputationScores::new(
             (0..=10).into(),
             (0..4).map(|i| i as u64).collect::<Vec<_>>(),
         );
-        let leader_swap_table =
-            LeaderSwapTable::new_inner(context, swap_stake_threshold, 0, reputation_scores);
+        let leader_swap_table = LeaderSwapTable::new(context, 0, reputation_scores);
 
         // Test swapping a bad leader
         let leader = AuthorityIndex::new_for_test(0);
@@ -1294,7 +1230,7 @@ mod tests {
         ] {
             let reputation_scores = ReputationScores::new((0..=10).into(), vec![5; 10]);
             let leader_swap_table =
-                LeaderSwapTable::new_inner(context.clone(), 33, commit_index, reputation_scores);
+                LeaderSwapTable::new(context.clone(), commit_index, reputation_scores);
             let order = leader_swap_table
                 .reputation_scores_desc
                 .iter()
@@ -1314,7 +1250,7 @@ mod tests {
     async fn test_leader_swap_table_swap_exact_values() {
         let context = Arc::new(Context::new_for_test(10).0);
         let reputation_scores = ReputationScores::new((0..=10).into(), (0..10).collect());
-        let leader_swap_table = LeaderSwapTable::new_inner(context, 33, 0, reputation_scores);
+        let leader_swap_table = LeaderSwapTable::new(context, 0, reputation_scores);
 
         let good_nodes = leader_swap_table
             .good_nodes
@@ -1340,75 +1276,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_leader_swap_table_retrieve_first_nodes() {
-        telemetry_subscribers::init_for_testing();
-        let context = Arc::new(Context::new_for_test(4).0);
-
-        let authorities = [
-            (AuthorityIndex::new_for_test(0), 1),
-            (AuthorityIndex::new_for_test(1), 2),
-            (AuthorityIndex::new_for_test(2), 3),
-            (AuthorityIndex::new_for_test(3), 4),
-        ];
-
-        let stake_threshold = 50;
-        let filtered_authorities = LeaderSwapTable::retrieve_first_nodes(
-            context.clone(),
-            authorities.iter(),
-            stake_threshold,
-        );
-
-        // Test setup includes 4 validators with even stake. Therefore with a
-        // stake_threshold of 50% we should see 2 validators filtered.
-        assert_eq!(filtered_authorities.len(), 2);
-        let authority_0_idx = AuthorityIndex::new_for_test(0);
-        let authority_0 = context.committee.authority(authority_0_idx);
-        assert!(filtered_authorities.contains(&(
-            authority_0_idx,
-            authority_0.hostname.clone(),
-            authority_0.stake
-        )));
-        let authority_1_idx = AuthorityIndex::new_for_test(1);
-        let authority_1 = context.committee.authority(authority_1_idx);
-        assert!(filtered_authorities.contains(&(
-            authority_1_idx,
-            authority_1.hostname.clone(),
-            authority_1.stake
-        )));
-    }
-
-    #[tokio::test]
-    #[should_panic(
-        expected = "The swap_stake_threshold (34) should be in range [0 - 33], out of bounds parameter detected"
-    )]
-    async fn test_leader_swap_table_swap_stake_threshold_out_of_bounds() {
-        telemetry_subscribers::init_for_testing();
-        let context = Arc::new(Context::new_for_test(4).0);
-
-        let swap_stake_threshold = 34;
-        let reputation_scores = ReputationScores::new(
-            (0..=10).into(),
-            (0..4).map(|i| i as u64).collect::<Vec<_>>(),
-        );
-        LeaderSwapTable::new_inner(context, swap_stake_threshold, 0, reputation_scores);
-    }
-
-    fn context_with_absolute_selection(committee_size: usize) -> Arc<Context> {
-        let mut context = Context::new_for_test(committee_size).0;
-        context
-            .protocol_config
-            .set_consensus_enable_absolute_score_leader_schedule_for_testing(true);
-        Arc::new(context)
-    }
-
-    #[tokio::test]
     async fn test_leader_swap_table_absolute_score_classifies_by_threshold() {
         telemetry_subscribers::init_for_testing();
         // 4 authorities. The top scorer has 44, so good is >= 90% of 44
         // (>= 40) and bad is < 50% of 44 (< 22).
-        let context = context_with_absolute_selection(4);
+        let context = Arc::new(Context::new_for_test(4).0);
         let reputation_scores = ReputationScores::new((0..=10).into(), vec![0, 30, 40, 44]);
-        let table = LeaderSwapTable::new_inner(context, 33, 0, reputation_scores);
+        let table = LeaderSwapTable::new(context, 0, reputation_scores);
 
         let good: Vec<_> = table.good_nodes.iter().map(|(idx, _, _)| *idx).collect();
         assert_eq!(good.len(), 2);
@@ -1435,11 +1309,11 @@ mod tests {
         // 10 authorities, so the 20%-of-validators good-pool floor is 2 nodes.
         // Only one authority clears the 90% threshold; the pool must extend to
         // the next-best scorer to meet the floor, so it is never one node.
-        let context = context_with_absolute_selection(10);
+        let context = Arc::new(Context::new_for_test(10).0);
         let mut scores = vec![60u64; 10];
         scores[9] = 110;
         let reputation_scores = ReputationScores::new((0..=10).into(), scores);
-        let table = LeaderSwapTable::new_inner(context, 33, 0, reputation_scores);
+        let table = LeaderSwapTable::new(context, 0, reputation_scores);
 
         assert_eq!(table.good_nodes.len(), 2);
         let good: Vec<_> = table.good_nodes.iter().map(|(idx, _, _)| *idx).collect();
@@ -1454,13 +1328,13 @@ mod tests {
         // 10 authorities. Five score 0 (bad), five clear the high threshold. The
         // five below-threshold nodes exceed the 33%-of-validators cap (3), so
         // only the worst three may be excluded.
-        let context = context_with_absolute_selection(10);
+        let context = Arc::new(Context::new_for_test(10).0);
         let mut scores = vec![0u64; 10];
         for s in scores.iter_mut().skip(5) {
             *s = 110;
         }
         let reputation_scores = ReputationScores::new((0..=10).into(), scores);
-        let table = LeaderSwapTable::new_inner(context, 33, 0, reputation_scores);
+        let table = LeaderSwapTable::new(context, 0, reputation_scores);
 
         assert_eq!(table.good_nodes.len(), 5);
         assert_eq!(table.bad_nodes.len(), 3);
@@ -1472,11 +1346,11 @@ mod tests {
         // One clear top scorer, everyone else far below it. The good pool is
         // non-empty and the low scorers are excluded, so a bad leader is swapped
         // for a good node rather than panicking.
-        let context = context_with_absolute_selection(10);
+        let context = Arc::new(Context::new_for_test(10).0);
         let mut scores = vec![0u64; 10];
         scores[0] = 100;
         let reputation_scores = ReputationScores::new((0..=10).into(), scores);
-        let table = LeaderSwapTable::new_inner(context, 33, 0, reputation_scores);
+        let table = LeaderSwapTable::new(context, 0, reputation_scores);
 
         assert!(!table.good_nodes.is_empty());
         assert!(!table.bad_nodes.is_empty());
@@ -1492,9 +1366,9 @@ mod tests {
         // is 90% of the best, so it is good; the same score of 18 measured
         // against a much higher theoretical ceiling would instead fall below
         // every threshold.
-        let context = context_with_absolute_selection(4);
+        let context = Arc::new(Context::new_for_test(4).0);
         let reputation_scores = ReputationScores::new((0..=10).into(), vec![20, 18, 10, 4]);
-        let table = LeaderSwapTable::new_inner(context, 33, 0, reputation_scores);
+        let table = LeaderSwapTable::new(context, 0, reputation_scores);
 
         let good: Vec<_> = table.good_nodes.iter().map(|(idx, _, _)| *idx).collect();
         assert_eq!(good.len(), 2);
@@ -1517,24 +1391,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_leader_swap_table_absolute_score_deterministic_and_differs_from_stake_rank() {
+    async fn test_leader_swap_table_absolute_score_deterministic() {
         telemetry_subscribers::init_for_testing();
         let scores = || ReputationScores::new((0..=10).into(), vec![0, 30, 40, 44]);
 
-        let absolute_context = context_with_absolute_selection(4);
-        let first = LeaderSwapTable::new_inner(absolute_context.clone(), 33, 0, scores());
-        let second = LeaderSwapTable::new_inner(absolute_context, 33, 0, scores());
+        let context = Arc::new(Context::new_for_test(4).0);
+        let first = LeaderSwapTable::new(context.clone(), 0, scores());
+        let second = LeaderSwapTable::new(context, 0, scores());
         assert_eq!(first.good_nodes, second.good_nodes);
         assert_eq!(first.bad_nodes, second.bad_nodes);
-
-        // The stake-rank path (flag off) admits only the single top scorer as
-        // good; the absolute path admits both authorities above the threshold.
-        let mut stake_rank_context = Context::new_for_test(4).0;
-        stake_rank_context
-            .protocol_config
-            .set_consensus_enable_absolute_score_leader_schedule_for_testing(false);
-        let stake_rank = LeaderSwapTable::new_inner(Arc::new(stake_rank_context), 33, 0, scores());
-        assert_eq!(stake_rank.good_nodes.len(), 1);
         assert_eq!(first.good_nodes.len(), 2);
     }
 
@@ -1543,13 +1408,11 @@ mod tests {
         telemetry_subscribers::init_for_testing();
         let context = Arc::new(Context::new_for_test(4).0);
 
-        let swap_stake_threshold = 33;
         let reputation_scores = ReputationScores::new(
             (1..=10).into(),
             (0..4).map(|i| i as u64).collect::<Vec<_>>(),
         );
-        let leader_swap_table =
-            LeaderSwapTable::new_inner(context.clone(), swap_stake_threshold, 0, reputation_scores);
+        let leader_swap_table = LeaderSwapTable::new(context.clone(), 0, reputation_scores);
 
         let leader_schedule = LeaderSchedule::new(context.clone(), LeaderSwapTable::default());
 
@@ -1560,8 +1423,7 @@ mod tests {
             (11..=20).into(),
             (0..4).map(|i| i as u64).collect::<Vec<_>>(),
         );
-        let leader_swap_table =
-            LeaderSwapTable::new_inner(context, swap_stake_threshold, 0, reputation_scores);
+        let leader_swap_table = LeaderSwapTable::new(context, 0, reputation_scores);
 
         // Update leader from old swap table to new valid swap table
         leader_schedule.update_leader_swap_table_strict_for_test(leader_swap_table);
@@ -1575,13 +1437,11 @@ mod tests {
         telemetry_subscribers::init_for_testing();
         let context = Arc::new(Context::new_for_test(4).0);
 
-        let swap_stake_threshold = 33;
         let reputation_scores = ReputationScores::new(
             (1..=10).into(),
             (0..4).map(|i| i as u64).collect::<Vec<_>>(),
         );
-        let leader_swap_table =
-            LeaderSwapTable::new_inner(context.clone(), swap_stake_threshold, 0, reputation_scores);
+        let leader_swap_table = LeaderSwapTable::new(context.clone(), 0, reputation_scores);
 
         let leader_schedule = LeaderSchedule::new(context.clone(), LeaderSwapTable::default());
 
@@ -1592,8 +1452,7 @@ mod tests {
             (11..=20).into(),
             (0..4).map(|i| i as u64).collect::<Vec<_>>(),
         );
-        let leader_swap_table =
-            LeaderSwapTable::new_inner(context.clone(), swap_stake_threshold, 0, reputation_scores);
+        let leader_swap_table = LeaderSwapTable::new(context.clone(), 0, reputation_scores);
 
         // Update leader from old swap table to new valid swap table
         leader_schedule.update_leader_swap_table_strict_for_test(leader_swap_table);
@@ -1602,8 +1461,7 @@ mod tests {
             (21..=25).into(),
             (0..4).map(|i| i as u64).collect::<Vec<_>>(),
         );
-        let leader_swap_table =
-            LeaderSwapTable::new_inner(context, swap_stake_threshold, 0, reputation_scores);
+        let leader_swap_table = LeaderSwapTable::new(context, 0, reputation_scores);
 
         // Update leader from old swap table to new invalid swap table
         leader_schedule.update_leader_swap_table_strict_for_test(leader_swap_table);
@@ -1633,16 +1491,7 @@ mod tests {
     // running node used.
     async fn run_sliding_window_update_after_recovery_backlog(restart: bool) {
         telemetry_subscribers::init_for_testing();
-        let mut context = Context::new_for_test(4).0;
-        context
-            .protocol_config
-            .set_consensus_bad_nodes_stake_threshold_for_testing(33);
-        // The good/bad split assumes stake-rank selection; run with
-        // absolute-score selection off.
-        context
-            .protocol_config
-            .set_consensus_enable_absolute_score_leader_schedule_for_testing(false);
-        let context = Arc::new(context);
+        let context = Arc::new(Context::new_for_test(4).0);
         let store = Arc::new(MemStore::new());
 
         const INTERVAL: u32 = 3;
@@ -1702,8 +1551,10 @@ mod tests {
         {
             let table = leader_schedule.leader_swap_table.read();
             assert_eq!(table.reputation_scores.commit_range, (7..=9).into());
-            assert_eq!(table.good_nodes.len(), 1);
-            assert_eq!(table.bad_nodes.len(), 1);
+            // The fully connected DAG gives every authority the same score, so
+            // all are good and none are bad.
+            assert_eq!(table.good_nodes.len(), 4);
+            assert!(table.bad_nodes.is_empty());
         }
         assert_eq!(dag_state.read().scoring_subdags_count(), 2);
 
@@ -1764,11 +1615,7 @@ mod tests {
     #[tokio::test]
     async fn test_sliding_window_backlog_rebuild_matches_live_schedule() {
         telemetry_subscribers::init_for_testing();
-        let mut context = Context::new_for_test(4).0;
-        context
-            .protocol_config
-            .set_consensus_bad_nodes_stake_threshold_for_testing(33);
-        let context = Arc::new(context);
+        let context = Arc::new(Context::new_for_test(4).0);
 
         // Two full 5-commit rotation windows, built once and shared by both
         // scenarios so both operate on identical committed subdags.
