@@ -1141,7 +1141,10 @@ pub struct AuthorityEpochTables {
     congestion_control_object_debts: DBMap<ObjectId, CongestionPerObjectDebt>,
 
     /// The execution time, past the budget of the commit that scheduled it,
-    /// still ahead of a transaction, for its dependents at later commits.
+    /// still ahead of a transaction, for its dependents at later commits. A
+    /// row stays until the epoch ends, also once its debt has aged to
+    /// nothing: `root_commits` holds a row for each of these transactions
+    /// for as long.
     congestion_control_transaction_debts: DBMap<TransactionDigest, CongestionTransactionDebt>,
 
     /// Accumulated per-object debts for randomness congestion control.
