@@ -6,7 +6,6 @@ use async_graphql::{connection::Connection, *};
 
 use crate::{
     config::DEFAULT_PAGE_SIZE,
-    connection::ScanConnection,
     types::{
         balance::{self, Balance},
         coin::Coin,
@@ -17,7 +16,9 @@ use crate::{
         object::{self, ObjectFilter},
         owner::OwnerImpl,
         stake::StakedIota,
-        transaction_block::{self, TransactionBlock, TransactionBlockFilter},
+        transaction_block::{
+            self, TransactionBlock, TransactionBlockConnection, TransactionBlockFilter,
+        },
         type_filter::ExactTypeFilter,
     },
 };
@@ -196,7 +197,7 @@ impl Address {
             deprecation = "`scanLimit` will be removed with v1.38, along with the support for combining complex filters."
         )]
         scan_limit: Option<u64>,
-    ) -> Result<ScanConnection<String, TransactionBlock>> {
+    ) -> Result<TransactionBlockConnection> {
         use AddressTransactionBlockRelationship as R;
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
 
@@ -217,7 +218,7 @@ impl Address {
                 ..Default::default()
             },
         }) else {
-            return Ok(ScanConnection::new(false, false));
+            return Ok(TransactionBlockConnection::new(false, false));
         };
 
         TransactionBlock::paginate(ctx, page, filter, self.checkpoint_viewed_at, scan_limit)

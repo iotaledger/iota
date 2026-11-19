@@ -139,8 +139,9 @@ enum AddressTransactionBlockRelationship {
 }
 
 """
-Range of checkpoints that the RPC is guaranteed to produce a consistent
-response for.
+Range of checkpoints that consistent object queries can be viewed at. A
+query paginated with a cursor is viewed at the checkpoint the cursor was
+issued at, so the cursor expires once that checkpoint leaves the range.
 """
 type AvailableRange {
 	first: Checkpoint
@@ -464,6 +465,14 @@ type CheckpointConnection {
 	A list of nodes.
 	"""
 	nodes: [Checkpoint!]!
+	"""
+	The oldest checkpoint this page can contain data from. Anything before
+	it has been pruned and is not listed. Zero when nothing has been
+	pruned, or when the historical fallback serves the whole history. Null
+	when no bound applies to the page, such as a lookup by digest, or a
+	page whose filters contradict each other.
+	"""
+	oldestAvailableCheckpoint: UInt53
 }
 
 """
@@ -1289,6 +1298,14 @@ type EventConnection {
 	A list of nodes.
 	"""
 	nodes: [Event!]!
+	"""
+	The oldest checkpoint this page can contain data from. Anything before
+	it has been pruned and is not listed. Zero when nothing has been
+	pruned, or when the historical fallback serves the whole history. Null
+	when no bound applies to the page, such as a lookup by digest, or a
+	page whose filters contradict each other.
+	"""
+	oldestAvailableCheckpoint: UInt53
 }
 
 """
@@ -3556,8 +3573,11 @@ type Query {
 	"""
 	chainIdentifier: String!
 	"""
-	Range of checkpoints that the RPC has data available for (for data
-	that can be tied to a particular checkpoint).
+	Range of checkpoints that consistent object queries (objects, coins,
+	balances, dynamic fields and name registrations) can be viewed at. A
+	query paginated with a cursor is viewed at the checkpoint the cursor
+	was issued at, so the cursor expires once that checkpoint leaves the
+	range.
 	"""
 	availableRange: AvailableRange!
 	"""
@@ -4523,6 +4543,14 @@ type TransactionBlockConnection {
 	A list of nodes.
 	"""
 	nodes: [TransactionBlock!]!
+	"""
+	The oldest checkpoint this page can contain data from. Anything before
+	it has been pruned and is not listed. Zero when nothing has been
+	pruned, or when the historical fallback serves the whole history. Null
+	when no bound applies to the page, such as a lookup by digest, or a
+	page whose filters contradict each other.
+	"""
+	oldestAvailableCheckpoint: UInt53
 }
 
 """

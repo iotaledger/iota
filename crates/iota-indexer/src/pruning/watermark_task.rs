@@ -122,11 +122,21 @@ impl WatermarkTask {
         }
     }
 
-    /// Starts the background task that updates watermarks
-    pub fn start(self, cancel: CancellationToken) {
+    /// Starts the background task that keeps the cache updated.
+    ///
+    /// The cache is filled once before the task is spawned, so that it is never
+    /// read empty: an empty cache is indistinguishable from one where nothing
+    /// has ever been ingested or pruned.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the first read of the watermarks from the database fails.
+    pub async fn start(self, cancel: CancellationToken) -> Result<(), IndexerError> {
+        self.update_watermarks().await?;
         spawn_monitored_task!(async move {
             self.run(cancel).await;
         });
+        Ok(())
     }
 
     /// Runs the watermark update loop
@@ -149,11 +159,7 @@ impl WatermarkTask {
     }
 
     /// Fetches watermarks from the database and updates the cache
-    ///
-    /// Callers that serve reads from the cache must await this once before
-    /// accepting requests: an empty cache is indistinguishable from one where
-    /// nothing has ever been ingested/pruned.
-    pub async fn update_watermarks(&self) -> Result<(), IndexerError> {
+    async fn update_watermarks(&self) -> Result<(), IndexerError> {
         let (watermarks, _timestamp_ms) = self.store.get_watermarks().await?;
 
         if !watermarks.is_empty() {
