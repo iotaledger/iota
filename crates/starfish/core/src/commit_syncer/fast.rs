@@ -850,8 +850,6 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         let gc_depth = inner.context.protocol_config.gc_depth();
         let leader_schedule_window = inner.context.protocol_config.commits_per_schedule();
         // Get block refs from recent commits stored during fast sync
-        // TODO: The commits might not yet stored, but only fetched and pending
-        // processing.
         let (last_commit_index, block_refs) = {
             let dag_state = inner.dag_state.read();
             let last_commit_index = dag_state.last_commit_index();
