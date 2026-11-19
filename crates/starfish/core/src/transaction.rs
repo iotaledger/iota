@@ -490,52 +490,43 @@ mod tests {
         transaction_ref::TransactionRef,
     };
 
+    /// The limits the tests of [`check_transactions_fit()`] use: transactions
+    /// of up to 10 bytes, at most 4 of them, and 25 bytes in total.
+    const LIMITS: TransactionSubmissionLimits = TransactionSubmissionLimits {
+        max_transaction_size: 10,
+        max_transactions_in_block_bytes: 25,
+        max_transactions_in_block_count: 4,
+    };
+
     /// [`check_transactions_fit()`] accepts a submission at each limit, and
     /// refuses one with a transaction or a byte more.
     #[test]
     fn transactions_fit_exactly_at_each_limit() {
-        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-        let max_count = protocol_config.max_num_transactions_in_block();
-        let max_size = protocol_config.max_transaction_size_bytes();
-        let max_total_size = protocol_config.max_transactions_in_block_bytes();
-        let limits = TransactionSubmissionLimits::new(&protocol_config);
-
-        let at_count = vec![0; max_count as usize];
-        check_transactions_fit(&at_count, limits)
-            .expect("as many transactions as a block holds should fit");
-        let over_count = vec![0; max_count as usize + 1];
+        check_transactions_fit(&[0; 4], LIMITS).expect("four transactions should fit");
         assert!(
             matches!(
-                check_transactions_fit(&over_count, limits),
-                Err(ClientError::OversizedTransactionBundleCount(..))
+                check_transactions_fit(&[0; 5], LIMITS),
+                Err(ClientError::OversizedTransactionBundleCount(5, 4))
             ),
-            "one transaction more than a block holds should not fit"
+            "a fifth transaction should not fit"
         );
 
-        check_transactions_fit(&[max_size], limits)
-            .expect("a transaction of exactly the size limit should fit");
+        check_transactions_fit(&[10], LIMITS).expect("a transaction of 10 bytes should fit");
         assert!(
             matches!(
-                check_transactions_fit(&[max_size + 1], limits),
-                Err(ClientError::OversizedTransaction(..))
+                check_transactions_fit(&[11], LIMITS),
+                Err(ClientError::OversizedTransaction(11, 10))
             ),
-            "a transaction one byte over the size limit should not fit"
+            "a transaction of 11 bytes should not fit"
         );
 
-        // Transactions of the size limit that add up to exactly the bytes of
-        // a block, with room for one more transaction.
-        assert_eq!(max_total_size % max_size, 0);
-        let mut at_total_size = vec![max_size; (max_total_size / max_size) as usize];
-        assert!((at_total_size.len() as u64) < max_count);
-        check_transactions_fit(&at_total_size, limits)
-            .expect("transactions of exactly the bytes of a block should fit");
-        at_total_size.push(1);
+        check_transactions_fit(&[10, 10, 5], LIMITS).expect("25 bytes in total should fit");
         assert!(
             matches!(
-                check_transactions_fit(&at_total_size, limits),
-                Err(ClientError::OversizedTransactionBundleBytes(..))
+                check_transactions_fit(&[10, 10, 6], LIMITS),
+                Err(ClientError::OversizedTransactionBundleBytes(26, 25))
             ),
-            "transactions one byte over the bytes of a block should not fit"
+            "26 bytes in total should not fit"
         );
     }
 
@@ -546,42 +537,20 @@ mod tests {
     /// later transaction that is over the size limit.
     #[test]
     fn total_size_error_reports_running_total_before_later_oversized_transaction() {
-        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-        let max_count = protocol_config.max_num_transactions_in_block();
-        let max_size = protocol_config.max_transaction_size_bytes();
-        let max_total_size = protocol_config.max_transactions_in_block_bytes();
-        let limits = TransactionSubmissionLimits::new(&protocol_config);
-        let reported_total = |sizes: &[u64]| {
-            if let Err(ClientError::OversizedTransactionBundleBytes(total, _)) =
-                check_transactions_fit(sizes, limits)
-            {
-                Some(total)
-            } else {
-                None
-            }
-        };
-
-        // Transactions of the size limit, of which the last one takes the
-        // total over its limit.
-        let crossing = vec![max_size; (max_total_size / max_size) as usize + 1];
-        let total_at_crossing = max_size * crossing.len() as u64;
+        // The third transaction takes the total to 30 bytes, over the limit.
         assert!(
-            (crossing.len() as u64) < max_count,
-            "the submissions need room for one more transaction"
+            matches!(
+                check_transactions_fit(&[10, 10, 10, 1], LIMITS),
+                Err(ClientError::OversizedTransactionBundleBytes(30, 25))
+            ),
+            "the error should report the total up to the third transaction, not all 31 bytes"
         );
-
-        let with_one_more = [crossing.as_slice(), &[max_size]].concat();
-        assert_eq!(
-            reported_total(&with_one_more),
-            Some(total_at_crossing),
-            "the error should report the total up to the transaction that crosses the limit"
-        );
-
-        let with_oversized_last = [crossing.as_slice(), &[max_size + 1]].concat();
-        assert_eq!(
-            reported_total(&with_oversized_last),
-            Some(total_at_crossing),
-            "the total error should come before a later transaction over the size limit"
+        assert!(
+            matches!(
+                check_transactions_fit(&[10, 10, 10, 11], LIMITS),
+                Err(ClientError::OversizedTransactionBundleBytes(30, 25))
+            ),
+            "the total error should come before the oversized fourth transaction"
         );
     }
 
