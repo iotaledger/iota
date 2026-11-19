@@ -274,8 +274,6 @@ pub(crate) struct DagState {
     /// Committed subdags added since the last leader-schedule rotation. Serves
     /// as the rotation counter (`scoring_subdags_count`) and the just-rotated
     /// edge (`is_scoring_subdag_empty`).
-    // TODO: replace with a single recovered `u32` holding the last rotation
-    // boundary index.
     scoring_subdag: ScoringSubdag,
 
     /// Commit votes pending to be included in new blocks. Ordered by
