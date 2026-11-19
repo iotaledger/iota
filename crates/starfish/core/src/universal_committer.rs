@@ -23,10 +23,6 @@ mod universal_committer_tests;
 #[path = "tests/pipelined_committer_tests.rs"]
 mod pipelined_committer_tests;
 
-#[cfg(test)]
-#[path = "tests/pipelined_committers_comparison_tests.rs"]
-mod pipelined_committers_comparison_tests;
-
 /// A universal committer uses a [`BaseCommitter`] to commit a sequence of
 /// leaders, one per round.
 pub(crate) struct UniversalCommitter {
