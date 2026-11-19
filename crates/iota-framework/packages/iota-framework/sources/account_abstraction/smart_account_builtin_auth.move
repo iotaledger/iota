@@ -212,21 +212,6 @@ public fun rotate_public_key(
     builtin_authenticator_functions::rotate_public_key(account.uid_mut(), public_key)
 }
 
-// === Package Functions ===
-
-/// Returns the UTF-8 bytes of the text that a key holder signs, as an IOTA personal message, to
-/// approve attaching their key to `account`. For a new account, `account` is the transaction
-/// sender. The SDK function that clients call writes the same text.
-///
-/// Aborts with code 5 if `chain_identifier` or `nonce` is not 32 bytes.
-public(package) native fun key_proof_message(
-    chain_identifier: vector<u8>,
-    account: address,
-    new_account: bool,
-    nonce: vector<u8>,
-    valid_until_epoch: u64,
-): vector<u8>;
-
 // === Private Functions ===
 
 /// Claims the sender's address and creates a `SmartAccount` at it, backed by the built-in
@@ -282,7 +267,32 @@ fun verify_key_proof(
     assert!(public_key.verify_personal_message_signature(signature, &message), EInvalidKeyProof);
 }
 
+/// Returns the UTF-8 bytes of the text that a key holder signs, as an IOTA personal message, to
+/// approve attaching their key to `account`. For a new account, `account` is the transaction
+/// sender. The SDK function that clients call writes the same text.
+///
+/// Aborts with code 5 if `chain_identifier` or `nonce` is not 32 bytes.
+native fun key_proof_message(
+    chain_identifier: vector<u8>,
+    account: address,
+    new_account: bool,
+    nonce: vector<u8>,
+    valid_until_epoch: u64,
+): vector<u8>;
+
 // === Test Functions ===
+
+/// Test-only entry to `key_proof_message`, which only `verify_key_proof` calls.
+#[test_only]
+public fun key_proof_message_for_testing(
+    chain_identifier: vector<u8>,
+    account: address,
+    new_account: bool,
+    nonce: vector<u8>,
+    valid_until_epoch: u64,
+): vector<u8> {
+    key_proof_message(chain_identifier, account, new_account, nonce, valid_until_epoch)
+}
 
 /// Test-only entry to `claim_account_v1`, which is private so that only the node's
 /// `ClaimAccount` pipeline can reach it.
