@@ -484,13 +484,7 @@ fun rotate_public_key_replaces_the_key() {
 #[test]
 fun rotate_public_key_accepts_the_same_proof_twice_in_one_transaction() {
     builtin_account_test!(|account, scenario| {
-        smart_account_builtin_auth::rotate_public_key(
-            account,
-            other_key(),
-            OTHER_KEY_ACCOUNT_SIGNATURE,
-            VALID_UNTIL_EPOCH,
-            scenario.ctx(),
-        );
+        // K to K2, back to K, then K2 again with the same proof as the first rotation.
         let previous = smart_account_builtin_auth::rotate_public_key(
             account,
             other_key(),
@@ -498,8 +492,26 @@ fun rotate_public_key_accepts_the_same_proof_twice_in_one_transaction() {
             VALID_UNTIL_EPOCH,
             scenario.ctx(),
         );
+        assert_eq(previous, key());
 
+        let previous = smart_account_builtin_auth::rotate_public_key(
+            account,
+            key(),
+            ACCOUNT_SIGNATURE,
+            VALID_UNTIL_EPOCH,
+            scenario.ctx(),
+        );
         assert_eq(previous, other_key());
+
+        let previous = smart_account_builtin_auth::rotate_public_key(
+            account,
+            other_key(),
+            OTHER_KEY_ACCOUNT_SIGNATURE,
+            VALID_UNTIL_EPOCH,
+            scenario.ctx(),
+        );
+        assert_eq(previous, key());
+        assert_ref_eq(smart_account_builtin_auth::borrow_public_key(account), &other_key());
     });
 }
 
