@@ -982,6 +982,8 @@ async fn pre_execution_failure_skips_execution_and_charges_gas() {
 #[derive(Clone, Copy)]
 enum TestAuthenticator {
     Passes,
+    /// Passes after a loop, so that it costs several gas units.
+    PassesAfterLoop,
     /// Aborts with code 1.
     Fails,
     /// Aborts with code 2.
@@ -992,6 +994,7 @@ impl TestAuthenticator {
     fn function_name(self) -> &'static str {
         match self {
             Self::Passes => "authenticate_pass",
+            Self::PassesAfterLoop => "authenticate_pass_after_loop",
             Self::Fails => "authenticate_fail",
             Self::FailsOther => "authenticate_fail_other",
         }
@@ -1621,6 +1624,154 @@ async fn authenticators_out_of_max_auth_gas_name_it_in_the_error() {
     assert!(
         source.contains(&format!("max_auth_gas ({MAX_AUTH_GAS})")),
         "{source}"
+    );
+}
+
+/// Executes the transfer of a [`MoveAccountSponsorSetup`] built from `inputs`,
+/// with two accounts whose authenticators pass after a loop, `max_auth_gas` set to
+/// `max_auth_gas` and computation not rounded, and returns its effects, its
+/// error and the sponsor.
+async fn passing_accounts_transfer(
+    inputs: &MoveAccountSponsorInputs,
+    max_auth_gas: u64,
+) -> (TransactionEffects, Option<ExecutionError>, Address) {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
+        config.set_max_auth_gas_for_testing(max_auth_gas);
+        config.set_gas_rounding_step_for_testing(1);
+        config
+    });
+    let setup = MoveAccountSponsorSetup::new(
+        inputs,
+        TestAccount::Account(TestAuthenticator::PassesAfterLoop),
+        TestAccount::Account(TestAuthenticator::PassesAfterLoop),
+        SponsorSignature::Second,
+    )
+    .await;
+    let (effects, error) = setup.execute_with_error();
+
+    (effects, error, setup.sponsor)
+}
+
+/// The smallest `max_auth_gas`, in whole gas units at the reference gas price
+/// `rgp`, that both authenticators of [`passing_accounts_transfer`] pass
+/// within.
+async fn smallest_max_auth_gas_for_both(inputs: &MoveAccountSponsorInputs, rgp: u64) -> u64 {
+    let passes = async |units: u64| {
+        passing_accounts_transfer(inputs, units * rgp)
+            .await
+            .0
+            .status()
+            .is_success()
+    };
+    let (mut too_small, mut enough) = (0, 1);
+    while !passes(enough).await {
+        too_small = enough;
+        enough *= 2;
+        assert!(enough < 1 << 20, "two passing authenticators must fit");
+    }
+    while enough - too_small > 1 {
+        let middle = too_small + (enough - too_small) / 2;
+        if passes(middle).await {
+            enough = middle;
+        } else {
+            too_small = middle;
+        }
+    }
+    enough * rgp
+}
+
+/// The sender and the sponsor, the gas owner, share `max_auth_gas`: when each
+/// fits in it but not both, the sponsor's authenticator, which runs first,
+/// passes, and the sender's runs out of what is left. The sponsor authorized
+/// the transaction, so it pays for the whole of `max_auth_gas`, and the same
+/// whatever the gas budget.
+#[tokio::test]
+async fn sponsor_pays_max_auth_gas_when_the_sender_runs_out_of_the_rest() {
+    let inputs = MoveAccountSponsorInputs::random();
+    let rgp = MoveAccountSponsorSetup::new(
+        &inputs,
+        TestAccount::Account(TestAuthenticator::PassesAfterLoop),
+        TestAccount::Account(TestAuthenticator::PassesAfterLoop),
+        SponsorSignature::Second,
+    )
+    .await
+    .chain
+    .reference_gas_price();
+    let both = smallest_max_auth_gas_for_both(&inputs, rgp).await;
+    // Each authenticator alone fits in one gas unit less than both need, as
+    // the second one costs at least as much as the first.
+    assert!(both >= 2 * rgp, "each authenticator must cost a gas unit");
+    let max_auth_gas = both - rgp;
+
+    let (effects, error, sponsor) = passing_accounts_transfer(&inputs, max_auth_gas).await;
+
+    assert_eq!(
+        effects.status(),
+        &ExecutionStatus::Failure {
+            error: ExecutionErrorKind::MoveAuthentication {
+                error: Box::new(ExecutionErrorKind::InsufficientGas),
+            },
+            command: None,
+        }
+    );
+    let source = error
+        .expect("the failed authentication must be reported")
+        .source()
+        .as_ref()
+        .expect("the error must say what ran out")
+        .to_string();
+    assert!(
+        source.contains(&format!("max_auth_gas ({max_auth_gas})")),
+        "{source}"
+    );
+    assert_eq!(effects.gas_object().owner(), &Owner::Address(sponsor));
+    assert!(
+        effects.gas_cost_summary().computation_cost >= max_auth_gas,
+        "the sponsor must pay for the whole of max_auth_gas: {:?}",
+        effects.gas_cost_summary()
+    );
+    // With twice the gas budget, the authenticators still get only
+    // `max_auth_gas`, so the sponsor pays the same.
+    let larger_budget = MoveAccountSponsorInputs {
+        gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER * 20),
+        ..inputs
+    };
+    let (larger_budget_effects, ..) = passing_accounts_transfer(&larger_budget, max_auth_gas).await;
+    assert_eq!(larger_budget_effects.status(), effects.status());
+    assert_eq!(
+        larger_budget_effects.gas_cost_summary(),
+        effects.gas_cost_summary()
+    );
+}
+
+/// When the authenticators pass within `max_auth_gas`, the limit changes
+/// nothing: the transaction body gets the gas budget minus what the
+/// authenticators used, as without the limit, and the effects are the same.
+#[tokio::test]
+async fn authenticators_within_max_auth_gas_leave_the_effects_unchanged() {
+    let inputs = MoveAccountSponsorInputs::random();
+    let rgp = MoveAccountSponsorSetup::new(
+        &inputs,
+        TestAccount::Account(TestAuthenticator::PassesAfterLoop),
+        TestAccount::Account(TestAuthenticator::PassesAfterLoop),
+        SponsorSignature::Second,
+    )
+    .await
+    .chain
+    .reference_gas_price();
+    let both = smallest_max_auth_gas_for_both(&inputs, rgp).await;
+
+    // A limit as large as the gas budget limits nothing.
+    let gas_budget = rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER * 10;
+    let (limited, ..) = passing_accounts_transfer(&inputs, both).await;
+    let (unlimited, ..) = passing_accounts_transfer(&inputs, gas_budget).await;
+
+    assert!(limited.status().is_success(), "{:?}", limited.status());
+    assert_eq!(limited.status(), unlimited.status());
+    assert_eq!(limited.gas_cost_summary(), unlimited.gas_cost_summary());
+    assert!(
+        limited.gas_cost_summary().computation_cost > both,
+        "the transaction body must have run after the authenticators"
     );
 }
 
