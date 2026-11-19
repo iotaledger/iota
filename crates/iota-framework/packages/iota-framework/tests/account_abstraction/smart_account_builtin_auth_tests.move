@@ -46,6 +46,54 @@ fun builder_v1_accepts_extra_fields() {
     scenario.end();
 }
 
+// === key_proof_message ===
+
+/// The example of the design: values read from testnet, and the text they give.
+const EXAMPLE_CHAIN_IDENTIFIER: vector<u8> =
+    x"2304aa976b1765b020886e8b5c7369e169bc779154b9c3efb4dd15c6039c0679";
+const EXAMPLE_ACCOUNT: address = @0xf9e4f7f66304ca332d20636b5358b0b9297afbc7428bc107fc5dbc64fb204125;
+const EXAMPLE_NONCE: vector<u8> = x"dbf7a1f60789ef83fe154a99c04c583785f44a74760105e17a8e7338c77c6cd1";
+const EXAMPLE_MESSAGE: vector<u8> =
+    b"check: 0x2::smart_account_builtin_auth::verify_key_proof\nnetwork: 2304aa976b1765b020886e8b5c7369e169bc779154b9c3efb4dd15c6039c0679\naccount: 0xf9e4f7f66304ca332d20636b5358b0b9297afbc7428bc107fc5dbc64fb204125\nnew account: true\nnonce: dbf7a1f60789ef83fe154a99c04c583785f44a74760105e17a8e7338c77c6cd1\nvalid until epoch: 730";
+
+#[test]
+fun key_proof_message_matches_the_example_of_the_design() {
+    assert_eq(
+        smart_account_builtin_auth::key_proof_message(
+            EXAMPLE_CHAIN_IDENTIFIER,
+            EXAMPLE_ACCOUNT,
+            true,
+            EXAMPLE_NONCE,
+            730,
+        ),
+        EXAMPLE_MESSAGE,
+    );
+}
+
+#[test]
+#[expected_failure(abort_code = 5, location = iota::smart_account_builtin_auth)]
+fun key_proof_message_aborts_for_a_short_chain_identifier() {
+    smart_account_builtin_auth::key_proof_message(
+        x"2304aa97",
+        EXAMPLE_ACCOUNT,
+        true,
+        EXAMPLE_NONCE,
+        730,
+    );
+}
+
+#[test]
+#[expected_failure(abort_code = 5, location = iota::smart_account_builtin_auth)]
+fun key_proof_message_aborts_for_a_short_nonce() {
+    smart_account_builtin_auth::key_proof_message(
+        EXAMPLE_CHAIN_IDENTIFIER,
+        EXAMPLE_ACCOUNT,
+        true,
+        x"dbf7a1f6",
+        730,
+    );
+}
+
 // === claim_account_v1 ===
 
 #[test]

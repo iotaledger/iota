@@ -5774,6 +5774,93 @@ async fn verify_personal_message_signature_charges_per_signature_byte() {
     );
 }
 
+/// Simulates on `fullnode` a transaction whose two commands each read the nonce
+/// of the transaction with `tx_context::tx_nonce`, and returns what they read.
+fn read_tx_nonce_twice(
+    fullnode: &AuthorityState,
+    sender: Address,
+    gas_payment: GasPayment,
+) -> Vec<Vec<u8>> {
+    let tx_nonce = Command::new_move_call(
+        ObjectId::FRAMEWORK,
+        Identifier::from_static("tx_context"),
+        Identifier::from_static("tx_nonce"),
+        vec![],
+        vec![],
+    );
+    let transaction = Transaction::V1(TransactionV1 {
+        kind: TransactionKind::new_programmable(ProgrammableTransaction {
+            inputs: vec![],
+            commands: vec![tx_nonce; 2],
+        }),
+        sender,
+        gas_payment,
+        expiration: TransactionExpiration::None,
+    });
+    let result = fullnode
+        .simulate_transaction(transaction, VmChecks::Disabled)
+        .unwrap();
+    assert!(
+        result.effects.status().is_success(),
+        "{:?}",
+        result.effects.status()
+    );
+
+    result
+        .execution_result
+        .unwrap()
+        .into_iter()
+        .map(|(_, return_values)| {
+            let [(nonce, _)] = <[_; 1]>::try_from(return_values).unwrap();
+            bcs::from_bytes(&nonce).unwrap()
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn tx_nonce_is_the_sdk_nonce_of_the_gas_payment_in_every_command() {
+    let sender = Address::random();
+    let gas_object = Object::with_id_owner_version_for_testing(
+        ObjectId::random(),
+        Version::from_u64(5),
+        Owner::Address(sender),
+    );
+    let (_, fullnode) = init_state_validator_with_fullnode().await;
+    let gas_payment = GasPayment {
+        objects: vec![gas_object.object_ref()],
+        owner: sender,
+        price: 0,
+        budget: 0,
+    };
+    fullnode.insert_genesis_object(gas_object);
+
+    let nonces = read_tx_nonce_twice(&fullnode, sender, gas_payment.clone());
+
+    // The nonce is computed from the gas coin version the transaction lists,
+    // not from the one the coin gets from the execution.
+    let expected = gas_payment.nonce().unwrap().to_vec();
+    assert_eq!(nonces, vec![expected.clone(), expected]);
+}
+
+#[tokio::test]
+async fn tx_nonce_of_a_sponsored_transaction_is_the_nonce_of_the_sponsor_gas_coin() {
+    let sender = Address::random();
+    let sponsor = Address::random();
+    let sponsor_gas_object = Object::with_id_owner_for_testing(ObjectId::random(), sponsor);
+    let (_, fullnode) = init_state_validator_with_fullnode().await;
+    let gas_payment = GasPayment {
+        objects: vec![sponsor_gas_object.object_ref()],
+        owner: sponsor,
+        price: 0,
+        budget: 0,
+    };
+    fullnode.insert_genesis_object(sponsor_gas_object);
+
+    let nonces = read_tx_nonce_twice(&fullnode, sender, gas_payment.clone());
+
+    assert_eq!(nonces[0], gas_payment.nonce().unwrap().to_vec());
+}
+
 /// Resolve a simulation's events for display the way the RPC layer does: over
 /// the objects the simulation wrote, falling back to the authority's store, so
 /// that events of a package published by the transaction itself resolve too.

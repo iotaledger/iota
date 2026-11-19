@@ -1192,6 +1192,12 @@ gas_budget
 native_gas_budget
 	fun
 	0x2::tx_context
+tx_nonce
+	public fun
+	0x2::tx_context
+native_tx_nonce
+	fun
+	0x2::tx_context
 native_ids_created
 	fun
 	0x2::tx_context
@@ -3891,6 +3897,9 @@ rotate_to_custom_auth_v1
 	0x2::smart_account_builtin_auth
 rotate_public_key
 	public fun
+	0x2::smart_account_builtin_auth
+key_proof_message
+	public(package) fun
 	0x2::smart_account_builtin_auth
 claim_account_v1
 	fun

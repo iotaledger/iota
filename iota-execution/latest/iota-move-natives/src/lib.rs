@@ -76,7 +76,7 @@ use self::{
         TxContextEpochTimestampMsCostParams, TxContextFreshIdCostParams,
         TxContextGasBudgetCostParams, TxContextGasPriceCostParams, TxContextIdsCreatedCostParams,
         TxContextRGPCostParams, TxContextReplaceCostParams, TxContextSenderCostParams,
-        TxContextSponsorCostParams,
+        TxContextSponsorCostParams, TxContextTxNonceCostParams,
     },
     types::TypesIsOneTimeWitnessCostParams,
     validator::ValidatorValidateMetadataBcsCostParams,
@@ -96,6 +96,7 @@ use crate::{
     public_key::{
         PublicKeyToIotaAddressImplCostParams, PublicKeyVerifyPersonalMessageSignatureImplCostParams,
     },
+    smart_account_builtin_auth::SmartAccountBuiltinAuthKeyProofMessageCostParams,
     tx_context::TxContextDigestCostParams,
 };
 
@@ -112,6 +113,7 @@ pub mod object_runtime;
 pub mod protocol_config;
 mod public_key;
 mod random;
+mod smart_account_builtin_auth;
 pub mod test_scenario;
 mod test_utils;
 pub mod transaction_context;
@@ -172,6 +174,7 @@ pub struct NativesCostTable {
     pub tx_context_ids_created_cost_params: TxContextIdsCreatedCostParams,
     pub tx_context_replace_cost_params: TxContextReplaceCostParams,
     pub tx_context_chain_identifier_cost_params: TxContextChainIdentifierCostParams,
+    pub tx_context_tx_nonce_cost_params: TxContextTxNonceCostParams,
 
     // AuthContext
     pub auth_context_digest_cost_params: AuthContextDigestCostParams,
@@ -219,6 +222,8 @@ pub struct NativesCostTable {
     pub public_key_to_iota_address_impl_cost_params: PublicKeyToIotaAddressImplCostParams,
     pub public_key_verify_personal_message_signature_impl_cost_params:
         PublicKeyVerifyPersonalMessageSignatureImplCostParams,
+    pub smart_account_builtin_auth_key_proof_message_cost_params:
+        SmartAccountBuiltinAuthKeyProofMessageCostParams,
 
     // builtin_authenticator_functions
     pub builtin_authenticator_functions_cost_params: BuiltinAuthenticatorFunctionsCostParams,
@@ -410,6 +415,12 @@ impl NativesCostTable {
                         .public_key_verify_personal_message_signature_impl_sig_cost_per_byte_as_option()
                         .map(Into::into),
                 },
+            smart_account_builtin_auth_key_proof_message_cost_params:
+                SmartAccountBuiltinAuthKeyProofMessageCostParams {
+                    smart_account_builtin_auth_key_proof_message_cost_base: protocol_config
+                        .smart_account_builtin_auth_key_proof_message_cost_base_as_option()
+                        .map(Into::into),
+                },
             builtin_authenticator_functions_cost_params: BuiltinAuthenticatorFunctionsCostParams {
                 builtin_move_authenticator_cost_base: protocol_config
                     .builtin_move_authenticator_cost_base_as_option()
@@ -491,6 +502,11 @@ impl NativesCostTable {
                 } else {
                     DEFAULT_UNUSED_TX_CONTEXT_ENTRY_COST.into()
                 },
+            },
+            tx_context_tx_nonce_cost_params: TxContextTxNonceCostParams {
+                tx_context_tx_nonce_cost_base: protocol_config
+                    .tx_context_tx_nonce_cost_base_as_option()
+                    .map(Into::into),
             },
             tx_context_sponsor_cost_params: TxContextSponsorCostParams {
                 tx_context_sponsor_cost_base: if protocol_config.move_native_tx_context() {
@@ -1179,6 +1195,11 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             make_native!(public_key::verify_personal_message_signature_impl),
         ),
         (
+            "smart_account_builtin_auth",
+            "key_proof_message",
+            make_native!(smart_account_builtin_auth::key_proof_message),
+        ),
+        (
             "builtin_authenticator_functions",
             "borrow_account_uid",
             make_native!(object::borrow_uid),
@@ -1411,6 +1432,16 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             "tx_context",
             "replace_chain_identifier",
             make_native!(tx_context::replace_chain_identifier),
+        ),
+        (
+            "tx_context",
+            "native_tx_nonce",
+            make_native!(tx_context::tx_nonce),
+        ),
+        (
+            "tx_context",
+            "replace_tx_nonce",
+            make_native!(tx_context::replace_tx_nonce),
         ),
         (
             "types",
