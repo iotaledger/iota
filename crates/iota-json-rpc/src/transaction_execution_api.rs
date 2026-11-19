@@ -29,6 +29,7 @@ use iota_sdk_types::{
     Address, GasPayment, ObjectId, Transaction, TransactionDigest, TransactionExpiration,
     TransactionKind, TransactionV1, UserSignature,
 };
+use iota_traffic_controller::SimulationGasReservation;
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
@@ -45,13 +46,14 @@ use iota_types::{
     transaction::{InputObjectKind, TransactionAPI, TransactionEnvelope},
     transaction_executor::{SimulateTransactionResult, VmChecks},
 };
-use jsonrpsee::{RpcModule, core::RpcResult};
+use jsonrpsee::{Extensions, RpcModule, core::RpcResult};
 use tokio::sync::OwnedSemaphorePermit;
 use tracing::{Instrument, instrument};
 
 use crate::{
     IotaRpcModule, ObjectProviderCache,
     authority_state::StateRead,
+    axum_router::SimulationGasHandle,
     error::{Error, IotaRpcInputError},
     get_balance_changes_from_effect, get_object_changes,
     logger::FutureWithTracing,
@@ -361,6 +363,7 @@ impl TransactionExecutionApi {
     fn dry_run_transaction_block_impl(
         &self,
         mut tx: Transaction,
+        gas_reservation: Option<SimulationGasReservation>,
     ) -> Result<
         (
             SimulateTransactionResult,
@@ -380,6 +383,7 @@ impl TransactionExecutionApi {
             tx.clone(),
             VmChecks::Enabled,
         )?;
+        settle_simulation_gas(gas_reservation, &simulation);
 
         Self::report_simulation_gas(&mut tx, &simulation);
 
@@ -421,6 +425,7 @@ impl TransactionExecutionApi {
 
     async fn dry_run_transaction_block(
         &self,
+        ext: &Extensions,
         tx_bytes: Base64,
     ) -> Result<DryRunTransactionBlockResponse, Error> {
         let (txn_data, input_objs) = self.prepare_dry_run_transaction_block(tx_bytes)?;
@@ -429,11 +434,12 @@ impl TransactionExecutionApi {
         // Use spawn_blocking since simulating a transaction and resolving types
         // over its output are long-running synchronous operations
         let (simulation, input, events) = {
+            let gas_reservation = reserve_simulation_gas(ext)?;
             let permit = self.try_acquire_simulation_permit()?;
             let this = self.clone();
             tokio::task::spawn_blocking(move || {
                 let _permit = permit;
-                this.dry_run_transaction_block_impl(txn_data)
+                this.dry_run_transaction_block_impl(txn_data, gas_reservation)
             })
             .await
             .map_err(Error::from)??
@@ -487,6 +493,7 @@ impl TransactionExecutionApi {
         transaction_kind: TransactionKind,
         gas_price: Option<u64>,
         args: DevInspectArgs,
+        gas_reservation: Option<SimulationGasReservation>,
     ) -> Result<DevInspectResults, Error> {
         let DevInspectArgs {
             gas_sponsor,
@@ -532,6 +539,7 @@ impl TransactionExecutionApi {
         let simulation =
             self.state
                 .simulate_transaction_in_epoch(&epoch_store, transaction, checks)?;
+        settle_simulation_gas(gas_reservation, &simulation);
 
         let raw_txn_data = match reported_transaction.as_mut() {
             Some(transaction) => {
@@ -573,18 +581,26 @@ impl TransactionExecutionApi {
 
     async fn dev_inspect_transaction(
         &self,
+        ext: &Extensions,
         sender: Address,
         transaction_kind: TransactionKind,
         gas_price: Option<u64>,
         args: DevInspectArgs,
     ) -> Result<DevInspectResults, Error> {
+        let gas_reservation = reserve_simulation_gas(ext)?;
         let permit = self.try_acquire_simulation_permit()?;
         let this = self.clone();
         // Use spawn_blocking since simulating a transaction is a long-running
         // synchronous operation
         tokio::task::spawn_blocking(move || {
             let _permit = permit;
-            this.dev_inspect_transaction_impl(sender, transaction_kind, gas_price, args)
+            this.dev_inspect_transaction_impl(
+                sender,
+                transaction_kind,
+                gas_price,
+                args,
+                gas_reservation,
+            )
         })
         .await
         .map_err(Error::from)?
@@ -607,9 +623,10 @@ impl WriteApiServer for TransactionExecutionApi {
     }
 
     /// Calls a move view function.
-    #[instrument(skip(self, arguments))]
+    #[instrument(skip(self, ext, arguments))]
     async fn view_function_call(
         &self,
+        ext: &Extensions,
         function_name: String,
         type_args: Option<Vec<IotaTypeTag>>,
         arguments: Vec<IotaJsonValue>,
@@ -632,7 +649,7 @@ impl WriteApiServer for TransactionExecutionApi {
             .await
             .map_err(Error::from)?;
         let dev_inspect_results = self
-            .dev_inspect_transaction(sender, tx_kind, None, DevInspectArgs::default())
+            .dev_inspect_transaction(ext, sender, tx_kind, None, DevInspectArgs::default())
             .await?;
         Ok(
             IotaMoveViewCallResults::from_dev_inspect_results(self.clone(), dev_inspect_results)
@@ -642,11 +659,12 @@ impl WriteApiServer for TransactionExecutionApi {
     }
 
     #[instrument(
-        skip(self, sender_address, tx_bytes, additional_args),
+        skip(self, ext, sender_address, tx_bytes, additional_args),
         fields(sender_address = %sender_address)
     )]
     async fn dev_inspect_transaction_block(
         &self,
+        ext: &Extensions,
         sender_address: Address,
         tx_bytes: Base64,
         gas_price: Option<BigInt<u64>>,
@@ -656,6 +674,7 @@ impl WriteApiServer for TransactionExecutionApi {
         async move {
             let tx_kind: TransactionKind = self.convert_bytes(tx_bytes)?;
             self.dev_inspect_transaction(
+                ext,
                 sender_address,
                 tx_kind,
                 gas_price.map(|i| *i),
@@ -667,12 +686,43 @@ impl WriteApiServer for TransactionExecutionApi {
         .await
     }
 
-    #[instrument(skip(self, tx_bytes))]
+    #[instrument(skip(self, ext, tx_bytes))]
     async fn dry_run_transaction_block(
         &self,
+        ext: &Extensions,
         tx_bytes: Base64,
     ) -> RpcResult<DryRunTransactionBlockResponse> {
-        self.dry_run_transaction_block(tx_bytes).trace().await
+        self.dry_run_transaction_block(ext, tx_bytes).trace().await
+    }
+}
+
+/// Reserves gas for one simulation of the request's client. Refused while the
+/// client is over its simulation gas limit. `None` when the request has no gas
+/// limit: traffic control is off, no simulation gas limit is set, an allow
+/// rule serves the client, or the extensions carry no handle.
+pub(crate) fn reserve_simulation_gas(
+    ext: &Extensions,
+) -> Result<Option<SimulationGasReservation>, Error> {
+    let Some(handle) = ext.get::<SimulationGasHandle>() else {
+        return Ok(None);
+    };
+    handle
+        .reserve()
+        .map_err(|refusal| Error::ServerIsBusy(refusal.to_string()))
+}
+
+/// Charges the client for what `simulation` cost. A simulation that fails
+/// before it runs gets the whole reservation back when the reservation is
+/// dropped.
+fn settle_simulation_gas(
+    gas_reservation: Option<SimulationGasReservation>,
+    simulation: &SimulateTransactionResult,
+) {
+    if let Some(gas_reservation) = gas_reservation {
+        gas_reservation.settle(
+            simulation.effects.gas_cost_summary().computation_cost,
+            simulation.gas_data.price,
+        );
     }
 }
 
