@@ -17,6 +17,7 @@ futures.workspace = true
 http.workspace = true
 http-body.workspace = true
 hyper-rustls = { version = "0.27", default-features = false, features = ["webpki-roots", "http1", "http2", "ring", "tls12"] }
+hyper-timeout = "0.5"
 hyper-util.workspace = true
 multiaddr.workspace = true
 once_cell.workspace = true
