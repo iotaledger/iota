@@ -6039,6 +6039,7 @@ dependencies = [
  "iota-framework",
  "iota-genesis-builder",
  "iota-genesis-common",
+ "iota-http",
  "iota-json-rpc-types",
  "iota-macros",
  "iota-metrics",

@@ -1521,6 +1521,24 @@ pub struct AuthorityOverloadConfig {
     /// [`IotaError::ValidatorOverloadedRetryAfter`]: iota_types::error::IotaError::ValidatorOverloadedRetryAfter
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_attestation_wait: Option<Duration>,
+
+    /// Maximum number of `get_tx_status` queries of one client that the
+    /// validator serves at once. A request that would exceed it is rejected
+    /// with gRPC status `RESOURCE_EXHAUSTED`. A client is the address that
+    /// traffic control charges the request to, or the address the request
+    /// arrives from when traffic control names none. When traffic control
+    /// takes the client from the `x-forwarded-for` header, this limit is only
+    /// as reliable as that header: a peer that reaches the validator around
+    /// the proxy can name any client. IPv6 addresses are grouped by the
+    /// `ipv6-prefix-len` of the validator gRPC listener. Unset means 2,000.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_pending_tx_status_queries_per_client: Option<NonZeroUsize>,
+
+    /// Maximum number of `get_tx_status` queries of all clients that the
+    /// validator serves at once. A request that would exceed it is rejected
+    /// with gRPC status `RESOURCE_EXHAUSTED`. Unset means 64,000.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_pending_tx_status_queries: Option<NonZeroUsize>,
 }
 
 impl AuthorityOverloadConfig {
@@ -1597,6 +1615,8 @@ impl Default for AuthorityOverloadConfig {
             max_concurrent_attestations: None,
             max_queued_attestations: None,
             max_attestation_wait: None,
+            max_pending_tx_status_queries_per_client: None,
+            max_pending_tx_status_queries: None,
         }
     }
 }
