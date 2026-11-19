@@ -10,7 +10,7 @@ use iota::authenticator_function::AuthenticatorFunctionRefV1;
 #[error(code = 0)]
 const EUnexpectedTxNonce: vector<u8> = b"The nonce of the transaction differs from the expected one.";
 
-/// An account whose authenticator reads the nonce of the transaction.
+/// An account authenticated by `authenticate` or `authenticate_without_tx_nonce`.
 public struct TxNonceAccount has key {
     id: UID,
 }
@@ -33,3 +33,11 @@ public fun assert_tx_nonce(expected: vector<u8>, ctx: &TxContext) {
 public fun authenticate(_account: &TxNonceAccount, _: &AuthContext, ctx: &TxContext) {
     ctx.tx_nonce();
 }
+
+/// Accept every transaction, without reading the nonce.
+#[authenticator]
+public fun authenticate_without_tx_nonce(
+    _account: &TxNonceAccount,
+    _: &AuthContext,
+    _: &TxContext,
+) {}

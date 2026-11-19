@@ -3,8 +3,8 @@
 
 //! The nonce that Move reads with `tx_context::tx_nonce` is the SDK's
 //! `GasPayment::nonce` of the transaction in a transaction executed by the
-//! validators, and an authenticator function can't read one in either
-//! transaction flow.
+//! validators, whether an address or an account sends it, and an
+//! authenticator function can't read one in either transaction flow.
 //!
 //! The tests use the `./tests/tx_nonce` Move package.
 
@@ -91,6 +91,28 @@ async fn tx_nonce_read_in_an_executed_transaction_is_the_sdk_nonce() {
     );
 }
 
+/// Every command of a transaction sent by an account, whose authenticator
+/// does not read the nonce, reads the SDK's nonce of its gas payment when the
+/// validators authenticate the transaction before consensus.
+#[sim_test]
+async fn tx_nonce_read_in_a_transaction_sent_by_an_account_is_the_sdk_nonce_pre_consensus_flow() {
+    transaction_sent_by_an_account_reads_the_sdk_nonce(false).await;
+}
+
+/// As above, with the P-COOL flow.
+#[sim_test]
+async fn tx_nonce_read_in_a_transaction_sent_by_an_account_is_the_sdk_nonce_pcool_flow() {
+    transaction_sent_by_an_account_reads_the_sdk_nonce(true).await;
+}
+
+async fn transaction_sent_by_an_account_reads_the_sdk_nonce(pcool: bool) {
+    let _pcool_guard = override_pcool_flow(pcool);
+    let (test_cluster, tx) = transaction_of_an_account("authenticate_without_tx_nonce").await;
+
+    // Panics unless the transaction executes successfully.
+    test_cluster.execute_transaction(tx).await;
+}
+
 /// An authenticator function can't read a nonce, so the validators reject
 /// the transaction when they authenticate it before consensus.
 #[sim_test]
@@ -107,7 +129,7 @@ async fn tx_nonce_read_in_an_authenticator_aborts_pcool_flow() {
 
 async fn authenticator_that_reads_the_nonce_is_rejected(pcool: bool) {
     let _pcool_guard = override_pcool_flow(pcool);
-    let (test_cluster, tx) = transaction_of_an_account_whose_authenticator_reads_the_nonce().await;
+    let (test_cluster, tx) = transaction_of_an_account("authenticate").await;
 
     let error = test_cluster
         .execute_transaction_return_raw_effects(tx)
@@ -122,15 +144,18 @@ async fn authenticator_that_reads_the_nonce_is_rejected(pcool: bool) {
     );
 }
 
-/// Starts a cluster and returns a transaction sent by a `TxNonceAccount`,
-/// whose authenticator reads the nonce of the transaction.
-async fn transaction_of_an_account_whose_authenticator_reads_the_nonce()
--> (TestCluster, TransactionEnvelope) {
+/// Starts a cluster and returns a transaction sent by a `TxNonceAccount`
+/// whose authenticator is the package's `authenticator_function`. The
+/// transaction calls `assert_tx_nonce` with the SDK's nonce of its gas payment
+/// in two commands.
+async fn transaction_of_an_account(
+    authenticator_function: &str,
+) -> (TestCluster, TransactionEnvelope) {
     let test_cluster = TestClusterBuilder::new().build().await;
     let package_id = publish_package(&test_cluster.wallet, package_path())
         .await
         .object_id;
-    let account = create_account(&test_cluster, package_id).await;
+    let account = create_account(&test_cluster, package_id, authenticator_function).await;
     let sender: Address = account.object_id.into();
 
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -161,8 +186,12 @@ async fn transaction_of_an_account_whose_authenticator_reads_the_nonce()
 }
 
 /// Creates a `TxNonceAccount` whose authenticator is the package's
-/// `authenticate` function, and returns its reference.
-async fn create_account(test_cluster: &TestCluster, package_id: ObjectId) -> ObjectReference {
+/// `authenticator_function`, and returns its reference.
+async fn create_account(
+    test_cluster: &TestCluster,
+    package_id: ObjectId,
+    authenticator_function: &str,
+) -> ObjectReference {
     let package_metadata = test_cluster
         .get_latest_object_ref(&move_package::derive_package_metadata_id(package_id))
         .await;
@@ -176,7 +205,7 @@ async fn create_account(test_cluster: &TestCluster, package_id: ObjectId) -> Obj
             .obj(CallArg::ImmutableOrOwned(package_metadata))
             .unwrap(),
         builder.pure(MODULE_NAME).unwrap(),
-        builder.pure("authenticate").unwrap(),
+        builder.pure(authenticator_function).unwrap(),
     ];
     let authenticator = builder.programmable_move_call(
         IOTA_FRAMEWORK_PACKAGE_ID,
