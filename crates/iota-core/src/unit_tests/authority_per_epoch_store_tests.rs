@@ -27,7 +27,8 @@ use crate::{
     authority::{
         AuthorityState,
         authority_per_epoch_store::{
-            AuthorityPerEpochStore, CongestionControlParameters, compute_deny_rule_update_chunks,
+            AuthorityPerEpochStore, CongestionControlParameters, ExecutionIndicesWithStats,
+            LAST_CONSENSUS_STATS_ADDR, compute_deny_rule_update_chunks,
             consensus_quarantine::ConsensusCommitOutput,
         },
         epoch_start_configuration::EpochStartConfiguration,
@@ -59,6 +60,20 @@ fn flush_overload_notification(
     // table write; this helper writes the table directly, so update the cache
     // explicitly to keep the two consistent.
     store.apply_overload_notification_to_cache_for_test(authority, percentage);
+}
+
+/// Stores `stats` as the last consensus stats, the row a restart resumes
+/// from.
+pub(crate) fn store_last_consensus_stats(
+    store: &AuthorityPerEpochStore,
+    stats: &ExecutionIndicesWithStats,
+) {
+    store
+        .tables()
+        .unwrap()
+        .last_consensus_stats
+        .insert(&LAST_CONSENSUS_STATS_ADDR, stats)
+        .unwrap();
 }
 
 #[tokio::test]
@@ -3284,4 +3299,75 @@ async fn wait_for_checkpoint_inclusion_keeps_a_checkpointed_transaction_not_yet_
     // Read back from the table, without a summary to take the timestamp from.
     assert_eq!(results.get(&digest).map(|&(seq, _)| seq), Some(seq));
     assert!(!authority_state.is_checkpoint_indexed(seq).unwrap());
+}
+
+mod consensus_stats {
+    use crate::authority::authority_per_epoch_store::{
+        ConsensusStats, ConsensusStatsV1, ConsensusStatsV2,
+    };
+
+    const MIN_GAP: u64 = 10;
+
+    fn record(stats: &mut ConsensusStatsV2, rounds: &[u64]) {
+        for &round in rounds {
+            stats.record_committed_header_round(0, round);
+        }
+    }
+
+    #[test]
+    fn absent_rounds_count_only_gaps_of_at_least_min_gap() {
+        let mut stats = ConsensusStatsV2::new(1, MIN_GAP);
+        // Gaps of 1, 8 and 0 rounds.
+        record(&mut stats, &[2, 11, 12]);
+        assert_eq!(stats.absent_rounds, [0]);
+        // A gap of exactly `MIN_GAP` rounds counts in full.
+        record(&mut stats, &[23]);
+        assert_eq!(stats.absent_rounds, [10]);
+        // Gaps of 9 and 30 rounds.
+        record(&mut stats, &[33, 64]);
+        assert_eq!(stats.absent_rounds, [40]);
+        assert_eq!(stats.num_committed_header_rounds, [6]);
+    }
+
+    #[test]
+    fn absent_rounds_with_min_gap_0_or_1_count_every_gap() {
+        for min_gap in [0, 1] {
+            let mut stats = ConsensusStatsV2::new(1, min_gap);
+            // Gaps of 2, 0 and 1 rounds.
+            record(&mut stats, &[3, 4, 6]);
+            assert_eq!(stats.absent_rounds, [3]);
+        }
+    }
+
+    #[test]
+    fn a_round_not_above_the_last_one_is_ignored() {
+        let mut stats = ConsensusStatsV2::new(1, MIN_GAP);
+        // The gap from the start of the epoch counts.
+        record(&mut stats, &[20]);
+        assert_eq!(stats.absent_rounds, [19]);
+        record(&mut stats, &[20, 15]);
+        assert_eq!(stats.absent_rounds, [19]);
+        assert_eq!(stats.num_committed_header_rounds, [1]);
+        // The last round stays 20, so the next gap is measured from it.
+        record(&mut stats, &[31]);
+        assert_eq!(stats.absent_rounds, [29]);
+        assert_eq!(stats.num_committed_header_rounds, [2]);
+    }
+
+    #[test]
+    fn stored_v1_stats_still_decode_as_v1() {
+        // The BCS encoding of V1 stats that epoch databases already hold:
+        // variant 0, then `num_messages` [1, 2] and `num_user_transactions`
+        // [3, 4].
+        let bytes = [
+            0, 2, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 3, 0, 0, 0, 0, 0, 0, 0, 4, 0,
+            0, 0, 0, 0, 0, 0,
+        ];
+        let v1 = ConsensusStats::V1(ConsensusStatsV1 {
+            num_messages: vec![1, 2],
+            num_user_transactions: vec![3, 4],
+        });
+        assert_eq!(bcs::from_bytes::<ConsensusStats>(&bytes).unwrap(), v1);
+        assert_eq!(bcs::to_bytes(&v1).unwrap(), bytes);
+    }
 }

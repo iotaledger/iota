@@ -579,6 +579,7 @@ pub trait ConsensusStatsAPI {
 #[enum_dispatch(ConsensusStatsAPI)]
 pub enum ConsensusStats {
     V1(ConsensusStatsV1),
+    V2(ConsensusStatsV2),
 }
 
 impl ConsensusStats {
@@ -603,6 +604,79 @@ pub struct ConsensusStatsV1 {
 }
 
 impl ConsensusStatsAPI for ConsensusStatsV1 {
+    fn is_initialized(&self) -> bool {
+        !self.num_messages.is_empty()
+    }
+
+    fn get_num_messages(&self, authority: usize) -> u64 {
+        self.num_messages[authority]
+    }
+
+    fn inc_num_messages(&mut self, authority: usize, num_of_new_messages: u64) -> u64 {
+        self.num_messages[authority] += num_of_new_messages;
+        self.num_messages[authority]
+    }
+
+    fn get_num_user_transactions(&self, authority: usize) -> u64 {
+        self.num_user_transactions[authority]
+    }
+
+    fn inc_num_user_transactions(&mut self, authority: usize) -> u64 {
+        self.num_user_transactions[authority] += 1;
+        self.num_user_transactions[authority]
+    }
+}
+
+/// Per-authority consensus stats that also count absences.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct ConsensusStatsV2 {
+    pub num_messages: Vec<u64>,
+    pub num_user_transactions: Vec<u64>,
+    /// Gaps of at least this many rounds without a committed header of an
+    /// authority count as its absence.
+    pub absent_rounds_min_gap: u64,
+    /// Per authority, the highest round of its committed headers so far, or 0
+    /// before its first one.
+    pub last_committed_header_round: Vec<u64>,
+    /// Per authority, the distinct rounds with a committed header so far.
+    pub num_committed_header_rounds: Vec<u64>,
+    /// Per authority, the rounds counted as absences so far.
+    pub absent_rounds: Vec<u64>,
+}
+
+impl ConsensusStatsV2 {
+    /// Empty stats for `size` authorities that count gaps of at least
+    /// `absent_rounds_min_gap` rounds as absences.
+    pub fn new(size: usize, absent_rounds_min_gap: u64) -> Self {
+        Self {
+            num_messages: vec![0; size],
+            num_user_transactions: vec![0; size],
+            absent_rounds_min_gap,
+            last_committed_header_round: vec![0; size],
+            num_committed_header_rounds: vec![0; size],
+            absent_rounds: vec![0; size],
+        }
+    }
+
+    /// Records a committed header of `authority` at `round`. A round not above
+    /// the authority's last recorded one is ignored. Otherwise the rounds
+    /// since that one (since round 0 for its first header) count in full as
+    /// an absence if there are at least `absent_rounds_min_gap` of them.
+    pub fn record_committed_header_round(&mut self, authority: usize, round: u64) {
+        let last = self.last_committed_header_round[authority];
+        if round <= last {
+            return;
+        }
+        let gap = round - last - 1;
+        if gap >= self.absent_rounds_min_gap {
+            self.absent_rounds[authority] += gap;
+        }
+        self.num_committed_header_rounds[authority] += 1;
+        self.last_committed_header_round[authority] = round;
+    }
+}
+
+impl ConsensusStatsAPI for ConsensusStatsV2 {
     fn is_initialized(&self) -> bool {
         !self.num_messages.is_empty()
     }
