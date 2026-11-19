@@ -37,7 +37,7 @@ const EXACT_COUNT_FALLBACK_RESET_PERIOD: Duration = Duration::from_secs(60 * 60)
 pub(super) const MAX_CLIENT_THRESHOLD: u64 = 1_000_000_000;
 
 /// Upper bound on client IPs tracked per limiter.
-const MAX_TRACKED_CLIENTS: usize = 100_000;
+pub(crate) const MAX_TRACKED_CLIENTS: usize = 100_000;
 
 /// GCRA cell for a single client IP. Uses `std::time::Instant` rather than
 /// `governor`'s default TSC-backed clock so that the deterministic simulator,
