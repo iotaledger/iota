@@ -348,12 +348,11 @@ impl TransactionClient {
     {
         let (included_in_block_ack_send, included_in_block_ack_receive) = oneshot::channel();
 
-        check_transactions_fit(
-            transactions
-                .iter()
-                .map(|transaction| transaction.len() as u64),
-            &self.context.protocol_config,
-        )?;
+        let transaction_sizes: Vec<u64> = transactions
+            .iter()
+            .map(|transaction| transaction.len() as u64)
+            .collect();
+        check_transactions_fit(&transaction_sizes, &self.context.protocol_config)?;
 
         let t = TransactionsGuard {
             transactions: transactions.into_iter().map(Transaction::new).collect(),
@@ -387,7 +386,7 @@ impl TransactionClient {
 /// [`ClientError::OversizedTransactionBundleBytes`] for the first transaction
 /// that is over the size limit or takes the total over its limit.
 pub fn check_transactions_fit(
-    transaction_sizes: impl ExactSizeIterator<Item = u64>,
+    transaction_sizes: &[u64],
     protocol_config: &ProtocolConfig,
 ) -> Result<(), ClientError> {
     let max_count = protocol_config.max_num_transactions_in_block();
@@ -401,7 +400,7 @@ pub fn check_transactions_fit(
     let max_size = protocol_config.max_transaction_size_bytes();
     let max_total_size = protocol_config.max_transactions_in_block_bytes();
     let mut total_size: u64 = 0;
-    for size in transaction_sizes {
+    for &size in transaction_sizes {
         if size > max_size {
             return Err(ClientError::OversizedTransaction(size, max_size));
         }
@@ -471,22 +470,22 @@ mod tests {
         let max_total_size = protocol_config.max_transactions_in_block_bytes();
 
         let at_count = vec![0; max_count as usize];
-        check_transactions_fit(at_count.iter().copied(), &protocol_config)
+        check_transactions_fit(&at_count, &protocol_config)
             .expect("as many transactions as a block holds should fit");
         let over_count = vec![0; max_count as usize + 1];
         assert!(
             matches!(
-                check_transactions_fit(over_count.iter().copied(), &protocol_config),
+                check_transactions_fit(&over_count, &protocol_config),
                 Err(ClientError::OversizedTransactionBundleCount(..))
             ),
             "one transaction more than a block holds should not fit"
         );
 
-        check_transactions_fit([max_size].into_iter(), &protocol_config)
+        check_transactions_fit(&[max_size], &protocol_config)
             .expect("a transaction of exactly the size limit should fit");
         assert!(
             matches!(
-                check_transactions_fit([max_size + 1].into_iter(), &protocol_config),
+                check_transactions_fit(&[max_size + 1], &protocol_config),
                 Err(ClientError::OversizedTransaction(..))
             ),
             "a transaction one byte over the size limit should not fit"
@@ -497,12 +496,12 @@ mod tests {
         assert_eq!(max_total_size % max_size, 0);
         let mut at_total_size = vec![max_size; (max_total_size / max_size) as usize];
         assert!((at_total_size.len() as u64) < max_count);
-        check_transactions_fit(at_total_size.iter().copied(), &protocol_config)
+        check_transactions_fit(&at_total_size, &protocol_config)
             .expect("transactions of exactly the bytes of a block should fit");
         at_total_size.push(1);
         assert!(
             matches!(
-                check_transactions_fit(at_total_size.iter().copied(), &protocol_config),
+                check_transactions_fit(&at_total_size, &protocol_config),
                 Err(ClientError::OversizedTransactionBundleBytes(..))
             ),
             "transactions one byte over the bytes of a block should not fit"

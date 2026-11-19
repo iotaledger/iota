@@ -1746,7 +1746,7 @@ fn check_consensus_transactions_fit(
         })
         .collect::<IotaResult<Vec<_>>>()?;
 
-    starfish_core::check_transactions_fit(transaction_sizes.into_iter(), protocol_config)
+    starfish_core::check_transactions_fit(&transaction_sizes, protocol_config)
         .map_err(to_iota_error)
 }
 
