@@ -10,7 +10,7 @@ use diesel::PgConnection;
 use crate::{
     errors::IndexerError,
     ingestion::{
-        common::{persist::CommitterWatermark, prepare::CheckpointObjectChanges},
+        common::prepare::CheckpointObjectChanges,
         primary::persist::{EpochToCommit, TransactionObjectChangesToCommit},
     },
     models::{
@@ -20,7 +20,7 @@ use crate::{
         objects::StoredBackwardHistoryObject,
         packages::StoredPackage,
         transactions::{OptimisticTransaction, TxGlobalOrder},
-        watermarks::StoredWatermark,
+        watermarks::{StoredWatermark, WatermarkUpperBounds},
     },
     pruning::{CommitterTables, pruner::PrunableTable},
     types::{EventIndex, IndexedCheckpoint, IndexedEvent, IndexedTransaction, TxIndex},
@@ -107,7 +107,7 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
     async fn update_watermarks_upper_bound<Tables>(
         &self,
         tables: Tables,
-        watermark: CommitterWatermark,
+        watermark: WatermarkUpperBounds,
     ) -> Result<(), IndexerError>
     where
         Tables: IntoIterator<Item: AsRef<str>> + Send + 'static;
