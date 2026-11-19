@@ -98,11 +98,11 @@ ignored = [
 ]
 
 [patch.crates-io]
-iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "6e41cff52e5ba93240a791fca6c5020b0e3c655a" }
-iota-sdk-graphql-client = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "6e41cff52e5ba93240a791fca6c5020b0e3c655a" }
-iota-sdk-graphql-client-build = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "6e41cff52e5ba93240a791fca6c5020b0e3c655a" }
-iota-sdk-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "6e41cff52e5ba93240a791fca6c5020b0e3c655a" }
-iota-sdk-grpc-types = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "6e41cff52e5ba93240a791fca6c5020b0e3c655a" }
-iota-sdk-move-types = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "6e41cff52e5ba93240a791fca6c5020b0e3c655a" }
-iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "6e41cff52e5ba93240a791fca6c5020b0e3c655a" }
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "6e41cff52e5ba93240a791fca6c5020b0e3c655a" }
+iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "7e5b62af7b49b02cd15cdfa2d0bccdc228091af4" }
+iota-sdk-graphql-client = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "7e5b62af7b49b02cd15cdfa2d0bccdc228091af4" }
+iota-sdk-graphql-client-build = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "7e5b62af7b49b02cd15cdfa2d0bccdc228091af4" }
+iota-sdk-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "7e5b62af7b49b02cd15cdfa2d0bccdc228091af4" }
+iota-sdk-grpc-types = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "7e5b62af7b49b02cd15cdfa2d0bccdc228091af4" }
+iota-sdk-move-types = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "7e5b62af7b49b02cd15cdfa2d0bccdc228091af4" }
+iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "7e5b62af7b49b02cd15cdfa2d0bccdc228091af4" }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "7e5b62af7b49b02cd15cdfa2d0bccdc228091af4" }
