@@ -58,8 +58,9 @@ use crate::{
 
 /// When a recorded version stopped being current: the commit of the
 /// transaction that replaced it, the leader round when that transaction is a
-/// commit prologue, which carries no commit index, or only the epoch when it
-/// is another system transaction, which carries neither.
+/// commit prologue or a deny-rules update, which carry no commit index, or
+/// only the epoch when it is another system transaction, which carries
+/// neither.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum SupersededAt {
     Commit(CommitIndex),
@@ -71,7 +72,7 @@ pub(crate) enum SupersededAt {
 /// nothing written for it: the version that replaced it names the
 /// transaction that did, whose commit is on the handler's assignment or on
 /// the row of its gas coin, or whose round it carries when it is a commit
-/// prologue.
+/// prologue or a deny-rules update.
 pub(crate) struct AttestedObjectVersions<'a> {
     pub(crate) object_cache: &'a dyn ObjectCacheRead,
     pub(crate) transaction_cache: &'a dyn TransactionCacheRead,
@@ -182,8 +183,8 @@ impl AttestedObjectVersions<'_> {
 
     /// Where `digest` ran: its commit from the handler's assignment while the
     /// commit is open, afterwards from the row of the gas coin it mutated;
-    /// its round for a commit prologue, only the epoch for any other system
-    /// transaction.
+    /// its round for a commit prologue or a deny-rules update, only the epoch
+    /// for any other system transaction.
     fn transaction_position(
         &self,
         digest: &TransactionDigest,
@@ -193,13 +194,15 @@ impl AttestedObjectVersions<'_> {
             .transaction_cache
             .get_transaction_block(digest)
             .unwrap_or_else(|| fatal!("no transaction {digest} behind its executed effects"));
-        if let TransactionKind::ConsensusCommitPrologueV1(prologue) =
-            transaction.inner().transaction().kind()
-        {
-            return SupersededAt::Round(prologue.round);
-        }
-        if transaction.is_system_tx() {
-            return SupersededAt::Epoch;
+        match transaction.inner().transaction().kind() {
+            TransactionKind::ConsensusCommitPrologueV1(prologue) => {
+                return SupersededAt::Round(prologue.round);
+            }
+            TransactionKind::TransactionDenyRulesUpdate(update) => {
+                return SupersededAt::Round(update.round);
+            }
+            _ if transaction.is_system_tx() => return SupersededAt::Epoch,
+            _ => {}
         }
         let commit = self
             .epoch_store
@@ -228,7 +231,8 @@ impl AttestedObjectVersions<'_> {
 /// Whether a version superseded at `at` was current recently enough before
 /// `sequenced_at` for an honest dry run to have read it: at or after the
 /// window's start, or anywhere in the epoch when there is no window. A
-/// supersession known only by its epoch is admitted only then.
+/// supersession known only by its epoch is always admitted: it cannot be
+/// measured, and refusing it would refute an honest dry run.
 fn within_freshness_window(
     at: SupersededAt,
     sequenced_at: ExecutionIndices,
@@ -242,7 +246,8 @@ fn within_freshness_window(
         SupersededAt::Round(round) => {
             round >= sequenced_at.last_committed_round.saturating_sub(window)
         }
-        SupersededAt::Epoch => false,
+        // Not measurable, and refusing it would refute an honest dry run.
+        SupersededAt::Epoch => true,
     }
 }
 
@@ -988,8 +993,8 @@ mod tests {
 
     /// The window admits a supersession at its floor, inside it, and anywhere
     /// in the epoch when unset; a prologue's round is measured against the
-    /// sequencing round, and a supersession by another system transaction is
-    /// admitted only when unset.
+    /// sequencing round, and a supersession known only by its epoch is always
+    /// admitted.
     #[test]
     fn freshness_window_admits_recent_supersessions_only() {
         let sequenced_at = |sub_dag_index, last_committed_round| ExecutionIndices {
@@ -1037,7 +1042,7 @@ mod tests {
             sequenced_at(20, 25),
             None
         ));
-        assert!(!within_freshness_window(
+        assert!(within_freshness_window(
             SupersededAt::Epoch,
             sequenced_at(20, 25),
             Some(10)

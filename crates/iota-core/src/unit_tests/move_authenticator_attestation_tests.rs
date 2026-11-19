@@ -241,6 +241,30 @@ async fn attested_object_version_state_follows_the_superseding_transaction() {
         None,
         "an unknown object has no version above the recorded one"
     );
+
+    // With a window, the supersession counts only for a transaction sequenced
+    // at most that many commits after it.
+    let with_window = |sequenced_commit| {
+        AttestedObjectVersions {
+            sequenced_at: ExecutionIndices {
+                sub_dag_index: sequenced_commit,
+                ..Default::default()
+            },
+            window: Some(10),
+            ..versions
+        }
+        .superseded_within_window(&attested_id, attested_ref.version())
+    };
+    assert_eq!(
+        with_window(commit + 10),
+        Some(SupersededAt::Commit(commit)),
+        "a supersession at the start of the window still counts"
+    );
+    assert_eq!(
+        with_window(commit + 11),
+        None,
+        "a supersession before the window is too old to re-run at"
+    );
 }
 
 /// Validators flush to the database on their own schedule, so a verdict that

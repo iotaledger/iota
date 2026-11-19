@@ -293,6 +293,7 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             transaction fails after the dependent was sequenced, the
 //             dependent executes as failed with `TransactionDependencyFailed`.
 //             Raise `max_auth_gas` to 0.001 IOTA on devnet.
+//             Set the attestation freshness window on devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -1725,8 +1726,8 @@ pub struct ProtocolConfig {
     /// How many commits before the one an attested transaction was first
     /// sequenced in a recorded version may have stopped being current for the
     /// judge to re-run authentication at it; leader rounds for a version a
-    /// commit prologue superseded, the only position a prologue carries. Unset
-    /// admits any commit of the epoch.
+    /// commit prologue or a deny-rules update superseded, the only position
+    /// those carry. Unset admits any commit of the epoch.
     attestation_freshness_window_commits: Option<u64>,
 
     /// The max number of transactions that can be included in a single Soft
@@ -4048,6 +4049,9 @@ impl ProtocolConfig {
                         // Raise max_auth_gas to 0.001 IOTA, the minimum transaction
                         // cost at a gas price of 1000.
                         cfg.max_auth_gas = Some(1_000_000);
+
+                        // Ten minutes at devnet's 20 commits a second.
+                        cfg.attestation_freshness_window_commits = Some(12_000);
                     }
                 }
                 // Use this template when making changes:
