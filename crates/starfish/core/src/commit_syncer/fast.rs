@@ -855,9 +855,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         let (last_commit_index, commits_since_schedule_update, block_refs) = {
             let dag_state = inner.dag_state.read();
             let last_commit_index = dag_state.last_commit_index();
-            let last_commit_info_index = dag_state.last_commit_info_index();
-            let commits_since_schedule_update =
-                last_commit_index.saturating_sub(last_commit_info_index);
+            let commits_since_schedule_update = dag_state.commits_since_schedule_update();
             let num_commits = max(
                 commits_since_schedule_update,
                 max(leader_schedule_window, max(cached_rounds, gc_depth * 2)),

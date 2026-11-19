@@ -293,13 +293,13 @@ impl LeaderSchedule {
         }
 
         // Skip stale scores: if the incoming scores are for a range we've already
-        // processed (i.e., range_end <= last_commit_info_index), don't update.
+        // processed (i.e., range_end <= last_schedule_update_index), don't update.
         // This can happen after a crash when fast sync fetches old commits that
         // the node already has.
-        let last_commit_info_index = dag_state_write_lock.last_commit_info_index();
-        if range_end <= last_commit_info_index {
+        let last_schedule_update_index = dag_state_write_lock.last_schedule_update_index();
+        if range_end <= last_schedule_update_index {
             tracing::debug!(
-                "[AUTH {}] Skipping stale scores from commit {commit_index} (range_end={range_end} <= last_commit_info_index={last_commit_info_index})",
+                "[AUTH {}] Skipping stale scores from commit {commit_index} (range_end={range_end} <= last_schedule_update_index={last_schedule_update_index})",
                 self.context.own_index
             );
             return Ok(());
@@ -347,7 +347,7 @@ impl LeaderSchedule {
     /// window counts toward the next update.
     fn update_leader_schedule_from_backlog(&self, dag_state_write_lock: &mut DagState) {
         let backlog_range = CommitRange::new(
-            dag_state_write_lock.last_commit_info_index() + 1
+            dag_state_write_lock.last_schedule_update_index() + 1
                 ..=dag_state_write_lock.last_commit_index(),
         );
         let commits_per_schedule = self.num_commits_per_schedule;
@@ -849,7 +849,7 @@ mod tests {
             dag_builder.last_committed_rounds.clone(),
             dag_state.read().last_committed_rounds()
         );
-        assert_eq!(10, dag_state.read().last_commit_info_index());
+        assert_eq!(10, dag_state.read().last_schedule_update_index());
         assert_eq!(1, dag_state.read().commits_since_schedule_update());
 
         let leader_schedule = LeaderSchedule::from_store(context, dag_state);
@@ -937,7 +937,7 @@ mod tests {
             dag_builder.last_committed_rounds.clone(),
             dag_state.read().last_committed_rounds()
         );
-        assert_eq!(0, dag_state.read().last_commit_info_index());
+        assert_eq!(0, dag_state.read().last_schedule_update_index());
         assert_eq!(2, dag_state.read().commits_since_schedule_update());
 
         let leader_schedule = LeaderSchedule::from_store(context, dag_state);
@@ -1531,7 +1531,7 @@ mod tests {
 
         if restart {
             dag_state.write().flush();
-            assert_eq!(dag_state.read().last_commit_info_index(), 9);
+            assert_eq!(dag_state.read().last_schedule_update_index(), 9);
             dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
             assert_eq!(dag_state.read().commits_since_schedule_update(), 2);
             leader_schedule = LeaderSchedule::from_store(context, dag_state.clone())
