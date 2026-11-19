@@ -426,7 +426,9 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         // sends: it serves only the certified commit chain it stores, with the
         // first commit's transactions whole. So is a reply to the last-own-header
         // probe with another author's header: the server returns only the
-        // headers asked for.
+        // headers asked for. So is a fetched payload that was not asked for or
+        // comes out of commit order, and a payload reconstructed from relayed
+        // shards that does not match its commitment.
         ConsensusError::WrongEpoch { .. }
         | ConsensusError::UnexpectedGenesisHeader
         | ConsensusError::UnexpectedAuthority(..)
@@ -454,7 +456,11 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::NotEnoughCommitVotes { .. }
         | ConsensusError::FetchedTransactionsMismatch { .. }
         | ConsensusError::TooManyCommitSyncEntries { .. }
-        | ConsensusError::UnexpectedLastOwnHeader { .. } => FaultType::Unprovable,
+        | ConsensusError::UnexpectedLastOwnHeader { .. }
+        | ConsensusError::UnrequestedTransactionFetched { .. }
+        | ConsensusError::UnexpectedTransactionForCommit { .. }
+        | ConsensusError::TransactionsOutOfCommitOrder { .. }
+        | ConsensusError::TransactionCommitmentMismatch { .. } => FaultType::Unprovable,
 
         // Relayed bundle parts that are corrupt or invalid (additional-header
         // round, shard author, structure or proof) or that the peer had no
@@ -506,15 +512,8 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::NotEnoughHeadersFetched { .. }
         // Raised only when this node encodes its own data.
         | ConsensusError::SerializationFailure(_)
-        // Transaction faults recorded against the serving peer where they are
-        // detected, via `record_faulty_transactions` — deliberately not
-        // tracked again here.
-        | ConsensusError::UnrequestedTransactionFetched { .. }
-        | ConsensusError::UnexpectedTransactionForCommit { .. }
-        | ConsensusError::TransactionsOutOfCommitOrder { .. }
         | ConsensusError::TooManyAuthoritiesProvided(_)
         | ConsensusError::InvalidSizeOfHighestAcceptedRounds(..)
-        | ConsensusError::TransactionCommitmentMismatch { .. }
         | ConsensusError::SynchronizerSaturated(_)
         | ConsensusError::TransactionSynchronizerSaturated
         | ConsensusError::BlockRejected { .. }
@@ -872,6 +871,7 @@ mod tests {
         leader_scoring::ReputationScores,
         storage::mem_store::MemStore,
         test_dag_builder::DagBuilder,
+        transaction_ref::TransactionRef,
     };
 
     #[test]
@@ -1590,6 +1590,22 @@ mod tests {
             ConsensusError::UnexpectedLastOwnHeader {
                 index: AuthorityIndex::new_for_test(0),
                 block_ref: BlockRef::MIN,
+            },
+            // Fetched or reconstructed payloads an honest peer never sends.
+            ConsensusError::UnrequestedTransactionFetched {
+                peer: AuthorityIndex::new_for_test(0),
+                transaction_ref: TransactionRef::default(),
+            },
+            ConsensusError::UnexpectedTransactionForCommit {
+                peer: AuthorityIndex::new_for_test(0),
+                received: TransactionRef::default(),
+            },
+            ConsensusError::TransactionsOutOfCommitOrder {
+                peer: AuthorityIndex::new_for_test(0),
+                received: TransactionRef::default(),
+            },
+            ConsensusError::TransactionCommitmentMismatch {
+                transaction_ref: TransactionRef::default(),
             },
         ];
         for e in cases {
