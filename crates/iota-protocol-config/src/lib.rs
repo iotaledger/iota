@@ -803,7 +803,8 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     enable_claim_account_transaction: bool,
 
-    // If true, `smart_account::builder_v1` creates a `SmartAccount`; otherwise it aborts.
+    // If true, `smart_account::builder_v1` and a smart account `ClaimAccount` create a
+    // `SmartAccount`; otherwise they abort.
     #[serde(skip_serializing_if = "is_false")]
     enable_smart_accounts: bool,
 
