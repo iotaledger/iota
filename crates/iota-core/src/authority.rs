@@ -402,6 +402,10 @@ pub struct AuthorityMetrics {
     /// Attested transactions dropped by post-consensus validation because
     /// their attestor is cut off for the rest of the epoch.
     pub(crate) consensus_handler_validation_attestor_cut_off_transactions: IntCounter,
+    /// Attested transactions that were cancelled for congestion, by attestor's
+    /// hostname and by whether the gas owner was charged. A transaction this
+    /// validator executes from a checkpoint is not counted.
+    pub(crate) cancelled_attested_transactions: IntCounterVec,
     /// Number of user transactions dropped during a consensus commit by
     /// post-consensus load shedding, i.e. probabilistically rejected at the
     /// quorum `consensus_handler_load_shedding_percentage` rate.
@@ -950,6 +954,13 @@ impl AuthorityMetrics {
                 "Number of attested transactions dropped by post-consensus validation because their attestor is cut off for the rest of the epoch",
                 registry,
             ).unwrap(),
+            cancelled_attested_transactions: register_int_counter_vec_with_registry!(
+                "cancelled_attested_transactions",
+                "Number of attested transactions cancelled for congestion, by attestor's hostname and by whether the gas owner was charged. A transaction this validator executes from a checkpoint is not counted.",
+                &["authority", "charged"],
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
             consensus_handler_load_shedding_dropped_transactions: register_int_counter_with_registry!(
                 "consensus_handler_load_shedding_dropped_transactions",
                 "Number of user transactions dropped by post-consensus load shedding, based on the quorum load shedding percentage",
@@ -1024,6 +1035,7 @@ impl AuthorityMetrics {
         self.validator_scoreboard_scores.reset();
         self.invalid_misbehavior_reports_by_authority.reset();
         self.consensus_committed_user_transactions.reset();
+        self.cancelled_attested_transactions.reset();
     }
 }
 
@@ -2321,6 +2333,46 @@ impl AuthorityState {
         let _metrics_guard = self.metrics.commit_certificate_latency.start_timer();
 
         let tx_digest = transaction.digest();
+        if let (
+            Some(record),
+            ExecutionStatus::Failure {
+                error:
+                    ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestion { .. }
+                    | ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestionV2 { .. }
+                    | ExecutionErrorKind::ExecutionCanceledDueToExecutionWorkerCongestion { .. },
+                ..
+            },
+        ) = (&attestation_record, effects.status())
+        {
+            // The attestor is an authority index, which does not name the same
+            // validator across epochs. `committee_validators()` is not in that
+            // order, so the validator is found by its name.
+            let hostname = epoch_store
+                .committee()
+                .authority_by_index(u32::from(record.attestor))
+                .and_then(|name| {
+                    epoch_store
+                        .epoch_start_state()
+                        .committee_validators()
+                        .iter()
+                        .find(|validator| validator.authority_name() == *name)
+                })
+                .map(|validator| validator.hostname.as_str());
+            let charged = effects.gas_cost_summary().gas_used() > 0;
+            if let Some(hostname) = hostname {
+                self.metrics
+                    .cancelled_attested_transactions
+                    .with_label_values(&[hostname, &charged.to_string()])
+                    .inc();
+            }
+            debug!(
+                ?tx_digest,
+                attestor = record.attestor,
+                ?hostname,
+                charged,
+                "attested transaction cancelled for congestion"
+            );
+        }
         let input_object_count = inner_temporary_store.input_objects.len();
         let shared_object_count = effects.input_shared_objects().len();
 
