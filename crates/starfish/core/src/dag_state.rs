@@ -5,7 +5,6 @@
 use std::{
     cmp::{max, min},
     collections::{BTreeMap, BTreeSet},
-    mem,
     ops::Bound::{Excluded, Included, Unbounded},
     panic,
     sync::Arc,
@@ -37,7 +36,7 @@ use crate::{
     context::Context,
     cordial_knowledge::{CordialKnowledgeMessage, EvictionRounds},
     error::ConsensusResult,
-    leader_scoring::{ReputationScores, ScoringSubdag},
+    leader_scoring::ReputationScores,
     misbehavior_store::{MisbehaviorCounts, MisbehaviorStore},
     storage::{Store, WriteBatch},
     threshold_clock::ThresholdClock,
@@ -271,10 +270,9 @@ pub(crate) struct DagState {
     /// Rounds for latest blocks traversed by linearizer per authority.
     last_committed_rounds: Vec<Round>,
 
-    /// Committed subdags added since the last leader-schedule rotation. Serves
-    /// as the rotation counter (`scoring_subdags_count`) and the just-rotated
-    /// edge (`is_scoring_subdag_empty`).
-    scoring_subdag: ScoringSubdag,
+    /// Commit index of the last leader schedule update, including one whose
+    /// `CommitInfo` is not flushed yet.
+    last_schedule_update_index: CommitIndex,
 
     /// Commit votes pending to be included in new blocks. Ordered by
     /// `(index, digest)` so eviction below a threshold uses `split_off`.
@@ -364,19 +362,14 @@ impl DagState {
         let commit_info = store
             .read_last_commit_info()
             .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
-        let (mut last_committed_rounds, commit_recovery_start_index) =
+        let (mut last_committed_rounds, last_schedule_update_index) =
             if let Some((commit_ref, commit_info)) = commit_info {
                 tracing::info!("Recovering committed state from {commit_ref} {commit_info:?}");
-                let range_end = commit_info.reputation_scores.commit_range.end();
-                let recovery_start = if range_end == GENESIS_COMMIT_INDEX {
-                    commit_ref.index.saturating_add(1)
-                } else {
-                    range_end.saturating_add(1)
-                };
-                (commit_info.committed_rounds, recovery_start)
+                let index = commit_info.reputation_scores.commit_range.end();
+                (commit_info.committed_rounds, index)
             } else {
                 tracing::info!("Found no stored CommitInfo to recover from");
-                (vec![0; num_authorities], GENESIS_COMMIT_INDEX + 1)
+                (vec![0; num_authorities], GENESIS_COMMIT_INDEX)
             };
 
         // Read fast sync flag from storage
@@ -384,15 +377,13 @@ impl DagState {
             .read_fast_sync_ongoing()
             .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
 
-        let mut unscored_committed_subdags = Vec::new();
-        let mut scoring_subdag = ScoringSubdag::new(context.clone());
-
-        // Skip subdag recovery if fast sync is ongoing - block data may not be
-        // available and this will be reinitialized by fast commit syncer anyway
+        // Skip if fast sync is ongoing; the fast commit syncer reinitializes this
+        // state once it completes.
         if !fast_sync_ongoing {
             if let Some(last_commit) = last_commit.as_ref() {
+                let recovery_start = last_schedule_update_index.saturating_add(1);
                 store
-                    .scan_commits((commit_recovery_start_index..=last_commit.index()).into())
+                    .scan_commits((recovery_start..=last_commit.index()).into())
                     .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"))
                     .iter()
                     .for_each(|commit| {
@@ -400,23 +391,14 @@ impl DagState {
                             last_committed_rounds[block_ref.author] =
                                 max(last_committed_rounds[block_ref.author], block_ref.round);
                         }
-
-                        let committed_subdag =
-                            load_pending_subdag_from_store(store.as_ref(), commit.clone(), vec![])
-                                .unwrap_or_else(|e| {
-                                    panic!("Failed to recover pending subdag: {e:?}")
-                                });
-                        unscored_committed_subdags.push(committed_subdag.base);
                     });
             }
-
-            scoring_subdag.add_subdags(mem::take(&mut unscored_committed_subdags));
         }
 
         info!(
             "DagState initialized: {last_commit:?}; {last_committed_rounds:?}; \
-            {} unscored committed subdags; fast_sync_ongoing={fast_sync_ongoing}",
-            unscored_committed_subdags.len()
+            last_schedule_update_index={last_schedule_update_index}; \
+            fast_sync_ongoing={fast_sync_ongoing}"
         );
 
         let mut state = Self {
@@ -443,7 +425,7 @@ impl DagState {
             fast_sync_ongoing_flag_to_write: None,
             commit_info_to_write: vec![],
             pending_acknowledgments: BTreeSet::new(),
-            scoring_subdag,
+            last_schedule_update_index,
             misbehavior_store,
             store: store.clone(),
             cached_rounds,
@@ -591,11 +573,6 @@ impl DagState {
         );
 
         // 1. Clear all in-memory caches
-        // Note: scoring_subdag IS cleared because during fast sync,
-        // CommittedSubDag.headers is empty, so scoring_subdag cannot be
-        // properly populated (it would have leaders but no votes). After
-        // reinitialize, regular operation will rebuild it correctly.
-        self.scoring_subdag.clear();
         self.recent_block_headers.clear();
         self.recent_transactions_by_authority = vec![BTreeMap::new(); num_authorities];
         self.recent_shards_by_authority = vec![BTreeMap::new(); num_authorities];
@@ -618,31 +595,7 @@ impl DagState {
             );
         }
 
-        // Rebuild scoring_subdag from stored commits so leader schedule state
-        // matches peers after fast sync reinitialization.
-        self.rebuild_scoring_subdag_from_store();
-
         info!("DagState reinitialized successfully");
-    }
-
-    fn rebuild_scoring_subdag_from_store(&mut self) {
-        let Some(last_commit_index) = self.last_commit.as_ref().map(|c| c.index()) else {
-            return;
-        };
-
-        let commit_recovery_start_index = self.last_commit_info_index().saturating_add(1);
-
-        if commit_recovery_start_index > last_commit_index {
-            return;
-        }
-
-        let unscored_subdags = self.load_scoring_subdags_from_store(
-            (commit_recovery_start_index..=last_commit_index).into(),
-        );
-
-        if !unscored_subdags.is_empty() {
-            self.scoring_subdag.add_subdags(unscored_subdags);
-        }
     }
 
     /// Accepts a block header into DagState and keeps it in memory.
@@ -2040,11 +1993,7 @@ impl DagState {
     /// Add commit info is called before the first commit in a new leader
     /// scheduler window
     pub(crate) fn add_commit_info(&mut self, reputation_scores: ReputationScores) {
-        // We create an empty scoring subdag once reputation scores are calculated.
-        // Note: It is okay for this to not be gated by protocol config as the
-        // scoring_subdag should be empty in either case at this point.
-        assert!(self.scoring_subdag.is_empty());
-
+        self.last_schedule_update_index = reputation_scores.commit_range.end();
         let commit_info = CommitInfo {
             committed_rounds: self.last_committed_rounds.clone(),
             reputation_scores,
@@ -2550,43 +2499,17 @@ impl DagState {
             .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"))
     }
 
-    /// Returns the commit index of the last stored commit info, or
-    /// GENESIS_COMMIT_INDEX if none. This is the end of the reputation
-    /// score commit range (or the commit ref index for genesis).
-    pub(crate) fn last_commit_info_index(&self) -> CommitIndex {
-        self.recover_last_commit_info()
-            .map(|(commit_ref, commit_info)| {
-                let range_end = commit_info.reputation_scores.commit_range.end();
-                if range_end == GENESIS_COMMIT_INDEX {
-                    commit_ref.index
-                } else {
-                    range_end
-                }
-            })
-            .unwrap_or(GENESIS_COMMIT_INDEX)
+    /// Returns the commit index of the last leader schedule update, including
+    /// one whose commit info is not flushed yet, or GENESIS_COMMIT_INDEX if
+    /// none. This is the end of the commit range of its reputation scores.
+    pub(crate) fn last_schedule_update_index(&self) -> CommitIndex {
+        self.last_schedule_update_index
     }
 
-    pub(crate) fn add_scoring_subdags(&mut self, scoring_subdags: Vec<SubDagBase>) {
-        self.scoring_subdag.add_subdags(scoring_subdags);
-    }
-
-    pub(crate) fn clear_scoring_subdag(&mut self) {
-        self.scoring_subdag.clear();
-    }
-
-    pub(crate) fn scoring_subdags_count(&self) -> usize {
-        self.scoring_subdag.scored_subdags_count()
-    }
-
-    pub(crate) fn is_scoring_subdag_empty(&self) -> bool {
-        self.scoring_subdag.is_empty()
-    }
-
-    pub(crate) fn scoring_subdag_commit_range(&self) -> CommitRange {
-        self.scoring_subdag
-            .commit_range
-            .clone()
-            .expect("commit range should exist for scoring subdag")
+    /// Returns the number of commits since the last leader schedule update.
+    pub(crate) fn commits_since_schedule_update(&self) -> CommitIndex {
+        self.last_commit_index()
+            .saturating_sub(self.last_schedule_update_index)
     }
 
     /// The last round that should get evicted after a cache-clean-up operation.
@@ -3264,7 +3187,7 @@ mod test {
         for commit in commits.clone() {
             dag_state.add_commit(commit.clone());
             if commit.index() == 2 {
-                dag_state.add_commit_info(ReputationScores::default());
+                dag_state.add_commit_info(ReputationScores::new((1..=2).into(), vec![]));
             }
         }
         dag_state.update_last_solid_subdag_base(subdag_bases.last().unwrap().clone());
@@ -3407,9 +3330,9 @@ mod test {
             dag_state.last_committed_rounds(),
             expected_last_committed_rounds
         );
-        // Unscored subdags will be recovered based on the flushed commits and commit
-        // info for 2 commits
-        assert_eq!(dag_state.scoring_subdags_count(), 3);
+        // Commits since the last schedule update are counted from the flushed
+        // commits and the commit info for 2 commits
+        assert_eq!(dag_state.commits_since_schedule_update(), 3);
     }
 
     #[tokio::test]

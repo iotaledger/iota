@@ -834,34 +834,26 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
     /// Fetches block headers needed for component reinitialization from the
     /// network. This is called when close_to_quorum mode is active and all
     /// pending fetches complete. Fetches headers for the maximum of
-    /// cached_rounds, gc_depth * 2, leader_schedule_window, and
-    /// commits_since_schedule_update to satisfy DagState cache, linearizer,
-    /// and leader schedule recovery requirements.
+    /// cached_rounds, gc_depth * 2, leader_schedule_window, and the commits
+    /// the leader-schedule scorer replays to satisfy DagState cache,
+    /// linearizer, and leader schedule recovery requirements.
     async fn fetch_headers_for_reinitialization(
         inner: Arc<Inner<C>>,
     ) -> ConsensusResult<Vec<VerifiedBlockHeader>> {
         // We need headers for three purposes:
         // 1. DagState cache: at least cached_rounds commits back
         // 2. Linearizer recovery: at least gc_depth * 2 commits back
-        // 3. Leader schedule recovery: at least leader_schedule_window commits back, or all commits
-        //    since the last stored commit info (commits_since_schedule_update)
+        // 3. Leader schedule recovery: at least leader_schedule_window commits back, and the
+        //    commits the scorer replays
         // Fetch the maximum to satisfy all requirements
         let cached_rounds = inner.context.parameters.dag_state_cached_rounds;
         let gc_depth = inner.context.protocol_config.gc_depth();
         let leader_schedule_window = inner.context.protocol_config.commits_per_schedule();
         // Get block refs from recent commits stored during fast sync
-        // TODO: The commits might not yet stored, but only fetched and pending
-        // processing.
-        let (last_commit_index, commits_since_schedule_update, block_refs) = {
+        let (last_commit_index, block_refs) = {
             let dag_state = inner.dag_state.read();
             let last_commit_index = dag_state.last_commit_index();
-            let last_commit_info_index = dag_state.last_commit_info_index();
-            let commits_since_schedule_update =
-                last_commit_index.saturating_sub(last_commit_info_index);
-            let num_commits = max(
-                commits_since_schedule_update,
-                max(leader_schedule_window, max(cached_rounds, gc_depth * 2)),
-            );
+            let num_commits = max(leader_schedule_window, max(cached_rounds, gc_depth * 2));
             // Recovery replays the leader-schedule scorer over
             // `replay_start..=last`; fetch enough commits to cover that range so
             // the replayed window matches a fully-synced node
@@ -874,19 +866,18 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                     .saturating_add(1),
             );
             let block_refs = dag_state.get_block_refs_for_recent_commits(num_commits);
-            (last_commit_index, commits_since_schedule_update, block_refs)
+            (last_commit_index, block_refs)
         };
 
         let max_headers_per_fetch = inner.context.parameters.max_headers_per_commit_sync_fetch;
 
         info!(
-            "[{}] Fetching {} block headers for reinitialization (cached_rounds={}, gc_depth*2={}, leader_schedule_window={}, commits_since_schedule_update={})",
+            "[{}] Fetching {} block headers for reinitialization (cached_rounds={}, gc_depth*2={}, leader_schedule_window={})",
             inner.sync_type.as_str(),
             block_refs.len(),
             cached_rounds,
             gc_depth * 2,
             leader_schedule_window,
-            commits_since_schedule_update
         );
 
         let mut target_authorities: Vec<_> = inner

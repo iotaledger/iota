@@ -10,7 +10,6 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 use starfish_config::AuthorityIndex;
-use tracing::instrument;
 
 use crate::{
     block_header::{BlockHeaderAPI, BlockRef},
@@ -99,61 +98,6 @@ impl ReputationScores {
             scores_per_authority,
             commit_range,
         })
-    }
-}
-
-/// The range of committed subdags added since the last leader schedule change.
-/// Its size decides when the next leader schedule change is due.
-pub(crate) struct ScoringSubdag {
-    pub(crate) context: Arc<Context>,
-    pub(crate) commit_range: Option<CommitRange>,
-}
-
-impl ScoringSubdag {
-    pub(crate) fn new(context: Arc<Context>) -> Self {
-        Self {
-            context,
-            commit_range: None,
-        }
-    }
-
-    #[instrument(level = "trace", skip_all)]
-    pub(crate) fn add_subdags(&mut self, committed_subdags: Vec<SubDagBase>) {
-        let _s = self
-            .context
-            .metrics
-            .node_metrics
-            .scope_processing_time
-            .with_label_values(&["ScoringSubdag::add_unscored_committed_subdags"])
-            .start_timer();
-
-        for subdag in committed_subdags {
-            if let Some(commit_range) = self.commit_range.as_mut() {
-                commit_range.extend_to(subdag.commit_ref.index);
-            } else {
-                // If the commit range is not set, then set it to the range of the first
-                // committed subdag index.
-                self.commit_range = Some(CommitRange::new(
-                    subdag.commit_ref.index..=subdag.commit_ref.index,
-                ));
-            }
-        }
-    }
-
-    pub(crate) fn scored_subdags_count(&self) -> usize {
-        if let Some(commit_range) = &self.commit_range {
-            commit_range.size()
-        } else {
-            0
-        }
-    }
-
-    pub(crate) fn is_empty(&self) -> bool {
-        self.commit_range.is_none()
-    }
-
-    pub(crate) fn clear(&mut self) {
-        self.commit_range = None;
     }
 }
 
@@ -592,26 +536,5 @@ mod tests {
             "ordinary vote earns the certifying stake"
         );
         assert_eq!(scores[2], 2 * stake_3, "strong vote earns double");
-    }
-
-    #[tokio::test]
-    async fn test_add_subdags_tracks_commit_range() {
-        let context = Arc::new(Context::new_for_test(4).0);
-
-        let mut dag_builder = DagBuilder::new(context.clone());
-        dag_builder.layers(1..=4).build();
-
-        let mut scoring_subdag = ScoringSubdag::new(context);
-        for (sub_dag, _commit) in dag_builder.get_sub_dag_and_commits(1..=4) {
-            scoring_subdag.add_subdags(vec![sub_dag.base]);
-        }
-
-        assert_eq!(scoring_subdag.scored_subdags_count(), 4);
-        assert_eq!(scoring_subdag.commit_range, Some(CommitRange::new(1..=4)));
-        assert!(!scoring_subdag.is_empty());
-
-        scoring_subdag.clear();
-        assert_eq!(scoring_subdag.scored_subdags_count(), 0);
-        assert!(scoring_subdag.is_empty());
     }
 }

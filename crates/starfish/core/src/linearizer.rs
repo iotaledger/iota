@@ -650,13 +650,8 @@ mod tests {
         // Create some commits
         let commits = linearizer.get_pending_sub_dags(with_standard_metastate(leaders));
         leader_schedule.feed_committed_subdags(commits.iter().map(|d| d.base.clone()));
-        {
-            // Write them in DagState
-            let mut write = dag_state.write();
-            write.add_scoring_subdags(commits.iter().map(|d| d.base.clone()).collect());
-            // Now update the leader schedule
-            leader_schedule.update_leader_schedule(&mut write);
-        }
+        // Now update the leader schedule
+        leader_schedule.update_leader_schedule(&mut dag_state.write());
         assert!(
             leader_schedule.leader_schedule_updated(&dag_state),
             "Leader schedule should have been updated"
