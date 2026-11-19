@@ -1207,7 +1207,12 @@ impl<'a> LayerBuilder<'a> {
         transaction_acknowledgments: HashMap<AuthorityIndex, Vec<BlockRef>>,
     ) {
         let mut references = Vec::new();
-        let mut rng = rand::make_rng::<StdRng>();
+        // Offset the seed so the transactions do not repeat the parent or
+        // acknowledgment choices.
+        let mut rng = match self.min_ancestor_links_random_seed {
+            Some(seed) => StdRng::seed_from_u64(seed.wrapping_add(2)),
+            None => rand::make_rng::<StdRng>(),
+        };
         let version = TestBlockHeaderVersion::V2;
 
         for (authority, ancestors) in connections {

@@ -1691,13 +1691,14 @@ impl TestBlockHeader {
     }
 
     pub fn build(self) -> BlockHeader {
+        let num_ancestors = self.ancestors.len();
         match self.version {
             TestBlockHeaderVersion::V1 => {
                 assert!(
                     self.strong_vote.is_none(),
                     "a V1 header cannot carry a strong vote"
                 );
-                BlockHeader::V1(BlockHeaderV1::new(
+                let mut header = BlockHeaderV1::new(
                     self.epoch,
                     self.round,
                     self.author,
@@ -1706,21 +1707,42 @@ impl TestBlockHeader {
                     self.acknowledgments,
                     self.commit_votes,
                     self.transactions_commitment,
-                ))
+                );
+                sort_acknowledgments_only(&mut header.references, num_ancestors);
+                BlockHeader::V1(header)
             }
-            TestBlockHeaderVersion::V2 => BlockHeader::V2(BlockHeaderV2::new(
-                self.epoch,
-                self.round,
-                self.author,
-                self.timestamp_ms,
-                self.ancestors,
-                self.acknowledgments,
-                self.commit_votes,
-                self.transactions_commitment,
-                self.strong_vote,
-            )),
+            TestBlockHeaderVersion::V2 => {
+                let mut header = BlockHeaderV2::new(
+                    self.epoch,
+                    self.round,
+                    self.author,
+                    self.timestamp_ms,
+                    self.ancestors,
+                    self.acknowledgments,
+                    self.commit_votes,
+                    self.transactions_commitment,
+                    self.strong_vote,
+                );
+                sort_acknowledgments_only(&mut header.references, num_ancestors);
+                BlockHeader::V2(header)
+            }
         }
     }
+}
+
+/// Sorts the references that are only acknowledgments, which
+/// `BlockHeader::compress_references` leaves in hash order when there are
+/// ancestors, so that the same test header always gets the same digest.
+fn sort_acknowledgments_only(references: &mut [BlockRef], num_ancestors: usize) {
+    if num_ancestors == 0 {
+        return;
+    }
+    let mut end = references.len();
+    // A first ancestor that is also acknowledged is repeated at the end.
+    if num_ancestors < end && references.first() == references.last() {
+        end -= 1;
+    }
+    references[num_ancestors..end].sort_unstable();
 }
 
 // TODO: add basic verification for BlockRef and BlockDigest.
