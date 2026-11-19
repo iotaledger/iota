@@ -21,8 +21,8 @@
 //! `METRICS_FILTER=trace` exposes everything, whatever the config sets. A
 //! pattern matches if it is a
 //! prefix of the metric name OR is a component/prefix of the calling module
-//! path (e.g. `traffic_controller` matches
-//! `iota_core::traffic_controller::metrics`). When several directives
+//! path (e.g. `iota_traffic_controller` matches
+//! `iota_traffic_controller::metrics`). When several directives
 //! match the same metric, the most specific one wins regardless of order: a
 //! metric-name match over a module match, then the longest pattern; among
 //! directives with the same pattern, the last one wins.

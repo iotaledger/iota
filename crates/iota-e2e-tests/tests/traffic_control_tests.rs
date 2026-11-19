@@ -30,7 +30,8 @@ use iota_types::{
     messages_grpc::{GetTxStatusRequest, TxStatusQuery, TxStatusUpdate},
     quorum_driver_types::ExecuteTransactionRequestType,
     traffic_control::{
-        FreqThresholdConfig, PolicyConfig, PolicyType, TrafficControlReconfigParams, Weight,
+        AccessRules, DefaultAction, FreqThresholdConfig, PolicyConfig, PolicyType,
+        TrafficControlReconfigParams, Weight,
     },
     transaction::{SenderSignedTransactionAPI, TransactionEnvelope},
 };
@@ -628,13 +629,17 @@ async fn test_traffic_sim_with_sampled_spam() {
 }
 
 #[sim_test]
-async fn test_traffic_sim_allowlist_mode() {
+async fn test_traffic_sim_default_deny() {
     telemetry_subscribers::init_for_testing();
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
         proxy_blocklist_ttl_sec: 1,
-        // first two clients allowlisted, rest blocked
-        allow_list: Some(vec![String::from("127.0.0.0"), String::from("127.0.0.1")]),
+        // first two clients allowed, rest refused
+        access_rules: AccessRules {
+            allow: vec![String::from("127.0.0.0"), String::from("127.0.0.1")],
+            default: DefaultAction::Deny,
+            ..Default::default()
+        },
         dry_run: false,
         ..Default::default()
     };

@@ -18,7 +18,8 @@ use std::{
 
 use iota_network::tonic;
 use iota_traffic_controller::{
-    ClientIpStatus, TrafficController, forwarded_hop_depth, get_client_ip, policies::TrafficTally,
+    ClientAccess, ClientIpStatus, TrafficController, forwarded_hop_depth, get_client_ip,
+    policies::TrafficTally,
 };
 use iota_types::{
     error::*,
@@ -126,16 +127,18 @@ impl ValidatorService {
         Ok(None)
     }
 
-    fn check_traffic(&self, client: Option<IpAddr>) -> Result<(), tonic::Status> {
-        if let Some(traffic_controller) = &self.traffic_controller {
-            if !traffic_controller.check(&client, &None) {
-                // Entity in blocklist
+    /// Refuses the request when the traffic controller does. Otherwise returns
+    /// `client` with what the traffic controller decided for it, which the
+    /// tally of the request needs.
+    fn check_traffic(&self, client: Option<IpAddr>) -> Result<TallyClient, tonic::Status> {
+        let Some(traffic_controller) = &self.traffic_controller else {
+            return Ok((client, ClientAccess::Limited));
+        };
+        match traffic_controller.check(&client, &None) {
+            ClientAccess::Refused => {
                 Err(tonic::Status::from_error(IotaError::TooManyRequests.into()))
-            } else {
-                Ok(())
             }
-        } else {
-            Ok(())
+            access => Ok((client, access)),
         }
     }
 
@@ -151,7 +154,7 @@ impl ValidatorService {
 
     fn tally_traffic<T>(
         &self,
-        client: Option<IpAddr>,
+        client: TallyClient,
         response: Result<(T, Weight), tonic::Status>,
     ) -> Result<T, tonic::Status> {
         let (spam_weight, error, unwrapped): (Weight, Option<IotaError>, Result<T, tonic::Status>) =
@@ -169,16 +172,17 @@ impl ValidatorService {
 
     /// Checks traffic control, then extracts the domain request from a proto
     /// request. Shared pre-processing for both unary and streaming handlers.
+    /// Returns the domain request and its client, as [`Self::check_traffic`]
+    /// gives it.
     async fn pre_handle<ProtoReq, DomainReq>(
         &self,
         request: tonic::Request<ProtoReq>,
-    ) -> Result<(DomainReq, Option<IpAddr>), tonic::Status>
+    ) -> Result<(DomainReq, TallyClient), tonic::Status>
     where
         ProtoReq: TryInto<DomainReq>,
         ProtoReq::Error: std::fmt::Display,
     {
-        let ip = self.extract_client_ip(&request)?;
-        self.check_traffic(ip)?;
+        let ip = self.check_traffic(self.extract_client_ip(&request)?)?;
         // TODO(#11095): move deserialization off the critical path (spawn_blocking).
         let domain_req = request.into_inner().try_into().map_err(|e| {
             // A request that does not convert still costs the node work, so it
@@ -193,7 +197,7 @@ impl ValidatorService {
     /// tonic response.
     fn post_handle_unary<DomainResp, ProtoResp>(
         &self,
-        ip: Option<IpAddr>,
+        ip: TallyClient,
         result: Result<(DomainResp, Weight), tonic::Status>,
     ) -> Result<tonic::Response<ProtoResp>, tonic::Status>
     where
@@ -214,7 +218,7 @@ impl ValidatorService {
     /// policy. Top-level errors are tallied once at stream creation.
     fn post_handle_stream<S, DomainItem, ProtoItem>(
         &self,
-        ip: Option<IpAddr>,
+        ip: TallyClient,
         result: Result<S, tonic::Status>,
         item_error: fn(&DomainItem) -> Option<IotaError>,
     ) -> Result<tonic::Response<StreamResponse<ProtoItem>>, tonic::Status>
@@ -304,16 +308,23 @@ pub(super) fn normalize(err: &IotaError) -> Weight {
     }
 }
 
-/// Records a single traffic tally (no-op if traffic control is disabled).
+/// The client of a request, and what the traffic controller decided for it.
+type TallyClient = (Option<IpAddr>, ClientAccess);
+
+/// Records a single traffic tally. No-op if traffic control is disabled, or
+/// if an allow rule serves the client, since no policy counts such a client.
 fn record_tally(
     traffic_controller: Option<&Arc<TrafficController>>,
-    client: Option<IpAddr>,
+    (client, access): TallyClient,
     spam_weight: Weight,
     error: Option<IotaError>,
 ) {
     let Some(tc) = traffic_controller else {
         return;
     };
+    if access == ClientAccess::Allowed {
+        return;
+    }
     tc.tally(TrafficTally {
         direct: client,
         through_fullnode: None,
@@ -336,10 +347,8 @@ macro_rules! handle_with_decoration {
             return $self.$func_name($request).await.map(|(result, _)| result);
         }
 
-        let client = $self.extract_client_ip(&$request)?;
-
-        // check if either IP is blocked, in which case return early
-        $self.check_traffic(client.clone())?;
+        // Return early if the client is refused.
+        let client = $self.check_traffic($self.extract_client_ip(&$request)?)?;
 
         // handle traffic tallying
         let wrapped_response = $self.$func_name($request).await;
@@ -500,6 +509,65 @@ mod client_ip_forwarding_tests {
         assert_eq!(
             parse_ip("10.0.0.1"),
             Some(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1)))
+        );
+    }
+}
+
+#[cfg(test)]
+mod traffic_tally_tests {
+    use std::net::{IpAddr, Ipv4Addr};
+
+    use iota_traffic_controller::{ClientAccess, TrafficController};
+    use iota_types::{
+        error::IotaError,
+        traffic_control::{AccessRuleList, AccessRules, PolicyConfig, PolicyType, Weight},
+    };
+
+    use super::record_tally;
+
+    const CLIENT: IpAddr = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
+
+    /// A request from a client that an allow rule serves is not tallied, so
+    /// an error policy that blocks on the first error does not block it.
+    #[tokio::test]
+    async fn an_allowed_client_is_not_tallied() {
+        let traffic_controller =
+            std::sync::Arc::new(TrafficController::init_for_test(PolicyConfig {
+                error_policy_type: PolicyType::TestNConnIP(1),
+                dry_run: false,
+                access_rules: AccessRules {
+                    allow: vec![CLIENT.to_string()],
+                    ..Default::default()
+                },
+                ..Default::default()
+            }));
+        let access = traffic_controller.check(&Some(CLIENT), &None);
+        assert_eq!(access, ClientAccess::Allowed);
+
+        record_tally(
+            Some(&traffic_controller),
+            (Some(CLIENT), access),
+            Weight::one(),
+            Some(IotaError::InvalidAuthenticator),
+        );
+        traffic_controller
+            .remove_access_rule(AccessRuleList::Allow, &CLIENT.to_string())
+            .unwrap();
+        assert_eq!(
+            traffic_controller.check(&Some(CLIENT), &None),
+            ClientAccess::Limited
+        );
+
+        // The same error from a client that no rule serves blocks it.
+        record_tally(
+            Some(&traffic_controller),
+            (Some(CLIENT), ClientAccess::Limited),
+            Weight::one(),
+            Some(IotaError::InvalidAuthenticator),
+        );
+        assert_eq!(
+            traffic_controller.check(&Some(CLIENT), &None),
+            ClientAccess::Refused
         );
     }
 }
