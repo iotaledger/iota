@@ -109,8 +109,8 @@ const SMART_ACCOUNT_FREE_ACCESS_PACKAGE_PATH: &str =
     "tests/abstract_account/smart_account_free_access";
 const SMART_ACCOUNT_FREE_ACCESS_MODULE_NAME: &str = "smart_account_free_access";
 const SMART_ACCOUNT_FREE_ACCESS_FN_NAME: &str = "authenticate";
-/// The code of `smart_account::EBuiltinAuthenticatorsNotEnabled`.
-const SMART_ACCOUNT_BUILTIN_AUTHENTICATORS_NOT_ENABLED_ERROR_CODE: u8 = 1;
+/// The code of `smart_account::ESmartAccountsNotEnabled`.
+const SMART_ACCOUNTS_NOT_ENABLED_ERROR_CODE: u8 = 1;
 const AA_BUILTIN_MODULE_NAME: &str = "builtin_keyed_aa";
 const AA_BUILTIN_CREATE_FN: &str = "create";
 
@@ -5197,16 +5197,16 @@ async fn test_smart_account_key_rotation() -> Result<(), anyhow::Error> {
     assert_refused_for_an_invalid_builtin_signature(&test_env.test_cluster, tx, gas).await
 }
 
-/// Where the built-in authenticators are off, as on testnet and mainnet,
+/// Where `enable_smart_accounts` is off, as on testnet and mainnet,
 /// `smart_account::builder_v1` refuses an account with a custom authenticator
 /// too.
 #[sim_test]
-async fn test_smart_account_with_custom_authenticator_refused_without_builtin_authenticators()
+async fn test_smart_account_with_custom_authenticator_refused_without_smart_accounts()
 -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_builtin_move_authenticators_for_testing(false);
+        config.set_enable_smart_accounts_for_testing(false);
         config
     });
 
@@ -5232,9 +5232,9 @@ async fn test_smart_account_with_custom_authenticator_refused_without_builtin_au
                 ..
             } if module.as_str() == "smart_account"
                 && ErrorBitset::from_u64(*code).unwrap().error_code()
-                    == Some(SMART_ACCOUNT_BUILTIN_AUTHENTICATORS_NOT_ENABLED_ERROR_CODE)
+                    == Some(SMART_ACCOUNTS_NOT_ENABLED_ERROR_CODE)
         ),
-        "expected an abort with EBuiltinAuthenticatorsNotEnabled in smart_account, got: \
+        "expected an abort with ESmartAccountsNotEnabled in smart_account, got: \
          {status:?}"
     );
     Ok(())
