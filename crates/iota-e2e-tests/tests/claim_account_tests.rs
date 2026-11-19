@@ -27,6 +27,8 @@ async fn test_claim_account_succeeds() {
 
     telemetry_subscribers::init_for_testing();
 
+    let _guard = enable_claim_account();
+
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(20000)
         .build()
@@ -122,6 +124,8 @@ async fn test_claim_account_twice_is_not_yet_prevented() {
 
     telemetry_subscribers::init_for_testing();
 
+    let _guard = enable_claim_account();
+
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(20000)
         .build()
@@ -212,13 +216,13 @@ async fn test_claim_account_twice_is_not_yet_prevented() {
 }
 
 /// Verify that a `ClaimAccountTransaction` is rejected at validity-check time
-/// when `enable_claim_account_transaction` is disabled.
+/// with the default config of a local network, where
+/// `enable_claim_account_transaction` is disabled.
 #[cfg(msim)]
 #[sim_test]
 async fn test_claim_account_rejected_when_disabled() {
     use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
     use iota_keys::keystore::AccountKeystore;
-    use iota_protocol_config::ProtocolConfig;
     use iota_sdk_crypto::simple::SimpleKeypair;
     use iota_sdk_types::{
         Address, ClaimAccountTransaction, SmartAccountClaim, Transaction, TransactionKind,
@@ -228,11 +232,6 @@ async fn test_claim_account_rejected_when_disabled() {
     };
 
     telemetry_subscribers::init_for_testing();
-
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_claim_account_transaction_for_testing(false);
-        config
-    });
 
     let test_cluster = TestClusterBuilder::new().build().await;
 
@@ -327,6 +326,7 @@ async fn test_claim_account_rejected_without_builtin_authenticators() {
     telemetry_subscribers::init_for_testing();
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_claim_account_transaction_for_testing(true);
         config.set_enable_builtin_move_authenticators_for_testing(false);
         config
     });
@@ -417,6 +417,8 @@ async fn test_claim_account_rejected_with_invalid_public_key() {
 
     telemetry_subscribers::init_for_testing();
 
+    let _guard = enable_claim_account();
+
     let test_cluster = TestClusterBuilder::new().build().await;
 
     let owner: Address = test_cluster
@@ -500,6 +502,8 @@ async fn test_claim_account_at_the_gas_floor_succeeds() {
     use rand::{SeedableRng, rngs::StdRng};
 
     telemetry_subscribers::init_for_testing();
+
+    let _guard = enable_claim_account();
 
     let test_cluster = TestClusterBuilder::new().build().await;
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -589,6 +593,8 @@ async fn test_claim_account_rejected_when_key_does_not_derive_sender() {
 
     telemetry_subscribers::init_for_testing();
 
+    let _guard = enable_claim_account();
+
     let test_cluster = TestClusterBuilder::new().build().await;
 
     let mut addresses = test_cluster
@@ -648,6 +654,16 @@ async fn test_claim_account_rejected_when_key_does_not_derive_sender() {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/// Turn on `enable_claim_account_transaction`, which no protocol version
+/// enables yet, until the returned guard is dropped.
+#[cfg(msim)]
+fn enable_claim_account() -> iota_protocol_config::OverrideGuard {
+    iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_claim_account_transaction_for_testing(true);
+        config
+    })
+}
 
 /// Fetch the first gas coin `ObjectRef` owned by a wallet address.
 #[cfg(msim)]
