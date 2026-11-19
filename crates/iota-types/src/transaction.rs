@@ -1185,6 +1185,14 @@ impl TransactionKindExt for TransactionKind {
                         "claim account transactions are not enabled on this network".to_string()
                     )
                 );
+                // Only post-consensus validation orders two claims of one
+                // address, which share no input, and keeps the second out.
+                fp_ensure!(
+                    config.enable_pcool_flow(),
+                    UserInputError::Unsupported(
+                        "claim account transactions require the P-COOL flow".to_string()
+                    )
+                );
                 match &claim.kind {
                     AccountClaimKind::SmartAccount(smart) => {
                         // Apply `public_key::create`'s validation here, so that a

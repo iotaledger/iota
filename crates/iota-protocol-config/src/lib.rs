@@ -309,6 +309,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Add `tx_context::chain_identifier`, which returns the digest of
 //             the genesis checkpoint, and set the gas cost of its native on
 //             all networks.
+//             Reject plain signatures for the addresses claims make explicit,
+//             in devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -903,6 +905,14 @@ struct FeatureFlags {
     // `SmartAccount`; otherwise they abort.
     #[serde(skip_serializing_if = "is_false")]
     enable_smart_accounts: bool,
+
+    // If true, post-consensus validation and admission reject a transaction in
+    // which an address that a `ClaimAccount` made explicit signs with a plain
+    // signature rather than a `MoveAuthenticator`. Once on, it stays on in every
+    // later version, also if claims are turned off, so that a claimed address
+    // never accepts plain signatures again.
+    #[serde(skip_serializing_if = "is_false")]
+    reject_plain_signatures_for_explicit_accounts: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1817,7 +1827,9 @@ pub struct ProtocolConfig {
     /// `Some` activates execution-worker congestion control, under which
     /// owned-object-only transactions are also scheduled, deferred and shed
     /// by the congestion tracker; `None` disables it. Must be positive when
-    /// set. Requires `enable_pcool_flow`.
+    /// set. Requires `enable_pcool_flow`. A version that sets it where
+    /// `ClaimAccount` is accepted must first decide what a cancelled claim
+    /// means, as the claim's lock on its address holds until the epoch ends.
     max_concurrent_execution_workers: Option<u16>,
 
     /// How many consensus commits back post-consensus validation reads object
@@ -2600,6 +2612,11 @@ impl ProtocolConfig {
             "enable_smart_accounts requires enable_move_authentication to be set"
         );
         enable_smart_accounts
+    }
+
+    pub fn reject_plain_signatures_for_explicit_accounts(&self) -> bool {
+        self.feature_flags
+            .reject_plain_signatures_for_explicit_accounts
     }
 }
 
@@ -4245,6 +4262,13 @@ impl ProtocolConfig {
                     cfg.tx_context_chain_identifier_cost_base = Some(30);
                     cfg.tx_context_tx_nonce_cost_base = Some(30);
                     cfg.smart_account_builtin_authenticator_key_proof_message_cost_base = Some(52);
+
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Reject plain signatures for the addresses claims make
+                        // explicit.
+                        cfg.feature_flags
+                            .reject_plain_signatures_for_explicit_accounts = true;
+                    }
                 }
                 // Use this template when making changes:
                 //
@@ -4733,6 +4757,11 @@ impl ProtocolConfig {
 
     pub fn set_enable_smart_accounts_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_smart_accounts = val;
+    }
+
+    pub fn set_reject_plain_signatures_for_explicit_accounts_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .reject_plain_signatures_for_explicit_accounts = val;
     }
 }
 
@@ -5384,5 +5413,102 @@ mod test {
             check_limit!(2550000u64, high),
             LimitThresholdCrossed::Hard(2550000, 10000)
         ));
+    }
+
+    /// Every version and chain that accepts `ClaimAccount` runs the P-COOL
+    /// flow, whose post-consensus validation is what keeps a second claim of
+    /// an address from being kept.
+    #[test]
+    fn every_version_with_claim_account_runs_the_pcool_flow() {
+        for chain in [Chain::Unknown, Chain::Mainnet, Chain::Testnet] {
+            for version in MIN_PROTOCOL_VERSION..=MAX_PROTOCOL_VERSION {
+                let config = ProtocolConfig::get_for_version(ProtocolVersion::new(version), chain);
+                assert!(
+                    !config.enable_claim_account_transaction() || config.enable_pcool_flow(),
+                    "version {version} on {chain:?} accepts ClaimAccount without the P-COOL flow"
+                );
+            }
+        }
+    }
+
+    /// No version and chain accepts `ClaimAccount` together with the execution
+    /// worker limit, and every one that accepts it sets the costs of the
+    /// natives the claim calls. A claim has no shared input, so only that limit
+    /// can defer or cancel it, and a kept claim that does not create its
+    /// account would leave the address unable to claim again or to sign with a
+    /// plain signature until the epoch ends. Overrides in tests are not
+    /// covered.
+    #[test]
+    fn every_kept_claim_account_can_execute() {
+        for chain in [Chain::Unknown, Chain::Mainnet, Chain::Testnet] {
+            for version in MIN_PROTOCOL_VERSION..=MAX_PROTOCOL_VERSION {
+                let config = ProtocolConfig::get_for_version(ProtocolVersion::new(version), chain);
+                if !config.enable_claim_account_transaction() {
+                    continue;
+                }
+                assert!(
+                    config.concurrent_execution_workers().is_none(),
+                    "version {version} on {chain:?} accepts ClaimAccount with an execution \
+                     worker limit, which can cancel a kept claim"
+                );
+                for (name, cost) in [
+                    (
+                        "ed25519_ed25519_validate_pubkey_cost_base",
+                        config.ed25519_ed25519_validate_pubkey_cost_base_as_option(),
+                    ),
+                    (
+                        "ecdsa_k1_secp256k1_validate_pubkey_cost_base",
+                        config.ecdsa_k1_secp256k1_validate_pubkey_cost_base_as_option(),
+                    ),
+                    (
+                        "ecdsa_r1_secp256r1_validate_pubkey_cost_base",
+                        config.ecdsa_r1_secp256r1_validate_pubkey_cost_base_as_option(),
+                    ),
+                    (
+                        "multisig_multisig_validate_pubkey_cost_base",
+                        config.multisig_multisig_validate_pubkey_cost_base_as_option(),
+                    ),
+                    (
+                        "public_key_to_iota_address_impl_cost_base",
+                        config.public_key_to_iota_address_impl_cost_base_as_option(),
+                    ),
+                ] {
+                    assert!(
+                        cost.is_some(),
+                        "version {version} on {chain:?} accepts ClaimAccount without {name}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// Every version and chain that accepts `ClaimAccount` rejects plain
+    /// signatures for the addresses claims make explicit, and once a version
+    /// rejects them, every later version does too, whether or not it still
+    /// accepts claims. Otherwise a claimed address would accept plain
+    /// signatures again.
+    #[test]
+    fn plain_signatures_for_explicit_accounts_stay_rejected() {
+        for chain in [Chain::Unknown, Chain::Mainnet, Chain::Testnet] {
+            let mut rejected_since = None;
+            for version in MIN_PROTOCOL_VERSION..=MAX_PROTOCOL_VERSION {
+                let config = ProtocolConfig::get_for_version(ProtocolVersion::new(version), chain);
+                let rejects = config.reject_plain_signatures_for_explicit_accounts();
+                assert!(
+                    !config.enable_claim_account_transaction() || rejects,
+                    "version {version} on {chain:?} accepts ClaimAccount but not the rule \
+                     that rejects plain signatures for claimed addresses"
+                );
+                if let Some(since) = rejected_since {
+                    assert!(
+                        rejects,
+                        "version {version} on {chain:?} accepts plain signatures for claimed \
+                         addresses again, although version {since} rejected them"
+                    );
+                } else if rejects {
+                    rejected_since = Some(version);
+                }
+            }
+        }
     }
 }

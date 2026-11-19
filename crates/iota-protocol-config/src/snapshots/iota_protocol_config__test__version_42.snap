@@ -87,6 +87,7 @@ feature_flags:
   enable_transaction_dependencies: true
   enable_builtin_move_authenticators: true
   enable_smart_accounts: true
+  reject_plain_signatures_for_explicit_accounts: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000

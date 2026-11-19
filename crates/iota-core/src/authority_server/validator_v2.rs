@@ -285,6 +285,27 @@ fn count_soft_lock_refusal(metrics: &ValidatorServiceMetrics, error: &IotaError)
     }
 }
 
+/// Reports a conflict on `claim_lock` as the other claim of `sender`'s
+/// address: a claim lock's reference is no object. Other errors are returned
+/// unchanged.
+fn claim_conflict_error(
+    error: IotaError,
+    claim_lock: Option<ObjectReference>,
+    sender: Address,
+) -> IotaError {
+    match error {
+        IotaError::ObjectLockConflict {
+            obj_ref,
+            pending_transaction,
+        } if Some(obj_ref) == claim_lock => UserInputError::AccountClaimPending {
+            address: sender,
+            pending_transaction,
+        }
+        .into(),
+        error => error,
+    }
+}
+
 /// Lists the owned and immutable objects `transaction` names as inputs, gas
 /// coins included. It reads the transaction alone, before validation, so it
 /// cannot distinguish owned inputs from immutable ones. A check for soft lock
@@ -607,6 +628,12 @@ impl ValidatorService {
         // transaction is rejected whatever the authenticators answer. The
         // attestation takes the soft locks itself before its dry run, once
         // the transaction's signers have authorized it.
+        // A claim also soft-locks the address it claims, so this validator
+        // does not forward two claims of one address at once.
+        let claim_lock = crate::post_consensus_validation::claimed_address_lock(
+            verified_tx.data().transaction(),
+        );
+        let sender = verified_tx.data().transaction().sender();
         let mut soft_lock = None;
         let (attestation_data, owned_objects, verified_tx, permit) = if !checks_admitted_inputs() {
             // Only tests take this branch, through the fail point of
@@ -661,11 +688,14 @@ impl ValidatorService {
                     &epoch_store_for_attest,
                     deny_config,
                     |owned_objects| {
+                        let soft_locked: Vec<_> =
+                            owned_objects.iter().copied().chain(claim_lock).collect();
                         let guard = soft_locks_for_attest
-                            .try_acquire_guard(tx_digest, owned_objects)
+                            .try_acquire_guard(tx_digest, &soft_locked)
                             .inspect_err(|error| {
                                 count_soft_lock_refusal(&metrics_for_attest, error)
-                            })?;
+                            })
+                            .map_err(|error| claim_conflict_error(error, claim_lock, sender))?;
                         lock_before_dry_run = Some(guard);
 
                         Ok(())
@@ -817,16 +847,18 @@ impl ValidatorService {
         // on their own first.
         // Same-digest resubmission while in flight → rejected (duplicate).
         // Different-digest conflict on same objects → rejected.
+        let soft_locked: Vec<_> = owned_objects.iter().copied().chain(claim_lock).collect();
         // A rejection after the locks are taken drops the guard, which
         // releases them. A lock refused after the dry run means that another
         // submission on the same objects passed both checks for conflicts at
         // the same time as this one.
         let soft_lock = match soft_lock {
             Some(soft_lock) => soft_lock,
-            None => match soft_locks.try_acquire_guard(tx_digest, &owned_objects) {
+            None => match soft_locks.try_acquire_guard(tx_digest, &soft_locked) {
                 Ok(soft_lock) => soft_lock,
                 Err(error) => {
                     count_soft_lock_refusal(metrics, &error);
+                    let error = claim_conflict_error(error, claim_lock, sender);
                     let weight = weigh_sender_rejection(&error, after_dry_run);
 
                     return (TxStatusUpdate::Rejected { error }, weight);
