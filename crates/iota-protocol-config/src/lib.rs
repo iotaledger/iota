@@ -4037,9 +4037,6 @@ impl ProtocolConfig {
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         // Enable built-in Move authenticators in devnet.
                         cfg.feature_flags.enable_builtin_move_authenticators = true;
-                        // Enable claiming an account for the sender's address in
-                        // devnet only.
-                        cfg.feature_flags.enable_claim_account_transaction = true;
 
                         // Bounds on a ClaimAccount's cost, so a claim cannot run
                         // out of gas at any admissible gas price or key size.
