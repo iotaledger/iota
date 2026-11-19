@@ -6,25 +6,41 @@
 //! failure effect instead of panicking the validator, and the object versions
 //! the attestor recorded decide who is charged for it.
 
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
+
+use futures::future::BoxFuture;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, Command, ExecutionError, ExecutionStatus, MoveAuthenticator, MoveAuthenticatorV1,
-    ObjectId, SharedObjectReference, Transaction, UserSignature, VersionAssignment,
+    ObjectId, SharedObjectReference, Transaction, TransactionDigest, TransactionEffects,
+    TransactionEffectsDigest, TransactionEvents, UserSignature, VersionAssignment,
 };
 use iota_types::{
+    attestation::AttestationRecord,
+    base_types::EpochId,
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
+    error::IotaResult,
     executable_transaction::VerifiedExecutableTransaction,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope},
+    transaction::{
+        CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope,
+        VerifiedTransaction,
+    },
     utils::to_sender_signed_transaction,
 };
 
 use super::attestation_verdict::{AttestedObjectVersions, SupersededAt};
-use crate::authority::{
-    ExecutionEnv, authority_per_epoch_store::ExecutionIndices,
-    test_authority_builder::TestAuthorityBuilder,
+use crate::{
+    authority::{
+        ExecutionEnv, authority_per_epoch_store::ExecutionIndices,
+        test_authority_builder::TestAuthorityBuilder,
+    },
+    execution_cache::TransactionCacheRead,
 };
 
 /// A transaction whose Move authenticator points at an object that is not an
@@ -498,5 +514,161 @@ async fn attested_version_superseded_in_an_earlier_epoch_is_stale_without_its_ef
         versions.superseded_within_window(&attested_id, attested_ref.version()),
         None,
         "a version superseded in an earlier epoch is stale, whatever the node retains"
+    );
+}
+
+/// Reads through to `inner`, except that `hidden` is not executed yet on the
+/// first read of this epoch's records: what a judge reads while `hidden` is
+/// still writing its outputs.
+struct EffectsHiddenOnce<'a> {
+    inner: &'a dyn TransactionCacheRead,
+    hidden: TransactionDigest,
+    reads: AtomicUsize,
+}
+
+impl TransactionCacheRead for EffectsHiddenOnce<'_> {
+    fn try_multi_get_transaction_blocks(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<Arc<VerifiedTransaction>>>> {
+        self.inner.try_multi_get_transaction_blocks(digests)
+    }
+
+    fn try_multi_get_executed_effects_digests(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
+        self.inner.try_multi_get_executed_effects_digests(digests)
+    }
+
+    fn try_multi_get_executed_effects_digests_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
+        if digests == [self.hidden] && self.reads.fetch_add(1, Ordering::Relaxed) == 0 {
+            return Ok(vec![None]);
+        }
+        self.inner
+            .try_multi_get_executed_effects_digests_in_epoch(epoch, digests)
+    }
+
+    fn try_multi_get_effects(
+        &self,
+        digests: &[TransactionEffectsDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffects>>> {
+        self.inner.try_multi_get_effects(digests)
+    }
+
+    fn try_multi_get_effects_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionEffectsDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffects>>> {
+        self.inner.try_multi_get_effects_in_epoch(epoch, digests)
+    }
+
+    fn try_multi_get_attestation_records_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<AttestationRecord>>> {
+        self.inner
+            .try_multi_get_attestation_records_in_epoch(epoch, digests)
+    }
+
+    fn try_multi_get_events(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEvents>>> {
+        self.inner.try_multi_get_events(digests)
+    }
+
+    fn try_notify_read_executed_effects_digests<'a>(
+        &'a self,
+        task_name: &'static str,
+        digests: &'a [TransactionDigest],
+    ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffectsDigest>>> {
+        self.inner
+            .try_notify_read_executed_effects_digests(task_name, digests)
+    }
+}
+
+/// A version is readable before its writer has recorded its effects, so a
+/// judge reading in between must wait for them: taking the version for one
+/// superseded in an earlier epoch would refute on this validator alone.
+#[tokio::test]
+async fn attested_version_superseded_by_a_transaction_still_writing_waits_for_its_effects() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(true);
+        config.set_checkpoint_summary_version_specific_data_for_testing(2);
+        config
+    });
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let (recipient, _): (_, AccountPrivateKey) = get_key_pair();
+
+    let attested_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let objects = vec![
+        Object::with_id_owner_for_testing(attested_id, sender),
+        Object::with_id_owner_for_testing(gas_id, sender),
+    ];
+    let authority = TestAuthorityBuilder::new()
+        .with_starting_objects(&objects)
+        .build()
+        .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let epoch = epoch_store.epoch();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let attested_ref = authority.get_object(&attested_id).unwrap().object_ref();
+    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
+
+    let tx_data = Transaction::new_transfer(
+        recipient,
+        attested_ref,
+        sender,
+        gas_ref,
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER * 10,
+        rgp,
+    );
+    let tx = to_sender_signed_transaction(tx_data, &sender_key);
+    let verified_tx = epoch_store.verify_transaction(tx).unwrap();
+    let executable = VerifiedExecutableTransaction::new_from_checkpoint(verified_tx, epoch, 1);
+    epoch_store.assign_to_a_new_commit_for_testing(&[executable.key()]);
+    let commit = epoch_store
+        .commit_index_of(&executable.key())
+        .expect("the test assigned the transaction a commit");
+    // Left uncommitted, as the outputs of a transaction still writing are.
+    let (effects, _execution_error) = authority
+        .try_execute_immediately(&executable, ExecutionEnv::new(), &epoch_store)
+        .unwrap();
+    assert!(effects.status().is_success());
+
+    let transaction_cache = EffectsHiddenOnce {
+        inner: authority.get_transaction_cache_reader().as_ref(),
+        hidden: *effects.transaction_digest(),
+        reads: AtomicUsize::new(0),
+    };
+    let versions = AttestedObjectVersions {
+        object_cache: authority.get_object_cache_reader().as_ref(),
+        transaction_cache: &transaction_cache,
+        epoch_store: &epoch_store,
+        sequenced_at: ExecutionIndices::default(),
+        window: None,
+    };
+
+    assert_eq!(
+        versions.superseded_within_window(&attested_id, attested_ref.version()),
+        Some(SupersededAt::Commit(commit)),
+        "a version whose writer has not recorded its effects yet is not a stale one"
+    );
+    assert_eq!(
+        transaction_cache.reads.load(Ordering::Relaxed),
+        2,
+        "the judge must read again after the read that found no effects"
     );
 }
