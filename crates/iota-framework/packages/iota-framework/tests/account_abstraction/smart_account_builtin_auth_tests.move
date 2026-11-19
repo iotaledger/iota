@@ -50,6 +50,9 @@ const OTHER_KEY_ACCOUNT_SIGNATURE: vector<u8> =
 /// K2's proof for a new account created by `ACCOUNT`.
 const OTHER_KEY_NEW_ACCOUNT_SIGNATURE: vector<u8> =
     x"0097ff8299e4866f7242e470bb5d0bad2e07847bf91031143056c1007bf5396689a44cfdfa4d71d4ec474b580b33f96e627536cdc5cda6c454d6f896270669a60caef3f4a4b8eca1dfc343361bf8e436bd42de9259c04b8314eb8e2054dd6e82ab";
+/// K2's proof for the existing account `@0x1`.
+const OTHER_KEY_OTHER_ACCOUNT_SIGNATURE: vector<u8> =
+    x"00403a3896d7b465c7120f8b42070ac894f3f45441bf5a5a3d6e61c247f62da9ceb6ccc4c1cb6a89d4c9703bf8daf3a1c9cd99f3fee6caa2bc3ede130bcfd8100faef3f4a4b8eca1dfc343361bf8e436bd42de9259c04b8314eb8e2054dd6e82ab";
 
 // === builder_v1 ===
 
@@ -343,6 +346,35 @@ fun rotate_to_builtin_auth_v1_aborts_for_a_proof_for_a_new_account() {
     });
 }
 
+#[test]
+#[expected_failure(abort_code = iota::smart_account_builtin_auth::EInvalidKeyProof)]
+fun rotate_to_builtin_auth_v1_aborts_for_a_proof_for_another_account() {
+    custom_account_test!(|account, scenario| {
+        smart_account_builtin_auth::rotate_to_builtin_auth_v1(
+            account,
+            other_key(),
+            OTHER_KEY_OTHER_ACCOUNT_SIGNATURE,
+            VALID_UNTIL_EPOCH,
+            scenario.ctx(),
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::smart_account_builtin_auth::EInvalidKeyProof)]
+fun rotate_to_builtin_auth_v1_aborts_for_a_proof_by_another_key() {
+    custom_account_test!(|account, scenario| {
+        // `ACCOUNT_SIGNATURE` is K's proof for this account, but the key attached is K2.
+        smart_account_builtin_auth::rotate_to_builtin_auth_v1(
+            account,
+            other_key(),
+            ACCOUNT_SIGNATURE,
+            VALID_UNTIL_EPOCH,
+            scenario.ctx(),
+        );
+    });
+}
+
 // === rotate_to_custom_auth_v1 ===
 
 #[test]
@@ -494,6 +526,35 @@ fun rotate_public_key_aborts_for_a_proof_for_a_new_account() {
             account,
             other_key(),
             OTHER_KEY_NEW_ACCOUNT_SIGNATURE,
+            VALID_UNTIL_EPOCH,
+            scenario.ctx(),
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::smart_account_builtin_auth::EInvalidKeyProof)]
+fun rotate_public_key_aborts_for_a_proof_for_another_account() {
+    builtin_account_test!(|account, scenario| {
+        smart_account_builtin_auth::rotate_public_key(
+            account,
+            other_key(),
+            OTHER_KEY_OTHER_ACCOUNT_SIGNATURE,
+            VALID_UNTIL_EPOCH,
+            scenario.ctx(),
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::smart_account_builtin_auth::EInvalidKeyProof)]
+fun rotate_public_key_aborts_for_a_proof_by_the_current_key() {
+    builtin_account_test!(|account, scenario| {
+        // `ACCOUNT_SIGNATURE` is a proof by K, the key the account has now, not by the new key K2.
+        smart_account_builtin_auth::rotate_public_key(
+            account,
+            other_key(),
+            ACCOUNT_SIGNATURE,
             VALID_UNTIL_EPOCH,
             scenario.ctx(),
         );
