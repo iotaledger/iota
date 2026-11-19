@@ -38,7 +38,7 @@ use iota::public_key::PublicKey;
 
 #[error(code = 0)]
 const ETransactionSenderIsNotTheSmartAccount: vector<u8> =
-    b"Transaction must be signed by the smart account.";
+    b"The transaction sender must be the smart account.";
 #[error(code = 1)]
 const ESmartAccountsNotEnabled: vector<u8> = b"Smart accounts not enabled.";
 
