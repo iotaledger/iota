@@ -120,3 +120,12 @@ fun set_tx_nonce_for_testing_aborts_for_a_short_nonce() {
     let mut ctx = tx_context::dummy();
     ctx.set_tx_nonce_for_testing(x"39d2ed96");
 }
+
+#[test]
+#[expected_failure(abort_code = tx_context::EBadTxNonceLength)]
+fun set_tx_nonce_for_testing_aborts_for_a_long_nonce() {
+    let mut ctx = tx_context::dummy();
+    let mut nonce = NONCE;
+    nonce.push_back(0);
+    ctx.set_tx_nonce_for_testing(nonce);
+}
