@@ -136,7 +136,7 @@ pub(crate) enum TransactionBlockKindInput {
     /// The end of epoch transaction block.
     EndOfEpochTx = 6,
     /// A claim of the sender's address as an account object.
-    ClaimAccount = 7,
+    ClaimAccount = 8,
 }
 
 type Query<ST, GB> = data::Query<ST, transactions::table, GB>;
