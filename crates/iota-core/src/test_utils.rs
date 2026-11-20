@@ -4,8 +4,9 @@
 
 use std::{sync::Arc, time::Duration};
 
-use fastcrypto::{hash::MultisetHash, traits::KeyPair};
+use fastcrypto::hash::MultisetHash;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_crypto::Signer;
 use iota_sdk_types::{
     Address, CheckpointSummary, EndOfEpochData, GasCostSummary, Identifier, ObjectId,
     ObjectReference, Transaction, TransactionDigest,
@@ -16,7 +17,7 @@ use iota_types::{
     committee::{Committee, EpochId},
     crypto::{
         AccountPrivateKey, AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfo,
-        AuthoritySignature, AuthorityStrongQuorumSignInfo, Signer,
+        AuthoritySignature, AuthorityStrongQuorumSignInfo,
     },
     effects::{SignedTransactionEffects, TestEffectsBuilder},
     error::IotaError,
@@ -103,7 +104,7 @@ where
     let genesis = network_config.genesis;
     let authority_key = network_config.validator_configs[0]
         .authority_key_pair()
-        .copy();
+        .clone();
 
     (genesis, authority_key)
 }
@@ -302,7 +303,7 @@ pub fn make_cert_with_large_committee(
                 committee.epoch(),
                 transaction.clone().into_data(),
                 key_pair,
-                AuthorityPublicKeyBytes::from(key_pair.public()),
+                AuthorityPublicKeyBytes::from(key_pair),
             )
             .auth_sig()
             .clone()

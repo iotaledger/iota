@@ -17,7 +17,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     base_types::{dbg_addr, random_object_ref},
-    crypto::{AccountPrivateKey, get_key_pair},
+    crypto::{AccountPrivateKey, get_key_pair, to_aggregate_signature},
     error::{IotaError, UserInputError},
     messages_grpc::HandleSoftBundleCertificatesRequestV1,
     signature::VerifyParams,
@@ -624,7 +624,11 @@ async fn test_very_large_certificate() {
         signers_map.insert(i);
     }
 
-    let sigs: Vec<AuthoritySignature> = signatures.into_values().collect();
+    let sigs: Vec<_> = signatures
+        .values()
+        .map(to_aggregate_signature)
+        .collect::<Result<Vec<_>, _>>()
+        .expect("validator returned invalid signature");
 
     let quorum_signature = iota_types::crypto::AuthorityQuorumSignInfo {
         epoch: 0,

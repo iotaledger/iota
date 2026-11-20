@@ -10,7 +10,6 @@ publish = false
 # external dependencies
 anyhow.workspace = true
 async-trait.workspace = true
-fastcrypto.workspace = true
 rand.workspace = true
 tracing.workspace = true
 
@@ -19,6 +18,7 @@ iota-config.workspace = true
 iota-execution.workspace = true
 iota-node-storage.workspace = true
 iota-protocol-config.workspace = true
+iota-sdk-crypto.workspace = true
 iota-sdk-move-types = { workspace = true, features = ["serde"] }
 iota-sdk-types.workspace = true
 iota-storage.workspace = true

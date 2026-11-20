@@ -16,6 +16,7 @@ use std::{
 use anyhow::bail;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_crypto::Signer;
 use iota_sdk_types::{
     Address, Argument, CanceledTransaction, CertificateDigest, Command, ConsensusCommitDigest,
     ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind,
@@ -39,7 +40,7 @@ use crate::{
     committee::{Committee, EpochId},
     crypto::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature,
-        AuthorityStrongQuorumSignInfo, DefaultHash, EmptySignInfo, Signer, zero_ed25519_signature,
+        AuthorityStrongQuorumSignInfo, DefaultHash, EmptySignInfo, zero_ed25519_signature,
     },
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},

@@ -14,7 +14,7 @@ use clap::*;
 use colored::Colorize;
 use fastcrypto::{
     encoding::{Base64, Encoding},
-    traits::{KeyPair, ToFromBytes},
+    traits::ToFromBytes,
 };
 use futures::TryStreamExt;
 use iota_genesis_builder::validator_info::GenesisValidatorInfo;
@@ -43,9 +43,8 @@ use iota_sdk_types::{
 };
 use iota_types::{
     crypto::{
-        AuthorityKeyPair, AuthorityPublicKey, AuthorityPublicKeyBytes, DEFAULT_EPOCH_ID,
-        NetworkPrivateKey, NetworkPublicKey, Signable, generate_proof_of_possession,
-        get_authority_key_pair,
+        AuthorityKeyPair, AuthorityPublicKeyBytes, DEFAULT_EPOCH_ID, NetworkPrivateKey,
+        NetworkPublicKey, Signable, generate_proof_of_possession, get_authority_key_pair,
     },
     dynamic_field::DynamicFieldName,
     iota_system_state::{
@@ -246,7 +245,7 @@ impl IotaValidatorCommand {
                 let validator_info = GenesisValidatorInfo {
                     info: iota_genesis_builder::validator_info::ValidatorInfo {
                         name,
-                        authority_key: authority_keypair.public().into(),
+                        authority_key: (&authority_keypair).into(),
                         protocol_key: protocol_private_key.public_key(),
                         account_address,
                         network_key: network_private_key.public_key(),
@@ -284,7 +283,7 @@ impl IotaValidatorCommand {
                     )?),
                     CallArg::pure(&validator.network_key().bytes().to_vec()),
                     CallArg::pure(&validator.protocol_key().bytes().to_vec()),
-                    CallArg::pure(&validator_info.proof_of_possession.as_ref().to_vec()),
+                    CallArg::pure(&validator_info.proof_of_possession.bytes().to_vec()),
                     CallArg::pure(&validator.name().to_owned().into_bytes()),
                     CallArg::pure(&validator.description.clone().into_bytes()),
                     CallArg::pure(&validator.image_url.clone().into_bytes()),
@@ -1042,13 +1041,10 @@ async fn update_metadata(
             can_validator_mutate_all_data(context).await?;
             let iota_address = context.active_address()?;
             let authority_key_pair: AuthorityKeyPair = read_authority_keypair_from_file(file)?;
-            let authority_pub_key: AuthorityPublicKey = authority_key_pair.public().clone();
             let pop = generate_proof_of_possession(&authority_key_pair, iota_address);
             let args = vec![
-                CallArg::pure(&AuthorityPublicKeyBytes::from_bytes(
-                    authority_pub_key.as_bytes(),
-                )?),
-                CallArg::pure(&pop.as_ref().to_vec()),
+                CallArg::pure(&AuthorityPublicKeyBytes::from(&authority_key_pair)),
+                CallArg::pure(&pop.bytes().to_vec()),
             ];
             call_0x5(
                 context,

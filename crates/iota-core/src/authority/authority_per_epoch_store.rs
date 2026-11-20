@@ -4811,15 +4811,15 @@ impl AuthorityPerEpochStore {
         }
         // Signatures are verified as part of the consensus payload verification in
         // IotaTxValidator
-        match &transaction.transaction {
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::CertifiedTransaction(_certificate),
-                ..
-            }) => {}
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(user_transaction),
-                ..
-            }) => {
+        let ext = match &transaction.transaction {
+            SequencedConsensusTransactionKind::External(ext) => ext,
+            SequencedConsensusTransactionKind::System(_) => {
+                return Some(VerifiedSequencedConsensusTransaction(transaction));
+            }
+        };
+        match &ext.kind {
+            ConsensusTransactionKind::CertifiedTransaction(_certificate) => {}
+            ConsensusTransactionKind::UserTransactionV1(user_transaction) => {
                 if !self.protocol_config().enable_pcool_flow() {
                     debug!(
                         "Ignoring UserTransactionV1 {:?}: the P-COOL flow is disabled",
@@ -4857,10 +4857,7 @@ impl AuthorityPerEpochStore {
                     return None;
                 }
             }
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::CheckpointSignature(data),
-                ..
-            }) => {
+            ConsensusTransactionKind::CheckpointSignature(data) => {
                 if transaction.sender_authority() != data.summary.auth_sig().authority {
                     warn!(
                         "CheckpointSignature authority {} does not match its author from consensus {}",
@@ -4870,10 +4867,7 @@ impl AuthorityPerEpochStore {
                     return None;
                 }
             }
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::EndOfPublish(authority),
-                ..
-            }) => {
+            ConsensusTransactionKind::EndOfPublish(authority) => {
                 if &transaction.sender_authority() != authority {
                     warn!(
                         "EndOfPublish authority {} does not match its author from consensus {}",
@@ -4882,10 +4876,7 @@ impl AuthorityPerEpochStore {
                     return None;
                 }
             }
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::MisbehaviorReport(report),
-                ..
-            }) => {
+            ConsensusTransactionKind::MisbehaviorReport(report) => {
                 if transaction.sender_authority() != report.authority {
                     warn!(
                         "MisbehaviorReport authority {} does not match its author from consensus {}",
@@ -4913,12 +4904,8 @@ impl AuthorityPerEpochStore {
                     return None;
                 }
             }
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind:
-                    ConsensusTransactionKind::CapabilityNotificationV1(AuthorityCapabilitiesV1 {
-                        authority,
-                        ..
-                    }),
+            ConsensusTransactionKind::CapabilityNotificationV1(AuthorityCapabilitiesV1 {
+                authority,
                 ..
             }) => {
                 if transaction.sender_authority() != *authority {
@@ -4929,29 +4916,20 @@ impl AuthorityPerEpochStore {
                     return None;
                 }
             }
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::SignedCapabilityNotificationV1(_),
-                ..
-            }) => {
+            ConsensusTransactionKind::SignedCapabilityNotificationV1(_) => {
                 // Signatures are verified as part of the consensus payload
                 // verification in IotaTxValidator. We don't need to check the
                 // sender_authority as it's correct that it's different from the
                 // authority in the notification.
             }
             #[allow(deprecated)]
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::NewJWKFetchedDeprecated,
-                ..
-            }) => {
+            ConsensusTransactionKind::NewJWKFetchedDeprecated => {
                 // Deprecated: Authenticator state (JWK) is deprecated and
                 // was never enabled. These consensus transaction kinds are retained
                 // only for BCS enum variant compatibility.
                 return None;
             }
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::RandomnessDkgMessage(authority, _bytes),
-                ..
-            }) => {
+            ConsensusTransactionKind::RandomnessDkgMessage(authority, _bytes) => {
                 if transaction.sender_authority() != *authority {
                     warn!(
                         "RandomnessDkgMessage authority {} does not match its author from consensus {}",
@@ -4960,10 +4938,7 @@ impl AuthorityPerEpochStore {
                     return None;
                 }
             }
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::RandomnessDkgConfirmation(authority, _bytes),
-                ..
-            }) => {
+            ConsensusTransactionKind::RandomnessDkgConfirmation(authority, _bytes) => {
                 if transaction.sender_authority() != *authority {
                     warn!(
                         "RandomnessDkgConfirmation authority {} does not match its author from consensus {}",
@@ -4972,10 +4947,7 @@ impl AuthorityPerEpochStore {
                     return None;
                 }
             }
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::OverloadNotificationV1(authority, _, percentage),
-                ..
-            }) => {
+            ConsensusTransactionKind::OverloadNotificationV1(authority, _, percentage) => {
                 if !self.protocol_config().enable_pcool_flow() {
                     debug!(
                         "Ignoring OverloadNotificationV1 from {:?}: the P-COOL flow is disabled",
@@ -4999,10 +4971,7 @@ impl AuthorityPerEpochStore {
                     return None;
                 }
             }
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::TransactionDenyRuleProposal(proposal),
-                ..
-            }) => {
+            ConsensusTransactionKind::TransactionDenyRuleProposal(proposal) => {
                 if !self.protocol_config().enable_pcool_flow() {
                     debug!(
                         "Ignoring TransactionDenyRuleProposal from {:?}: deny rule governance is disabled",
@@ -5018,7 +4987,6 @@ impl AuthorityPerEpochStore {
                     return None;
                 }
             }
-            SequencedConsensusTransactionKind::System(_) => {}
         }
         Some(VerifiedSequencedConsensusTransaction(transaction))
     }
@@ -5116,11 +5084,11 @@ impl AuthorityPerEpochStore {
                 .should_accept_consensus_certs()
             {
                 for tx in &verified_transactions {
-                    if let SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                        kind:
-                            ConsensusTransactionKind::OverloadNotificationV1(authority, _, percentage),
-                        ..
-                    }) = &tx.0.transaction
+                    if let Some(ConsensusTransactionKind::OverloadNotificationV1(
+                        authority,
+                        _,
+                        percentage,
+                    )) = tx.0.transaction.as_external_kind()
                     {
                         notifications.insert(*authority, *percentage);
                     }
@@ -6625,10 +6593,8 @@ impl AuthorityPerEpochStore {
                 ..
             }) = transaction;
 
-            if let SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::EndOfPublish(authority),
-                ..
-            }) = transaction
+            if let Some(ConsensusTransactionKind::EndOfPublish(authority)) =
+                transaction.as_external_kind()
             {
                 debug!(
                     "Received EndOfPublish for epoch {} from {:?}",
@@ -6741,11 +6707,14 @@ impl AuthorityPerEpochStore {
         }) = transaction;
         let tracking_id = transaction.get_tracking_id();
 
-        match &transaction {
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::CertifiedTransaction(certificate),
-                ..
-            }) => {
+        let ext = match &transaction {
+            SequencedConsensusTransactionKind::External(ext) => ext,
+            SequencedConsensusTransactionKind::System(system_transaction) => {
+                return Ok(self.process_consensus_system_transaction(system_transaction));
+            }
+        };
+        match &ext.kind {
+            ConsensusTransactionKind::CertifiedTransaction(certificate) => {
                 if certificate.epoch() != self.epoch() {
                     // Epoch has changed after this certificate was sequenced, ignore it.
                     debug!(
@@ -6824,27 +6793,18 @@ impl AuthorityPerEpochStore {
                     authority_metrics,
                 )
             }
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::CheckpointSignature(info),
-                ..
-            }) => {
+            ConsensusTransactionKind::CheckpointSignature(info) => {
                 // We usually call notify_checkpoint_signature in IotaTxValidator, but that step
                 // can be skipped when a batch is already part of a certificate,
                 // so we must also notify here.
                 checkpoint_service.notify_checkpoint_signature(self, info)?;
                 Ok(ConsensusTransactionResult::ConsensusMessage)
             }
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::EndOfPublish(_),
-                ..
-            }) => {
+            ConsensusTransactionKind::EndOfPublish(_) => {
                 // these are partitioned earlier
                 panic!("process_consensus_transaction called with end-of-publish transaction");
             }
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::MisbehaviorReport(report),
-                ..
-            }) => {
+            ConsensusTransactionKind::MisbehaviorReport(report) => {
                 if !self.protocol_config().calculate_validator_scores() {
                     warn!(
                         "Received misbehavior report from {:?} but validator scores are disabled, so the report is ignored",
@@ -6878,10 +6838,7 @@ impl AuthorityPerEpochStore {
 
                 Ok(ConsensusTransactionResult::ConsensusMessage)
             }
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::CapabilityNotificationV1(capabilities),
-                ..
-            }) => {
+            ConsensusTransactionKind::CapabilityNotificationV1(capabilities) => {
                 // Records capabilities for the authority.
                 let authority = capabilities.authority;
                 if self
@@ -6901,10 +6858,7 @@ impl AuthorityPerEpochStore {
                 }
                 Ok(ConsensusTransactionResult::ConsensusMessage)
             }
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::SignedCapabilityNotificationV1(signed_capabilities),
-                ..
-            }) => {
+            ConsensusTransactionKind::SignedCapabilityNotificationV1(signed_capabilities) => {
                 // Records capabilities for the authority.
                 // The signature is checked in a previous step, so we can safely access data
                 let capabilities = signed_capabilities.data();
@@ -6927,20 +6881,14 @@ impl AuthorityPerEpochStore {
                 Ok(ConsensusTransactionResult::ConsensusMessage)
             }
             #[allow(deprecated)]
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::NewJWKFetchedDeprecated,
-                ..
-            }) => {
+            ConsensusTransactionKind::NewJWKFetchedDeprecated => {
                 // Deprecated: Authenticator state (JWK) is deprecated and
                 // was never enabled. These consensus transaction kinds are retained
                 // only for BCS enum variant compatibility.
                 debug!("Ignoring NewJWKFetchedDeprecated transaction");
                 Ok(ConsensusTransactionResult::ConsensusMessage)
             }
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::RandomnessDkgMessage(authority, bytes),
-                ..
-            }) => {
+            ConsensusTransactionKind::RandomnessDkgMessage(authority, bytes) => {
                 if self.get_reconfig_state_read_lock_guard().should_accept_tx() {
                     if let Some(randomness_manager) = randomness_manager.as_mut() {
                         debug!(
@@ -6970,10 +6918,7 @@ impl AuthorityPerEpochStore {
                 }
                 Ok(ConsensusTransactionResult::RandomnessConsensusMessage)
             }
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::RandomnessDkgConfirmation(authority, bytes),
-                ..
-            }) => {
+            ConsensusTransactionKind::RandomnessDkgConfirmation(authority, bytes) => {
                 if self.get_reconfig_state_read_lock_guard().should_accept_tx() {
                     if let Some(randomness_manager) = randomness_manager.as_mut() {
                         debug!(
@@ -7005,10 +6950,7 @@ impl AuthorityPerEpochStore {
                 }
                 Ok(ConsensusTransactionResult::RandomnessConsensusMessage)
             }
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(attested_tx),
-                ..
-            }) => {
+            ConsensusTransactionKind::UserTransactionV1(attested_tx) => {
                 let transaction = &attested_tx.transaction;
                 if transaction.is_system_tx() {
                     warn!("UserTransactionV1 contains system transaction, ignoring");
@@ -7088,10 +7030,7 @@ impl AuthorityPerEpochStore {
                     authority_metrics,
                 )
             }
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::OverloadNotificationV1(authority, _, percentage),
-                ..
-            }) => {
+            ConsensusTransactionKind::OverloadNotificationV1(authority, _, percentage) => {
                 if self
                     .get_reconfig_state_read_lock_guard()
                     .should_accept_consensus_certs()
@@ -7110,10 +7049,7 @@ impl AuthorityPerEpochStore {
                 }
                 Ok(ConsensusTransactionResult::ConsensusMessage)
             }
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::TransactionDenyRuleProposal(proposal),
-                ..
-            }) => {
+            ConsensusTransactionKind::TransactionDenyRuleProposal(proposal) => {
                 // The `enable_pcool_flow` feature gate is enforced in
                 // `verify_consensus_transaction`, which filters every
                 // sequenced transaction before it reaches this point.
@@ -7140,9 +7076,6 @@ impl AuthorityPerEpochStore {
                     );
                 }
                 Ok(ConsensusTransactionResult::ConsensusMessage)
-            }
-            SequencedConsensusTransactionKind::System(system_transaction) => {
-                Ok(self.process_consensus_system_transaction(system_transaction))
             }
         }
     }

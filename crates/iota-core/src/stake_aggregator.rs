@@ -12,7 +12,9 @@ use iota_sdk_types::crypto::Intent;
 use iota_types::{
     base_types::{AuthorityName, ConciseableName},
     committee::{Committee, CommitteeTrait, StakeUnit},
-    crypto::{AuthorityQuorumSignInfo, AuthoritySignInfo, AuthoritySignInfoTrait},
+    crypto::{
+        AuthorityQuorumSignInfo, AuthoritySignInfo, AuthoritySignInfoTrait, to_aggregate_signature,
+    },
     error::{IotaError, IotaResult},
     message_envelope::{Envelope, Message},
 };
@@ -137,6 +139,11 @@ impl<const STRENGTH: bool> StakeAggregator<AuthoritySignInfo, STRENGTH> {
                     actual_epoch: sig.epoch,
                 },
             };
+        }
+        // A signature that is not a curve point would make every aggregation of
+        // this quorum fail, so it is rejected before it is counted.
+        if let Err(error) = to_aggregate_signature(&sig.signature) {
+            return InsertResult::Failed { error };
         }
         match self.insert_generic(sig.authority, sig) {
             InsertResult::QuorumReached(_) => {
@@ -342,15 +349,12 @@ where
 mod stake_aggregator_insert_tests {
     use std::{collections::BTreeMap, sync::Arc};
 
-    use fastcrypto::{
-        hash::{HashFunction, Sha3_256},
-        traits::KeyPair,
-    };
+    use fastcrypto::hash::{HashFunction, Sha3_256};
     use iota_sdk_types::crypto::IntentScope;
     use iota_types::{
         base_types::AuthorityName,
         committee::Committee,
-        crypto::{AuthoritySignInfo, random_committee_key_pairs_of_size},
+        crypto::{AuthoritySignInfo, AuthoritySignature, random_committee_key_pairs_of_size},
         message_envelope::{Envelope, Message},
     };
     use serde::Serialize;
@@ -381,10 +385,7 @@ mod stake_aggregator_insert_tests {
         // Two-validator committee: first sorted authority has ~7000 weight
         // (> QUORUM_THRESHOLD ~6667), second has ~3000 weight.
         let key_pairs = random_committee_key_pairs_of_size(2);
-        let mut names: Vec<AuthorityName> = key_pairs
-            .iter()
-            .map(|kp| AuthorityName::from(kp.public()))
-            .collect();
+        let mut names: Vec<AuthorityName> = key_pairs.iter().map(AuthorityName::from).collect();
         names.sort();
 
         let voting_rights: BTreeMap<AuthorityName, u64> = names
@@ -400,7 +401,7 @@ mod stake_aggregator_insert_tests {
         let find_kp = |name: &AuthorityName| {
             key_pairs
                 .iter()
-                .find(|kp| &AuthorityName::from(kp.public()) == name)
+                .find(|kp| &AuthorityName::from(*kp) == name)
                 .unwrap()
         };
         let (auth0, key0) = (names[0], find_kp(&names[0]));
@@ -432,5 +433,24 @@ mod stake_aggregator_insert_tests {
             agg.insert(envelope_good).is_quorum_reached(),
             "valid sig with weight > quorum threshold must yield QuorumReached after bad sig eviction"
         );
+    }
+
+    #[test]
+    fn test_sig_that_is_not_a_curve_point_is_rejected() {
+        let (committee, key_pairs) = Committee::new_simple_test_committee_of_size(4);
+        let mut agg: StakeAggregator<AuthoritySignInfo, true> =
+            StakeAggregator::new(Arc::new(committee));
+
+        let envelope = Envelope::new_from_data_and_sig(
+            TestMessage {
+                value: "real".to_string(),
+            },
+            AuthoritySignInfo {
+                epoch: 0,
+                authority: (&key_pairs[0]).into(),
+                signature: AuthoritySignature::new([0xff; AuthoritySignature::LENGTH]),
+            },
+        );
+        assert!(matches!(agg.insert(envelope), InsertResult::Failed { .. }));
     }
 }
