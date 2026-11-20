@@ -78,8 +78,6 @@ yarn-error.log*
 # misc
 *.key
 .env
-checkpoints_dir/*
-light_client.yaml
 **/.cache/
 Dockerfile.cache
 

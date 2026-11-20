@@ -102,7 +102,6 @@ members = [
   "crates/iota-kvstore",
   "crates/iota-ledger",
   "crates/iota-ledger-signer",
-  "crates/iota-light-client",
   "crates/iota-localnet",
   "crates/iota-macros",
   "crates/iota-mainnet-unlocks",
