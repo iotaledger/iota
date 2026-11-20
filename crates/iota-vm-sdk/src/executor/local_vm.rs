@@ -547,9 +547,18 @@ fn ensure_move_authentication_supported(
 #[cfg(test)]
 mod tests {
     use iota_protocol_config::{Chain, MAX_PROTOCOL_VERSION, ProtocolConfig, ProtocolVersion};
+    use iota_sdk_types::{
+        Address, MoveStruct, ObjectId, Owner, Transaction, TransactionDigest, TransactionExpiration,
+    };
+    use iota_types::{
+        effects::TransactionEffectsAPI,
+        object::{MoveStructExt, OBJECT_START_VERSION, Object},
+        programmable_transaction_builder::ProgrammableTransactionBuilder,
+        transaction::{TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI},
+    };
 
-    use super::ensure_move_authentication_supported;
-    use crate::error::VmSdkError;
+    use super::{LocalVm, ensure_move_authentication_supported};
+    use crate::{ChainContext, ExecuteOptions, InMemoryStore, Store, error::VmSdkError};
 
     #[test]
     fn move_authentication_support_ignored_without_authenticators() {
@@ -584,5 +593,46 @@ mod tests {
         );
         assert!(new.max_auth_gas_as_option().is_some());
         assert!(ensure_move_authentication_supported(&new, true).is_ok());
+    }
+
+    /// The store keeps no executed transactions, so a transaction dependency
+    /// is assumed to have succeeded and is listed in the effects'
+    /// dependencies.
+    #[test]
+    fn transaction_dependency_is_assumed_to_succeed() {
+        const GAS_PRICE: u64 = 1000;
+        let sender = Address::ZERO;
+        let gas = Object::new_move(
+            MoveStruct::new_gas_coin(OBJECT_START_VERSION, ObjectId::random(), 1_000_000_000_000),
+            Owner::Address(sender),
+            TransactionDigest::ZERO,
+        );
+        let mut store = InMemoryStore::with_framework();
+        store.insert(gas.clone());
+        let ctx = ChainContext::new(ProtocolVersion::MAX, Chain::Unknown)
+            .with_reference_gas_price(GAS_PRICE);
+        let mut vm = LocalVm::new(ctx, store).unwrap();
+        vm.protocol_config
+            .set_enable_transaction_dependencies_for_testing(true);
+
+        let dependency = TransactionDigest::new([7; 32]);
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.transfer_iota(Address::from(ObjectId::random()), Some(1_000));
+        builder.transaction_dependency(dependency);
+        let mut transaction = Transaction::new_programmable(
+            sender,
+            vec![gas.object_ref()],
+            builder.finish(),
+            TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE * GAS_PRICE,
+            GAS_PRICE,
+        );
+        if let Transaction::V1(transaction) = &mut transaction {
+            transaction.expiration = TransactionExpiration::Epoch(0);
+        }
+
+        let result = vm.execute(transaction, ExecuteOptions::execute()).unwrap();
+
+        assert!(result.status.is_success(), "{:?}", result.status);
+        assert!(result.effects.dependencies().contains(&dependency));
     }
 }

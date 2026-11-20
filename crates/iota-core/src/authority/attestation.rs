@@ -53,6 +53,10 @@ impl AuthorityState {
     /// in a validator attestation and attached to the transaction before
     /// submitting it to consensus.
     ///
+    /// A transaction that passes the validation checks but whose transaction
+    /// dependency is known here to have failed is refused without a dry run:
+    /// it can never execute successfully.
+    ///
     /// Shares the validation pipeline with
     /// `handle_transaction_validation_checks`
     /// via [`Self::run_validation_checks`] (deny checks, input object loading,
@@ -102,6 +106,24 @@ impl AuthorityState {
                 )
                 .collect();
             check_input_read_consistency(&checked_input_sets)?;
+        }
+
+        // A dependent executes only after the transaction it depends on, and
+        // fails without running any command when that transaction failed. A
+        // dependency known here to have failed is final, so the transaction
+        // can never succeed and is refused before the dry run. A dependency
+        // not executed here yet is assumed to have succeeded, as in
+        // simulation, and the body is dry-run.
+        if let Some(dependency) = tx.transaction_dependency() {
+            if self
+                .get_transaction_cache_reader()
+                .try_get_executed_effects(&dependency)?
+                .is_some_and(|effects| !effects.status().is_success())
+            {
+                return Err(
+                    UserInputError::TransactionDependencyFailed { digest: dependency }.into(),
+                );
+            }
         }
 
         let owned_objects = tx_checked_input_objects.inner().filter_owned_objects();

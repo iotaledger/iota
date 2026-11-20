@@ -121,6 +121,7 @@ mod checked {
         let transaction_dependencies = input_objects.transaction_dependencies();
         let contains_deleted_input = input_objects.contains_deleted_objects();
         let cancelled_objects = input_objects.get_cancelled_objects();
+        let failed_dependency = input_objects.failed_transaction_dependency();
 
         let temporary_store = TemporaryStore::new(
             store,
@@ -163,6 +164,7 @@ mod checked {
             transaction_dependencies,
             contains_deleted_input,
             cancelled_objects,
+            failed_dependency,
             transaction_kind,
             transaction_signer,
             transaction_digest,
@@ -189,6 +191,7 @@ mod checked {
         mut transaction_dependencies: BTreeSet<TransactionDigest>,
         contains_deleted_input: bool,
         cancelled_objects: Option<(CancelledObjects, Version)>,
+        failed_dependency: Option<TransactionDigest>,
         transaction_kind: TransactionKind,
         transaction_signer: Address,
         transaction_digest: TransactionDigest,
@@ -227,6 +230,7 @@ mod checked {
             deny_cert,
             contains_deleted_input,
             cancelled_objects,
+            failed_dependency,
             trace_builder_opt,
             pre_execution_result_opt,
         );
@@ -301,6 +305,10 @@ mod checked {
     ///     moves to its next version.
     ///   - Else, if the authentication is successful, it continues with the normal transaction
     ///     execution.
+    /// Unlike a transaction cancelled at sequencing, one whose transaction
+    /// dependency did not succeed is authenticated, and its effects carry
+    /// `TransactionDependencyFailed` from the checks on its inputs, as for a
+    /// deleted input.
     /// It combines the input objects from both the authentication and
     /// transaction.
     ///
@@ -364,6 +372,7 @@ mod checked {
         // inputs
         let contains_deleted_input = input_objects.contains_deleted_objects();
         let mut cancelled_objects = input_objects.get_cancelled_objects();
+        let failed_dependency = input_objects.failed_transaction_dependency();
 
         // Prepare the temporary store.
         let mut temporary_store = TemporaryStore::new(
@@ -434,9 +443,17 @@ mod checked {
         // authenticators are not run, and a failure to resolve them is not
         // reported. The cancellation is reported as is, not as an
         // authentication failure, and only once: the transaction execution
-        // gets no cancelled objects to check.
-        let cancellation_check =
-            run_inputs_checks(protocol_config, false, false, cancelled_objects.take());
+        // gets no cancelled objects to check. A failed transaction dependency
+        // is left to the input checks after authentication: only an
+        // authenticator that ran shows whether a Move account authorized
+        // paying for the transaction.
+        let cancellation_check = run_inputs_checks(
+            protocol_config,
+            false,
+            false,
+            cancelled_objects.take(),
+            None,
+        );
 
         // Next to the result, whether the gas owner authorized the transaction.
         // An owner that signed it did, as its signature is checked before
@@ -526,6 +543,7 @@ mod checked {
                         transaction_dependencies,
                         contains_deleted_input,
                         cancelled_objects,
+                        failed_dependency,
                         transaction_digest,
                         epoch_id,
                         protocol_config,
@@ -563,6 +581,7 @@ mod checked {
                 transaction_dependencies,
                 contains_deleted_input,
                 cancelled_objects,
+                failed_dependency,
                 transaction_kind,
                 transaction_signer,
                 transaction_digest,
@@ -786,8 +805,8 @@ mod checked {
     /// object, with a zero gas cost; no other gas coin is merged into it.
     ///
     /// The checks every transaction runs on its inputs come first, as when gas
-    /// is charged, so a deleted or cancelled input is reported the same way
-    /// whoever pays.
+    /// is charged, so a deleted or cancelled input, or a transaction
+    /// dependency that did not succeed, is reported the same way whoever pays.
     fn execute_without_gas_charge_to_effects<Mode: ExecutionMode>(
         mut temporary_store: TemporaryStore,
         mut gas_charger: GasCharger,
@@ -795,6 +814,7 @@ mod checked {
         mut transaction_dependencies: BTreeSet<TransactionDigest>,
         contains_deleted_input: bool,
         cancelled_objects: Option<(CancelledObjects, Version)>,
+        failed_dependency: Option<TransactionDigest>,
         transaction_digest: TransactionDigest,
         epoch_id: &EpochId,
         protocol_config: &ProtocolConfig,
@@ -813,6 +833,7 @@ mod checked {
             deny_cert,
             contains_deleted_input,
             cancelled_objects,
+            failed_dependency,
         )
         .err()
         .unwrap_or(authentication_error);
@@ -1086,11 +1107,14 @@ mod checked {
         // It must NOT charge gas for reading the Move authenticator input objects from
         // the storage. It will be done later during the transaction execution.
         // Then execute the authentication.
+        // A failed transaction dependency is checked with the transaction's
+        // inputs after authentication, so none is checked here.
         run_inputs_checks(
             protocol_config,
             deny_cert,
             contains_deleted_input,
             cancelled_objects,
+            None,
         )
         .and_then(|()| {
             let authenticator_move_call =
@@ -1170,6 +1194,7 @@ mod checked {
         deny_cert: bool,
         contains_deleted_input: bool,
         cancelled_objects: Option<(CancelledObjects, Version)>,
+        failed_dependency: Option<TransactionDigest>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         pre_execution_result_opt: Option<
             Result<
@@ -1210,6 +1235,7 @@ mod checked {
                         deny_cert,
                         contains_deleted_input,
                         cancelled_objects,
+                        failed_dependency,
                     )
                     .map_err(|e| (e, vec![]))?;
 
@@ -1452,6 +1478,7 @@ mod checked {
         deny_cert: bool,
         contains_deleted_input: bool,
         cancelled_objects: Option<(CancelledObjects, Version)>,
+        failed_dependency: Option<TransactionDigest>,
     ) -> Result<(), ExecutionError> {
         if deny_cert {
             Err(ExecutionError::new(
@@ -1507,6 +1534,11 @@ mod checked {
                 )),
                 _ => panic!("invalid cancellation reason Version: {reason}"),
             }
+        } else if let Some(dependency) = failed_dependency {
+            Err(ExecutionError::new(
+                ExecutionErrorKind::TransactionDependencyFailed { dependency },
+                None,
+            ))
         } else {
             Ok(())
         }
