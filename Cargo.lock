@@ -7000,37 +7000,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iota-light-client"
-version = "1.37.0-alpha"
-dependencies = [
- "anyhow",
- "async-trait",
- "bcs 0.2.1",
- "bin-version",
- "clap",
- "iota-config",
- "iota-data-ingestion-core",
- "iota-graphql-rpc-client",
- "iota-json-rpc-types",
- "iota-package-resolver",
- "iota-sdk",
- "iota-sdk-types",
- "iota-types",
- "object_store 0.13.1",
- "reqwest 0.13.5",
- "roaring",
- "rustls",
- "serde",
- "serde_json",
- "serde_yaml",
- "telemetry-subscribers",
- "tempfile",
- "tokio",
- "tracing",
- "url",
-]
-
-[[package]]
 name = "iota-localnet"
 version = "1.37.0-alpha"
 dependencies = [
