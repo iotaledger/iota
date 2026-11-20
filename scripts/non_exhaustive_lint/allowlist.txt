@@ -1,0 +1,20 @@
+# non_exhaustive_omitted_patterns findings allowed as known. Checked by scripts/non_exhaustive_lint/check.sh.
+# Allow one finding by adding its exact line from the CI diff (any order, optionally followed by `# reason`);
+# allow all current findings with `scripts/non_exhaustive_lint/check.sh --allow-all` (drops the reasons).
+# Remove lines the check reports as no longer found.
+# file | matched type | sites=<number of match or struct pattern sites with a wildcard on that type in that file>
+crates/iota-data-ingestion/src/progress_store.rs | std::result::Result<aws_sdk_dynamodb::operation::update_item::UpdateItemOutput, aws_smithy_runtime_api::client::result::SdkError<aws_sdk_dynamodb::operation::update_item::UpdateItemError, aws_smithy_runtime_api::http::response::Response>> | sites=1
+crates/iota-data-ingestion/src/workers/historical.rs | std::result::Result<(), iota_data_ingestion_core::IngestionError> | sites=1
+crates/iota-data-ingestion/src/workers/historical.rs | std::result::Result<object_store::GetResult, object_store::Error> | sites=1
+crates/iota-faucet/src/faucet/write_ahead_log.rs | std::result::Result<std::option::Option<faucet::write_ahead_log::Entry>, typed_store::TypedStoreError> | sites=1
+crates/iota-framework-snapshot/src/main.rs | std::io::ErrorKind | sites=1
+crates/iota-graphql-rpc/src/error.rs | iota_indexer::errors::IndexerError | sites=1
+crates/iota-indexer/src/optimistic_indexing.rs | diesel::result::Error | sites=1
+crates/iota-indexer/src/read.rs | &iota_json_rpc_types::IotaTransactionKind | sites=1
+crates/iota-rest-kv/src/aws.rs | object_store::Error | sites=1
+crates/iota-rest-kv/src/aws.rs | std::result::Result<object_store::ObjectMeta, object_store::Error> | sites=1
+crates/iota-storage/src/object_store/mod.rs | std::result::Result<object_store::ObjectMeta, object_store::Error> | sites=1
+crates/iota-storage/src/object_store/util.rs | std::result::Result<object_store::GetResult, object_store::Error> | sites=1
+crates/iota-vm-sdk/examples/authenticator_gas_profile.rs | std::option::Option<iota_vm_sdk::ProfileOutput> | sites=1
+crates/iota-vm-sdk/tests/signed_execution.rs | iota_vm_sdk::VmSdkError | sites=1
+crates/starfish/core/src/network/tonic_network.rs | (std::option::Option<iota_network_stack::iota_multiaddr::Protocol<'_>>, std::option::Option<iota_network_stack::iota_multiaddr::Protocol<'_>>) | sites=2
