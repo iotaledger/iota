@@ -5,14 +5,11 @@ use std::collections::BTreeMap;
 
 use iota_sdk_types::{
     GasCostSummary, MoveAuthenticator, ObjectId, SenderSignedTransaction, SharedObjectReference,
-    TransactionDigest, TransactionKind, Version,
+    TransactionDigest, Version,
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    move_authenticator::MoveAuthenticatorExt,
-    transaction::{CallArg, TransactionAPI, TransactionEnvelope},
-};
+use crate::{move_authenticator::MoveAuthenticatorExt, transaction::TransactionEnvelope};
 
 /// Index of a validator in the current epoch's consensus committee. Kept as a
 /// plain `u8` so `iota-types` does not depend on `starfish-config`, whose
@@ -50,24 +47,19 @@ pub enum AttestationData {
         /// (`computation_cost / gas_price`). Used by the sequencer to improve
         /// shared-object scheduling before execution.
         computation_units: u64,
-        /// The version the attestor's dry run read of each shared object the
-        /// transaction names, the arguments and accounts of its Move
-        /// authenticators included, each with the [`SharedInputIndex`] that
-        /// names it. An object named at two indexes has an entry for each. An
-        /// object that the dry run read as deleted has no entry.
+        /// The version the attestor's dry run read of each shared object that
+        /// a Move authenticator of the transaction names, as an argument or as
+        /// its account, each with the [`SharedInputIndex`] that names it. An
+        /// object named at two indexes has an entry for each. An object that
+        /// the dry run read as deleted has no entry.
         shared_object_versions: Vec<(SharedInputIndex, Version)>,
     },
 }
 
-/// Where a signed transaction names a shared object. The variant order is
-/// protocol-significant: a new variant goes at the end.
+/// Where a Move authenticator of a signed transaction names a shared object.
+/// The variant order is protocol-significant: a new variant goes at the end.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SharedInputIndex {
-    /// The object is an input of the transaction, at this index of its
-    /// [`ProgrammableTransaction::inputs`].
-    ///
-    /// [`ProgrammableTransaction::inputs`]: iota_sdk_types::ProgrammableTransaction::inputs
-    TransactionInput(u16),
     /// The object is an argument of a Move authenticator: `authenticator` is
     /// the index of the authenticator among the signatures, and `argument`
     /// the index of the argument among its arguments.
@@ -83,14 +75,6 @@ impl SharedInputIndex {
     /// has nothing at this index, or what it has there is not an object.
     pub fn find_object_id_in(&self, transaction: &SenderSignedTransaction) -> Option<ObjectId> {
         let argument = match *self {
-            Self::TransactionInput(index) => {
-                let TransactionKind::Programmable(programmable) = transaction.transaction().kind()
-                else {
-                    return None;
-                };
-
-                programmable.inputs.get(usize::from(index))?
-            }
             Self::AuthenticatorArgument {
                 authenticator,
                 argument,
@@ -106,27 +90,15 @@ impl SharedInputIndex {
     }
 }
 
-/// Returns each shared object that `transaction` names, with its index: the
-/// inputs of the transaction first, then the arguments and the account of each
-/// Move authenticator, in the order of the signatures. An object named at two
+/// Returns each shared object that a Move authenticator of `transaction`
+/// names, with its index: the arguments and then the account of each Move
+/// authenticator, in the order of the signatures. An object named at two
 /// indexes is returned for each. An object whose index does not fit
 /// [`SharedInputIndex`] is left out.
 pub fn list_shared_inputs(
     transaction: &SenderSignedTransaction,
 ) -> Vec<(SharedInputIndex, &SharedObjectReference)> {
-    let inputs: &[CallArg] = match transaction.transaction().kind() {
-        TransactionKind::Programmable(programmable) => &programmable.inputs,
-        _ => &[],
-    };
-    let transaction_inputs = inputs
-        .iter()
-        .enumerate()
-        .filter_map(|(input_index, input)| {
-            let index = SharedInputIndex::TransactionInput(u16::try_from(input_index).ok()?);
-
-            Some((index, input.as_opt_shared()?))
-        });
-    let authenticator_inputs = transaction
+    transaction
         .signatures()
         .iter()
         .enumerate()
@@ -160,9 +132,8 @@ pub fn list_shared_inputs(
                 });
 
             arguments.chain(account)
-        });
-
-    transaction_inputs.chain(authenticator_inputs).collect()
+        })
+        .collect()
 }
 
 /// Returns the Move authenticator at `index` among the signatures of
@@ -395,15 +366,16 @@ mod tests {
 
     use super::*;
     use crate::{
-        base_types::random_object_ref, error::UserInputError,
-        transaction::SenderSignedTransactionAPI, utils::create_fake_transaction,
+        base_types::random_object_ref,
+        error::UserInputError,
+        transaction::{CallArg, TransactionAPI},
+        utils::create_fake_transaction,
     };
 
     fn make_attestation_data() -> AttestationData {
         AttestationData::V1 {
             computation_units: 1_000_000,
             shared_object_versions: vec![
-                (SharedInputIndex::TransactionInput(1), Version::from(41u64)),
                 (
                     SharedInputIndex::AuthenticatorArgument {
                         authenticator: 0,
@@ -420,7 +392,7 @@ mod tests {
     }
 
     /// An entry takes one byte for the variant of [`SharedInputIndex`], one for
-    /// each `u8` index or two for the `u16` one, and eight for the version.
+    /// each `u8` index, and eight for the version.
     #[test]
     fn entries_take_eleven_bytes_or_ten_for_account() {
         let size = |index: SharedInputIndex| {
@@ -429,7 +401,6 @@ mod tests {
                 .len()
         };
 
-        assert_eq!(size(SharedInputIndex::TransactionInput(u16::MAX)), 11);
         assert_eq!(
             size(SharedInputIndex::AuthenticatorArgument {
                 authenticator: u8::MAX,
@@ -446,10 +417,9 @@ mod tests {
     }
 
     /// The largest record and the largest transaction together stay under the
-    /// size limit of a consensus transaction. The record has an entry for each
-    /// index at which a valid transaction can name a shared object: every input
-    /// object, and every argument and the account of a Move authenticator for
-    /// the sender and one for the sponsor.
+    /// size limit of a consensus transaction. The record has an entry for every
+    /// argument and the account of a Move authenticator for the sender and one
+    /// for the sponsor.
     #[test]
     fn largest_record_fits_beside_largest_transaction() {
         let config = ProtocolConfig::get_for_max_version_UNSAFE();
@@ -478,11 +448,6 @@ mod tests {
             Err(UserInputError::SizeLimitExceeded { .. })
         ));
         let version = Version::from(u64::MAX);
-        let inputs = (0..config.max_input_objects()).map(|index| {
-            let index = u16::try_from(index).unwrap();
-
-            (SharedInputIndex::TransactionInput(index), version)
-        });
         let authenticator_inputs = (0..2).flat_map(|authenticator| {
             (0..max_arguments)
                 .map(move |argument| {
@@ -501,7 +466,7 @@ mod tests {
         let attestation = Attestation::new_authority(
             AttestationData::V1 {
                 computation_units: u64::MAX,
-                shared_object_versions: inputs.chain(authenticator_inputs).collect(),
+                shared_object_versions: authenticator_inputs.collect(),
             },
             u8::MAX,
         );
@@ -517,11 +482,11 @@ mod tests {
 
     /// The transaction names shared objects at its inputs 1 and 3, at the
     /// second argument of its Move authenticator and as the authenticator's
-    /// account. [`list_shared_inputs()`] lists those four with their indexes:
-    /// the objects that consensus assigns versions for, as
-    /// [`SenderSignedTransactionAPI::shared_input_objects()`] gives them.
+    /// account. [`list_shared_inputs()`] lists the last two with their
+    /// indexes: the shared objects of the Move authenticators, as
+    /// [`MoveAuthenticatorExt::shared_objects()`] gives them.
     /// [`SharedInputIndex::find_object_id_in()`] finds each of them at its
-    /// index. It also finds the object at input 2, which is not shared, and
+    /// index. It also finds the immutable object at the third argument, and
     /// nothing at an index that is out of range or names a pure value.
     #[test]
     fn listed_shared_inputs_find_their_objects() {
@@ -530,20 +495,23 @@ mod tests {
             initial_shared_version: Version::from(1u64),
             mutable,
         };
-        let (pool, clock, argument, account) =
-            (shared(true), shared(false), shared(false), shared(false));
-        let owned = random_object_ref();
+        let (argument, account) = (shared(false), shared(false));
+        let immutable = random_object_ref();
         let programmable = ProgrammableTransaction {
             inputs: vec![
                 CallArg::Pure(vec![0]),
-                CallArg::Shared(pool),
-                CallArg::ImmutableOrOwned(owned),
-                CallArg::Shared(clock),
+                CallArg::Shared(shared(true)),
+                CallArg::ImmutableOrOwned(random_object_ref()),
+                CallArg::Shared(shared(false)),
             ],
             commands: vec![],
         };
         let authenticator = MoveAuthenticator::V1(MoveAuthenticatorV1::new(
-            vec![CallArg::Pure(vec![1]), CallArg::Shared(argument)],
+            vec![
+                CallArg::Pure(vec![1]),
+                CallArg::Shared(argument),
+                CallArg::ImmutableOrOwned(immutable),
+            ],
             vec![],
             account,
         ));
@@ -563,8 +531,6 @@ mod tests {
         assert_eq!(
             listed,
             vec![
-                (SharedInputIndex::TransactionInput(1), &pool),
-                (SharedInputIndex::TransactionInput(3), &clock),
                 (
                     SharedInputIndex::AuthenticatorArgument {
                         authenticator: 0,
@@ -584,11 +550,12 @@ mod tests {
                 .map(|(_, object)| object.object_id)
                 .collect::<BTreeSet<_>>(),
             transaction
-                .shared_input_objects()
+                .move_authenticators()
                 .iter()
+                .flat_map(|authenticator| authenticator.shared_objects())
                 .map(|object| object.object_id)
                 .collect::<BTreeSet<_>>(),
-            "the record covers every shared object that consensus assigns a version for"
+            "the record covers every shared object that a Move authenticator names"
         );
         for (index, object) in listed {
             assert_eq!(
@@ -597,19 +564,21 @@ mod tests {
             );
         }
         assert_eq!(
-            SharedInputIndex::TransactionInput(2).find_object_id_in(&transaction),
-            Some(owned.object_id)
+            SharedInputIndex::AuthenticatorArgument {
+                authenticator: 0,
+                argument: 2,
+            }
+            .find_object_id_in(&transaction),
+            Some(immutable.object_id)
         );
         for index in [
-            SharedInputIndex::TransactionInput(0),
-            SharedInputIndex::TransactionInput(4),
             SharedInputIndex::AuthenticatorArgument {
                 authenticator: 0,
                 argument: 0,
             },
             SharedInputIndex::AuthenticatorArgument {
                 authenticator: 0,
-                argument: 2,
+                argument: 3,
             },
             SharedInputIndex::AuthenticatorArgument {
                 authenticator: 1,

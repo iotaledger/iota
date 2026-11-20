@@ -198,11 +198,9 @@ impl AuthorityState {
         // The sets agree on each object they share: with more than one set,
         // `check_input_read_consistency()` has checked it.
         let read_versions = collect_shared_object_versions(
-            std::iter::once(&tx_checked_input_objects).chain(
-                per_authenticator_checked_inputs
-                    .iter()
-                    .map(|(inputs, _)| inputs),
-            ),
+            per_authenticator_checked_inputs
+                .iter()
+                .map(|(inputs, _)| inputs),
         );
 
         let (effects, authentication_error) = if move_authenticators.is_empty() {
@@ -551,9 +549,9 @@ fn collect_shared_object_versions<'a>(
 }
 
 /// Returns the entries of an attestation of `transaction`: the index of each
-/// shared object that `transaction` names, with the version that
-/// `read_versions` holds for the object. An object with no version there has
-/// no entry.
+/// shared object that a Move authenticator of `transaction` names, with the
+/// version that `read_versions` holds for the object. An object with no
+/// version there has no entry.
 fn record_shared_object_versions(
     transaction: &SenderSignedTransaction,
     read_versions: &BTreeMap<ObjectId, Version>,

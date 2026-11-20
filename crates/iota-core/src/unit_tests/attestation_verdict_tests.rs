@@ -277,8 +277,10 @@ async fn attestation_that_fails_at_its_own_versions_is_recorded_refuted_and_not_
 /// The account can rotate to a different authenticator, not just a new key. An
 /// attestor that vouched for the transaction under the previous authenticator
 /// is not accountable for the rotation: the re-run resolves the authenticator
-/// recorded in the attestation rather than the one the account switched to, so
-/// authentication still passes there, and the account pays.
+/// at the account version recorded in the attestation rather than the one the
+/// account switched to, so authentication still passes there, and the account
+/// pays. The record needs no entry for the account's authenticator function
+/// reference: rotating it gives the account a new version.
 #[tokio::test]
 async fn honest_attestation_of_a_rotated_authenticator_is_recorded_valid_and_charged() {
     let _guard = attestation_config(None);

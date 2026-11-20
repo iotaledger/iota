@@ -5,7 +5,7 @@ use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
 use iota_config::node::AuthorityOverloadConfig;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, ObjectId, SharedObjectReference, Transaction, TransactionDigest};
+use iota_sdk_types::{Address, ObjectId, Transaction, TransactionDigest};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     attestation::Attestation,
@@ -16,10 +16,10 @@ use iota_types::{
     executable_transaction::VerifiedExecutableTransaction,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     messages_grpc::TxStatusUpdate,
-    object::{OBJECT_START_VERSION, Object},
+    object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     traffic_control::Weight,
-    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope},
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope},
     utils::to_sender_signed_transaction,
 };
 use tokio::sync::mpsc;
@@ -234,11 +234,10 @@ async fn test_submit_single_tx_attest_failure_rejected_without_reaching_consensu
 }
 
 /// Submits to `submit_single_tx`, with `enable_validator_attestation` on, a
-/// transaction that passes its own size check, but whose attestation, one
-/// entry per shared input, makes the consensus transaction larger than
-/// consensus accepts. The test lowers the consensus limit to the transaction's
-/// own limit for this: with the limits of the protocol config, the largest
-/// attested transaction fits. Asserts that the validator rejects it with the
+/// transaction that passes its own size check but, once attested, is larger
+/// than consensus accepts. With the limits of the protocol config, the largest
+/// attested transaction fits, so the test lowers the consensus limit to half
+/// the transaction's own limit. Asserts that the validator rejects it with the
 /// size limit and a traffic weight of one, without taking a soft lock or
 /// handing anything to the consensus adapter.
 #[tokio::test]
@@ -249,25 +248,19 @@ async fn test_submit_single_tx_rejects_an_attested_transaction_too_large_for_con
         config.set_enable_pcool_flow_for_testing(true);
         config.set_enable_validator_attestation_for_testing(true);
         config.set_checkpoint_summary_version_specific_data_for_testing(2);
-        config.set_consensus_max_transaction_size_bytes_for_testing(config.max_tx_size_bytes());
+        config.set_consensus_max_transaction_size_bytes_for_testing(config.max_tx_size_bytes() / 2);
         config
     });
 
-    // A read-only shared input takes about 43 bytes in the transaction and 11
-    // in the attestation. With the pure padding, the transaction stays under
-    // `max_tx_size_bytes` and the attested transaction exceeds the lowered
+    // With the pure padding, the transaction stays under `max_tx_size_bytes`
+    // and the attested transaction exceeds the lowered
     // `max_transaction_size_bytes`.
-    const SHARED_INPUTS: usize = 2_040;
-    const PADDING_INPUTS: u8 = 3;
-    const PADDING_BYTES: usize = 12_000;
+    const PADDING_INPUTS: u8 = 5;
+    const PADDING_BYTES: usize = 15_000;
 
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
-    let shared_objects: Vec<_> = (0..SHARED_INPUTS)
-        .map(|_| Object::shared_for_testing())
-        .collect();
-    let mut objects = shared_objects.clone();
-    objects.push(Object::with_id_owner_for_testing(gas_id, sender));
+    let objects = [Object::with_id_owner_for_testing(gas_id, sender)];
 
     let authority_state = TestAuthorityBuilder::new()
         .with_starting_objects(&objects)
@@ -296,15 +289,6 @@ async fn test_submit_single_tx_rejects_an_attested_transaction_too_large_for_con
     let soft_locks = Arc::new(PreConsensusSoftLocks::new());
 
     let mut builder = ProgrammableTransactionBuilder::new();
-    for object in &shared_objects {
-        builder
-            .input(CallArg::Shared(SharedObjectReference::new(
-                object.id(),
-                OBJECT_START_VERSION,
-                false,
-            )))
-            .unwrap();
-    }
     for padding in 0..PADDING_INPUTS {
         builder.pure_bytes(vec![padding; PADDING_BYTES], false);
     }

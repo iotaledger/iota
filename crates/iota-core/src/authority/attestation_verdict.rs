@@ -988,19 +988,19 @@ mod tests {
         assert!(!reauthenticates(&[account], &executed, superseded));
     }
 
-    /// An attestation also records the versions of the shared objects that
-    /// only the transaction names. Those cannot change whether authentication
-    /// would have succeeded, so a stale one must not decide the verdict.
+    /// A recorded version of an object that authentication did not read
+    /// cannot change whether authentication would have succeeded, so a stale
+    /// one must not decide the verdict.
     #[test]
     fn versions_the_reauthentication_does_not_read_are_ignored() {
         let account = object_at(3);
-        let transaction_input = object_at(9);
+        let unread_object = object_at(9);
         let superseded = [account].into();
         let executed = BTreeMap::from([(account.0, Version::from(5u64))]);
 
         assert!(
-            reauthenticates(&[account, transaction_input], &executed, superseded),
-            "a stale version of a transaction input must not suppress the re-run"
+            reauthenticates(&[account, unread_object], &executed, superseded),
+            "a stale version of an unread object must not suppress the re-run"
         );
     }
 
@@ -1066,12 +1066,12 @@ mod tests {
         ));
     }
 
-    /// The transaction takes the account as a mutable shared input. Its Move
-    /// authenticator authenticates the account and takes an immutable object.
-    /// Each entry becomes the id of the object at its index, shared or not,
-    /// with the recorded version. The two entries for the account are both
-    /// kept, with their different versions, and the entry whose index is out
-    /// of range is left out.
+    /// Two Move authenticators name the same account: the first authenticates
+    /// it, and the second takes it as an argument, next to an immutable
+    /// object. Each entry becomes the id of the object at its index, shared or
+    /// not, with the recorded version. The two entries for the account are
+    /// both kept, with their different versions, and the entry whose index is
+    /// out of range is left out.
     #[test]
     fn entries_become_object_ids_in_record_order() {
         let account = SharedObjectReference {
@@ -1080,18 +1080,23 @@ mod tests {
             mutable: false,
         };
         let immutable_argument = random_object_ref();
-        let programmable = ProgrammableTransaction {
-            inputs: vec![CallArg::Shared(SharedObjectReference {
-                mutable: true,
+        let first_authenticator =
+            MoveAuthenticator::V1(MoveAuthenticatorV1::new(vec![], vec![], account));
+        let second_authenticator = MoveAuthenticator::V1(MoveAuthenticatorV1::new(
+            vec![
+                CallArg::Shared(account),
+                CallArg::ImmutableOrOwned(immutable_argument),
+            ],
+            vec![],
+            SharedObjectReference {
+                object_id: ObjectId::random(),
                 ..account
-            })],
+            },
+        ));
+        let programmable = ProgrammableTransaction {
+            inputs: vec![],
             commands: vec![],
         };
-        let authenticator = MoveAuthenticator::V1(MoveAuthenticatorV1::new(
-            vec![CallArg::ImmutableOrOwned(immutable_argument)],
-            vec![],
-            account,
-        ));
         let transaction = SenderSignedTransaction::new(
             Transaction::new_programmable(
                 Address::ZERO,
@@ -1100,21 +1105,36 @@ mod tests {
                 1,
                 1,
             ),
-            vec![UserSignature::MoveAuthenticator(authenticator)],
+            vec![
+                UserSignature::MoveAuthenticator(first_authenticator),
+                UserSignature::MoveAuthenticator(second_authenticator),
+            ],
         );
         let attestation = Attestation::new_authority(
             AttestationData::V1 {
                 computation_units: 1,
                 shared_object_versions: vec![
-                    (SharedInputIndex::TransactionInput(0), Version::from(3u64)),
                     (
                         SharedInputIndex::AuthenticatorArgument {
-                            authenticator: 0,
+                            authenticator: 1,
                             argument: 0,
+                        },
+                        Version::from(3u64),
+                    ),
+                    (
+                        SharedInputIndex::AuthenticatorArgument {
+                            authenticator: 1,
+                            argument: 1,
                         },
                         Version::from(7u64),
                     ),
-                    (SharedInputIndex::TransactionInput(1), Version::from(9u64)),
+                    (
+                        SharedInputIndex::AuthenticatorArgument {
+                            authenticator: 1,
+                            argument: 2,
+                        },
+                        Version::from(9u64),
+                    ),
                     (
                         SharedInputIndex::AuthenticatorAccount { authenticator: 0 },
                         Version::from(4u64),
