@@ -171,8 +171,6 @@ impl LeaderSchedule {
 
     pub(crate) fn elect_leader(&self, round: u32, leader_offset: u32) -> AuthorityIndex {
         cfg_if::cfg_if! {
-            // TODO: we need to differentiate the leader strategy in tests, so for
-            // some type of testing (ex sim tests) we can use the staked approach.
             if #[cfg(test)] {
                 let leader = AuthorityIndex::new_for_test(((round + leader_offset) % self.context.committee.size() as u32) as u8);
                 let table = self.leader_swap_table.read();
