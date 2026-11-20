@@ -6,7 +6,7 @@ use async_graphql::connection::CursorType;
 use serde::{Deserialize, Serialize};
 
 use crate::types::{
-    cursor::{JsonCursor, ScanLimited},
+    cursor::JsonCursor,
     uint53::{MAX_UINT53, UInt53},
 };
 
@@ -58,7 +58,3 @@ impl Checkpointed for JsonCursor<ConsistentNamedCursor> {
         self.c.into()
     }
 }
-
-impl ScanLimited for JsonCursor<ConsistentIndexCursor> {}
-
-impl ScanLimited for JsonCursor<ConsistentNamedCursor> {}

@@ -20,7 +20,6 @@ Query: `serviceConfig`
     maxTypeNodes
     maxMoveValueDepth
     maxTransactionIds
-    maxScanLimit
   }
 }
 ```

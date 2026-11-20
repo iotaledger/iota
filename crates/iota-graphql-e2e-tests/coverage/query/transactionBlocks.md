@@ -2,7 +2,7 @@ Query: `transactionBlocks`
 
 ```graphql
 {
-  transactionBlocks(first: null, last: null, after: null, scanLimit: null) {
+  transactionBlocks(first: null, last: null, after: null) {
     edges {
       node {
         digest

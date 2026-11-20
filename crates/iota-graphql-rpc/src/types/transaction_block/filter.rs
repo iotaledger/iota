@@ -65,11 +65,7 @@ impl TransactionBlockFilter {
     /// to serve, or might not make sense (e.g. rich queries on system
     /// transactions).
     pub(crate) fn is_unsupported(&self) -> bool {
-        self.is_unsupported_kind_combo()
-    }
-
-    fn is_unsupported_kind_combo(&self) -> bool {
-        self.kind.is_some() && self.scan_count() > 1
+        self.scan_count() > 1
     }
 
     /// Try to create a filter whose results are the intersection of transaction
@@ -113,7 +109,7 @@ impl TransactionBlockFilter {
     /// `kind`.
     ///
     /// Combining two or more of them takes a scan over an unknown range of
-    /// transactions on each lookup table.
+    /// transactions on each lookup table, and is not supported.
     ///
     /// Combining the remaining filters does not have this effect:
     ///
@@ -134,12 +130,6 @@ impl TransactionBlockFilter {
         .into_iter()
         .filter(|is_set| *is_set)
         .count()
-    }
-
-    /// A scan limit is required once more than one filter has to be scanned
-    /// (see [`Self::scan_count`]).
-    pub(crate) fn requires_scan_limit(&self) -> bool {
-        self.scan_count() > 1
     }
 
     /// Returns the transaction sender to query `tx_sender`.
@@ -366,23 +356,9 @@ mod tests {
     }
 
     #[test]
-    fn scan_limit_required_beyond_one_scan() {
-        assert!(!TransactionBlockFilter::unscanned().requires_scan_limit());
+    fn unsupported_beyond_one_scan() {
+        assert!(!TransactionBlockFilter::unscanned().is_unsupported());
 
-        for filter in TransactionBlockFilter::scanned() {
-            let filter = filter
-                .intersect(TransactionBlockFilter::unscanned())
-                .unwrap();
-            assert!(!filter.requires_scan_limit());
-        }
-
-        for filter in TransactionBlockFilter::scanned_pairs() {
-            assert!(filter.requires_scan_limit());
-        }
-    }
-
-    #[test]
-    fn kind_unsupported_only_alongside_another_scan() {
         for filter in TransactionBlockFilter::scanned() {
             let filter = filter
                 .intersect(TransactionBlockFilter::unscanned())
@@ -391,7 +367,7 @@ mod tests {
         }
 
         for filter in TransactionBlockFilter::scanned_pairs() {
-            assert_eq!(filter.is_unsupported(), filter.kind.is_some());
+            assert!(filter.is_unsupported());
         }
     }
 

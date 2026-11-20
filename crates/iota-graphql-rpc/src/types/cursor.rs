@@ -111,22 +111,6 @@ pub(crate) trait Target<C: CursorType> {
     fn cursor(&self, checkpoint_viewed_at: u64) -> C;
 }
 
-/// Interface for dealing with cursors that may come from a scan-limit-ed query.
-pub(crate) trait ScanLimited: Clone + PartialEq {
-    /// Whether the cursor was derived from a scan limit. Only applicable to the
-    /// `startCursor` and `endCursor` returned from a Connection's
-    /// `PageInfo`, and indicates that the cursor may not
-    /// have a corresponding node in the result set.
-    fn is_scan_limited(&self) -> bool {
-        false
-    }
-
-    /// Returns a version of the cursor that is not scan limited.
-    fn unlimited(&self) -> Self {
-        self.clone()
-    }
-}
-
 impl<C> JsonCursor<C> {
     pub(crate) fn new(cursor: C) -> Self {
         JsonCursor(OpaqueCursor(cursor))
@@ -211,10 +195,6 @@ impl<C> Page<C> {
 
     pub(crate) fn is_from_front(&self) -> bool {
         matches!(self.end, End::Front)
-    }
-
-    pub(crate) fn end(&self) -> End {
-        self.end
     }
 }
 
@@ -427,7 +407,7 @@ impl Page<JsonCursor<ConsistentIndexCursor>> {
     }
 }
 
-impl<C: CursorType + ScanLimited + Eq + Clone + Send + Sync + 'static> Page<C> {
+impl<C: CursorType + Eq + Clone + Send + Sync + 'static> Page<C> {
     /// Treat the cursors of this page as upper- and lowerbound filters for a
     /// database `query`. Returns two booleans indicating whether there is a
     /// previous or next page in the range, followed by an iterator of
@@ -532,9 +512,7 @@ impl<C: CursorType + ScanLimited + Eq + Clone + Send + Sync + 'static> Page<C> {
 
     /// Given the results of a database query, determine whether the result set
     /// has a previous and next page and is consistent with the provided
-    /// cursors. Slightly different logic applies depending on whether the
-    /// provided cursors stem from either tip of the response, or if they
-    /// were derived from a scan limit.
+    /// cursors.
     ///
     /// Returns two booleans indicating whether there is a previous or next page
     /// in the range, followed by an iterator of values in the page, fetched
@@ -564,15 +542,15 @@ impl<C: CursorType + ScanLimited + Eq + Clone + Send + Sync + 'static> Page<C> {
                 }
 
                 // Page drawn from the front, and the cursor for the first element does not match
-                // `after`. If that cursor is not from a scan limit, then it must have appeared in
-                // the previous page, and should also be at the tip of the current page. This
-                // absence implies the bound was invalid, so we return an empty result.
-                (Some(a), Some(f), _, _, End::Front) if f != *a && !a.is_scan_limited() => {
+                // `after`. That cursor must have appeared in the previous page, and should also be
+                // at the tip of the current page. This absence implies the bound was invalid, so
+                // we return an empty result.
+                (Some(a), Some(f), _, _, End::Front) if f != *a => {
                     return (false, false, vec![].into_iter());
                 }
 
                 // Similar to above case, but for back of results.
-                (_, _, Some(l), Some(b), End::Back) if l != *b && !b.is_scan_limited() => {
+                (_, _, Some(l), Some(b), End::Back) if l != *b => {
                     return (false, false, vec![].into_iter());
                 }
 
@@ -583,13 +561,13 @@ impl<C: CursorType + ScanLimited + Eq + Clone + Send + Sync + 'static> Page<C> {
                 // results than the provided limit, and/ or if the end cursor element appears in the
                 // result set.
                 (after, Some(f), Some(l), before, End::Front) => {
-                    let has_previous_page = after.is_some_and(|a| a.unlimited() == f);
+                    let has_previous_page = after.is_some_and(|a| *a == f);
                     let prefix = has_previous_page as usize;
 
                     // If results end with the before cursor, we will at least need to trim one
                     // element from the suffix and we trim more off the end if
                     // there is more after applying the limit.
-                    let mut suffix = before.is_some_and(|b| b.unlimited() == l) as usize;
+                    let mut suffix = before.is_some_and(|b| *b == l) as usize;
                     suffix += results.len().saturating_sub(self.limit() + prefix + suffix);
                     let has_next_page = suffix > 0;
 
@@ -600,10 +578,10 @@ impl<C: CursorType + ScanLimited + Eq + Clone + Send + Sync + 'static> Page<C> {
                 (after, Some(f), Some(l), before, End::Back) => {
                     // There is a next page if the last element of the results matches the `before`.
                     // This last element will get pruned from the result set.
-                    let has_next_page = before.is_some_and(|b| b.unlimited() == l);
+                    let has_next_page = before.is_some_and(|b| *b == l);
                     let suffix = has_next_page as usize;
 
-                    let mut prefix = after.is_some_and(|a| a.unlimited() == f) as usize;
+                    let mut prefix = after.is_some_and(|a| *a == f) as usize;
                     prefix += results.len().saturating_sub(self.limit() + prefix + suffix);
                     let has_previous_page = prefix > 0;
 
