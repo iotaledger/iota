@@ -385,8 +385,9 @@ impl AttestationVerdictContext<'_> {
             })
             .map(|input| input.id())
             .collect();
+        let attested_versions = collect_attested_versions(self.attestation, self.transaction);
         if !should_reauthenticate(
-            &collect_attested_versions(self.attestation, self.transaction),
+            &attested_versions,
             &self.executed_versions,
             &pinned_by_transaction,
             |object_id, version| {
@@ -402,7 +403,7 @@ impl AttestationVerdictContext<'_> {
 
         // The objects authentication read changed after the attestation, so only
         // a re-run at the recorded versions shows who is at fault.
-        self.reauthenticate_at_attested_versions()
+        self.reauthenticate_at_attested_versions(attested_versions.into_iter().collect())
     }
 }
 
@@ -462,7 +463,7 @@ fn should_reauthenticate(
 }
 
 impl AttestationVerdictContext<'_> {
-    /// Re-runs Move authentication at the recorded versions. The engine meters
+    /// Re-runs Move authentication at `attested_versions`. The engine meters
     /// the re-run as execution does: the gas owner's authenticator first, and
     /// all of them within `max_auth_gas`. Returns
     /// [`AuthenticationFailureBlame::Attestor`] when the re-run fails too, with
@@ -473,12 +474,10 @@ impl AttestationVerdictContext<'_> {
     /// [`AuthenticationFailureBlame::Undecided`] when the authenticators' inputs
     /// cannot be combined, or the re-run ends in a cancellation or an invariant
     /// violation: here, all three can only be internal errors.
-    fn reauthenticate_at_attested_versions(&self) -> AuthenticationFailureBlame {
-        let attested_versions: BTreeMap<ObjectId, Version> =
-            collect_attested_versions(self.attestation, self.transaction)
-                .into_iter()
-                .collect();
-
+    fn reauthenticate_at_attested_versions(
+        &self,
+        attested_versions: BTreeMap<ObjectId, Version>,
+    ) -> AuthenticationFailureBlame {
         // The re-run is metered on its own, capped by the attestor's claimed
         // computation units: exceeding them refutes the attestation by its own
         // claim, and the cost never reaches the transaction's gas or effects.

@@ -45,7 +45,7 @@ pub(crate) fn check_attested_units(
     Ok(())
 }
 
-/// The record of `attestation` must hold a version only at an index where
+/// The shared object versions of `attestation` must hold a version only at an index where
 /// `transaction` names a shared object, at most one for each index, the same
 /// version for an object named at two indexes, and a version for each shared
 /// argument and account of a Move authenticator. Returns the error of the
