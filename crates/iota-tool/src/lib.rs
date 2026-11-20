@@ -84,6 +84,7 @@ use tokio::{
     time::Instant,
 };
 
+pub mod admin;
 pub mod commands;
 pub mod db_tool;
 
