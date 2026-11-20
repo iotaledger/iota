@@ -354,14 +354,19 @@ impl HistoricObjects {
 
     /// The lowest version of `id` above `version` among those relocated into
     /// `epoch`'s bucket and the tombstones written during `epoch`, `None`
-    /// when there is none or no bucket for `epoch`. Reads only that bucket.
+    /// when there is none, or `epoch` has no bucket or an expiring one. Reads
+    /// only that bucket.
     pub fn lowest_version_above_in_epoch(
         &self,
         epoch: EpochId,
         id: &ObjectId,
         version: Version,
     ) -> IotaResult<Option<Version>> {
-        let Some(bucket) = self.buckets.get(epoch) else {
+        let Some(bucket) = self
+            .buckets
+            .get(epoch)
+            .filter(|bucket| !bucket.is_expiring())
+        else {
             return Ok(None);
         };
         let above = || {
