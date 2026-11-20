@@ -359,8 +359,9 @@ pub trait ObjectCacheRead: Send + Sync {
     /// the newest in the live table, relocated into `epoch`'s historic objects
     /// bucket, or a tombstone written during `epoch`, and whether it is still
     /// uncommitted: only then can its writer be yet to record its effects.
-    /// Reads no other epoch's bucket, so the answer does not depend on how
-    /// many epochs the node retains.
+    /// Reads no other epoch's bucket, but the newest live row may be an
+    /// earlier epoch's tombstone, kept only while that epoch is retained: the
+    /// caller checks that the writer ran in `epoch`.
     fn try_find_lowest_version_above_in_epoch(
         &self,
         object_id: &ObjectId,
