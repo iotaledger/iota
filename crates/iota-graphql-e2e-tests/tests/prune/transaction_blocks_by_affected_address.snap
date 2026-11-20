@@ -142,10 +142,10 @@ Response: {
         }
       ],
       "pageInfo": {
-        "endCursor": "eyJjIjoxMCwidCI6OCwiaSI6ZmFsc2V9",
+        "endCursor": "eyJjIjoxMCwidCI6OH0",
         "hasNextPage": false,
         "hasPreviousPage": false,
-        "startCursor": "eyJjIjoxMCwidCI6NiwiaSI6ZmFsc2V9"
+        "startCursor": "eyJjIjoxMCwidCI6Nn0"
       }
     }
   }

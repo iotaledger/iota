@@ -18,8 +18,8 @@
 //!
 //! This pattern allows us to offer a simple rule for users:
 //! - If you are filtering on a **single value**, you can do so without worrying.
-//! - If you want to additionally filter by the sender, that is also possible, but if you want to
-//!   combine any other set of filters, you need to use a "scan limit".
+//! - If you want to additionally filter by the sender, that is also possible, but combining any
+//!   other set of filters is not supported.
 //!
 //! ## Query construction
 //!
@@ -41,20 +41,8 @@
 //!   potentially expensive materialize and sort operation.
 //!
 //! - If there are multiple constituent queries, they are intersected using inner joins. Postgres
-//!   can occasionally pick a poor query plan for this merge, so we require that filters resulting
-//!   in such merges also use a "scan limit" (see below).
-//!
-//! ## Scan limits
-//!
-//! The scan limit restricts the number of transactions considered as candidates
-//! for the results. It is analogous to the page size limit, which restricts the
-//! number of results returned to the user, but it operates at the top of the
-//! funnel rather than the bottom.
-//!
-//! When postgres picks a poor query plan, it can end up performing a sequential
-//! scan over all candidate transactions. By limiting the size of the candidate
-//! set, we bound the work done in the worst case (whereas otherwise, the worst
-//! case would grow with the history of the chain).
+//!   can occasionally pick a poor query plan for this merge, so filters resulting in such merges
+//!   are not supported.
 use std::{
     collections::HashMap,
     fmt::Write,
@@ -70,7 +58,7 @@ use crate::{
     filter, inner_join, query,
     raw_query::RawQuery,
     types::{
-        cursor::{End, Page},
+        cursor::Page,
         digest::Digest,
         iota_address::IotaAddress,
         transaction_block::{Cursor, TransactionBlockFilter, TransactionBlockKindInput},
@@ -78,8 +66,8 @@ use crate::{
     },
 };
 
-/// Bounds on transaction sequence number, imposed by filters, cursors, and the
-/// scan limit. The outermost bounds are determined by the checkpoint filters.
+/// Bounds on transaction sequence number, imposed by filters and cursors. The
+/// outermost bounds are determined by the checkpoint filters.
 /// These get translated into bounds in terms of transaction sequence numbers:
 ///
 /// ```ignore
@@ -97,19 +85,8 @@ use crate::{
 ///             [------------------------------------------]
 /// ```
 ///
-/// Finally, the scan limit restricts the number of transactions to scan. The
-/// scan limit can be applied to either the front (forward pagination) or the
-/// back (backward pagination):
-///
-/// ```ignore
-///             [-----scan-limit-----)---------------------|  end = Front
-///             |---------------------[-----scan-limit------) end = Back
-/// ```
-///
 /// This data structure can be used to compute the interval of transactions to
-/// look in for candidates to include in a page of results. It can also
-/// determine whether the scanning has been cut short on either side, implying
-/// that there is a previous or next page of values to scan.
+/// look in for candidates to include in a page of results.
 ///
 /// NOTE: for consistency, assume that lowerbounds are inclusive and upperbounds
 /// are exclusive. Bounds that do not follow this convention will be annotated
@@ -131,28 +108,20 @@ pub(crate) struct TxBounds {
 
     // The ending cursor (aka `before`).
     cursor_hi: Option<u64>,
-
-    /// The number of transactions to treat as candidates, defaults to all the
-    /// transactions in the range defined by the bounds above.
-    scan_limit: Option<u64>,
-
-    /// Which end of the range candidates will be scanned from.
-    end: End,
 }
 
 impl TxBounds {
     /// Determines the `tx_sequence_number` range from the checkpoint bounds for
     /// a transaction block query. The corresponding `tx_sequence_number` range
-    /// is fetched from db, and further adjusted by cursors and scan limit. If
-    /// there are any inconsistencies or invalid combinations, i.e. `after`
-    /// cursor is greater than the upper bound, return None.
+    /// is fetched from db, and further adjusted by cursors. If there are any
+    /// inconsistencies or invalid combinations, i.e. `after` cursor is greater
+    /// than the upper bound, return None.
     ///
     /// `cp_bounds` must lie in the range the database has data for. A
     /// checkpoint missing from `pruner_cp_watermark` fails with `NotFound`.
     pub(crate) fn query(
         conn: &mut Conn,
         cp_bounds: RangeInclusive<u64>,
-        scan_limit: Option<u64>,
         page: &Page<Cursor>,
     ) -> Result<Option<Self>, diesel::result::Error> {
         let (cp_lo, cp_hi) = (*cp_bounds.start(), *cp_bounds.end());
@@ -198,89 +167,27 @@ impl TxBounds {
             tx_hi,
             cursor_lo_exclusive: page.after().map(|a| a.tx_sequence_number.into()),
             cursor_hi: page.before().map(|b| b.tx_sequence_number.into()),
-            scan_limit,
-            end: page.end(),
         }))
     }
 
     /// Inclusive lowerbound for range of transactions to scan, accounting for
-    /// the bounds from filters and the cursor, but not scan limits. For the
-    /// purposes of scanning records in the DB, cursors are treated
-    /// inclusively, even though they are exclusive bounds.
-    fn db_lo(&self) -> u64 {
+    /// the bounds from filters and the cursor. For the purposes of scanning
+    /// records in the DB, cursors are treated inclusively, even though they are
+    /// exclusive bounds.
+    pub(crate) fn db_lo(&self) -> u64 {
         max_option([self.cursor_lo_exclusive, Some(self.tx_lo)]).unwrap()
     }
 
     /// Exclusive upperbound for range of transactions to scan, accounting for
-    /// the bounds from filters and the cursor, but not scan limits. For the
-    /// purposes of scanning records in the DB, cursors are treated
-    /// inclusively, even though they are exclusive bounds.
-    fn db_hi(&self) -> u64 {
+    /// the bounds from filters and the cursor. For the purposes of scanning
+    /// records in the DB, cursors are treated inclusively, even though they are
+    /// exclusive bounds.
+    pub(crate) fn db_hi(&self) -> u64 {
         min_option([
             self.cursor_hi.map(|h| h.saturating_add(1)),
             Some(self.tx_hi),
         ])
         .unwrap()
-    }
-
-    /// Whether the cursor lowerbound restricts the transaction range.
-    fn has_cursor_prev_page(&self) -> bool {
-        self.cursor_lo_exclusive.is_some_and(|lo| self.tx_lo <= lo)
-    }
-
-    /// Whether the cursor upperbound restricts the transaction range.
-    fn has_cursor_next_page(&self) -> bool {
-        self.cursor_hi.is_some_and(|hi| hi < self.tx_hi)
-    }
-
-    /// Inclusive lowerbound of range of transactions to scan.
-    pub(crate) fn scan_lo(&self) -> u64 {
-        match (self.end, self.scan_limit) {
-            (End::Front, _) | (_, None) => self.db_lo(),
-            (End::Back, Some(scan_limit)) => self
-                .db_hi()
-                // If there is a next page, additionally scan the cursor upperbound.
-                .saturating_sub(self.has_cursor_next_page() as u64)
-                .saturating_sub(scan_limit)
-                .max(self.db_lo()),
-        }
-    }
-
-    /// Exclusive upperbound of range of transactions to scan.
-    pub(crate) fn scan_hi(&self) -> u64 {
-        match (self.end, self.scan_limit) {
-            (End::Back, _) | (_, None) => self.db_hi(),
-            (End::Front, Some(scan_limit)) => self
-                .db_lo()
-                // If there is a previous page, additionally scan the cursor lowerbound.
-                .saturating_add(self.has_cursor_prev_page() as u64)
-                .saturating_add(scan_limit)
-                .min(self.db_hi()),
-        }
-    }
-
-    /// The first transaction scanned, ignoring transactions pointed at by
-    /// cursors.
-    pub(crate) fn scan_start_cursor(&self) -> u64 {
-        let skip_cursor_lo = self.end == End::Front && self.has_cursor_prev_page();
-        self.scan_lo().saturating_add(skip_cursor_lo as u64)
-    }
-
-    /// The last transaction scanned, ignoring transactions pointed at by
-    /// cursors.
-    pub(crate) fn scan_end_cursor(&self) -> u64 {
-        let skip_cursor_hi = self.end == End::Back && self.has_cursor_next_page();
-        self.scan_hi().saturating_sub(skip_cursor_hi as u64 + 1)
-    }
-
-    /// Whether there are more transactions to scan before this page.
-    pub(crate) fn scan_has_prev_page(&self) -> bool {
-        self.tx_lo < self.scan_start_cursor()
-    }
-
-    /// Whether there are more transactions to scan after this page.
-    pub(crate) fn scan_has_next_page(&self) -> bool {
-        self.scan_end_cursor() + 1 < self.tx_hi
     }
 }
 
@@ -470,8 +377,8 @@ fn select_tx(sender: Option<IotaAddress>, bound: TxBounds, from: &str) -> RawQue
         query!(format!("SELECT tx_sequence_number FROM {from}")),
         format!(
             "{} <= tx_sequence_number AND tx_sequence_number < {}",
-            bound.scan_lo(),
-            bound.scan_hi()
+            bound.db_lo(),
+            bound.db_hi()
         )
     );
 

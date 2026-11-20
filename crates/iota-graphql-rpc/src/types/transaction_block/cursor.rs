@@ -16,7 +16,7 @@ use crate::{
     filter,
     raw_query::RawQuery,
     types::{
-        cursor::{self, Paginated, RawPaginated, ScanLimited, Target},
+        cursor::{self, Paginated, RawPaginated, Target},
         transaction_block::Query,
         uint53::UInt53,
     },
@@ -34,12 +34,6 @@ pub(crate) struct TransactionBlockCursor {
     pub checkpoint_viewed_at: UInt53,
     #[serde(rename = "t")]
     pub tx_sequence_number: UInt53,
-    /// Whether the cursor was derived from a `scan_limit`. Only applicable to
-    /// the `startCursor` and `endCursor` returned from a Connection's
-    /// `PageInfo`, and indicates that the cursor may not
-    /// have a corresponding node in the result set.
-    #[serde(rename = "i")]
-    pub is_scan_limited: bool,
 }
 
 /// Results from raw queries in Diesel can only be deserialized into structs
@@ -59,20 +53,6 @@ impl Checkpointed for Cursor {
 impl TransactionCursor for Cursor {
     fn tx_sequence_number(&self) -> u64 {
         u64::from(self.tx_sequence_number)
-    }
-}
-
-impl ScanLimited for Cursor {
-    fn is_scan_limited(&self) -> bool {
-        self.is_scan_limited
-    }
-
-    fn unlimited(&self) -> Self {
-        Cursor::new(TransactionBlockCursor {
-            is_scan_limited: false,
-            tx_sequence_number: self.tx_sequence_number,
-            checkpoint_viewed_at: self.checkpoint_viewed_at,
-        })
     }
 }
 
@@ -102,7 +82,6 @@ impl Target<Cursor> for StoredTransaction {
         Cursor::new(TransactionBlockCursor {
             tx_sequence_number: UInt53::new_unchecked(self.tx_sequence_number as u64),
             checkpoint_viewed_at: UInt53::new_unchecked(checkpoint_viewed_at),
-            is_scan_limited: false,
         })
     }
 }
@@ -136,7 +115,6 @@ impl Target<Cursor> for TxLookup {
         Cursor::new(TransactionBlockCursor {
             tx_sequence_number: UInt53::new_unchecked(self.tx_sequence_number as u64),
             checkpoint_viewed_at: UInt53::new_unchecked(checkpoint_viewed_at),
-            is_scan_limited: false,
         })
     }
 }

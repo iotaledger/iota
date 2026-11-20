@@ -120,14 +120,3 @@ module Test::M {
     }
   }
 }
-
-//# run-graphql
-# H: a scan-limited page starts scanning at the first transaction still in the
-# database.
-{
-  transactionBlocks(scanLimit: 2, filter: { sentAddress: "@{A}" }) {
-    oldestAvailableCheckpoint
-    pageInfo { hasPreviousPage hasNextPage startCursor endCursor }
-    nodes { digest }
-  }
-}
