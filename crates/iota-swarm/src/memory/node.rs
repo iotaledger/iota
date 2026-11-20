@@ -38,7 +38,7 @@ impl Node {
         Self {
             container: Default::default(),
             config: config.into(),
-            runtime_type: RuntimeType::SingleThreaded,
+            runtime_type: RuntimeType::MultiThreaded,
         }
     }
 

@@ -2101,6 +2101,8 @@ impl AuthorityState {
             return Ok((effects, None));
         }
 
+        let load_start = std::time::Instant::now();
+        let load_probe = crate::load_probe::Probe::start();
         let (tx_input_objects, per_authenticator_inputs) = self.read_objects_for_execution(
             tx_guard.as_lock_guard(),
             transaction,
@@ -2108,7 +2110,7 @@ impl AuthorityState {
             epoch_store,
         )?;
 
-        self.process_transaction(
+        let result = self.process_transaction(
             tx_guard,
             transaction,
             tx_input_objects,
@@ -2116,7 +2118,17 @@ impl AuthorityState {
             execution_env.expected_effects_digest,
             &execution_env.attestation,
             epoch_store,
-        )
+        );
+        if crate::load_probe::enabled() {
+            eprintln!(
+                "LOAD_EXEC digest={tx_digest} node={} name={} us={} {}",
+                if self.is_fullnode(epoch_store) { "fullnode" } else { "validator" },
+                self.name.concise(),
+                load_start.elapsed().as_micros(),
+                load_probe.report()
+            );
+        }
+        result
         .tap_err(|e| info!(?tx_digest, "process_transaction failed: {e}"))
         .tap_ok(
             |(fx, _)| debug!(?tx_digest, fx_digest=?fx.digest(), "process_transaction succeeded"),

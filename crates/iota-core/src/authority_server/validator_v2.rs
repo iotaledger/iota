@@ -641,6 +641,8 @@ impl ValidatorService {
                     None => local_deny_config,
                 };
                 let mut lock_before_dry_run = None;
+                let attest_start = std::time::Instant::now();
+                let load_probe = crate::load_probe::Probe::start();
                 let result = state_for_attest.attest_transaction(
                     &verified_tx,
                     &epoch_store_for_attest,
@@ -656,6 +658,15 @@ impl ValidatorService {
                         Ok(())
                     },
                 );
+                if crate::load_probe::enabled() {
+                    eprintln!(
+                        "LOAD_ATTEST digest={} us={} ok={} {}",
+                        verified_tx.digest(),
+                        attest_start.elapsed().as_micros(),
+                        result.is_ok(),
+                        load_probe.report()
+                    );
+                }
                 // The permit comes back with the result, so the admission holds
                 // it until its soft locks are taken. A dry run that panics, or
                 // whose submission was dropped, frees it when it ends.
@@ -750,6 +761,9 @@ impl ValidatorService {
         }
 
         // Reconfig check. The guard is held through consensus submission below.
+        if crate::load_probe::enabled() {
+            eprintln!("LOAD_SUBMIT digest={tx_digest} name={}", iota_types::base_types::ConciseableName::concise(&state.name));
+        }
         let reconfiguration_lock = epoch_store.get_reconfig_state_read_lock_guard();
         if !admits_user_transactions(&reconfiguration_lock) {
             metrics.num_rejected_tx_in_epoch_boundary.inc();
@@ -788,6 +802,17 @@ impl ValidatorService {
         // `check_consensus_transaction_size()` weighs one: the dry run has
         // already run, and with no soft lock kept, the in-flight check does
         // not stop a resend.
+        if let (true, iota_types::messages_consensus::ConsensusTransactionKind::UserTransactionV1(attested)) =
+            (crate::load_probe::enabled(), &consensus_tx.kind)
+        {
+            eprintln!(
+                "LOAD_SIZE digest={} tx_bytes={} consensus_bytes={} attested_objects={}",
+                attested.transaction.digest(),
+                bcs::serialized_size(&attested.transaction).unwrap_or(0),
+                bcs::serialized_size(&consensus_tx).unwrap_or(0),
+                attested.attestation.as_ref().map_or(0, |a| a.object_versions().len()),
+            );
+        }
         if let Err(error) =
             check_consensus_transaction_size(&consensus_tx, epoch_store.protocol_config())
         {

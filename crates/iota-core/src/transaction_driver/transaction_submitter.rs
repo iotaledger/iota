@@ -63,10 +63,24 @@ impl TransactionSubmitter {
             .submit_amplification_factor
             .observe(amplification_factor as f64);
 
+        // TEMP stress test: STRESS_SUBMIT_TO_INDEX pins submissions to one
+        // committee member, so that another member only executes.
+        let pinned: Vec<String> = std::env::var("STRESS_SUBMIT_TO_INDEX")
+            .ok()
+            .and_then(|index| index.parse::<usize>().ok())
+            .and_then(|index| authority_aggregator.committee.names().nth(index))
+            .map(|name| authority_aggregator.get_display_name(name))
+            .into_iter()
+            .collect();
+        let allowed_validators = if options.allowed_validators.is_empty() {
+            &pinned
+        } else {
+            &options.allowed_validators
+        };
         let mut retrier = RequestRetrier::new(
             authority_aggregator,
             client_monitor,
-            &options.allowed_validators,
+            allowed_validators,
             &options.blocked_validators,
         );
         retrier.exclude(&options.cut_off_validators);

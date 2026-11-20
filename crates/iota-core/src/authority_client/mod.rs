@@ -58,7 +58,7 @@ impl NetworkAuthorityClient {
                 .map_err(|err| err.to_string().into());
         Self {
             client: channel.clone().map(ValidatorClient::new),
-            v2_client: channel.clone().map(ValidatorV2Client::new),
+            v2_client: channel.clone().map(|c| ValidatorV2Client::new(c).max_decoding_message_size(usize::MAX)),
             peer_client: channel.map(ValidatorPeerClient::new),
         }
     }
@@ -67,7 +67,7 @@ impl NetworkAuthorityClient {
     pub fn new(channel: tonic::transport::Channel) -> Self {
         Self {
             client: Ok(ValidatorClient::new(channel.clone())),
-            v2_client: Ok(ValidatorV2Client::new(channel.clone())),
+            v2_client: Ok(ValidatorV2Client::new(channel.clone()).max_decoding_message_size(usize::MAX)),
             peer_client: Ok(ValidatorPeerClient::new(channel)),
         }
     }
@@ -76,7 +76,7 @@ impl NetworkAuthorityClient {
     fn new_lazy(channel: IotaResult<tonic::transport::Channel>) -> Self {
         Self {
             client: channel.clone().map(ValidatorClient::new),
-            v2_client: channel.clone().map(ValidatorV2Client::new),
+            v2_client: channel.clone().map(|c| ValidatorV2Client::new(c).max_decoding_message_size(usize::MAX)),
             peer_client: channel.map(ValidatorPeerClient::new),
         }
     }
