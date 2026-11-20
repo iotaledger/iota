@@ -1,0 +1,480 @@
+---
+title: Sign and Send IOTA with a Ledger
+description: 'How to sign an IOTA transfer on a Ledger hardware wallet and execute it on localnet.'
+tags:
+  - how-to
+  - rust
+  - go
+  - python
+  - kotlin
+  - swift
+  - csharp
+  - wasm
+---
+
+import IotaSdk from '../../../../_snippets/developer/iota-sdk/sdk.mdx';
+
+# Sign and Send IOTA with a Ledger
+
+<IotaSdk />
+
+This how-to demonstrates how to sign an IOTA transfer with a key held on a Ledger hardware wallet, or on the Speculos emulator, and execute it on localnet.
+
+:::info
+This example runs on **localnet**. Make sure you have a local IOTA node running before executing the code.
+:::
+
+{/* The embeds are pinned to an iota-rust-sdk commit because the revision in docs/site/iota-sdk-references.rev predates the Ledger examples. Switch them to the SDK_REV placeholder once that revision includes them. */}
+
+## Prerequisites
+
+- The IOTA SDK installed for your target language, with Ledger support:
+  - Rust: the `graphql`, `ledger-hid` and `ledger-speculos` features of the `iota-sdk` crate.
+  - Go, Python, Kotlin, Swift and C#: the released packages cannot connect to a device over USB. To use one, build the bindings with `make <language>` in a checkout of [iota-rust-sdk](https://github.com/iotaledger/iota-rust-sdk).
+  - WASM/TS: no additional setup. The bindings reach the device through a transport you implement, see [Use Another Transport](#use-another-transport).
+- A running local IOTA node
+- A Ledger device or the Speculos emulator, set up as described below
+
+On Linux, building the SDK with USB support needs the `libudev` development package (`libudev-dev` on Debian and Ubuntu).
+
+## Set Up the Device
+
+<Tabs groupId="ledger-device" queryString>
+  <TabItem value="device" label="Ledger device" default>
+
+1. Install the IOTA app on the device with Ledger Live.
+2. Connect the device over USB and unlock it.
+3. On Linux, install the [Ledger udev rules](https://github.com/LedgerHQ/udev-rules) so that a regular user can open the device.
+
+  </TabItem>
+  <TabItem value="speculos" label="Speculos emulator">
+
+[Speculos](https://github.com/LedgerHQ/speculos) emulates a device running the IOTA app, so you can develop without hardware.
+
+1. Start the emulator with Docker from a checkout of [iota-rust-sdk](https://github.com/iotaledger/iota-rust-sdk):
+
+   ```bash
+   make speculos-start
+   ```
+
+2. Set the `LEDGER_SIMULATOR` environment variable when you run the example, which then connects to the emulator instead of a device.
+3. Approve the requests in the emulator's web interface at `http://127.0.0.1:5001`.
+
+  </TabItem>
+</Tabs>
+
+## Steps
+
+### 1. Define the Amount and the Recipient Address
+
+<Tabs groupId="language" queryString>
+  <TabItem value="rust" label="Rust" default>
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/crates/iota-sdk/examples/ledger_sign_send_iota.rs#L17-L20
+```
+
+  </TabItem>
+  <TabItem value="go" label="Go">
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/go/examples/ledger_sign_send_iota/main.go#L16-L21
+```
+
+  </TabItem>
+  <TabItem value="python" label="Python">
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/python/examples/ledger_sign_send_iota.py#L14-L17
+```
+
+  </TabItem>
+  <TabItem value="kotlin" label="Kotlin">
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/kotlin/examples/LedgerSignSendIota.kt#L11-L14
+```
+
+  </TabItem>
+  <TabItem value="swift" label="Swift">
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/swift/examples/LedgerSignSendIota.swift#L13-L16
+```
+
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/csharp/examples/LedgerSignSendIota/Program.cs#L13-L15
+```
+
+  </TabItem>
+  <TabItem value="wasm" label="WASM/TS">
+
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/wasm/examples/ledger_sign_send_iota.mjs#L60-L64
+```
+
+  </TabItem>
+</Tabs>
+
+### 2. Connect to the Ledger and Open the IOTA App
+
+Connect to the first device attached over USB, or to the emulator when `LEDGER_SIMULATOR` is set, and open the IOTA app.
+
+<Tabs groupId="language" queryString>
+  <TabItem value="rust" label="Rust" default>
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/crates/iota-sdk/examples/ledger_sign_send_iota.rs#L22-L27
+```
+
+  </TabItem>
+  <TabItem value="go" label="Go">
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/go/examples/ledger_sign_send_iota/main.go#L23-L34
+```
+
+  </TabItem>
+  <TabItem value="python" label="Python">
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/python/examples/ledger_sign_send_iota.py#L19-L23
+```
+
+  </TabItem>
+  <TabItem value="kotlin" label="Kotlin">
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/kotlin/examples/LedgerSignSendIota.kt#L16-L22
+```
+
+  </TabItem>
+  <TabItem value="swift" label="Swift">
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/swift/examples/LedgerSignSendIota.swift#L18-L22
+```
+
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/csharp/examples/LedgerSignSendIota/Program.cs#L17-L20
+```
+
+  </TabItem>
+  <TabItem value="wasm" label="WASM/TS">
+
+The WASM bindings can open neither USB devices nor TCP sockets, so the example implements the transport in JavaScript. This one reaches the emulator from Node.
+
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/wasm/examples/ledger_sign_send_iota.mjs#L24-L58
+```
+
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/wasm/examples/ledger_sign_send_iota.mjs#L66-L67
+```
+
+  </TabItem>
+</Tabs>
+
+### 3. Create the Signer
+
+Create a signer for the key at a derivation path. The address of that key is the sender.
+
+<Tabs groupId="language" queryString>
+  <TabItem value="rust" label="Rust" default>
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/crates/iota-sdk/examples/ledger_sign_send_iota.rs#L28-L30
+```
+
+  </TabItem>
+  <TabItem value="go" label="Go">
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/go/examples/ledger_sign_send_iota/main.go#L35-L40
+```
+
+  </TabItem>
+  <TabItem value="python" label="Python">
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/python/examples/ledger_sign_send_iota.py#L24-L26
+```
+
+  </TabItem>
+  <TabItem value="kotlin" label="Kotlin">
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/kotlin/examples/LedgerSignSendIota.kt#L23-L25
+```
+
+  </TabItem>
+  <TabItem value="swift" label="Swift">
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/swift/examples/LedgerSignSendIota.swift#L23-L25
+```
+
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/csharp/examples/LedgerSignSendIota/Program.cs#L21-L23
+```
+
+  </TabItem>
+  <TabItem value="wasm" label="WASM/TS">
+
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/wasm/examples/ledger_sign_send_iota.mjs#L68-L70
+```
+
+  </TabItem>
+</Tabs>
+
+### 4. Initialize the Client and Request Faucet Funds
+
+Connect to localnet and request funds from the faucet for the sender address.
+
+<Tabs groupId="language" queryString>
+  <TabItem value="rust" label="Rust" default>
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/crates/iota-sdk/examples/ledger_sign_send_iota.rs#L32-L37
+```
+
+  </TabItem>
+  <TabItem value="go" label="Go">
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/go/examples/ledger_sign_send_iota/main.go#L42-L50
+```
+
+  </TabItem>
+  <TabItem value="python" label="Python">
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/python/examples/ledger_sign_send_iota.py#L28-L32
+```
+
+  </TabItem>
+  <TabItem value="kotlin" label="Kotlin">
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/kotlin/examples/LedgerSignSendIota.kt#L27-L30
+```
+
+  </TabItem>
+  <TabItem value="swift" label="Swift">
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/swift/examples/LedgerSignSendIota.swift#L27-L31
+```
+
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/csharp/examples/LedgerSignSendIota/Program.cs#L25-L28
+```
+
+  </TabItem>
+  <TabItem value="wasm" label="WASM/TS">
+
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/wasm/examples/ledger_sign_send_iota.mjs#L72-L76
+```
+
+  </TabItem>
+</Tabs>
+
+### 5. Build the Transaction
+
+<Tabs groupId="language" queryString>
+  <TabItem value="rust" label="Rust" default>
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/crates/iota-sdk/examples/ledger_sign_send_iota.rs#L39-L40
+```
+
+  </TabItem>
+  <TabItem value="go" label="Go">
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/go/examples/ledger_sign_send_iota/main.go#L52-L53
+```
+
+  </TabItem>
+  <TabItem value="python" label="Python">
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/python/examples/ledger_sign_send_iota.py#L34-L35
+```
+
+  </TabItem>
+  <TabItem value="kotlin" label="Kotlin">
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/kotlin/examples/LedgerSignSendIota.kt#L32-L33
+```
+
+  </TabItem>
+  <TabItem value="swift" label="Swift">
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/swift/examples/LedgerSignSendIota.swift#L33-L34
+```
+
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/csharp/examples/LedgerSignSendIota/Program.cs#L30-L31
+```
+
+  </TabItem>
+  <TabItem value="wasm" label="WASM/TS">
+
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/wasm/examples/ledger_sign_send_iota.mjs#L78-L79
+```
+
+  </TabItem>
+</Tabs>
+
+### 6. Sign on the Device and Execute the Transaction
+
+The transaction builder passes the signer the coins the transaction spends, so the device shows the transfer. Review and approve it on the device.
+
+<Tabs groupId="language" queryString>
+  <TabItem value="rust" label="Rust" default>
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/crates/iota-sdk/examples/ledger_sign_send_iota.rs#L42-L49
+```
+
+  </TabItem>
+  <TabItem value="go" label="Go">
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/go/examples/ledger_sign_send_iota/main.go#L55-L64
+```
+
+  </TabItem>
+  <TabItem value="python" label="Python">
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/python/examples/ledger_sign_send_iota.py#L37-L43
+```
+
+  </TabItem>
+  <TabItem value="kotlin" label="Kotlin">
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/kotlin/examples/LedgerSignSendIota.kt#L35-L41
+```
+
+  </TabItem>
+  <TabItem value="swift" label="Swift">
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/swift/examples/LedgerSignSendIota.swift#L36-L42
+```
+
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/csharp/examples/LedgerSignSendIota/Program.cs#L33-L38
+```
+
+  </TabItem>
+  <TabItem value="wasm" label="WASM/TS">
+
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/wasm/examples/ledger_sign_send_iota.mjs#L81-L89
+```
+
+  </TabItem>
+</Tabs>
+
+## Expected Output
+
+```bash
+Sender address: 0x<sender-hex-address>
+Review and approve the transaction on the device
+Digest: <transaction-digest>
+Transaction status: Success
+```
+
+## Use Another Transport
+
+On Android, on iOS and in the browser the SDK cannot open USB devices. To reach a device there:
+
+1. Implement `LedgerTransport` on top of your link to the device, such as Bluetooth through Ledger's mobile SDKs, or WebHID and WebUSB in the browser. Its `exchange` method receives an APDU command and returns the device's answer, which ends with the two-byte status word.
+2. Create the `Ledger` from that transport with `Ledger.fromTransport`.
+
+The WASM/TS tab in [step 2](#2-connect-to-the-ledger-and-open-the-iota-app) shows a transport over a TCP socket.
+
+## Sign Transactions the Device Cannot Display
+
+The IOTA app shows what a transaction does when it can work that out from the transaction and its input objects. To sign a transaction the app cannot interpret, enable blind signing in the settings of the IOTA app on the device.
+
+## Full Example
+
+<Tabs groupId="language" queryString>
+  <TabItem value="rust" label="Rust" default>
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/crates/iota-sdk/examples/ledger_sign_send_iota.rs#L4-L52
+```
+
+  </TabItem>
+  <TabItem value="go" label="Go">
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/go/examples/ledger_sign_send_iota/main.go#L4-L65
+```
+
+  </TabItem>
+  <TabItem value="python" label="Python">
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/python/examples/ledger_sign_send_iota.py#L4-L47
+```
+
+  </TabItem>
+  <TabItem value="kotlin" label="Kotlin">
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/kotlin/examples/LedgerSignSendIota.kt#L4-L42
+```
+
+  </TabItem>
+  <TabItem value="swift" label="Swift">
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/swift/examples/LedgerSignSendIota.swift#L4-L44
+```
+
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/csharp/examples/LedgerSignSendIota/Program.cs#L4-L40
+```
+
+  </TabItem>
+  <TabItem value="wasm" label="WASM/TS">
+
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/wasm/examples/ledger_sign_send_iota.mjs#L4-L89
+```
+
+  </TabItem>
+</Tabs>
