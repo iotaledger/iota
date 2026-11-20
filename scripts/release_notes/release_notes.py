@@ -782,29 +782,29 @@ def print_sdk_client_version_min(version_min, version_from, version_to):
 
     if version_from == version_to:
         print(
-            f"\n#### This release does not change the minimum supported {crate} "
-            f"version (current minimum: `{version_to}`)"
+            f"\nThis release does not change the minimum supported {crate} "
+            f"version (current minimum: `{version_to}`)."
         )
         return
 
     if version_from is not None and version_key(version_to) < version_key(version_from):
         print(
-            f"\n#### This release lowers the minimum supported {crate} version "
-            f"to `{version_to}` (previously `{version_from}`)"
+            f"\nThis release lowers the minimum supported {crate} version "
+            f"to `{version_to}` (previously `{version_from}`)."
         )
         return
 
     if version_from is None:
-        print(f"\n#### This release sets the minimum supported {crate} version to `{version_to}`")
+        change = f"sets the minimum supported {crate} version to `{version_to}`"
     else:
-        print(
-            f"\n#### This release raises the minimum supported {crate} version "
-            f"to `{version_to}` (previously `{version_from}`)"
+        change = (
+            f"raises the minimum supported {crate} version to `{version_to}` "
+            f"(previously `{version_from}`)"
         )
     print(
-        f"\nUpgrade your {crate} to at least `{version_to}` before using it with "
-        f"this release: older versions cannot decode its {version_min.section} "
-        f"responses."
+        f"\n⚠️ This release {change}. Upgrade your {crate} to at least "
+        f"`{version_to}` before using it with this release: older versions "
+        f"cannot decode its {version_min.section} responses."
     )
 
 
