@@ -55,8 +55,6 @@ ignore = [
   "RUSTSEC-2024-0436",
   # backoff is unmaintained
   "RUSTSEC-2025-0012",
-  # adler is unmaintained
-  "RUSTSEC-2025-0056",
   # bincode is unmaintained
   "RUSTSEC-2025-0141",
   # soundness flaw in lru::IterMut. We do not call
@@ -70,9 +68,6 @@ ignore = [
   # we store have a `Drop` that can panic. Fixed in 0.18.2, which is blocked by
   # the msim determinism problem described above.
   "RUSTSEC-2026-0253",
-  # proc-macro-error2 is unmaintained
-  # Can be removed once `getset` updates: https://github.com/jbaublitz/getset/issues/132
-  "RUSTSEC-2026-0173",
   # quick-xml DoS advisories, only reachable transitively via `object_store`
   # (cloud-storage list XML parsing). Fixed in quick-xml >=0.41.0, but no
   # released `object_store` pulls it yet (latest 0.14.0 requires ^0.40.1), so
