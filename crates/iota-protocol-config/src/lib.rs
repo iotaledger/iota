@@ -844,7 +844,9 @@ struct FeatureFlags {
     // If true, the block-proposing validator attests each received user transaction
     // before sending it to consensus. The attestor certifies that Move authentication
     // passed and the attestation carries a computation cost estimate for
-    // shared-object scheduling.
+    // shared-object scheduling. The Move authenticators run at execution, and
+    // in the attestor's dry run, then share at most `max_auth_gas`; the
+    // transaction body gets the rest of the budget.
     #[serde(skip_serializing_if = "is_false")]
     enable_validator_attestation: bool,
 
@@ -858,6 +860,12 @@ struct FeatureFlags {
     // of wrapping it at 2^256.
     #[serde(skip_serializing_if = "is_false")]
     secp256r1_ecrecover_checks_x_below_p: bool,
+
+    // If true, a programmable transaction may carry a transaction dependency
+    // input. It executes after the named transaction, and fails without running
+    // its commands if that transaction failed.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_transaction_dependencies: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2446,6 +2454,11 @@ impl ProtocolConfig {
     pub fn secp256r1_ecrecover_checks_x_below_p(&self) -> bool {
         self.feature_flags.secp256r1_ecrecover_checks_x_below_p
     }
+
+    /// Its prerequisites are checked once, in [`Self::get_for_version`].
+    pub fn enable_transaction_dependencies(&self) -> bool {
+        self.feature_flags.enable_transaction_dependencies
+    }
 }
 
 #[cfg(not(msim))]
@@ -2593,6 +2606,12 @@ impl ProtocolConfig {
                 ret.checkpoint_summary_version_specific_data == Some(2),
                 "enable_validator_attestation requires checkpoint_summary_version_specific_data = 2"
             );
+            // Execution and the attestor's dry run limit the Move
+            // authenticators to `max_auth_gas`.
+            assert!(
+                ret.max_auth_gas.is_some(),
+                "enable_validator_attestation requires max_auth_gas to be set"
+            );
         }
         if ret.attestation_max_refuted_units_squared.is_some() {
             assert!(
@@ -2603,6 +2622,16 @@ impl ProtocolConfig {
                 ret.pass_validator_scores_to_advance_epoch(),
                 "attestation_max_refuted_units_squared requires \
                  pass_validator_scores_to_advance_epoch"
+            );
+        }
+        // A transaction without shared inputs that waits too long for its
+        // dependency is cancelled through its gas object, which carries the
+        // suggested gas price.
+        if ret.enable_transaction_dependencies() {
+            assert!(
+                ret.congestion_control_gas_price_feedback_mechanism(),
+                "enable_transaction_dependencies requires \
+                 congestion_control_gas_price_feedback_mechanism to be set"
             );
         }
 
@@ -4345,6 +4374,10 @@ impl ProtocolConfig {
         self.feature_flags.always_advance_dkg_to_resolution = val;
     }
 
+    pub fn set_enable_transaction_dependencies_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_transaction_dependencies = val;
+    }
+
     /// Turning the flow on also turns on the flags it requires, turns off
     /// `pre_consensus_sponsor_only_move_authentication`, which it excludes, and
     /// fills in the settings it requires when unset, whatever the version.
@@ -4806,6 +4839,23 @@ mod test {
             config
         });
         let _ = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    }
+
+    /// Execution and the attestor's dry run read `max_auth_gas` under
+    /// attestation, so a configuration without it is rejected at startup
+    /// rather than stopping the validator at the first transaction.
+    #[test]
+    #[should_panic(expected = "enable_validator_attestation requires max_auth_gas to be set")]
+    fn attestation_without_max_auth_gas_is_rejected() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.disable_max_auth_gas_for_testing();
+            config
+        });
+        let config = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        assert!(
+            config.enable_validator_attestation(),
+            "the latest devnet configuration should run attestation"
+        );
     }
 
     /// A zero chunk limit would make every delta unsplittable; the pure

@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /// A Move account whose authenticator either always passes or always aborts.
+/// One of the passing authenticators loops first, so that it costs several gas
+/// units.
 /// The two aborting authenticators abort with different codes, so a test can
 /// tell which one failed. The object can also be shared first and made an
 /// account later, and receive objects until then.
@@ -50,6 +52,12 @@ public fun delete(account: TestAccount) {
 
 #[authenticator]
 public fun authenticate_pass(_: &TestAccount, _: &AuthContext, _: &TxContext) {}
+
+#[authenticator]
+public fun authenticate_pass_after_loop(_: &TestAccount, _: &AuthContext, _: &TxContext) {
+    let mut i = 0;
+    while (i < 1000) i = i + 1;
+}
 
 #[authenticator]
 public fun authenticate_fail(_: &TestAccount, _: &AuthContext, _: &TxContext) {

@@ -106,7 +106,7 @@ use iota_types::{
     move_authenticator::MoveAuthenticatorExt,
     object::{Object, ObjectRead, ObjectSet, PastObjectRead},
     storage::{
-        BackingPackageStore, BackingStore, ObjectKey, ObjectOrTombstone, ObjectStore,
+        BackingPackageStore, BackingStore, InputKey, ObjectKey, ObjectOrTombstone, ObjectStore,
         OwnedObjectCursor, TrackingBackingStore,
     },
     supported_protocol_versions::{
@@ -168,7 +168,8 @@ use crate::{
     },
     execution_driver::execution_process,
     execution_scheduler::{
-        ExecutionSchedulerAPI, ExecutionSchedulerWrapper, transaction_manager::AttestationSource,
+        ExecutionSchedulerAPI, ExecutionSchedulerWrapper, transaction_dependency_input_key,
+        transaction_manager::AttestationSource,
     },
     global_state_hasher::{GlobalStateHashStore, GlobalStateHasher},
     metrics::{LatencyObserver, RateTracker},
@@ -234,6 +235,10 @@ mod cancelled_move_authenticator_tests;
 #[cfg(test)]
 #[path = "unit_tests/move_authenticator_attestation_tests.rs"]
 mod move_authenticator_attestation_tests;
+
+#[cfg(test)]
+#[path = "unit_tests/transaction_dependency_execution_tests.rs"]
+mod transaction_dependency_execution_tests;
 
 #[cfg(test)]
 #[path = "unit_tests/auth_unit_test_utils.rs"]
@@ -320,6 +325,9 @@ pub struct AuthorityMetrics {
     pub(crate) transaction_manager_package_cache_hits: IntCounter,
     pub(crate) transaction_manager_package_cache_misses: IntCounter,
     pub(crate) transaction_manager_package_cache_evictions: IntCounter,
+    pub(crate) transaction_manager_executed_transaction_cache_size: IntGauge,
+    pub(crate) transaction_manager_executed_transaction_cache_hits: IntCounter,
+    pub(crate) transaction_manager_executed_transaction_cache_misses: IntCounter,
     pub(crate) transaction_manager_transaction_queue_age_s: Histogram,
 
     pub(crate) execution_driver_executed_transactions: IntCounter,
@@ -379,6 +387,7 @@ pub struct AuthorityMetrics {
     pub consensus_handler_scores: IntGaugeVec,
     pub consensus_handler_deferred_transactions: IntCounter,
     pub consensus_handler_congested_transactions: IntCounter,
+    pub consensus_handler_dependency_deferred_transactions: IntCounter,
     pub consensus_handler_cancelled_transactions: IntCounter,
     /// Number of user transactions dropped during a consensus commit because
     /// post-consensus conflict/lock validation rejected them. Distinct from
@@ -756,6 +765,24 @@ impl AuthorityMetrics {
                 registry,
             )
                 .unwrap(),
+            transaction_manager_executed_transaction_cache_size: register_int_gauge_with_registry!(
+                "transaction_manager_executed_transaction_cache_size",
+                "Current size of the executed-transaction cache in TransactionManager, which dependents wait on",
+                registry,
+            )
+                .unwrap(),
+            transaction_manager_executed_transaction_cache_hits: register_int_counter_with_registry!(
+                "transaction_manager_executed_transaction_cache_hits",
+                "Number of executed-transaction cache hits in TransactionManager",
+                registry,
+            )
+                .unwrap(),
+            transaction_manager_executed_transaction_cache_misses: register_int_counter_with_registry!(
+                "transaction_manager_executed_transaction_cache_misses",
+                "Number of executed-transaction cache misses in TransactionManager",
+                registry,
+            )
+                .unwrap(),
             transaction_manager_transaction_queue_age_s: register_histogram_with_registry!(
                 "transaction_manager_transaction_queue_age_s",
                 "Time spent in waiting for transaction in the queue",
@@ -913,6 +940,11 @@ impl AuthorityMetrics {
             consensus_handler_congested_transactions: register_int_counter_with_registry!(
                 "consensus_handler_congested_transactions",
                 "Number of transactions deferred by consensus handler due to congestion",
+                registry,
+            ).unwrap(),
+            consensus_handler_dependency_deferred_transactions: register_int_counter_with_registry!(
+                "consensus_handler_dependency_deferred_transactions",
+                "Number of times the consensus handler deferred a transaction for the transaction it depends on",
                 registry,
             ).unwrap(),
             consensus_handler_cancelled_transactions: register_int_counter_with_registry!(
@@ -1372,8 +1404,24 @@ impl AuthorityState {
         Ok(tx_checked_input_objects.inner().filter_owned_objects())
     }
 
+    /// Runs the checks of [`Self::handle_transaction_validation_checks`]
+    /// without running the Move authenticators, for a transaction that is
+    /// rejected whatever they answer.
+    #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
+    pub(crate) fn handle_transaction_validation_checks_without_authentication(
+        &self,
+        transaction: &VerifiedTransaction,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+        deny_config: &dyn DenyRuleConfig,
+    ) -> IotaResult<()> {
+        self.run_validation_checks(transaction, epoch_store, deny_config, false)?;
+
+        Ok(())
+    }
+
     /// Runs `authenticators` on their own, metered by `gas_status`, and fails
-    /// as admission does when one rejects the transaction or runs out of gas.
+    /// as admission does when one rejects the transaction or runs out of gas,
+    /// with the error of [`Self::authentication_failure`].
     /// `function_refs` are the sender's and the gas owner's authenticator
     /// functions, resolved over every authenticator of the transaction.
     fn authenticate_before_consensus(
@@ -1430,8 +1478,14 @@ impl AuthorityState {
             auth_context_data,
             &mut None,
         );
-        result.map_err(|error| IotaError::MoveAuthenticatorExecutionFailure {
-            error: error.to_string(),
+        result.map_err(|error| {
+            self.authentication_failure(
+                tx,
+                epoch_store.epoch(),
+                IotaError::MoveAuthenticatorExecutionFailure {
+                    error: error.to_string(),
+                },
+            )
         })
     }
 
@@ -1671,6 +1725,9 @@ impl AuthorityState {
                 &self.config.transaction_deny_config,
             )
             .await?;
+        // After the checks above, so a permanent local error is reported ahead
+        // of the retriable "not executed yet".
+        self.check_transaction_dependency_for_signing(&transaction, epoch_store)?;
 
         // Concurrent requests for the same transaction are signed once; the others
         // get the stored signature instead of signing and writing it again.
@@ -2001,11 +2058,17 @@ impl AuthorityState {
     /// on successful execution; crashed execution has no observable effect and
     /// can be retried.
     ///
-    /// It is caller's responsibility to ensure input objects are available and
-    /// locks are set. If this cannot be satisfied by the caller,
-    /// `wait_for_certificate_execution()` should be called instead.
+    /// It is caller's responsibility to ensure input objects are available,
+    /// the transaction named by the transaction dependency input has executed
+    /// unless this one was cancelled at sequencing, and locks are set. If this
+    /// cannot be satisfied by the caller, `wait_for_certificate_execution()`
+    /// should be called instead.
     ///
     /// Should only be called within iota-core.
+    ///
+    /// # Panics
+    ///
+    /// If an input object or the effects of that dependency are absent.
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub fn try_execute_immediately(
         &self,
@@ -2060,6 +2123,16 @@ impl AuthorityState {
         )
     }
 
+    /// Reads the input objects of `transaction` at the versions in
+    /// `assigned_shared_object_versions`, together with the outcome of the
+    /// transaction named by its transaction dependency input unless
+    /// `transaction` was cancelled at sequencing.
+    ///
+    /// # Panics
+    ///
+    /// If an input object or the effects of that dependency are absent. The
+    /// execution scheduler releases a transaction only once both are
+    /// available; other callers must make sure of it themselves.
     pub fn read_objects_for_execution(
         &self,
         tx_lock: &TxLockGuard,
@@ -2079,7 +2152,7 @@ impl AuthorityState {
                 .move_authenticator_type_arg_packages_as_inputs(),
         )?;
 
-        let input_objects = self.input_loader.read_objects_for_execution(
+        let mut input_objects = self.input_loader.read_objects_for_execution(
             &transaction.key(),
             tx_lock,
             &input_objects,
@@ -2087,7 +2160,98 @@ impl AuthorityState {
             epoch_store.epoch(),
         )?;
 
+        // Read exactly when the scheduler waited for it, so that its effects
+        // are present here.
+        if let Some(InputKey::ExecutedTransaction { digest: dependency }) =
+            transaction_dependency_input_key(transaction, &assigned_shared_object_versions)
+        {
+            let effects = self
+                .get_transaction_cache_reader()
+                .get_executed_effects(&dependency)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "transaction {:?} depends on transaction {dependency}, whose effects \
+                         are absent although the scheduler released the dependent",
+                        transaction.digest()
+                    )
+                });
+            input_objects.set_transaction_dependency(TransactionDependencyReadResult {
+                digest: dependency,
+                succeeded: effects.status().is_success(),
+            });
+        }
+
         transaction.split_input_objects_into_groups_for_reading(input_objects)
+    }
+
+    /// Checks the outcome of the transaction named by `transaction`'s
+    /// dependency input, when this node knows one: an error if the dependency
+    /// failed, was cancelled, or executed in an earlier epoch. Returns the
+    /// dependency's digest when it has not executed here yet, `None` when it
+    /// has or `transaction` has no dependency input.
+    pub fn check_transaction_dependency_known_outcome(
+        &self,
+        transaction: &Transaction,
+        current_epoch: EpochId,
+    ) -> IotaResult<Option<TransactionDigest>> {
+        let Some(digest) = transaction.transaction_dependency() else {
+            return Ok(None);
+        };
+        let Some(effects) = self
+            .get_transaction_cache_reader()
+            .try_get_executed_effects(&digest)?
+        else {
+            return Ok(Some(digest));
+        };
+        if !effects.status().is_success() {
+            return Err(UserInputError::TransactionDependencyFailed { digest }.into());
+        }
+        if effects.epoch() < current_epoch {
+            return Err(UserInputError::TransactionDependencyNotInCurrentEpoch {
+                digest,
+                executed_epoch: effects.epoch(),
+            }
+            .into());
+        }
+        Ok(None)
+    }
+
+    /// The error to report when `transaction`'s Move authentication failed at
+    /// admission with `error`: the error of
+    /// [`Self::check_transaction_dependency_known_outcome`] if it returns one;
+    /// the retriable `TransactionDependencyNotFound` while the dependency has
+    /// not executed here, since the authenticators ran without its writes;
+    /// `error` otherwise.
+    fn authentication_failure(
+        &self,
+        transaction: &Transaction,
+        current_epoch: EpochId,
+        error: IotaError,
+    ) -> IotaError {
+        match self.check_transaction_dependency_known_outcome(transaction, current_epoch) {
+            Ok(Some(digest)) => UserInputError::TransactionDependencyNotFound { digest }.into(),
+            Ok(None) => error,
+            Err(dependency_error) => dependency_error,
+        }
+    }
+
+    /// Checks the transaction named by `transaction`'s dependency input before
+    /// signing it in the certificate flow: it must have executed successfully
+    /// in the current epoch on this validator. Not executed here yet is
+    /// reported with a retriable error, so the client's driver retries once it
+    /// has.
+    fn check_transaction_dependency_for_signing(
+        &self,
+        transaction: &VerifiedTransaction,
+        epoch_store: &AuthorityPerEpochStore,
+    ) -> IotaResult<()> {
+        if let Some(digest) = self.check_transaction_dependency_known_outcome(
+            transaction.data().transaction(),
+            epoch_store.epoch(),
+        )? {
+            return Err(UserInputError::TransactionDependencyNotFound { digest }.into());
+        }
+        Ok(())
     }
 
     /// Test only wrapper for `try_execute_immediately()` above, useful for
@@ -2149,6 +2313,7 @@ impl AuthorityState {
         expected_effects_digest: TransactionEffectsDigest,
         inner_temporary_store: &InnerTemporaryStore,
         transaction: &VerifiedExecutableTransaction,
+        transaction_dependency: Option<TransactionDependencyReadResult>,
         debug_dump_config: &StateDebugDumpConfig,
     ) -> IotaResult<PathBuf> {
         // Fall back to the OS temp directory if no dump directory is configured.
@@ -2168,6 +2333,7 @@ impl AuthorityState {
             &epoch_store,
             inner_temporary_store,
             transaction,
+            transaction_dependency,
         )?
         .write_to_file(&dump_dir)
         .map_err(|e| IotaError::FileIO(e.to_string()))
@@ -2225,6 +2391,7 @@ impl AuthorityState {
         // errors). However, all errors from this function occur before we have
         // written anything to the db, so we commit the tx guard and rely on the
         // client to retry the tx (if it was transient).
+        let transaction_dependency = tx_input_objects.transaction_dependency();
         let (inner_temporary_store, effects, execution_error_opt, read_objects, attestation_record) =
             match self.execute_transaction(
                 &execution_guard,
@@ -2251,6 +2418,7 @@ impl AuthorityState {
                     expected_effects_digest,
                     &inner_temporary_store,
                     transaction,
+                    transaction_dependency,
                     &self.config.state_debug_dump_config,
                 ) {
                     Ok(out_path) => {
@@ -3052,6 +3220,20 @@ impl AuthorityState {
             &receiving_object_refs,
             epoch_store.epoch(),
         )?;
+
+        // The transaction dependency is evaluated when its effects are here,
+        // and assumed to have succeeded otherwise, so a dependent can be
+        // simulated before its dependency executes.
+        if let Some(dependency) = transaction.transaction_dependency() {
+            let succeeded = self
+                .get_transaction_cache_reader()
+                .try_get_executed_effects(&dependency)?
+                .is_none_or(|effects| effects.status().is_success());
+            input_objects.set_transaction_dependency(TransactionDependencyReadResult {
+                digest: dependency,
+                succeeded,
+            });
+        }
 
         // Create a mock gas object if one was not provided
         let mock_gas_id = if transaction.gas().is_empty() {
@@ -7546,6 +7728,9 @@ pub struct NodeStateDump {
     pub modified_at_versions: Vec<ObjDumpFormat>,
     pub runtime_reads: Vec<ObjDumpFormat>,
     pub input_objects: Vec<ObjDumpFormat>,
+    /// The outcome of the transaction named by the transaction dependency
+    /// input, when execution read it.
+    pub transaction_dependency: Option<TransactionDependencyReadResult>,
 }
 
 impl NodeStateDump {
@@ -7557,6 +7742,7 @@ impl NodeStateDump {
         epoch_store: &Arc<AuthorityPerEpochStore>,
         inner_temporary_store: &InnerTemporaryStore,
         transaction: &VerifiedExecutableTransaction,
+        transaction_dependency: Option<TransactionDependencyReadResult>,
     ) -> IotaResult<Self> {
         // Epoch info
         let executed_epoch = epoch_store.epoch();
@@ -7644,6 +7830,7 @@ impl NodeStateDump {
                 .collect(),
             computed_effects: effects.clone(),
             expected_effects_digest,
+            transaction_dependency,
         })
     }
 

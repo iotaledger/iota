@@ -380,6 +380,12 @@ fn get_registry() -> Result<Registry> {
             )),
         )
         .unwrap();
+    tracer
+        .trace_value(
+            &mut samples,
+            &CallArg::TransactionDependency(TransactionDigest::random()),
+        )
+        .unwrap();
     tracer.trace_type::<CallArg>(&samples).unwrap();
     tracer.trace_type::<TypedStoreError>(&samples).unwrap();
     tracer

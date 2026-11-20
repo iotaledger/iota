@@ -9,7 +9,7 @@ use anyhow::Context;
 use indexmap::IndexMap;
 use iota_sdk_types::{
     Address, Argument, Command, Identifier, ObjectId, ObjectReference, ProgrammableTransaction,
-    SharedObjectReference, TypeTag,
+    SharedObjectReference, TransactionDigest, TypeTag,
 };
 use serde::Serialize;
 
@@ -20,6 +20,7 @@ enum BuilderArg {
     Object(ObjectId),
     Pure(Vec<u8>),
     ForcedNonUniquePure(usize),
+    TransactionDependency(TransactionDigest),
 }
 
 #[derive(Default)]
@@ -113,8 +114,24 @@ impl ProgrammableTransactionBuilder {
             CallArg::ImmutableOrOwned(_) | CallArg::Shared(_) | CallArg::Receiving(_) => {
                 self.obj(call_arg)
             }
+            CallArg::TransactionDependency(_) => {
+                anyhow::bail!(
+                    "use ProgrammableTransactionBuilder::transaction_dependency() \
+                     to add a transaction dependency input"
+                )
+            }
             _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         }
+    }
+
+    /// Adds a transaction dependency input: the transaction executes after
+    /// `digest`, a transaction of the current epoch, and fails if `digest`
+    /// failed. The input cannot be used as a command argument.
+    pub fn transaction_dependency(&mut self, digest: TransactionDigest) {
+        self.inputs.insert_full(
+            BuilderArg::TransactionDependency(digest),
+            CallArg::TransactionDependency(digest),
+        );
     }
 
     pub fn make_obj_vec<T: Into<CallArg>>(

@@ -17,6 +17,7 @@ colored.workspace = true
 indexmap.workspace = true
 lcov.workspace = true
 petgraph.workspace = true
+rayon.workspace = true
 serde.workspace = true
 
 # internal dependencies

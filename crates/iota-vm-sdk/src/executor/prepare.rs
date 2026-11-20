@@ -36,7 +36,7 @@ use iota_types::{
     transaction::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
         ReceivingObjectReadResult, ReceivingObjects, TransactionAPI,
-        merge_authenticator_input_objects,
+        TransactionDependencyReadResult, merge_authenticator_input_objects,
     },
     transaction_executor::{InputCheckRules, SimulateTransactionResult},
 };
@@ -115,6 +115,16 @@ pub(super) fn prepare_transaction(
     let mut input_objects = load_input_objects(store, &raw_input_object_kinds)?;
     let receiving_objects = load_receiving_objects(store, &receiving_object_refs)?;
 
+    // The store keeps no executed transactions, so a dependency is assumed to
+    // succeed, as when a node simulates a transaction whose dependency it has
+    // not executed.
+    if let Some(dependency) = transaction.transaction_dependency() {
+        input_objects.set_transaction_dependency(TransactionDependencyReadResult {
+            digest: dependency,
+            succeeded: true,
+        });
+    }
+
     // Mint a one-shot mock gas coin if the transaction carries no gas payment,
     // the same coin the node mints on its simulation paths. `Execute` commits
     // effects to the store, so it requires a real gas payment.
@@ -163,8 +173,8 @@ pub(super) fn prepare_transaction(
     // Pass `0` for the authenticator gas budget: this crate runs the
     // authenticator and body together to effects, which is the node's
     // post-consensus path, where they share the full transaction budget
-    // (`max_auth_gas` caps only the separate pre-consensus signing check,
-    // which this crate does not model). A `0` budget makes
+    // (the execution engine itself holds the authenticators to
+    // `max_auth_gas` with validator attestation). A `0` budget makes
     // `check_transaction_input` meter at the full transaction budget, as
     // `check_certificate_input` does. (Move-authentication support is
     // verified before preparation, so the precondition a non-zero budget

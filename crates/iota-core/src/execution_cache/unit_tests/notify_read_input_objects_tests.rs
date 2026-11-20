@@ -489,3 +489,30 @@ async fn cache_only_availability_ignores_store_but_full_path_falls_back() {
         vec![true, false, true],
     );
 }
+
+/// A transaction that depends on a transaction this node has not executed
+/// waits: the key is not available, in memory or in the store.
+#[tokio::test]
+async fn test_writeback_waits_for_unexecuted_transaction() {
+    let cache = create_writeback_cache().await;
+    let receiving_keys = HashSet::new();
+    let epoch = 0;
+    let unknown = InputKey::ExecutedTransaction {
+        digest: TransactionDigest::random(),
+    };
+
+    assert_eq!(
+        cache.multi_input_objects_available_cache_only(&[unknown]),
+        vec![false]
+    );
+    assert_eq!(
+        cache.multi_input_objects_available(&[unknown], &receiving_keys, epoch),
+        vec![false]
+    );
+    assert!(
+        cache
+            .notify_read_input_objects(&[unknown], &receiving_keys, epoch)
+            .now_or_never()
+            .is_none()
+    );
+}

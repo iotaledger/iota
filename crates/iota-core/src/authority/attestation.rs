@@ -53,6 +53,10 @@ impl AuthorityState {
     /// in a validator attestation and attached to the transaction before
     /// submitting it to consensus.
     ///
+    /// A transaction that passes the validation checks but whose transaction
+    /// dependency is known here to have failed, or to have run in an earlier
+    /// epoch, is refused without a dry run: it can never execute successfully.
+    ///
     /// Shares the validation pipeline with
     /// `handle_transaction_validation_checks`
     /// via [`Self::run_validation_checks`] (deny checks, input object loading,
@@ -104,6 +108,14 @@ impl AuthorityState {
             check_input_read_consistency(&checked_input_sets)?;
         }
 
+        // A dependent executes only after the transaction it depends on, and
+        // fails without running any command when that transaction failed. A
+        // dependency known here to have failed, or to have run in an earlier
+        // epoch, is final, so the transaction can never succeed and is refused
+        // before the dry run. A dependency not executed here yet is assumed to
+        // have succeeded, as in simulation, and the body is dry-run.
+        self.check_transaction_dependency_known_outcome(tx, epoch_store.epoch())?;
+
         let owned_objects = tx_checked_input_objects.inner().filter_owned_objects();
 
         let epoch_id = epoch_store.epoch_start_config().epoch_data().epoch_id();
@@ -126,10 +138,11 @@ impl AuthorityState {
         });
 
         // The dry run meters authentication and body against the whole budget,
-        // as execution does, and a failed authentication is refused unpaid. So
-        // the authenticators first run on their own at the signing cap, as at
-        // admission: one that fails or exceeds `max_auth_gas` is refused before
-        // budget-sized work is done on it.
+        // as execution does (the authenticators at most `max_auth_gas` of it),
+        // and a failed authentication is refused unpaid. So the authenticators first run on
+        // their own at the signing cap, as at admission: one that fails or
+        // exceeds `max_auth_gas` is refused before budget-sized work is done on
+        // it.
         let authenticators_run_on_their_own =
             !move_authenticators.is_empty() && units_despite_failed_authentication.get().is_none();
         if authenticators_run_on_their_own {
@@ -323,10 +336,14 @@ impl AuthorityState {
             // attested, sequenced and charged as a failed transaction under
             // the normal flow.
             units_despite_failed_authentication.get().ok_or_else(|| {
-                IotaError::Execution(format!(
-                    "refusing to attest transaction with failed Move authentication: {:?}",
-                    effects.status()
-                ))
+                self.authentication_failure(
+                    tx,
+                    epoch_store.epoch(),
+                    IotaError::Execution(format!(
+                        "refusing to attest transaction with failed Move authentication: {:?}",
+                        effects.status()
+                    )),
+                )
             })?
         } else {
             attestation::computation_units(effects.gas_cost_summary(), tx.gas_price())
