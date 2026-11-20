@@ -294,6 +294,7 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             dependent executes as failed with `TransactionDependencyFailed`.
 //             Raise `max_auth_gas` to 0.001 IOTA on devnet.
 //             Set the attestation freshness window on devnet.
+//             Set the penalty for refuted attestations on devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -4066,6 +4067,10 @@ impl ProtocolConfig {
 
                         // Ten minutes at devnet's 20 commits a second.
                         cfg.attestation_freshness_window_commits = Some(12_000);
+
+                        // Cuts an attestor off after no more than 100 refuted
+                        // attestations per epoch at the current `max_auth_gas`.
+                        cfg.attestation_max_refuted_units_squared = Some(100_000_000);
                     }
                 }
                 // Use this template when making changes:
@@ -5039,6 +5044,30 @@ mod test {
                             .is_some(),
                         "version {version} on {chain:?} runs the P-COOL flow without the \
                          regex reference safety budget"
+                    );
+                }
+            }
+        }
+    }
+
+    /// The penalty's value is calibrated for refuted attestations of at most
+    /// 2 × `gas_rounding_step` units, execution's run plus the judge's re-run.
+    /// That holds while `max_auth_gas` buys no more than one step per run at a
+    /// gas price of 1,000.
+    #[test]
+    fn refuted_attestation_penalty_requires_max_auth_gas_within_one_rounding_step() {
+        const GAS_PRICE: u64 = 1_000;
+        for chain in [Chain::Unknown, Chain::Mainnet, Chain::Testnet] {
+            for version in MIN_PROTOCOL_VERSION..=MAX_PROTOCOL_VERSION {
+                let config = ProtocolConfig::get_for_version(ProtocolVersion::new(version), chain);
+                if config
+                    .attestation_max_refuted_units_squared_as_option()
+                    .is_some()
+                {
+                    assert!(
+                        config.max_auth_gas() <= config.gas_rounding_step() * GAS_PRICE,
+                        "version {version} on {chain:?} penalizes refuted attestations while \
+                         max_auth_gas buys more than one gas_rounding_step"
                     );
                 }
             }
