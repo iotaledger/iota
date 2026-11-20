@@ -16,7 +16,7 @@ use iota_types::{
     attestation::{Attestation, AttestationData, AttestedTransaction},
     deny_rule_governance::DenyRuleConfig,
     effects::TransactionEffectsAPI,
-    error::{IotaError, IotaResult},
+    error::{IotaError, IotaResult, UserInputError},
     fp_ensure,
     messages_consensus::ConsensusTransaction,
     messages_grpc::{
@@ -122,6 +122,56 @@ const MAX_CONCURRENT_SUBMIT_TASKS: usize = 16;
 /// A single streamed item in a V2 RPC response. The `Weight` is the per-item
 /// spam-policy contribution decided by the producing code path.
 type TxUpdateItem = Result<((TransactionDigest, TxStatusUpdate), Weight), tonic::Status>;
+
+/// Admits a transaction with a transaction dependency input only with the
+/// local evidence post-consensus validation requires of its dependency: a
+/// root or deferred at a commit this validator processed, or submitted to
+/// consensus through this validator and still in flight. A dependency known
+/// to have failed or to have run in an earlier epoch, or recorded as dropped,
+/// is rejected for good. Any other is rejected with a retriable error, also
+/// one that executed with success without being a root, and one recorded as
+/// dropped by the deny rules or the coin deny list: either can change in the
+/// epoch, so the dependency can be kept when it is submitted again. Local by
+/// design: post-consensus validation decides the same way on every
+/// validator.
+fn check_transaction_dependency_for_submission(
+    state: &AuthorityState,
+    epoch_store: &AuthorityPerEpochStore,
+    soft_locks: &PreConsensusSoftLocks,
+    transaction: &VerifiedTransaction,
+) -> IotaResult<()> {
+    let transaction = transaction.data().transaction();
+    let Some(digest) = transaction.transaction_dependency() else {
+        return Ok(());
+    };
+    state.check_transaction_dependency_known_outcome(transaction, epoch_store.epoch())?;
+    if epoch_store.root_commit_of(&digest)?.is_some()
+        || epoch_store.is_deferred_transaction(&digest)
+        || epoch_store.is_pending_consensus_user_transaction(&digest)?
+        || soft_locks.check_in_flight(&digest)
+    {
+        return Ok(());
+    }
+    if epoch_store
+        .recorded_dropped_transaction(&digest)
+        .is_some_and(|error| !is_denial(&error))
+    {
+        return Err(UserInputError::TransactionDependencyFailed { digest }.into());
+    }
+    Err(UserInputError::TransactionDependencyNotFound { digest }.into())
+}
+
+/// Whether `error` is a denial by the deny rules or the coin deny list.
+fn is_denial(error: &IotaError) -> bool {
+    matches!(
+        error,
+        IotaError::UserInput {
+            error: UserInputError::TransactionDenied { .. }
+                | UserInputError::AddressDeniedForCoin { .. }
+                | UserInputError::CoinTypeGlobalPause { .. },
+        }
+    )
+}
 
 /// Whether admission checks the transaction's inputs against local state: that
 /// they load at the declared versions, pass the deny checks and get their soft
@@ -254,6 +304,26 @@ fn weigh_sender_rejection(error: &IotaError, after_dry_run: bool) -> Weight {
 }
 
 /// Returns the traffic weight of a rejection by
+/// [`AuthorityState::attest_transaction()`] or
+/// [`AuthorityState::handle_transaction_validation_checks()`]:
+/// [`Weight::one()`] for `TransactionDependencyNotFound`, and otherwise what
+/// [`normalize()`] gives `error`. The two return that error only for a Move
+/// authentication that failed while the transaction's dependency has not
+/// executed here, so the validator ran the authenticators for nothing.
+fn weigh_validation_rejection(error: &IotaError) -> Weight {
+    if matches!(
+        error,
+        IotaError::UserInput {
+            error: UserInputError::TransactionDependencyNotFound { .. },
+        }
+    ) {
+        Weight::one()
+    } else {
+        normalize(error)
+    }
+}
+
+/// Returns the traffic weight of a rejection by
 /// [`ExecutionCacheWrite::validate_owned_object_versions()`]: what
 /// [`weigh_sender_rejection()`] gives for an [`IotaError::UserInput`] error,
 /// and otherwise what [`normalize()`] gives `error`.
@@ -352,13 +422,14 @@ impl ValidatorService {
     /// consensus. Returns the terminal status together with the per-item
     /// traffic weight derived from the outcome: `Weight::one()` for an
     /// already-executed duplicate (spam-like), for a transaction too large for
-    /// consensus once attested, and for a changed owned input or a refused
-    /// soft lock after the attestation's dry run (the locks are taken after
-    /// the dry run only when the transaction's Move authenticators did not
-    /// run on their own first); `Weight::zero()` for a rejection because the
-    /// validator is overloaded and for a successful submission; and
-    /// `normalize(&error)` for any other rejection (signature/epoch errors
-    /// weigh, others don't).
+    /// consensus once attested, for a Move authentication that failed while
+    /// the transaction's dependency has not executed here, and for a changed
+    /// owned input or a refused soft lock after the attestation's dry run
+    /// (the locks are taken after the dry run only when the transaction's
+    /// Move authenticators did not run on their own first); `Weight::zero()`
+    /// for a rejection because the validator is overloaded and for a
+    /// successful submission; and `normalize(&error)` for any other rejection
+    /// (signature/epoch errors weigh, others don't).
     async fn submit_single_tx(
         state: &Arc<AuthorityState>,
         consensus_adapter: &Arc<ConsensusAdapter>,
@@ -479,6 +550,31 @@ impl ValidatorService {
             return (TxStatusUpdate::Rejected { error }, weight);
         }
 
+        // A dependency not visible here yet is reported only after the checks
+        // below, so an error that rejects the transaction for good comes
+        // first. They then run without the Move authenticators and without
+        // the attestation's dry run.
+        let mut dependency_not_found = None;
+        if checks_admitted_inputs() {
+            match check_transaction_dependency_for_submission(
+                state,
+                epoch_store,
+                soft_locks,
+                &verified_tx,
+            ) {
+                Ok(()) => {}
+                Err(
+                    error @ IotaError::UserInput {
+                        error: UserInputError::TransactionDependencyNotFound { .. },
+                    },
+                ) => dependency_not_found = Some(error),
+                Err(e) => {
+                    let weight = normalize(&e);
+                    return (TxStatusUpdate::Rejected { error: e }, weight);
+                }
+            }
+        }
+
         // Deny-rule source for admission. With governance enabled, admission
         // checks the active governance rules on top of the local config, so
         // transactions the network will deterministically drop post-consensus
@@ -491,9 +587,11 @@ impl ValidatorService {
         // With validator attestation enabled, `attest_transaction` runs the
         // deny checks, object loading, input checks, coin deny list and a full
         // dry run in one call and produces the attestation payload; otherwise
-        // the validation-only function runs. The attestation takes the soft
-        // locks itself before its dry run, once the transaction's signers have
-        // authorized it.
+        // the validation-only function runs. While the dependency is not
+        // found, only its checks before the Move authenticators run: the
+        // transaction is rejected whatever the authenticators answer. The
+        // attestation takes the soft locks itself before its dry run, once
+        // the transaction's signers have authorized it.
         let mut soft_lock = None;
         let (attestation_data, owned_objects, verified_tx, permit) = if !checks_admitted_inputs() {
             // Only tests take this branch, through the fail point of
@@ -507,7 +605,9 @@ impl ValidatorService {
                 .then(|| attest_without_dry_run(&verified_tx));
 
             (attestation_data, Vec::new(), verified_tx, None)
-        } else if epoch_store.protocol_config().enable_validator_attestation() {
+        } else if dependency_not_found.is_none()
+            && epoch_store.protocol_config().enable_validator_attestation()
+        {
             let permit = match state.acquire_attestation_permit().await {
                 Ok(permit) => permit,
                 Err(e) => return reject_for_overload(metrics, e),
@@ -586,7 +686,7 @@ impl ValidatorService {
                     (Some(data), objs, verified_tx, Some(permit))
                 }
                 Err(e) => {
-                    let weight = normalize(&e);
+                    let weight = weigh_validation_rejection(&e);
                     return (TxStatusUpdate::Rejected { error: e }, weight);
                 }
             }
@@ -603,13 +703,25 @@ impl ValidatorService {
                 }
                 None => local_deny_config,
             };
+            if let Some(not_found) = dependency_not_found {
+                let error = state
+                    .handle_transaction_validation_checks_without_authentication(
+                        &verified_tx,
+                        epoch_store,
+                        deny_config,
+                    )
+                    .err()
+                    .unwrap_or(not_found);
+                let weight = normalize(&error);
+                return (TxStatusUpdate::Rejected { error }, weight);
+            }
             match state
                 .handle_transaction_validation_checks(&verified_tx, epoch_store, deny_config)
                 .await
             {
                 Ok(objs) => (None, objs, verified_tx, None),
                 Err(e) => {
-                    let weight = normalize(&e);
+                    let weight = weigh_validation_rejection(&e);
                     return (TxStatusUpdate::Rejected { error: e }, weight);
                 }
             }

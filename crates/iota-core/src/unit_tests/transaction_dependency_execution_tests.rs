@@ -37,8 +37,9 @@ struct Setup {
     key: AccountPrivateKey,
     gas: Vec<Object>,
     shared: Object,
-    /// Enables transaction dependencies for as long as the setup lives.
-    _config_guard: OverrideGuard,
+    /// Enables transaction dependencies until the setup is dropped or
+    /// reconfigured.
+    _config_guard: Option<OverrideGuard>,
 }
 
 async fn setup() -> Setup {
@@ -58,11 +59,19 @@ async fn setup() -> Setup {
         key,
         gas,
         shared,
-        _config_guard: config_guard,
+        _config_guard: Some(config_guard),
     }
 }
 
 impl Setup {
+    /// Moves the authority to the next epoch, which keeps transaction
+    /// dependencies enabled.
+    async fn reconfigure(&mut self) {
+        // Reconfiguration applies its own override of the protocol config.
+        self._config_guard = None;
+        self.authority.reconfigure_for_testing().await;
+    }
+
     /// A transfer of `amount` paid with gas coin `gas_index`. `u64::MAX` fails
     /// at execution. With `with_shared`, the shared object is a mutable input
     /// that no command uses.
@@ -235,6 +244,51 @@ async fn dependent_cancelled_at_sequencing_does_not_read_its_dependency() {
 }
 
 #[tokio::test]
+async fn only_a_dependency_of_an_earlier_epoch_is_rejected() {
+    let mut setup = setup().await;
+    setup.reconfigure().await;
+    let epoch_store = setup.authority.epoch_store_for_testing().clone();
+    let dependency = setup.transfer(0, 1_000, None, false);
+    let dependency_digest = *dependency.digest();
+    // `Setup::execute` certifies for epoch 0, so the dependency executes as
+    // checkpoint content of epoch 1 instead.
+    let dependency = VerifiedExecutableTransaction::new_from_checkpoint(
+        epoch_store.verify_transaction(dependency).unwrap(),
+        epoch_store.epoch(),
+        1,
+    );
+    epoch_store.assign_to_a_new_commit_for_testing(&[dependency.key()]);
+    let (effects, _) = setup
+        .authority
+        .try_execute_immediately(&dependency, ExecutionEnv::new(), &epoch_store)
+        .unwrap();
+    assert!(effects.status().is_success());
+    let dependent = setup.transfer(1, 1_000, Some(dependency_digest), false);
+    let dependent = dependent.data().transaction();
+
+    // As for a caller still holding the previous epoch's store.
+    let result = setup
+        .authority
+        .check_transaction_dependency_known_outcome(dependent, 0);
+    assert!(result.is_ok(), "{result:?}");
+    let result = setup
+        .authority
+        .check_transaction_dependency_known_outcome(dependent, 2);
+    assert!(
+        matches!(
+            &result,
+            Err(IotaError::UserInput {
+                error: UserInputError::TransactionDependencyNotInCurrentEpoch {
+                    digest,
+                    executed_epoch: 1,
+                }
+            }) if *digest == dependency_digest
+        ),
+        "{result:?}"
+    );
+}
+
+#[tokio::test]
 async fn attestor_refuses_a_dependent_of_a_failed_transaction() {
     let setup = setup().await;
     let failing = setup.transfer(0, u64::MAX, None, false);
@@ -392,4 +446,77 @@ async fn move_account_pays_nothing_for_a_dependent_it_did_not_authorize() {
 
     assert_dependency_failed(&effects, failing_digest);
     assert_eq!(effects.gas_cost_summary(), &GasCostSummary::default());
+}
+
+/// The results of admitting `transaction` on `env`'s authority with the
+/// attestor's dry run and with the validation checks alone.
+async fn admission_results(
+    env: &AbstractAccountTestEnv,
+    transaction: &TransactionEnvelope,
+) -> [IotaResult<()>; 2] {
+    let epoch_store = env.authority.epoch_store_for_testing();
+    let verified = epoch_store.verify_transaction(transaction.clone()).unwrap();
+    let deny_config = &env.authority.config.transaction_deny_config;
+    let attested = env
+        .authority
+        .attest_transaction(&verified, &epoch_store, deny_config, |_| Ok(()))
+        .map(|_| ());
+    let validated = env
+        .authority
+        .handle_transaction_validation_checks(&verified, &epoch_store, deny_config)
+        .await
+        .map(|_| ());
+    [attested, validated]
+}
+
+/// A dependent signed with the key its dependency rotates the account to
+/// fails authentication until the dependency executes. Until then admission
+/// reports the retriable `TransactionDependencyNotFound`; afterwards it admits
+/// the dependent, and reports a failed authentication as such.
+#[tokio::test]
+async fn failed_authentication_of_a_dependent_is_retriable_until_its_dependency_executes() {
+    let _guard = move_account_config(true);
+    let mut env = AbstractAccountTestEnv::new().await;
+    let (_, new_key): (_, AccountPrivateKey) = get_key_pair();
+    let rotation = env.rotate_owner_key_transaction(&new_key);
+    let rotation_digest = *rotation.digest();
+    let dependent = env.dependent_account_transaction_signed_with(rotation_digest, &new_key);
+    let (_, unrelated_key): (_, AccountPrivateKey) = get_key_pair();
+    let unauthorized =
+        env.dependent_account_transaction_signed_with(rotation_digest, &unrelated_key);
+
+    for result in admission_results(&env, &dependent).await {
+        assert!(
+            matches!(
+                &result,
+                Err(IotaError::UserInput {
+                    error: UserInputError::TransactionDependencyNotFound { digest }
+                }) if *digest == rotation_digest
+            ),
+            "{result:?}"
+        );
+    }
+
+    let attestation = env.attest(&rotation);
+    let effects = env.submit(rotation, Some(attestation)).await;
+    assert!(effects.status().is_success(), "{effects:?}");
+
+    for result in admission_results(&env, &dependent).await {
+        assert!(result.is_ok(), "{result:?}");
+    }
+    let [attested, validated] = admission_results(&env, &unauthorized).await;
+    assert!(
+        matches!(
+            &attested,
+            Err(IotaError::MoveAuthenticatorExecutionFailure { .. })
+        ),
+        "{attested:?}"
+    );
+    assert!(
+        matches!(
+            &validated,
+            Err(IotaError::MoveAuthenticatorExecutionFailure { .. })
+        ),
+        "{validated:?}"
+    );
 }

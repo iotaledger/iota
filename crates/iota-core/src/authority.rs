@@ -1398,8 +1398,24 @@ impl AuthorityState {
         Ok(tx_checked_input_objects.inner().filter_owned_objects())
     }
 
+    /// Runs the checks of [`Self::handle_transaction_validation_checks`]
+    /// without running the Move authenticators, for a transaction that is
+    /// rejected whatever they answer.
+    #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
+    pub(crate) fn handle_transaction_validation_checks_without_authentication(
+        &self,
+        transaction: &VerifiedTransaction,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+        deny_config: &dyn DenyRuleConfig,
+    ) -> IotaResult<()> {
+        self.run_validation_checks(transaction, epoch_store, deny_config, false)?;
+
+        Ok(())
+    }
+
     /// Runs `authenticators` on their own, metered by `gas_status`, and fails
-    /// as admission does when one rejects the transaction or runs out of gas.
+    /// as admission does when one rejects the transaction or runs out of gas,
+    /// with the error of [`Self::authentication_failure`].
     /// `function_refs` are the sender's and the gas owner's authenticator
     /// functions, resolved over every authenticator of the transaction.
     fn authenticate_before_consensus(
@@ -1456,8 +1472,14 @@ impl AuthorityState {
             auth_context_data,
             &mut None,
         );
-        result.map_err(|error| IotaError::MoveAuthenticatorExecutionFailure {
-            error: error.to_string(),
+        result.map_err(|error| {
+            self.authentication_failure(
+                tx,
+                epoch_store.epoch(),
+                IotaError::MoveAuthenticatorExecutionFailure {
+                    error: error.to_string(),
+                },
+            )
         })
     }
 
@@ -1697,6 +1719,9 @@ impl AuthorityState {
                 &self.config.transaction_deny_config,
             )
             .await?;
+        // After the checks above, so a permanent local error is reported ahead
+        // of the retriable "not executed yet".
+        self.check_transaction_dependency_for_signing(&transaction, epoch_store)?;
 
         // Concurrent requests for the same transaction are signed once; the others
         // get the stored signature instead of signing and writing it again.
@@ -2151,6 +2176,76 @@ impl AuthorityState {
         }
 
         transaction.split_input_objects_into_groups_for_reading(input_objects)
+    }
+
+    /// Checks the outcome of the transaction named by `transaction`'s
+    /// dependency input, when this node knows one: an error if the dependency
+    /// failed, was cancelled, or executed in an earlier epoch. Returns the
+    /// dependency's digest when it has not executed here yet, `None` when it
+    /// has or `transaction` has no dependency input.
+    pub fn check_transaction_dependency_known_outcome(
+        &self,
+        transaction: &Transaction,
+        current_epoch: EpochId,
+    ) -> IotaResult<Option<TransactionDigest>> {
+        let Some(digest) = transaction.transaction_dependency() else {
+            return Ok(None);
+        };
+        let Some(effects) = self
+            .get_transaction_cache_reader()
+            .try_get_executed_effects(&digest)?
+        else {
+            return Ok(Some(digest));
+        };
+        if !effects.status().is_success() {
+            return Err(UserInputError::TransactionDependencyFailed { digest }.into());
+        }
+        if effects.epoch() < current_epoch {
+            return Err(UserInputError::TransactionDependencyNotInCurrentEpoch {
+                digest,
+                executed_epoch: effects.epoch(),
+            }
+            .into());
+        }
+        Ok(None)
+    }
+
+    /// The error to report when `transaction`'s Move authentication failed at
+    /// admission with `error`: the error of
+    /// [`Self::check_transaction_dependency_known_outcome`] if it returns one;
+    /// the retriable `TransactionDependencyNotFound` while the dependency has
+    /// not executed here, since the authenticators ran without its writes;
+    /// `error` otherwise.
+    fn authentication_failure(
+        &self,
+        transaction: &Transaction,
+        current_epoch: EpochId,
+        error: IotaError,
+    ) -> IotaError {
+        match self.check_transaction_dependency_known_outcome(transaction, current_epoch) {
+            Ok(Some(digest)) => UserInputError::TransactionDependencyNotFound { digest }.into(),
+            Ok(None) => error,
+            Err(dependency_error) => dependency_error,
+        }
+    }
+
+    /// Checks the transaction named by `transaction`'s dependency input before
+    /// signing it in the certificate flow: it must have executed successfully
+    /// in the current epoch on this validator. Not executed here yet is
+    /// reported with a retriable error, so the client's driver retries once it
+    /// has.
+    fn check_transaction_dependency_for_signing(
+        &self,
+        transaction: &VerifiedTransaction,
+        epoch_store: &AuthorityPerEpochStore,
+    ) -> IotaResult<()> {
+        if let Some(digest) = self.check_transaction_dependency_known_outcome(
+            transaction.data().transaction(),
+            epoch_store.epoch(),
+        )? {
+            return Err(UserInputError::TransactionDependencyNotFound { digest }.into());
+        }
+        Ok(())
     }
 
     /// Test only wrapper for `try_execute_immediately()` above, useful for
