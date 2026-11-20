@@ -76,7 +76,7 @@ pub(crate) struct AttestedObjectVersions<'a> {
     /// Where consensus first sequenced the attested transaction.
     pub(crate) sequenced_at: ExecutionIndices,
     /// How many commits, or rounds, before `sequenced_at` a supersession may
-    /// lie; `None` admits any of the epoch.
+    /// be; `None` admits any of the epoch.
     pub(crate) window: Option<u64>,
 }
 
@@ -86,8 +86,9 @@ impl AttestedObjectVersions<'_> {
     ///
     /// # Panics
     ///
-    /// If a read fails: a verdict every validator has to reach alike must not
-    /// depend on this node's storage.
+    /// If a read fails, or the transaction that replaced `attested` has no
+    /// stored body or no row for its gas coin: a verdict every validator has
+    /// to reach alike must not depend on this node's storage.
     pub(crate) fn superseded_within_window(
         &self,
         object_id: &ObjectId,
@@ -112,8 +113,8 @@ impl AttestedObjectVersions<'_> {
             None => self.row(&ObjectKey(*object_id, replacing))?.deleted_by?,
         };
         let effects = self.effects_in_epoch(&digest, uncommitted)?;
-        // Consuming another version means `attested` was never a version of
-        // the object, or was superseded before this epoch.
+        // Consuming another version, or none, means `attested` was never a
+        // version of the object, or was superseded before this epoch.
         let consumed = effects
             .modified_at_versions()
             .into_iter()
@@ -134,6 +135,10 @@ impl AttestedObjectVersions<'_> {
     /// ran in an earlier one, whose records a node may have pruned. Waits for
     /// them when the version naming `digest` is `uncommitted`: a version is
     /// readable before its writer records its effects.
+    ///
+    /// # Panics
+    ///
+    /// If a read fails.
     fn effects_in_epoch(
         &self,
         digest: &TransactionDigest,
@@ -165,9 +170,13 @@ impl AttestedObjectVersions<'_> {
         }
     }
 
-    /// Where `digest` ran: its commit, from the row of the gas coin it
-    /// mutated; its round for a commit prologue or a deny-rules update; only
-    /// the epoch for any other system transaction.
+    /// Where `digest` ran: its commit; its round for a commit prologue or a
+    /// deny-rules update; only the epoch for any other system transaction.
+    ///
+    /// # Panics
+    ///
+    /// If a read fails, or `digest` has no stored body or no row for its gas
+    /// coin.
     fn transaction_position(
         &self,
         digest: &TransactionDigest,
@@ -199,6 +208,11 @@ impl AttestedObjectVersions<'_> {
         SupersededAt::Commit(row.produced_at)
     }
 
+    /// The handler row at `key`.
+    ///
+    /// # Panics
+    ///
+    /// If the read fails.
     fn row(&self, key: &ObjectKey) -> Option<HandlerProcessedObject> {
         self.epoch_store
             .handler_processed_object(key)
@@ -208,16 +222,14 @@ impl AttestedObjectVersions<'_> {
 
 /// Whether a version superseded at `at` was current recently enough before
 /// `sequenced_at` for an honest dry run to have read it: at or after the
-/// window's start. A supersession known only by its epoch is always
-/// admitted: it cannot be measured, and refusing it would refute an honest
-/// dry run.
+/// window's start. A supersession known only by its epoch cannot be
+/// measured, so it is admitted.
 fn within_freshness_window(at: SupersededAt, sequenced_at: ExecutionIndices, window: u64) -> bool {
     match at {
         SupersededAt::Commit(commit) => commit >= sequenced_at.sub_dag_index.saturating_sub(window),
         SupersededAt::Round(round) => {
             round >= sequenced_at.last_committed_round.saturating_sub(window)
         }
-        // Not measurable, and refusing it would refute an honest dry run.
         SupersededAt::Epoch => true,
     }
 }
