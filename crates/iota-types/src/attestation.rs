@@ -49,9 +49,9 @@ pub enum AttestationData {
         computation_units: u64,
         /// The version the attestor's dry run read of each shared object that
         /// a Move authenticator of the transaction names, as an argument or as
-        /// its account, each with the [`SharedInputIndex`] that names it. An
-        /// object named at two indexes has an entry for each. An object that
-        /// the dry run read as deleted has no entry.
+        /// its account, each with the [`SharedInputIndex`] that names it. Every
+        /// such object has an entry, and an object named at two indexes has
+        /// one for each.
         shared_object_versions: Vec<(SharedInputIndex, Version)>,
     },
 }
@@ -95,7 +95,7 @@ impl SharedInputIndex {
 /// authenticator, in the order of the signatures. An object named at two
 /// indexes is returned for each. An object whose index does not fit
 /// [`SharedInputIndex`] is left out.
-pub fn list_shared_inputs(
+pub fn list_move_authenticator_shared_objects(
     transaction: &SenderSignedTransaction,
 ) -> Vec<(SharedInputIndex, &SharedObjectReference)> {
     transaction
@@ -482,9 +482,9 @@ mod tests {
 
     /// The transaction names shared objects at its inputs 1 and 3, at the
     /// second argument of its Move authenticator and as the authenticator's
-    /// account. [`list_shared_inputs()`] lists the last two with their
-    /// indexes: the shared objects of the Move authenticators, as
-    /// [`MoveAuthenticatorExt::shared_objects()`] gives them.
+    /// account. [`list_move_authenticator_shared_objects()`] lists the last
+    /// two with their indexes: the shared objects of the Move authenticators,
+    /// as [`MoveAuthenticatorExt::shared_objects()`] gives them.
     /// [`SharedInputIndex::find_object_id_in()`] finds each of them at its
     /// index. It also finds the immutable object at the third argument, and
     /// nothing at an index that is out of range or names a pure value.
@@ -526,7 +526,7 @@ mod tests {
             vec![UserSignature::MoveAuthenticator(authenticator)],
         );
 
-        let listed = list_shared_inputs(&transaction);
+        let listed = list_move_authenticator_shared_objects(&transaction);
 
         assert_eq!(
             listed,

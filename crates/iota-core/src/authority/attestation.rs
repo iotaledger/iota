@@ -551,12 +551,13 @@ fn collect_shared_object_versions<'a>(
 /// Returns the entries of an attestation of `transaction`: the index of each
 /// shared object that a Move authenticator of `transaction` names, with the
 /// version that `read_versions` holds for the object. An object with no
-/// version there has no entry.
+/// version there has no entry, which happens only when the authentication of
+/// the dry run failed, as on a deleted input.
 fn record_shared_object_versions(
     transaction: &SenderSignedTransaction,
     read_versions: &BTreeMap<ObjectId, Version>,
 ) -> Vec<(SharedInputIndex, Version)> {
-    attestation::list_shared_inputs(transaction)
+    attestation::list_move_authenticator_shared_objects(transaction)
         .into_iter()
         .filter_map(|(index, shared_object)| {
             let version = read_versions.get(&shared_object.object_id)?;
