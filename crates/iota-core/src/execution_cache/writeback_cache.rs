@@ -1299,7 +1299,8 @@ impl WritebackCache {
         for outputs in all_outputs {
             let tx_digest = outputs.transaction.digest();
             self.flush_transactions_from_dirty_to_cached(epoch, *tx_digest, outputs);
-            // Last, so a reader always finds the transaction in one of the two.
+            // Last: the cache may hold a remembered miss for this transaction,
+            // which a reader takes as absent without asking the database.
             assert!(
                 self.dirty
                     .pending_transaction_writes
