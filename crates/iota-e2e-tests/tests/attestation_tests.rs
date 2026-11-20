@@ -1312,7 +1312,7 @@ mod faulty_attestor {
                     tx,
                     &attestor,
                     attestor_sim_id,
-                    Some(vec![superseded_account]),
+                    Some(superseded_account.version),
                 )
                 .await,
             attestor,
