@@ -28,7 +28,7 @@ use iota_types::{
     auth_context::AuthContextData,
     crypto::{AccountPrivateKey, get_key_pair},
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
-    error::{ExecutionError, ExecutionErrorKind, IotaResult},
+    error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
     gas::IotaGasStatusAPI,
     move_package,
@@ -1453,6 +1453,28 @@ impl MoveAccountSponsorSetup {
         result.expect("the authenticators must pass within max_auth_gas");
         u64::from(gas_left) - u64::from(gas_status.move_gas_status().remaining_gas())
     }
+
+    /// Runs the admission checks on the sponsored transfer, which run its
+    /// authenticators on their own, and returns what they say failed.
+    async fn failed_admission(&self) -> String {
+        let authority = &self.chain.authority;
+        let epoch_store = authority.epoch_store_for_testing();
+        let verified = epoch_store
+            .verify_transaction(self.transfer.clone())
+            .unwrap();
+        let error = authority
+            .handle_transaction_validation_checks(
+                &verified,
+                &epoch_store,
+                &authority.config.transaction_deny_config,
+            )
+            .await
+            .expect_err("admission must refuse a transfer whose authenticators fail");
+        let IotaError::MoveAuthenticatorExecutionFailure { error } = error else {
+            panic!("expected a failed Move authentication, got {error:?}");
+        };
+        error
+    }
 }
 
 /// Whether `status` is a failed Move authentication that aborted with `code`.
@@ -1852,6 +1874,28 @@ async fn authenticators_within_max_auth_gas_leave_the_effects_unchanged() {
     assert!(
         limited.gas_cost_summary().computation_cost > both,
         "the transaction body must have run after the authenticators"
+    );
+}
+
+/// The Move authenticators share one gas limit, so on their own, as in
+/// admission and in the judge's re-run, they run in the order execution runs
+/// them: with the P-COOL flow the sponsor's first. When both fail, its
+/// failure is the one reported, even when the sender's signature comes first.
+#[tokio::test]
+async fn authenticators_on_their_own_run_in_the_order_of_execution() {
+    let setup = MoveAccountSponsorSetup::new(
+        &MoveAccountSponsorInputs::random(),
+        TestAccount::Account(TestAuthenticator::Fails),
+        TestAccount::Account(TestAuthenticator::FailsOther),
+        SponsorSignature::Second,
+    )
+    .await;
+
+    let failure = setup.failed_admission().await;
+
+    assert!(
+        failure.contains("sub status 2"),
+        "the sponsor's failure must be reported: {failure}"
     );
 }
 

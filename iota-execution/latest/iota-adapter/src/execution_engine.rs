@@ -486,11 +486,8 @@ mod checked {
                 // The authenticators share at most `max_auth_gas`, as before
                 // consensus; the rest of the budget is there again to charge
                 // for a failure or to run the body.
-                let auth_gas_limit = protocol_config
-                    .enable_validator_attestation()
-                    .then(|| protocol_config.max_auth_gas());
-                let ((authentication_result, gas_owner_authorized), gas_limited) = gas_charger
-                    .with_gas_limit(auth_gas_limit, |gas_charger| {
+                let (authentication_result, gas_owner_authorized) =
+                    with_max_auth_gas(protocol_config, &mut gas_charger, |gas_charger| {
                         run_move_authenticators(
                             &mut temporary_store,
                             gas_charger,
@@ -500,13 +497,6 @@ mod checked {
                             enable_pcool,
                             run_authenticator,
                         )
-                    });
-                let authentication_result =
-                    authentication_result.map_err(|error| match auth_gas_limit {
-                        Some(max_auth_gas) if gas_limited => {
-                            name_max_auth_gas_when_out_of_gas(error, max_auth_gas)
-                        }
-                        _ => error,
                     });
 
                 // A resolution failure goes through the same reporting as an
@@ -706,13 +696,7 @@ mod checked {
                     .collect::<Vec<_>>();
 
                 if enable_pcool {
-                    if let Some(position) = authenticators
-                        .iter()
-                        .position(|(authenticator, ..)| authenticator.address() == gas_owner)
-                    {
-                        let gas_owner_authenticator = authenticators.remove(position);
-                        authenticators.insert(0, gas_owner_authenticator);
-                    }
+                    move_gas_owner_authenticator_first(&mut authenticators, gas_owner);
                 }
 
                 let mut gas_owner_authorized = !authenticators
@@ -744,6 +728,48 @@ mod checked {
                 (result, gas_owner_authorized)
             }
         }
+    }
+
+    /// Moves the gas owner's authenticator, when it has one, in front of the
+    /// others, which keep their order.
+    fn move_gas_owner_authenticator_first(
+        authenticators: &mut Vec<(
+            MoveAuthenticator,
+            AuthenticatorFunctionRef,
+            CheckedInputObjects,
+        )>,
+        gas_owner: Address,
+    ) {
+        if let Some(position) = authenticators
+            .iter()
+            .position(|(authenticator, ..)| authenticator.address() == gas_owner)
+        {
+            let gas_owner_authenticator = authenticators.remove(position);
+            authenticators.insert(0, gas_owner_authenticator);
+        }
+    }
+
+    /// Runs the Move authenticators through `run`. With validator attestation
+    /// (`enable_validator_attestation`) they share at most `max_auth_gas` of
+    /// the gas left; the rest is there again once `run`
+    /// returns. When they run out of `max_auth_gas`, the source of the error
+    /// names it.
+    fn with_max_auth_gas<T>(
+        protocol_config: &ProtocolConfig,
+        gas_charger: &mut GasCharger,
+        run: impl FnOnce(&mut GasCharger) -> (Result<(), ExecutionError>, T),
+    ) -> (Result<(), ExecutionError>, T) {
+        let max_auth_gas = protocol_config
+            .enable_validator_attestation()
+            .then(|| protocol_config.max_auth_gas());
+        let ((result, output), gas_limited) = gas_charger.with_gas_limit(max_auth_gas, run);
+        let result = result.map_err(|error| match max_auth_gas {
+            Some(max_auth_gas) if gas_limited => {
+                name_max_auth_gas_when_out_of_gas(error, max_auth_gas)
+            }
+            _ => error,
+        });
+        (result, output)
     }
 
     /// Says in the source of `error` that the Move authenticators ran out of
@@ -872,6 +898,11 @@ mod checked {
     /// information of an authenticator. If the execution fails, it returns
     /// an execution error; otherwise it returns an empty value. The gas
     /// status the authentication was metered on is returned alongside.
+    ///
+    /// With validator attestation (`enable_validator_attestation`) the
+    /// authenticators are metered as at execution, whatever `gas_status`
+    /// holds: they share at most `max_auth_gas`, and the gas owner's runs
+    /// first.
     #[instrument(name = "tx_validate", level = "debug", skip_all)]
     pub fn authenticate_transaction(
         store: &dyn BackingStore,
@@ -935,30 +966,41 @@ mod checked {
             *epoch_id,
         );
 
+        // The authenticators share one gas limit, so what each of them finds
+        // left depends on the order they run in.
+        let mut authenticators = authenticators;
+        if protocol_config.enable_validator_attestation() {
+            move_gas_owner_authenticator_first(&mut authenticators, gas_data.owner);
+        }
+
         // Run each authenticator in sequence; return on first failure.
-        let authentication_execution_result = authenticators.into_iter().try_for_each(
-            |(authenticator, authenticator_function_ref, authenticator_input_objects)| {
-                match authenticator_function_ref {
-                    AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
-                        authenticate_transaction_inner(
-                            &mut temporary_store,
-                            protocol_config,
-                            metrics.clone(),
-                            &mut gas_charger,
-                            authenticator,
-                            authenticator_function_ref_v1,
-                            &authenticator_input_objects.into_inner(),
-                            transaction_kind.clone(),
-                            transaction_digest,
-                            auth_context_data.clone(),
-                            tx_ctx.clone(),
-                            trace_builder_opt,
-                            move_vm,
-                        )
-                    }
-                }
-            },
-        );
+        let (authentication_execution_result, ()) =
+            with_max_auth_gas(protocol_config, &mut gas_charger, |gas_charger| {
+                let result = authenticators.into_iter().try_for_each(
+                    |(authenticator, authenticator_function_ref, authenticator_input_objects)| {
+                        match authenticator_function_ref {
+                            AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
+                                authenticate_transaction_inner(
+                                    &mut temporary_store,
+                                    protocol_config,
+                                    metrics.clone(),
+                                    gas_charger,
+                                    authenticator,
+                                    authenticator_function_ref_v1,
+                                    &authenticator_input_objects.into_inner(),
+                                    transaction_kind.clone(),
+                                    transaction_digest,
+                                    auth_context_data.clone(),
+                                    tx_ctx.clone(),
+                                    trace_builder_opt,
+                                    move_vm,
+                                )
+                            }
+                        }
+                    },
+                );
+                (result, ())
+            });
 
         let result = report_authentication_error(authentication_execution_result, protocol_config);
         (gas_charger.into_gas_status(), result)
