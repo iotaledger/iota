@@ -193,6 +193,87 @@ pub enum PolicyType {
     TestPanicOnInvocation,
 }
 
+/// One of the two lists of access rules.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum AccessRuleList {
+    Allow,
+    Deny,
+}
+
+/// What the node does with a client that no access rule names and the
+/// blocklist does not hold.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum DefaultAction {
+    /// Serve the client, and let the policies count it and block it.
+    #[default]
+    Limit,
+    /// Refuse the client.
+    Deny,
+}
+
+/// The access rules of a node, checked in this order, where the first match
+/// decides:
+///
+/// 1. `allow`: the node serves the client, and no policy counts or blocks it.
+/// 2. `deny`: the node refuses the client.
+/// 3. The blocklist: the node refuses a client that a policy blocked, until the block expires.
+/// 4. `default`: what the node does with every other client.
+///
+/// A rule is an IP address, or a network in CIDR notation such as
+/// `198.51.100.0/24`, and matches the full address of the client that connects
+/// to the node, or of the client that `client-id-source` names. An IPv4 client
+/// is matched by its IPv4 address, also when it connects as an IPv4-mapped
+/// IPv6 address, so IPv4 rules match it, and IPv6 rules do not, other than an
+/// IPv4-mapped rule of `/96` or longer, which is read as the IPv4 rule. Under
+/// dry run the node serves the clients that steps 2 to 4 refuse, and counts
+/// them.
+///
+/// ```yaml
+/// access-rules:
+///   allow:
+///     - 203.0.113.7
+///     - 198.51.100.0/24
+///   deny:
+///     - 192.0.2.0/24
+///   default: limit
+/// ```
+#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
+pub struct AccessRules {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub allow: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub deny: Vec<String>,
+    #[serde(default)]
+    pub default: DefaultAction,
+}
+
+impl AccessRules {
+    /// Whether these rules do the same as no `access-rules` in the config.
+    pub fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
+/// The error a config that sets `allow-list` fails to load with.
+const ALLOW_LIST_REMOVED: &str = "`allow-list` is no longer supported. To serve only the \
+    listed clients, use `access-rules` instead:\n\n  access-rules:\n    allow:\n      \
+    - <IP address or CIDR network>\n    default: deny";
+
+/// Accepts `allow-list` only when it is `null`, which older versions wrote
+/// for a config without an allowlist.
+fn reject_allow_list<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    match Option::<Vec<String>>::deserialize(deserializer)? {
+        None => Ok(None),
+        Some(_) => Err(serde::de::Error::custom(ALLOW_LIST_REMOVED)),
+    }
+}
+
 #[serde_as]
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -219,11 +300,18 @@ pub struct PolicyConfig {
     pub spam_sample_rate: Weight,
     #[serde(default = "default_dry_run")]
     pub dry_run: bool,
-    /// List of String which should all parse to type IPAddr.
-    /// If set, only requests from provided IPs will be allowed,
-    /// and any blocklist related configuration will be ignored.
-    #[serde(default)]
+    /// No longer accepted: a config that sets `allow-list` to a list fails to
+    /// load, with an error that shows the `access-rules` that replace it.
+    #[serde(
+        default,
+        deserialize_with = "reject_allow_list",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub allow_list: Option<Vec<String>>,
+    /// Which clients the node serves without counting them, which it refuses,
+    /// and what it does with every other client.
+    #[serde(default, skip_serializing_if = "AccessRules::is_default")]
+    pub access_rules: AccessRules,
     /// How many leading bits of an IPv6 address identify a client, from 32 to
     /// 128. The node cannot see how long a client's own network prefix is, so
     /// it assumes this length for every IPv6 client: the policies count, and
@@ -246,6 +334,7 @@ impl Default for PolicyConfig {
             spam_sample_rate: default_spam_sample_rate(),
             dry_run: default_dry_run(),
             allow_list: None,
+            access_rules: AccessRules::default(),
             ipv6_prefix_len: default_ipv6_prefix_len(),
         }
     }
@@ -312,6 +401,49 @@ mod tests {
         let policy = super::PolicyConfig::default_dos_protection_policy();
         assert!(policy.connection_blocklist_ttl_sec > 0);
         assert!(policy.proxy_blocklist_ttl_sec > 0);
+    }
+
+    #[test]
+    fn a_config_with_an_allow_list_fails_to_load_and_names_the_replacement() {
+        let error = serde_json::from_str::<super::PolicyConfig>(r#"{"allow-list": ["10.0.0.1"]}"#)
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains("`allow-list` is no longer supported"),
+            "{error}"
+        );
+        assert!(error.contains("access-rules"), "{error}");
+        assert!(error.contains("default: deny"), "{error}");
+    }
+
+    /// Older versions wrote `allow-list: null` for every config without an
+    /// allowlist, and such a config still loads.
+    #[test]
+    fn a_config_with_a_null_allow_list_loads() {
+        let config: super::PolicyConfig = serde_json::from_str(r#"{"allow-list": null}"#).unwrap();
+        assert_eq!(config.allow_list, None);
+        assert!(config.access_rules.is_default());
+    }
+
+    #[test]
+    fn an_unknown_access_rules_key_fails_to_load() {
+        let error =
+            serde_json::from_str::<super::PolicyConfig>(r#"{"access-rules": {"defualt": "deny"}}"#)
+                .unwrap_err()
+                .to_string();
+        assert!(error.contains("unknown field `defualt`"), "{error}");
+    }
+
+    #[test]
+    fn access_rules_parse_with_a_default_of_limit() {
+        let config: super::PolicyConfig =
+            serde_json::from_str(r#"{"access-rules": {"allow": ["198.51.100.0/24"]}}"#).unwrap();
+        assert_eq!(config.access_rules.allow, ["198.51.100.0/24"]);
+        assert_eq!(config.access_rules.default, super::DefaultAction::Limit);
+
+        let config: super::PolicyConfig =
+            serde_json::from_str(r#"{"access-rules": {"default": "deny"}}"#).unwrap();
+        assert_eq!(config.access_rules.default, super::DefaultAction::Deny);
     }
 
     #[test]

@@ -8323,6 +8323,7 @@ dependencies = [
  "iota-protocol-config",
  "iota-simulator",
  "iota-types",
+ "ipnet",
  "lru 0.12.4",
  "parking_lot 0.12.3",
  "prometheus-filtered",

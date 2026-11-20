@@ -34,7 +34,7 @@ use std::{
 };
 
 use iota_traffic_controller::{
-    ClientIpStatus, TrafficController, get_client_ip, policies::TrafficTally,
+    ClientAccess, ClientIpStatus, TrafficController, get_client_ip, policies::TrafficTally,
 };
 use iota_types::traffic_control::{ClientIdSource, Weight};
 use tonic::{Code, Status, transport::server::TcpConnectInfo};
@@ -120,12 +120,13 @@ where
         let mut inner = std::mem::replace(&mut self.inner, cloned);
 
         Box::pin(async move {
-            if !traffic_controller.check(&client, &None) {
+            let access = traffic_controller.check(&client, &None);
+            if !access.is_served() {
                 return Ok(Status::resource_exhausted("Too many requests").into_http());
             }
 
             // Created after the check, so a refused request is not charged.
-            let tally_handle = TallyHandle::new(traffic_controller, client);
+            let tally_handle = TallyHandle::new(traffic_controller, client, access);
             let mut req = req;
             req.extensions_mut().insert(tally_handle.clone());
 
@@ -154,30 +155,37 @@ where
 ///
 /// If nothing tallied the request, it is charged as one request when the last
 /// copy of the handle is dropped. A copy kept past the request delays that
-/// charge.
+/// charge. Nothing is charged for a client that an allow rule serves.
 #[derive(Clone)]
 pub struct TallyHandle(Arc<TallyState>);
 
 struct TallyState {
     traffic_controller: Arc<TrafficController>,
     client: Option<IpAddr>,
+    /// What the traffic controller decided for the request.
+    access: ClientAccess,
     per_item_accounted: AtomicBool,
     tallied: AtomicBool,
 }
 
 impl Drop for TallyState {
     fn drop(&mut self) {
-        if !*self.tallied.get_mut() {
+        if !*self.tallied.get_mut() && self.access != ClientAccess::Allowed {
             tally(&self.traffic_controller, self.client, Code::Ok);
         }
     }
 }
 
 impl TallyHandle {
-    pub(crate) fn new(traffic_controller: Arc<TrafficController>, client: Option<IpAddr>) -> Self {
+    pub(crate) fn new(
+        traffic_controller: Arc<TrafficController>,
+        client: Option<IpAddr>,
+        access: ClientAccess,
+    ) -> Self {
         Self(Arc::new(TallyState {
             traffic_controller,
             client,
+            access,
             per_item_accounted: AtomicBool::new(false),
             tallied: AtomicBool::new(false),
         }))
@@ -220,7 +228,9 @@ impl TallyHandle {
 
     fn tally(&self, code: Code) {
         self.0.tallied.store(true, Ordering::Relaxed);
-        tally(&self.0.traffic_controller, self.0.client, code);
+        if self.0.access != ClientAccess::Allowed {
+            tally(&self.0.traffic_controller, self.0.client, code);
+        }
     }
 }
 
@@ -260,7 +270,7 @@ mod tests {
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
     use futures::FutureExt;
-    use iota_types::traffic_control::{PolicyConfig, PolicyType};
+    use iota_types::traffic_control::{AccessRuleList, AccessRules, PolicyConfig, PolicyType};
     use tower::ServiceExt;
 
     use super::*;
@@ -276,8 +286,8 @@ mod tests {
     }
 
     /// How many requests one request through the layer is charged for when it
-    /// is polled once and then dropped. Counts up to 5.
-    async fn charges(handler: Handler) -> u64 {
+    /// is polled once and then dropped, under `access_rules`. Counts up to 5.
+    async fn charges(handler: Handler, access_rules: AccessRules) -> u64 {
         let mut charges = 0;
         for threshold in 1..=5 {
             // Blocks a client on its `threshold`-th request.
@@ -287,6 +297,7 @@ mod tests {
                 error_policy_type: PolicyType::NoOp,
                 spam_sample_rate: Weight::one(),
                 dry_run: false,
+                access_rules: access_rules.clone(),
                 ..Default::default()
             }));
             let service =
@@ -304,8 +315,18 @@ mod tests {
                 remote_addr: Some(CLIENT),
             });
             drop(service.oneshot(request).now_or_never());
+            // An allow rule serves a blocked client too, so drop the rules to
+            // see whether the client was blocked.
+            for rule in &access_rules.allow {
+                traffic_controller
+                    .remove_access_rule(AccessRuleList::Allow, rule)
+                    .unwrap();
+            }
             // Charged at least `threshold` times.
-            if !traffic_controller.check(&Some(CLIENT.ip()), &None) {
+            if !traffic_controller
+                .check(&Some(CLIENT.ip()), &None)
+                .is_served()
+            {
                 charges = threshold;
             }
         }
@@ -316,8 +337,21 @@ mod tests {
     /// handler awaits, or failed by the inner service.
     #[tokio::test]
     async fn a_request_is_charged_once() {
-        assert_eq!(charges(Handler::Answers).await, 1);
-        assert_eq!(charges(Handler::NeverAnswers).await, 1);
-        assert_eq!(charges(Handler::Fails).await, 1);
+        for handler in [Handler::Answers, Handler::NeverAnswers, Handler::Fails] {
+            assert_eq!(charges(handler, AccessRules::default()).await, 1);
+        }
+    }
+
+    /// A request from a client that an allow rule serves is charged to no
+    /// policy, so the client is never blocked.
+    #[tokio::test]
+    async fn a_request_from_an_allowed_client_is_not_charged() {
+        let access_rules = AccessRules {
+            allow: vec![CLIENT.ip().to_string()],
+            ..Default::default()
+        };
+        for handler in [Handler::Answers, Handler::NeverAnswers, Handler::Fails] {
+            assert_eq!(charges(handler, access_rules.clone()).await, 0);
+        }
     }
 }
