@@ -149,7 +149,7 @@ fn make_attested_user_tx(
     let attestation = Attestation::Authority {
         payload: AttestationData::V1 {
             computation_units,
-            object_versions: vec![],
+            shared_object_versions: vec![],
         },
         authority_index,
     };
@@ -2466,7 +2466,7 @@ fn attested_by_block_author(
         Some(Attestation::Authority {
             payload: AttestationData::V1 {
                 computation_units,
-                object_versions: vec![],
+                shared_object_versions: vec![],
             },
             authority_index: 0,
         }),

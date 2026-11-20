@@ -5,10 +5,10 @@ use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
 use iota_config::node::AuthorityOverloadConfig;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, ObjectId, SharedObjectReference, Transaction, TransactionDigest};
+use iota_sdk_types::{Address, ObjectId, Transaction, TransactionDigest};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    attestation::Attestation,
+    attestation::{Attestation, AttestedTransaction},
     base_types::dbg_addr,
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
@@ -16,10 +16,10 @@ use iota_types::{
     executable_transaction::VerifiedExecutableTransaction,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     messages_grpc::TxStatusUpdate,
-    object::{OBJECT_START_VERSION, Object},
+    object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     traffic_control::Weight,
-    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope},
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope},
     utils::to_sender_signed_transaction,
 };
 use tokio::sync::mpsc;
@@ -234,11 +234,13 @@ async fn test_submit_single_tx_attest_failure_rejected_without_reaching_consensu
 }
 
 /// Submits to `submit_single_tx`, with `enable_validator_attestation` on, a
-/// transaction that passes its own size check, but whose attestation, one
-/// object reference per shared input, makes the consensus transaction larger
-/// than consensus accepts. Asserts that the validator rejects it with the size
-/// limit and a traffic weight of one, without taking a soft lock or handing
-/// anything to the consensus adapter.
+/// transaction that passes its own size check and fits consensus, but is
+/// larger than consensus accepts once attested. With the limits of the
+/// protocol config, the largest attested transaction fits, so the test lowers
+/// the consensus limit to the transaction's own limit and pads the
+/// transaction to exactly that size without its attestation. Asserts that the
+/// validator rejects it with the size limit and a traffic weight of one,
+/// without taking a soft lock or handing anything to the consensus adapter.
 #[tokio::test]
 async fn test_submit_single_tx_rejects_an_attested_transaction_too_large_for_consensus() {
     telemetry_subscribers::init_for_testing();
@@ -247,24 +249,21 @@ async fn test_submit_single_tx_rejects_an_attested_transaction_too_large_for_con
         config.set_enable_pcool_flow_for_testing(true);
         config.set_enable_validator_attestation_for_testing(true);
         config.set_checkpoint_summary_version_specific_data_for_testing(2);
+        config.set_consensus_max_transaction_size_bytes_for_testing(config.max_tx_size_bytes());
         config
     });
 
-    // A read-only shared input takes about 43 bytes in the transaction and 73
-    // in the attestation's object reference. With the pure padding, the
-    // transaction stays under `max_tx_size_bytes` and the attested transaction
-    // exceeds `max_transaction_size_bytes`.
-    const SHARED_INPUTS: usize = 2_040;
-    const PADDING_INPUTS: u8 = 3;
-    const PADDING_BYTES: usize = 12_000;
+    // The pure padding brings the transaction close to the lowered limit. The
+    // last padding input is then sized so that the consensus transaction
+    // without its attestation is exactly as large as the limit. Every input
+    // stays under `max_pure_argument_size`.
+    const PADDING_INPUTS: u8 = 8;
+    const PADDING_BYTES: usize = 15_000;
+    const LAST_PADDING_BYTES_BEFORE_SIZING: usize = 1_000;
 
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
-    let shared_objects: Vec<_> = (0..SHARED_INPUTS)
-        .map(|_| Object::shared_for_testing())
-        .collect();
-    let mut objects = shared_objects.clone();
-    objects.push(Object::with_id_owner_for_testing(gas_id, sender));
+    let objects = [Object::with_id_owner_for_testing(gas_id, sender)];
 
     let authority_state = TestAuthorityBuilder::new()
         .with_starting_objects(&objects)
@@ -292,35 +291,52 @@ async fn test_submit_single_tx_rejects_an_attested_transaction_too_large_for_con
     let metrics = Arc::new(ValidatorServiceMetrics::new_for_tests());
     let soft_locks = Arc::new(PreConsensusSoftLocks::new());
 
-    let mut builder = ProgrammableTransactionBuilder::new();
-    for object in &shared_objects {
-        builder
-            .input(CallArg::Shared(SharedObjectReference::new(
-                object.id(),
-                OBJECT_START_VERSION,
-                false,
-            )))
-            .unwrap();
-    }
-    for padding in 0..PADDING_INPUTS {
-        builder.pure_bytes(vec![padding; PADDING_BYTES], false);
-    }
-    builder.transfer_iota(dbg_addr(2), Some(1));
-
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let gas = authority_state.get_object(&gas_id).unwrap();
-    let tx_data = Transaction::new_programmable(
-        sender,
-        vec![gas.object_ref()],
-        builder.finish(),
-        rgp * 1_000_000,
-        rgp,
-    );
+    let gas_ref = authority_state.get_object(&gas_id).unwrap().object_ref();
+    let build_transaction = |last_padding_bytes: usize| {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        for padding in 0..PADDING_INPUTS {
+            builder.pure_bytes(vec![padding; PADDING_BYTES], false);
+        }
+        builder.pure_bytes(vec![PADDING_INPUTS; last_padding_bytes], false);
+        builder.transfer_iota(dbg_addr(2), Some(1));
+
+        Transaction::new_programmable(
+            sender,
+            vec![gas_ref],
+            builder.finish(),
+            rgp * 1_000_000,
+            rgp,
+        )
+    };
+    let unattested_size = |tx: &TransactionEnvelope| {
+        let consensus_tx = ConsensusTransaction::new_attested_user_transaction(
+            AttestedTransaction::new(tx.clone(), None),
+        );
+
+        u64::try_from(bcs::serialized_size(&consensus_tx).unwrap()).unwrap()
+    };
     let protocol_config = epoch_store.protocol_config();
+    let limit = protocol_config.max_transaction_size_bytes();
+    let before_sizing = to_sender_signed_transaction(
+        build_transaction(LAST_PADDING_BYTES_BEFORE_SIZING),
+        &sender_key,
+    );
+    let missing_bytes = limit
+        .checked_sub(unattested_size(&before_sizing))
+        .expect("the padding must leave room to reach the limit");
+    let tx_data = build_transaction(
+        LAST_PADDING_BYTES_BEFORE_SIZING + usize::try_from(missing_bytes).unwrap(),
+    );
     tx_data
         .check_serialized_size(protocol_config)
         .expect("the transaction alone must pass its size check");
     let tx = to_sender_signed_transaction(tx_data, &sender_key);
+    assert_eq!(
+        unattested_size(&tx),
+        limit,
+        "without its attestation, the consensus transaction must be exactly at the limit"
+    );
 
     let (update, weight) = ValidatorService::submit_single_tx(
         &authority_state,

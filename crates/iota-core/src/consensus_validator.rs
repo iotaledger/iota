@@ -809,7 +809,7 @@ mod tests {
         let attestation = Attestation::new_authority(
             AttestationData::V1 {
                 computation_units: 0,
-                object_versions: vec![],
+                shared_object_versions: vec![],
             },
             0,
         );

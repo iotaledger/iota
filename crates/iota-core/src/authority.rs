@@ -2860,7 +2860,7 @@ impl AuthorityState {
                         &per_authenticator_checked_input_objects,
                         &resolutions,
                     ),
-                    transaction: tx,
+                    transaction: transaction.data(),
                     transaction_signer: signer,
                     transaction_digest: tx_digest,
                     sender_auth_digest,

@@ -220,7 +220,7 @@ async fn attestation_that_fails_at_the_executed_versions_is_recorded_refuted_and
     // at the one version the attestor recorded, the account's current one.
     let (_, unrelated_key): (_, AccountPrivateKey) = get_key_pair();
     let tx = env.account_transaction_signed_with(&unrelated_key);
-    let attestation = env.attest_with_versions(vec![env.account_ref()]);
+    let attestation = env.attest_with_account_version(env.account_ref().version());
     let gas_coin_before = gas_coin(&env, &tx);
     let effects = env.submit(tx, Some(attestation)).await;
 
@@ -248,19 +248,19 @@ async fn attestation_that_fails_at_its_own_versions_is_recorded_refuted_and_not_
     // The same failure at the executed versions first, to learn what one
     // failed authentication run costs.
     let tx = env.account_transaction_signed_with(&unrelated_key);
-    let attestation = env.attest_with_versions(vec![env.account_ref()]);
+    let attestation = env.attest_with_account_version(env.account_ref().version());
     let effects = env.submit(tx, Some(attestation)).await;
     let one_run_units = assert_refuted(&env, &effects);
 
     // The version the attestor will claim, superseded by the rotation below so
     // the drift is real and the recorded version is still re-runnable.
-    let claimed_version = env.account_ref();
+    let claimed_version = env.account_ref().version();
     env.rotate_owner_key().await;
 
     // Signed with a key the account has never held, so authentication fails
     // both at the current version and at the claimed one.
     let tx = env.account_transaction_signed_with(&unrelated_key);
-    let attestation = env.attest_with_versions(vec![claimed_version]);
+    let attestation = env.attest_with_account_version(claimed_version);
     let gas_coin_before = gas_coin(&env, &tx);
     let effects = env.submit(tx, Some(attestation)).await;
 
@@ -277,8 +277,10 @@ async fn attestation_that_fails_at_its_own_versions_is_recorded_refuted_and_not_
 /// The account can rotate to a different authenticator, not just a new key. An
 /// attestor that vouched for the transaction under the previous authenticator
 /// is not accountable for the rotation: the re-run resolves the authenticator
-/// recorded in the attestation rather than the one the account switched to, so
-/// authentication still passes there, and the account pays.
+/// at the account version recorded in the attestation rather than the one the
+/// account switched to, so authentication still passes there, and the account
+/// pays. The record needs no entry for the account's authenticator function
+/// reference: rotating it gives the account a new version.
 #[tokio::test]
 async fn honest_attestation_of_a_rotated_authenticator_is_recorded_valid_and_charged() {
     let _guard = attestation_config(None);
@@ -368,7 +370,7 @@ async fn deleted_authenticator_input_failing_at_the_recorded_version_is_recorded
     // Signed with a key the account has never held, so authentication fails
     // at the recorded version, which the attestor claims it passed at.
     let tx = env.account_transaction_signed_with(&unrelated_key);
-    let attestation = env.attest_with_versions(vec![env.account_ref()]);
+    let attestation = env.attest_with_account_version(env.account_ref().version());
     let gas_coin_before = gas_coin(&env, &tx);
     let effects = submit_after_deleting_the_account(&mut env, tx, attestation).await;
 
@@ -392,7 +394,7 @@ async fn sponsored_failed_authentication_charges_the_sponsor_and_is_recorded_ref
     // at the one version the attestor recorded, the account's current one.
     let (_, unrelated_key): (_, AccountPrivateKey) = get_key_pair();
     let tx = env.sponsored_account_transaction_signed_with(&unrelated_key);
-    let attestation = env.attest_with_versions(vec![env.account_ref()]);
+    let attestation = env.attest_with_account_version(env.account_ref().version());
     let effects = env.submit(tx, Some(attestation)).await;
 
     assert_move_authentication_error(&effects);
@@ -574,7 +576,7 @@ async fn certified_valid_attestation_charges_the_gas_owner_without_a_judge() {
     let mut env = AbstractAccountTestEnv::new().await;
     let (_, unrelated_key): (_, AccountPrivateKey) = get_key_pair();
     let tx = env.account_transaction_signed_with(&unrelated_key);
-    let attestation = env.attest_with_versions(vec![env.account_ref()]);
+    let attestation = env.attest_with_account_version(env.account_ref().version());
 
     let effects = env
         .submit_with_source(
@@ -652,7 +654,7 @@ async fn certified_record_reproduces_the_judged_effects() {
     // attested at the current version.
     let (_, unrelated_key): (_, AccountPrivateKey) = get_key_pair();
     let tx = validator.account_transaction_signed_with(&unrelated_key);
-    let attestation = validator.attest_with_versions(vec![validator.account_ref()]);
+    let attestation = validator.attest_with_account_version(validator.account_ref().version());
     assert_certified_record_reproduces_the_judged_effects(&validator, &node, tx, attestation).await;
 }
 
@@ -665,7 +667,7 @@ async fn overclaimed_units_are_recorded_inaccurate() {
 
     let mut env = AbstractAccountTestEnv::new().await;
     let tx = env.account_transaction();
-    let attestation = env.attest_with_versions(vec![env.account_ref()]);
+    let attestation = env.attest_with_account_version(env.account_ref().version());
 
     let effects = env.submit(tx, Some(attestation)).await;
 
@@ -687,7 +689,7 @@ async fn overclaim_is_not_assessed_when_the_body_never_ran() {
 
     let mut env = AbstractAccountTestEnv::new().await;
     let tx = env.account_transaction();
-    let attestation = env.attest_with_versions(vec![env.account_ref()]);
+    let attestation = env.attest_with_account_version(env.account_ref().version());
     env.rotate_owner_key().await;
 
     let effects = env.submit(tx, Some(attestation)).await;
