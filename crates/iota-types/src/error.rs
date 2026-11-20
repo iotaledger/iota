@@ -17,7 +17,7 @@ use tonic::Status;
 use typed_store_error::TypedStoreError;
 
 use crate::{
-    attestation::AuthorityIndex,
+    attestation::{AuthorityIndex, SharedInputIndex},
     base_types::*,
     committee::{Committee, EpochId, StakeUnit},
     messages_checkpoint::CheckpointSequenceNumber,
@@ -808,6 +808,31 @@ pub enum IotaError {
          `attestation_max_refuted_units_squared`"
     )]
     AttestorCutOff { attestor: AuthorityIndex },
+
+    #[error(
+        "Attestation records a version at {index:?}, where the transaction names \
+         no shared object"
+    )]
+    AttestationIndexNamesNoSharedObject { index: SharedInputIndex },
+
+    #[error("Attestation records a version at {index:?} more than once")]
+    AttestationIndexRepeated { index: SharedInputIndex },
+
+    #[error(
+        "Attestation records versions {first} and {second} of object {object_id}, \
+         which the transaction names at two indexes"
+    )]
+    AttestationObjectVersionsDiffer {
+        object_id: ObjectId,
+        first: Version,
+        second: Version,
+    },
+
+    #[error(
+        "Attestation records no version at {index:?}, where a Move authenticator \
+         names a shared object"
+    )]
+    AttestationAuthenticatorInputMissing { index: SharedInputIndex },
 }
 
 #[repr(u64)]

@@ -4,8 +4,7 @@
 use std::collections::BTreeMap;
 
 use iota_sdk_types::{
-    GasCostSummary, MoveAuthenticator, ObjectId, SenderSignedTransaction, SharedObjectReference,
-    TransactionDigest, Version,
+    GasCostSummary, SenderSignedTransaction, SharedObjectReference, TransactionDigest, Version,
 };
 use serde::{Deserialize, Serialize};
 
@@ -58,7 +57,8 @@ pub enum AttestationData {
 
 /// Where a Move authenticator of a signed transaction names a shared object.
 /// The variant order is protocol-significant: a new variant goes at the end.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(iota_macros::EnumVariantOrder))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SharedInputIndex {
     /// The object is an argument of a Move authenticator: `authenticator` is
     /// the index of the authenticator among the signatures, and `argument`
@@ -67,27 +67,6 @@ pub enum SharedInputIndex {
     /// The object is the account of a Move authenticator: `authenticator` is
     /// the index of the authenticator among the signatures.
     AuthenticatorAccount { authenticator: u8 },
-}
-
-impl SharedInputIndex {
-    /// Returns the id of the object that `transaction` names at this index,
-    /// whether the object is shared or not. Returns `None` when `transaction`
-    /// has nothing at this index, or what it has there is not an object.
-    pub fn find_object_id_in(&self, transaction: &SenderSignedTransaction) -> Option<ObjectId> {
-        let argument = match *self {
-            Self::AuthenticatorArgument {
-                authenticator,
-                argument,
-            } => find_move_authenticator(transaction, authenticator)?
-                .call_args()
-                .get(usize::from(argument))?,
-            Self::AuthenticatorAccount { authenticator } => {
-                find_move_authenticator(transaction, authenticator)?.object_to_authenticate()
-            }
-        };
-
-        argument.opt_object_id().copied()
-    }
 }
 
 /// Returns each shared object that a Move authenticator of `transaction`
@@ -134,19 +113,6 @@ pub fn list_move_authenticator_shared_objects(
             arguments.chain(account)
         })
         .collect()
-}
-
-/// Returns the Move authenticator at `index` among the signatures of
-/// `transaction`, or `None` when the signature at `index` is missing or is not
-/// a Move authenticator.
-fn find_move_authenticator(
-    transaction: &SenderSignedTransaction,
-    index: u8,
-) -> Option<&MoveAuthenticator> {
-    transaction
-        .signatures()
-        .get(usize::from(index))?
-        .as_opt_move_authenticator()
 }
 
 /// A user transaction bundled with its attestation. This is the inner payload
@@ -361,7 +327,8 @@ mod tests {
 
     use iota_protocol_config::ProtocolConfig;
     use iota_sdk_types::{
-        Address, MoveAuthenticatorV1, ProgrammableTransaction, Transaction, UserSignature,
+        Address, MoveAuthenticator, MoveAuthenticatorV1, ObjectId, ProgrammableTransaction,
+        Transaction, UserSignature,
     };
 
     use super::*;
@@ -484,19 +451,17 @@ mod tests {
     /// second argument of its Move authenticator and as the authenticator's
     /// account. [`list_move_authenticator_shared_objects()`] lists the last
     /// two with their indexes: the shared objects of the Move authenticators,
-    /// as [`MoveAuthenticatorExt::shared_objects()`] gives them.
-    /// [`SharedInputIndex::find_object_id_in()`] finds each of them at its
-    /// index. It also finds the immutable object at the third argument, and
-    /// nothing at an index that is out of range or names a pure value.
+    /// as [`MoveAuthenticatorExt::shared_objects()`] gives them. It leaves out
+    /// the pure value and the immutable object that the authenticator also
+    /// takes.
     #[test]
-    fn listed_shared_inputs_find_their_objects() {
+    fn listing_names_shared_objects_of_move_authenticators() {
         let shared = |mutable| SharedObjectReference {
             object_id: ObjectId::random(),
             initial_shared_version: Version::from(1u64),
             mutable,
         };
         let (argument, account) = (shared(false), shared(false));
-        let immutable = random_object_ref();
         let programmable = ProgrammableTransaction {
             inputs: vec![
                 CallArg::Pure(vec![0]),
@@ -510,7 +475,7 @@ mod tests {
             vec![
                 CallArg::Pure(vec![1]),
                 CallArg::Shared(argument),
-                CallArg::ImmutableOrOwned(immutable),
+                CallArg::ImmutableOrOwned(random_object_ref()),
             ],
             vec![],
             account,
@@ -557,37 +522,6 @@ mod tests {
                 .collect::<BTreeSet<_>>(),
             "the record covers every shared object that a Move authenticator names"
         );
-        for (index, object) in listed {
-            assert_eq!(
-                index.find_object_id_in(&transaction),
-                Some(object.object_id)
-            );
-        }
-        assert_eq!(
-            SharedInputIndex::AuthenticatorArgument {
-                authenticator: 0,
-                argument: 2,
-            }
-            .find_object_id_in(&transaction),
-            Some(immutable.object_id)
-        );
-        for index in [
-            SharedInputIndex::AuthenticatorArgument {
-                authenticator: 0,
-                argument: 0,
-            },
-            SharedInputIndex::AuthenticatorArgument {
-                authenticator: 0,
-                argument: 3,
-            },
-            SharedInputIndex::AuthenticatorArgument {
-                authenticator: 1,
-                argument: 1,
-            },
-            SharedInputIndex::AuthenticatorAccount { authenticator: 1 },
-        ] {
-            assert_eq!(index.find_object_id_in(&transaction), None, "{index:?}");
-        }
     }
 
     #[test]

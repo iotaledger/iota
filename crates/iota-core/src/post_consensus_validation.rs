@@ -40,9 +40,10 @@
 //!      locks. It was validated at the commit that kept it and still holds the locks it took there.
 //! 4. `validity_check()` — drop with error.
 //! 5. Attestation checks (attested transactions only): the attestor is the block author, the
-//!    attested units are within bounds, the attestor is not cut off as of the horizon, and the gas
-//!    price and budget are within bounds — drop with error. The attestation is the copy's own, so a
-//!    later copy of the digest is validated.
+//!    attested units are within bounds, the attestor is not cut off as of the horizon, the gas
+//!    price and budget are within bounds, and the recorded versions fit the shared objects the
+//!    transaction names — drop with error. The attestation is the copy's own, so a later copy of
+//!    the digest is validated.
 //! 6. Three-tier lock conflict check (local HashMap → quarantine → DB) — drop with error, except a
 //!    lock held by the same transaction, which is exempt. Cheap; performed before expensive checks.
 //! 7. Transaction dependency (transactions with a dependency input only): decided from consensus
@@ -98,7 +99,7 @@ use tracing::{debug, warn};
 use typed_store::Map;
 
 use crate::{
-    attestation_checks::check_attested_units,
+    attestation_checks::{check_attested_shared_object_versions, check_attested_units},
     authority::{
         AuthorityState,
         authority_per_epoch_store::{
@@ -1059,7 +1060,8 @@ impl ReadAhead {
 enum NoStoreCheck {
     /// Check #2, `validity_check`.
     Validity,
-    /// Check #3, the attestor and the units of the attestation.
+    /// Check #3, the attestor, the units and the recorded versions of the
+    /// attestation.
     Attestation,
     /// Check #3, the attestor is cut off for the rest of the epoch.
     AttestorCutOff,
@@ -1134,6 +1136,11 @@ fn checks_reading_no_store(
             data.gas_budget(),
         )
         .map_err(|e| (NoStoreCheck::GasBounds, e.into()))?;
+
+        // Checked last, so a copy that also fails an earlier check, such as
+        // one from a cut-off attestor, drops for that check.
+        check_attested_shared_object_versions(transaction, attestation)
+            .map_err(|e| (NoStoreCheck::Attestation, e))?;
     }
 
     // Check #4: Extract owned input objects for lock conflict detection.
@@ -1294,7 +1301,8 @@ impl CommitDecisions {
 enum FailedCheck<'a> {
     /// `validity_check`, with its error.
     Validity(&'a IotaError),
-    /// The attestation of this copy: its attestor or its units.
+    /// The attestation of this copy: its attestor, its units or its recorded
+    /// versions.
     Attestation,
     /// Listing the owned inputs.
     OwnedInputs,
