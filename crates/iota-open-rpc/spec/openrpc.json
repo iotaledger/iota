@@ -1395,7 +1395,9 @@
                 "attestation_freshness_window_commits": {
                   "u64": "12000"
                 },
-                "attestation_max_refuted_units_squared": null,
+                "attestation_max_refuted_units_squared": {
+                  "u64": "100000000"
+                },
                 "attestor_accuracy_tolerance_percentage": null,
                 "auth_context_authenticator_function_info_v1_cost_base": {
                   "u64": "270"
