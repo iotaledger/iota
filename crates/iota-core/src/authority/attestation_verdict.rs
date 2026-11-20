@@ -16,6 +16,7 @@ use std::{
     cell::Cell,
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
+    time::Duration,
 };
 
 use iota_common::fatal;
@@ -87,8 +88,9 @@ impl AttestedObjectVersions<'_> {
     /// # Panics
     ///
     /// If a read fails, or the transaction that replaced `attested` has no
-    /// stored body or no row for its gas coin: a verdict every validator has
-    /// to reach alike must not depend on this node's storage.
+    /// stored body, no row for its gas coin, or does not record its effects:
+    /// a verdict every validator has to reach alike must not depend on this
+    /// node's storage.
     pub(crate) fn superseded_within_window(
         &self,
         object_id: &ObjectId,
@@ -138,12 +140,18 @@ impl AttestedObjectVersions<'_> {
     ///
     /// # Panics
     ///
-    /// If a read fails.
+    /// If a read fails, or the effects waited for are still missing after
+    /// ten seconds.
     fn effects_in_epoch(
         &self,
         digest: &TransactionDigest,
         uncommitted: bool,
     ) -> Option<TransactionEffects> {
+        // The writer records its effects in the synchronous call that made
+        // its outputs readable: a wait this long means that order broke.
+        const PAUSE: Duration = Duration::from_millis(1);
+        const MAX_PAUSES: u32 = 10_000;
+
         let epoch = self.epoch_store.epoch();
         let read = || {
             let effects_digest = self
@@ -158,14 +166,22 @@ impl AttestedObjectVersions<'_> {
                 .pop()
                 .flatten()
         };
+        let mut pauses = 0;
         loop {
             match read() {
                 // The committed caches outlive the epoch, so either read can
                 // answer for an earlier one.
                 Some(effects) => return (effects.epoch() == epoch).then_some(effects),
+                None if !uncommitted => return None,
+                None if pauses == MAX_PAUSES => fatal!(
+                    "no effects for {digest} {:?} after its outputs became readable",
+                    PAUSE * MAX_PAUSES
+                ),
                 // The writer is inside the cache write that records them.
-                None if uncommitted => std::thread::yield_now(),
-                None => return None,
+                None => {
+                    pauses += 1;
+                    std::thread::sleep(PAUSE);
+                }
             }
         }
     }
