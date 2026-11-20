@@ -7,8 +7,9 @@
 
 use std::{
     collections::BTreeMap,
+    fmt::Debug,
     fs::File,
-    io::{BufRead, BufReader, Read, Write},
+    io::{Read, Write},
     path::Path,
 };
 
@@ -18,11 +19,13 @@ use move_core_types::{
     account_address::AccountAddress,
     identifier::{IdentStr, Identifier},
 };
+use move_trace_format::format::{MoveTraceReader, TraceEvent};
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 pub type FunctionCoverage = BTreeMap<u64, u64>;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Default, Debug, Serialize, Deserialize)]
 pub struct CoverageMap {
     pub exec_maps: BTreeMap<String, ExecCoverageMap>,
 }
@@ -54,52 +57,146 @@ pub struct TraceEntry {
     pub func_pc: CodeOffset,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Default, Debug, Serialize, Deserialize)]
 pub struct TraceMap {
     pub exec_maps: BTreeMap<String, Vec<TraceEntry>>,
 }
 
-impl CoverageMap {
-    /// Takes in a file containing a raw VM trace, and returns an updated
-    /// coverage map.
-    pub fn update_coverage_from_trace_file<P: AsRef<Path> + std::fmt::Debug>(
-        mut self,
-        filename: P,
-    ) -> Self {
-        let file = File::open(&filename)
-            .unwrap_or_else(|_| panic!("Unable to open coverage trace file '{:?}'", filename));
-        for line in BufReader::new(file).lines() {
-            let line = line.unwrap();
-            let mut splits = line.split(',');
-            let exec_id = splits.next().unwrap();
-            let context = splits.next().unwrap();
-            let pc = splits.next().unwrap().parse::<u64>().unwrap();
+/// Trait for types that consume Move VM trace events. Implementors only need to
+/// provide `record_instruction`; directory iteration, file reading, and trace
+/// event walking are provided as default methods.
+pub trait TraceConsumer: Default + Send {
+    fn record_instruction(
+        &mut self,
+        test_name: &str,
+        module_addr: AccountAddress,
+        module_name: Identifier,
+        func_name: Identifier,
+        pc: u64,
+    );
 
-            let mut context_segs: Vec<_> = context.split("::").collect();
-            let is_script = context_segs.len() == 2;
-            if !is_script {
-                let func_name = Identifier::new(context_segs.pop().unwrap()).unwrap();
-                let module_name = Identifier::new(context_segs.pop().unwrap()).unwrap();
-                let module_addr =
-                    AccountAddress::from_hex_literal(context_segs.pop().unwrap()).unwrap();
-                self.insert(exec_id, module_addr, module_name, func_name, pc);
-            } else {
-                // Don't count scripts (for now)
-                assert_eq!(context_segs.pop().unwrap(), "main",);
-                assert_eq!(context_segs.pop().unwrap(), "Script",);
+    fn merge(self, other: Self) -> Self;
+
+    fn ingest_trace<R: Read>(
+        mut self,
+        test_name: &str,
+        trace_reader: MoveTraceReader<'_, R>,
+    ) -> Self {
+        let mut current_fn_context = vec![];
+        for event in trace_reader {
+            match event.unwrap() {
+                TraceEvent::Effect(_) | TraceEvent::External(_) => (),
+                TraceEvent::OpenFrame { frame, .. } => {
+                    current_fn_context.push(frame);
+                }
+                TraceEvent::CloseFrame { .. } => {
+                    current_fn_context.pop().unwrap();
+                }
+                TraceEvent::Instruction { pc, .. } => {
+                    let current_frame = current_fn_context.last().unwrap();
+                    self.record_instruction(
+                        test_name,
+                        *current_frame.module.address(),
+                        current_frame.module.name().to_owned(),
+                        Identifier::new(current_frame.function_name.clone()).unwrap(),
+                        pc as u64,
+                    );
+                }
             }
         }
         self
     }
 
-    /// Takes in a file containing a raw VM trace, and returns a coverage map.
-    pub fn from_trace_file<P: AsRef<Path> + std::fmt::Debug>(filename: P) -> Self {
-        let empty_module_map = CoverageMap {
-            exec_maps: BTreeMap::new(),
-        };
-        empty_module_map.update_coverage_from_trace_file(filename)
+    fn ingest_trace_dir<P: AsRef<Path> + Debug>(self, dirname: P) -> Self {
+        let entries: Vec<_> = std::fs::read_dir(&dirname)
+            .unwrap()
+            .filter_map(|e| {
+                let path = e.unwrap().path();
+                path.is_file().then_some(path)
+            })
+            .collect();
+
+        entries
+            .par_iter()
+            .map(|path| {
+                let file = File::open(path)
+                    .unwrap_or_else(|e| panic!("Unable to open trace file '{:?}': {}", path, e));
+                let reader = MoveTraceReader::new(file).expect("Unable to read trace file");
+                let test_name = path
+                    .file_name()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .replace("__", "::");
+                Self::default().ingest_trace(&test_name, reader)
+            })
+            .reduce(Self::default, Self::merge)
     }
 
+    fn from_trace_dir<P: AsRef<Path> + Debug>(dirname: P) -> Self {
+        Self::default().ingest_trace_dir(dirname)
+    }
+}
+
+impl TraceConsumer for CoverageMap {
+    fn record_instruction(
+        &mut self,
+        test_name: &str,
+        module_addr: AccountAddress,
+        module_name: Identifier,
+        func_name: Identifier,
+        pc: u64,
+    ) {
+        self.insert(test_name, module_addr, module_name, func_name, pc);
+    }
+
+    fn merge(mut self, other: Self) -> Self {
+        for (exec_id, other_exec_map) in other.exec_maps {
+            let entry = self
+                .exec_maps
+                .entry(exec_id)
+                .or_insert_with_key(|exec_id| ExecCoverageMap::new(exec_id.clone()));
+            for ((addr, name), other_module_map) in other_exec_map.module_maps {
+                let module_entry = entry
+                    .module_maps
+                    .entry((addr, name.clone()))
+                    .or_insert_with(|| ModuleCoverageMap::new(addr, name));
+                for (func_name, func_map) in other_module_map.function_maps {
+                    let func_entry = module_entry.function_maps.entry(func_name).or_default();
+                    for (pc, count) in func_map {
+                        *func_entry.entry(pc).or_insert(0) += count;
+                    }
+                }
+            }
+        }
+        self
+    }
+}
+
+impl TraceConsumer for TraceMap {
+    fn record_instruction(
+        &mut self,
+        test_name: &str,
+        module_addr: AccountAddress,
+        module_name: Identifier,
+        func_name: Identifier,
+        pc: u64,
+    ) {
+        self.insert(test_name, module_addr, module_name, func_name, pc);
+    }
+
+    fn merge(mut self, other: Self) -> Self {
+        for (exec_id, other_entries) in other.exec_maps {
+            self.exec_maps
+                .entry(exec_id)
+                .or_default()
+                .extend(other_entries);
+        }
+        self
+    }
+}
+
+impl CoverageMap {
     /// Takes in a file containing a serialized coverage map and returns a
     /// coverage map.
     pub fn from_binary_file<P: AsRef<Path> + std::fmt::Debug>(filename: P) -> Result<Self> {
@@ -269,42 +366,6 @@ impl ExecCoverageMapWithModules {
 }
 
 impl TraceMap {
-    /// Takes in a file containing a raw VM trace, and returns an updated
-    /// coverage map.
-    pub fn update_from_trace_file<P: AsRef<Path>>(mut self, filename: P) -> Self {
-        let file = File::open(filename).unwrap();
-        for line in BufReader::new(file).lines() {
-            let line = line.unwrap();
-            let mut splits = line.split(',');
-            let exec_id = splits.next().unwrap();
-            let context = splits.next().unwrap();
-            let pc = splits.next().unwrap().parse::<u64>().unwrap();
-
-            let mut context_segs: Vec<_> = context.split("::").collect();
-            let is_script = context_segs.len() == 2;
-            if !is_script {
-                let func_name = Identifier::new(context_segs.pop().unwrap()).unwrap();
-                let module_name = Identifier::new(context_segs.pop().unwrap()).unwrap();
-                let module_addr =
-                    AccountAddress::from_hex_literal(context_segs.pop().unwrap()).unwrap();
-                self.insert(exec_id, module_addr, module_name, func_name, pc);
-            } else {
-                // Don't count scripts (for now)
-                assert_eq!(context_segs.pop().unwrap(), "main",);
-                assert_eq!(context_segs.pop().unwrap(), "Script",);
-            }
-        }
-        self
-    }
-
-    // Takes in a file containing a raw VM trace, and returns a parsed trace.
-    pub fn from_trace_file<P: AsRef<Path>>(filename: P) -> Self {
-        let trace_map = TraceMap {
-            exec_maps: BTreeMap::new(),
-        };
-        trace_map.update_from_trace_file(filename)
-    }
-
     // Takes in a file containing a serialized trace and deserialize it.
     pub fn from_binary_file<P: AsRef<Path>>(filename: P) -> Self {
         let mut bytes = Vec::new();
