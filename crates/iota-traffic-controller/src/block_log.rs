@@ -1,36 +1,22 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The line the node logs when it starts to refuse a client. Host firewall
-//! tools such as fail2ban and CrowdSec match on this line, so its format is
+//! The line the node logs when it starts to refuse a client, and the line it
+//! logs when an operator unblocks one. Host firewall tools such as fail2ban
+//! and CrowdSec match on these lines, so their format is
 //! part of the node's interface to operators: change it only together with
 //! the filters and operator docs that match on it, and mention the change in
 //! the release notes.
 
-use std::{fmt, net::IpAddr};
+use std::net::IpAddr;
 
+pub(crate) use iota_types::traffic_control::BlockReason;
 use tracing::info;
 
 use crate::client_access::ipv6_prefix_len_of;
 
 /// Tracing target of the block log line.
 pub(crate) const BLOCK_LOG_TARGET: &str = "iota_node::client_blocked";
-
-/// The policy whose limit the client exceeded.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum BlockReason {
-    Spam,
-    Error,
-}
-
-impl fmt::Display for BlockReason {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::Spam => "spam",
-            Self::Error => "error",
-        })
-    }
-}
 
 /// Logs that the node refuses `client` for the next `ttl_secs` seconds.
 /// `client` is the blocklist key that `client_prefix` gives with
@@ -51,23 +37,46 @@ pub(crate) fn log_block(client: IpAddr, ipv6_prefix_len: u8, reason: BlockReason
     );
 }
 
-/// An IPv4 client that reached a dual-stack socket shows up as an
-/// IPv4-mapped IPv6 address. The line names it by its IPv4 address, which is
-/// the one a host firewall sees.
+/// Logs that the node no longer refuses `client`, which an operator unblocked
+/// through the admin API. `client` is a blocklist key, as for [`log_block`].
+/// A firewall that acts on the block line can lift its ban on this line.
+pub(crate) fn log_unblock(client: IpAddr, ipv6_prefix_len: u8) {
+    info!(
+        target: BLOCK_LOG_TARGET,
+        parent: None,
+        "{}",
+        unblock_log_line(client, ipv6_prefix_len)
+    );
+}
+
+/// The blocklist key `client` as the log lines and the admin API name it: an
+/// IPv4 address, an IPv6 address kept whole, or an IPv6 prefix with its
+/// length, as in `2001:db8:1:2::/64`. An IPv4 client that reached a dual-stack
+/// socket shows up as an IPv4-mapped IPv6 address, and is named by its IPv4
+/// address, which is the one a host firewall sees.
+pub(crate) fn client_name(client: IpAddr, ipv6_prefix_len: u8) -> String {
+    match client.to_canonical() {
+        IpAddr::V6(prefix) => match ipv6_prefix_len_of(prefix, ipv6_prefix_len) {
+            128 => prefix.to_string(),
+            prefix_len => format!("{prefix}/{prefix_len}"),
+        },
+        client => client.to_string(),
+    }
+}
+
 fn block_log_line(
     client: IpAddr,
     ipv6_prefix_len: u8,
     reason: BlockReason,
     ttl_secs: u64,
 ) -> String {
-    let client = match client.to_canonical() {
-        IpAddr::V6(prefix) => match ipv6_prefix_len_of(prefix, ipv6_prefix_len) {
-            128 => prefix.to_string(),
-            prefix_len => format!("{prefix}/{prefix_len}"),
-        },
-        client => client.to_string(),
-    };
+    let client = client_name(client, ipv6_prefix_len);
     format!("client_blocked client={client} reason={reason} ttl_secs={ttl_secs}")
+}
+
+fn unblock_log_line(client: IpAddr, ipv6_prefix_len: u8) -> String {
+    let client = client_name(client, ipv6_prefix_len);
+    format!("client_unblocked client={client}")
 }
 
 #[cfg(test)]
@@ -160,6 +169,20 @@ pub(crate) mod tests {
         assert_eq!(
             block_log_line(v6, 128, BlockReason::Error, 300),
             "client_blocked client=2001:db8:1:2::1 reason=error ttl_secs=300"
+        );
+    }
+
+    #[test]
+    fn a_manual_block_and_an_unblock_name_the_client() {
+        let v4 = IpAddr::V4(Ipv4Addr::new(203, 0, 113, 7));
+        assert_eq!(
+            block_log_line(v4, 64, BlockReason::Manual, 60),
+            "client_blocked client=203.0.113.7 reason=manual ttl_secs=60"
+        );
+        let prefix = IpAddr::V6(Ipv6Addr::new(0x2001, 0xdb8, 1, 2, 0, 0, 0, 0));
+        assert_eq!(
+            unblock_log_line(prefix, 64),
+            "client_unblocked client=2001:db8:1:2::/64"
         );
     }
 

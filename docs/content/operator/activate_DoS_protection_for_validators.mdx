@@ -256,6 +256,39 @@ policy-config:
   dry-run: false  # Ensure this is false for actual protection
 ```
 
+## Change Traffic Control at Runtime
+
+The admin API of the node (`admin-interface-address`, `127.0.0.1:1337` by default) reads and changes traffic control while the node runs. Every change lasts until the node restarts. To keep a change, write it to the node configuration.
+
+| Request | Does |
+| --- | --- |
+| `GET /traffic-control` | Shows the settings in force, as JSON |
+| `GET /traffic-control/config` | Shows the settings in force in the shape of `policy-config`, as JSON |
+| `POST /traffic-control?...` | Changes `error_threshold`, `spam_threshold`, `dry_run`, `connection_blocklist_ttl_sec`, `proxy_blocklist_ttl_sec`, `default_action`, `simulation_gas_per_sec` and `simulation_burst_gas` |
+| `GET /traffic-control/rules` | Shows the access rules |
+| `POST /traffic-control/rules/add?list=allow&client=198.51.100.0/24` | Adds an `allow` or `deny` rule |
+| `POST /traffic-control/rules/remove?list=allow&client=198.51.100.0/24` | Removes a rule |
+| `GET /traffic-control/blocklist?limit=200` | Shows the blocked clients, with the reason (`spam`, `error` or `manual`) and the seconds left |
+| `POST /traffic-control/block?client=203.0.113.9&ttl_sec=3600` | Blocks a client, with the reason `manual` |
+| `POST /traffic-control/unblock?client=203.0.113.9` | Removes the block of a client |
+| `GET /traffic-control/clients?top=20` | Shows the clients with the lowest simulation gas balances, and the blocked clients |
+
+`blocklist` shows at most `limit` blocks, and `clients` at most `top` gas balances and `top` blocks, 200 by default. A listing says how many entries it left out. The spam and error policies cannot report what they counted for a client, so `clients` shows only the gas balances and the blocks.
+
+`block` and `unblock` take an IP address, or an IPv6 prefix as the blocklist names it, such as `2001:db8:1:2::/64`:
+
+- A manual block of an IPv6 address blocks its whole `ipv6-prefix-len` prefix.
+- A manual block refuses the client when it connects to the node. Like the access rules, it does not refuse requests that reach the node through a fullnode.
+- A manual block never shortens a block in force. When it outlasts a block whose line the node logged, the node logs the block line again.
+- The node rejects a manual block of a client that an allow rule serves, since a firewall that acts on the block line would ban that client.
+- Under dry run the node keeps the block, but still serves the client.
+- An unblock also removes the block of the client where it reached the node through a fullnode. It resets what the spam and error policies counted for the client, and its gas balance; otherwise the next request of the client would block it again.
+- For a block whose block line it logged, the node logs a `client_unblocked client=<client>` line under the same target, so a firewall that acts on the block line can lift its ban.
+
+Outside dry run, `default_action=deny` refuses every client that no allow rule names. On a validator this also refuses the other nodes that send it requests, so add allow rules for them first.
+
+A rejected request answers `400 Bad Request` with the reason.
+
 ## Monitoring and Tuning
 
 After enabling the `TrafficController`, monitor your node's metrics to ensure legitimate traffic isn't being blocked. Key metrics to watch:

@@ -6,21 +6,22 @@ use std::{net::SocketAddr, str::FromStr, sync::Arc};
 
 use axum::{
     Router,
-    extract::{Query, State},
+    extract::{Query, RawQuery, State},
     http::StatusCode,
     response::{IntoResponse as _, Response},
     routing::{get, post},
 };
 use base64::Engine;
 use humantime::parse_duration;
+use iota_core::authority::AuthorityState;
 use iota_sdk_types::RandomnessRound;
 use iota_types::{
     base_types::AuthorityName,
     crypto::{RandomnessPartialSignature, RandomnessSignature},
-    error::IotaError,
-    traffic_control::TrafficControlReconfigParams,
+    error::{IotaError, IotaResult},
+    traffic_control::{AccessRuleList, BlockReason, DefaultAction, TrafficControlReconfigParams},
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use telemetry_subscribers::{TelemetryError, TracingHandle};
 use tokio::sync::oneshot;
 use tracing::info;
@@ -75,11 +76,47 @@ use crate::IotaNode;
 //
 // Reconfigure traffic control policy
 //
-//  $ curl 'http://127.0.0.1:1337/traffic-control?error_threshold=100&spam_threshold=100&dry_run=true&connection_blocklist_ttl_sec=60&proxy_blocklist_ttl_sec=60'
+//  $ curl -X POST 'http://127.0.0.1:1337/traffic-control?error_threshold=100&spam_threshold=100&dry_run=true&connection_blocklist_ttl_sec=60&proxy_blocklist_ttl_sec=60'
 //
 // Set the simulation gas limit; turning it on takes both values
 //
 //  $ curl -X POST 'http://127.0.0.1:1337/traffic-control?simulation_gas_per_sec=1000000&simulation_burst_gas=20000000'
+//
+// Set the default action of the access rules, `limit` or `deny`
+//
+//  $ curl -X POST 'http://127.0.0.1:1337/traffic-control?default_action=deny'
+//
+// View the traffic control settings in force, as JSON
+//
+//  $ curl 'http://127.0.0.1:1337/traffic-control'
+//
+// View the traffic control settings in force in the shape of `policy-config`,
+// as JSON
+//
+//  $ curl 'http://127.0.0.1:1337/traffic-control/config'
+//
+// View, add and remove access rules, where `list` is `allow` or `deny` and
+// `client` an IP address or a CIDR network
+//
+//  $ curl 'http://127.0.0.1:1337/traffic-control/rules'
+//  $ curl -X POST 'http://127.0.0.1:1337/traffic-control/rules/add?list=allow&client=198.51.100.0/24'
+//  $ curl -X POST 'http://127.0.0.1:1337/traffic-control/rules/remove?list=allow&client=198.51.100.0/24'
+//
+// View the blocked clients, at most `limit` of them (200 by default)
+//
+//  $ curl 'http://127.0.0.1:1337/traffic-control/blocklist?limit=100'
+//
+// Block a client for `ttl_sec` seconds, and unblock it
+//
+//  $ curl -X POST 'http://127.0.0.1:1337/traffic-control/block?client=203.0.113.9&ttl_sec=3600'
+//  $ curl -X POST 'http://127.0.0.1:1337/traffic-control/unblock?client=203.0.113.9'
+//
+// View up to `top` clients with the lowest simulation gas balances, and up to
+// `top` blocked clients, 200 of each by default
+//
+//  $ curl 'http://127.0.0.1:1337/traffic-control/clients?top=20'
+//
+// Every traffic control change lasts until the node restarts.
 //
 // View the Prometheus metrics filter: the directives currently in effect and
 // the startup directives (config with the METRICS_FILTER env var merged over
@@ -118,6 +155,22 @@ const RANDOMNESS_INJECT_PARTIAL_SIGS_ROUTE: &str = "/randomness-inject-partial-s
 const RANDOMNESS_INJECT_FULL_SIG_ROUTE: &str = "/randomness-inject-full-sig";
 const FLAMEGRAPH_ROUTE: &str = "/flamegraph";
 const TRAFFIC_CONTROL: &str = "/traffic-control";
+const TRAFFIC_CONTROL_CONFIG: &str = "/traffic-control/config";
+const TRAFFIC_CONTROL_RULES: &str = "/traffic-control/rules";
+const TRAFFIC_CONTROL_RULES_ADD: &str = "/traffic-control/rules/add";
+const TRAFFIC_CONTROL_RULES_REMOVE: &str = "/traffic-control/rules/remove";
+const TRAFFIC_CONTROL_BLOCKLIST: &str = "/traffic-control/blocklist";
+const TRAFFIC_CONTROL_BLOCK: &str = "/traffic-control/block";
+const TRAFFIC_CONTROL_UNBLOCK: &str = "/traffic-control/unblock";
+const TRAFFIC_CONTROL_CLIENTS: &str = "/traffic-control/clients";
+
+/// How many blocked clients `/traffic-control/blocklist` lists by default.
+const DEFAULT_BLOCKLIST_LIMIT: usize = 200;
+/// How many clients `/traffic-control/clients` lists by default, of each
+/// kind.
+const DEFAULT_CLIENTS_TOP: usize = 200;
+/// Ends the response to every traffic control change.
+const UNTIL_RESTART: &str = "The change lasts until the node restarts.\n";
 const METRICS_FILTER_ROUTE: &str = "/metrics/filters";
 const METRICS_FILTER_RESET_ROUTE: &str = "/metrics/filters/reset";
 
@@ -165,6 +218,21 @@ pub async fn run_admin_server(
         )
         .route(FLAMEGRAPH_ROUTE, get(flamegraph))
         .route(TRAFFIC_CONTROL, post(traffic_control))
+        .route(TRAFFIC_CONTROL, get(traffic_control_status))
+        .route(TRAFFIC_CONTROL_CONFIG, get(traffic_control_config))
+        .route(TRAFFIC_CONTROL_RULES, get(traffic_control_rules))
+        .route(TRAFFIC_CONTROL_RULES_ADD, post(add_traffic_control_rule))
+        .route(
+            TRAFFIC_CONTROL_RULES_REMOVE,
+            post(remove_traffic_control_rule),
+        )
+        .route(TRAFFIC_CONTROL_BLOCKLIST, get(traffic_control_blocklist))
+        .route(TRAFFIC_CONTROL_BLOCK, post(block_traffic_control_client))
+        .route(
+            TRAFFIC_CONTROL_UNBLOCK,
+            post(unblock_traffic_control_client),
+        )
+        .route(TRAFFIC_CONTROL_CLIENTS, get(traffic_control_clients))
         .route(METRICS_FILTER_ROUTE, get(get_metrics_filter))
         .route(METRICS_FILTER_ROUTE, post(set_metrics_filter))
         .route(METRICS_FILTER_RESET_ROUTE, post(reset_metrics_filter))
@@ -598,10 +666,17 @@ async fn flamegraph(State(state): State<Arc<AppState>>, query: Query<Flamegraph>
 
 async fn traffic_control(
     State(state): State<Arc<AppState>>,
-    args: Query<TrafficControlReconfigParams>,
+    Query(params): Query<TrafficControlReconfigParams>,
 ) -> (StatusCode, String) {
-    let Query(params) = args;
-    match state.node.state().reconfigure_traffic_control(params).await {
+    reconfigure_traffic_control(&state.node.state(), params).await
+}
+
+async fn reconfigure_traffic_control(
+    state: &AuthorityState,
+    params: TrafficControlReconfigParams,
+) -> (StatusCode, String) {
+    let sets_default_deny = params.default_action == Some(DefaultAction::Deny);
+    match state.reconfigure_traffic_control(params).await {
         Ok(updated_state) => (
             StatusCode::OK,
             format!(
@@ -612,7 +687,9 @@ async fn traffic_control(
                  Connection blocklist TTL sec: {:?}\n\
                  Proxy blocklist TTL sec: {:?}\n\
                  Simulation gas per sec: {:?}\n\
-                 Simulation burst gas: {:?}\n",
+                 Simulation burst gas: {:?}\n\
+                 Default action: {:?}\n\
+                 {}{UNTIL_RESTART}",
                 updated_state.error_threshold,
                 updated_state.spam_threshold,
                 updated_state.dry_run,
@@ -620,10 +697,244 @@ async fn traffic_control(
                 updated_state.proxy_blocklist_ttl_sec,
                 updated_state.simulation_gas_per_sec,
                 updated_state.simulation_burst_gas,
+                updated_state.default_action,
+                if sets_default_deny {
+                    DEFAULT_DENY_WARNING
+                } else {
+                    ""
+                },
             ),
         ),
-        Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
+        Err(err) => error_response(err),
     }
+}
+
+const DEFAULT_DENY_WARNING: &str = "Warning: outside dry run, the default action deny refuses \
+    every client that no allow rule names. On a validator this also refuses the other nodes \
+    that send it requests, so add allow rules for them first.\n";
+
+/// A JSON response with `result`, or the error.
+fn json_response<T: Serialize>(result: IotaResult<T>) -> Response {
+    match result {
+        Ok(value) => axum::Json(value).into_response(),
+        Err(err) => error_response(err).into_response(),
+    }
+}
+
+/// A text response to a change, or the error.
+fn change_response(result: IotaResult<String>) -> (StatusCode, String) {
+    match result {
+        Ok(message) => (StatusCode::OK, format!("{message}\n{UNTIL_RESTART}")),
+        Err(err) => error_response(err),
+    }
+}
+
+/// `400 Bad Request` for a request the node rejects, otherwise `500`.
+fn error_response(err: IotaError) -> (StatusCode, String) {
+    let status = if matches!(err, IotaError::InvalidAdminRequest(_)) {
+        StatusCode::BAD_REQUEST
+    } else {
+        StatusCode::INTERNAL_SERVER_ERROR
+    };
+    (status, format!("{err}\n"))
+}
+
+/// The traffic control settings in force, as JSON. Refuses a query, since a
+/// `GET` that carries the settings of a `POST` would change nothing.
+async fn traffic_control_status(
+    State(state): State<Arc<AppState>>,
+    RawQuery(query): RawQuery,
+) -> Response {
+    traffic_control_status_response(&state.node.state(), query)
+}
+
+fn traffic_control_status_response(state: &AuthorityState, query: Option<String>) -> Response {
+    if query.is_some_and(|query| !query.is_empty()) {
+        return (
+            StatusCode::BAD_REQUEST,
+            "GET /traffic-control takes no query; use POST to change the settings\n".to_string(),
+        )
+            .into_response();
+    }
+    json_response(state.traffic_control_status())
+}
+
+async fn traffic_control_config(State(state): State<Arc<AppState>>) -> Response {
+    traffic_control_config_response(&state.node.state())
+}
+
+fn traffic_control_config_response(state: &AuthorityState) -> Response {
+    json_response(state.traffic_control_policy_config())
+}
+
+async fn traffic_control_rules(State(state): State<Arc<AppState>>) -> Response {
+    traffic_control_rules_response(&state.node.state())
+}
+
+fn traffic_control_rules_response(state: &AuthorityState) -> Response {
+    json_response(state.traffic_control_access_rules())
+}
+
+#[derive(Debug, Deserialize)]
+struct AccessRuleChange {
+    list: AccessRuleList,
+    client: String,
+}
+
+/// The name of `list` in the admin API.
+fn list_name(list: AccessRuleList) -> &'static str {
+    match list {
+        AccessRuleList::Allow => "allow",
+        AccessRuleList::Deny => "deny",
+    }
+}
+
+async fn add_traffic_control_rule(
+    State(state): State<Arc<AppState>>,
+    Query(change): Query<AccessRuleChange>,
+) -> (StatusCode, String) {
+    add_traffic_control_rule_response(&state.node.state(), change)
+}
+
+fn add_traffic_control_rule_response(
+    state: &AuthorityState,
+    AccessRuleChange { list, client }: AccessRuleChange,
+) -> (StatusCode, String) {
+    let list_name = list_name(list);
+    change_response(
+        state
+            .add_traffic_control_access_rule(list, &client)
+            .map(|added| match added {
+                true => format!("Added {client} to the {list_name} rules."),
+                false => format!("The {list_name} rules already hold {client}."),
+            }),
+    )
+}
+
+async fn remove_traffic_control_rule(
+    State(state): State<Arc<AppState>>,
+    Query(change): Query<AccessRuleChange>,
+) -> (StatusCode, String) {
+    remove_traffic_control_rule_response(&state.node.state(), change)
+}
+
+fn remove_traffic_control_rule_response(
+    state: &AuthorityState,
+    AccessRuleChange { list, client }: AccessRuleChange,
+) -> (StatusCode, String) {
+    let list_name = list_name(list);
+    change_response(
+        state
+            .remove_traffic_control_access_rule(list, &client)
+            .map(|removed| match removed {
+                true => format!("Removed {client} from the {list_name} rules."),
+                false => format!("The {list_name} rules do not hold {client}."),
+            }),
+    )
+}
+
+#[derive(Debug, Deserialize)]
+struct ListingLimit {
+    limit: Option<usize>,
+}
+
+async fn traffic_control_blocklist(
+    State(state): State<Arc<AppState>>,
+    Query(limit): Query<ListingLimit>,
+) -> Response {
+    traffic_control_blocklist_response(&state.node.state(), limit)
+}
+
+fn traffic_control_blocklist_response(
+    state: &AuthorityState,
+    ListingLimit { limit }: ListingLimit,
+) -> Response {
+    json_response(state.traffic_control_blocklist(limit.unwrap_or(DEFAULT_BLOCKLIST_LIMIT)))
+}
+
+#[derive(Debug, Deserialize)]
+struct ManualBlock {
+    client: String,
+    ttl_sec: u64,
+}
+
+async fn block_traffic_control_client(
+    State(state): State<Arc<AppState>>,
+    Query(block): Query<ManualBlock>,
+) -> (StatusCode, String) {
+    block_traffic_control_client_response(&state.node.state(), block)
+}
+
+fn block_traffic_control_client_response(
+    state: &AuthorityState,
+    ManualBlock { client, ttl_sec }: ManualBlock,
+) -> (StatusCode, String) {
+    change_response(
+        state
+            .block_traffic_control_client(&client, ttl_sec)
+            .map(|block| {
+                let served = if state.traffic_control_dry_run().unwrap_or(false) {
+                    " Dry run is on, so the node still serves it."
+                } else {
+                    ""
+                };
+                if block.reason == BlockReason::Manual && block.seconds_left <= ttl_sec {
+                    format!(
+                        "Blocked {} for {} seconds.{served}",
+                        block.client, block.seconds_left
+                    )
+                } else {
+                    format!(
+                        "{} keeps the longer block in force: {} seconds left, with the reason \
+                         {}.{served}",
+                        block.client, block.seconds_left, block.reason
+                    )
+                }
+            }),
+    )
+}
+
+#[derive(Debug, Deserialize)]
+struct Client {
+    client: String,
+}
+
+async fn unblock_traffic_control_client(
+    State(state): State<Arc<AppState>>,
+    Query(client): Query<Client>,
+) -> (StatusCode, String) {
+    unblock_traffic_control_client_response(&state.node.state(), client)
+}
+
+fn unblock_traffic_control_client_response(
+    state: &AuthorityState,
+    Client { client }: Client,
+) -> (StatusCode, String) {
+    change_response(state.unblock_traffic_control_client(&client).map(
+        |unblocked| match unblocked {
+            true => format!("Unblocked {client}."),
+            false => format!(
+                "{client} had no block in force; what the spam and error policies counted \
+                     for it and its simulation gas balance were reset."
+            ),
+        },
+    ))
+}
+
+#[derive(Debug, Deserialize)]
+struct Top {
+    top: Option<usize>,
+}
+
+async fn traffic_control_clients(
+    State(state): State<Arc<AppState>>,
+    Query(top): Query<Top>,
+) -> Response {
+    traffic_control_clients_response(&state.node.state(), top)
+}
+
+fn traffic_control_clients_response(state: &AuthorityState, Top { top }: Top) -> Response {
+    json_response(state.traffic_control_client_usage(top.unwrap_or(DEFAULT_CLIENTS_TOP)))
 }
 
 async fn get_metrics_filter(State(state): State<Arc<AppState>>) -> (StatusCode, String) {
@@ -669,4 +980,194 @@ async fn reset_metrics_filter(State(state): State<Arc<AppState>>) -> (StatusCode
         StatusCode::OK,
         "metrics filter reset to startup configuration\n".into(),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use axum::{body::to_bytes, extract::Query, http::Uri};
+    use iota_core::authority::test_authority_builder::TestAuthorityBuilder;
+    use iota_types::traffic_control::{
+        AccessRules, BlockedClients, ClientUsage, PolicyConfig, TrafficControlStatus,
+    };
+    use serde::de::DeserializeOwned;
+
+    use super::*;
+
+    fn query<T: DeserializeOwned>(uri: &str) -> T {
+        Query::<T>::try_from_uri(&uri.parse::<Uri>().unwrap())
+            .unwrap()
+            .0
+    }
+
+    async fn body(response: Response) -> (StatusCode, String) {
+        let status = response.status();
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        (status, String::from_utf8(body.to_vec()).unwrap())
+    }
+
+    async fn json<T: DeserializeOwned>(response: Response) -> T {
+        let (status, body) = body(response).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        serde_json::from_str(&body).unwrap()
+    }
+
+    async fn authority(policy_config: Option<PolicyConfig>) -> Arc<AuthorityState> {
+        TestAuthorityBuilder::new()
+            .with_policy_config(policy_config)
+            .build()
+            .await
+    }
+
+    #[test]
+    fn the_traffic_control_routes_read_their_queries() {
+        let change: AccessRuleChange =
+            query("/traffic-control/rules/add?list=deny&client=192.0.2.0/24");
+        assert_eq!(change.list, AccessRuleList::Deny);
+        assert_eq!(change.client, "192.0.2.0/24");
+        let block: ManualBlock = query("/traffic-control/block?client=203.0.113.9&ttl_sec=3600");
+        assert_eq!(
+            (block.client.as_str(), block.ttl_sec),
+            ("203.0.113.9", 3600)
+        );
+        let client: Client = query("/traffic-control/unblock?client=203.0.113.9");
+        assert_eq!(client.client, "203.0.113.9");
+        assert_eq!(
+            query::<ListingLimit>("/traffic-control/blocklist").limit,
+            None
+        );
+        assert_eq!(query::<Top>("/traffic-control/clients?top=5").top, Some(5));
+        let params: TrafficControlReconfigParams =
+            query("/traffic-control?default_action=deny&simulation_burst_gas=20");
+        assert_eq!(params.default_action, Some(DefaultAction::Deny));
+        assert_eq!(params.simulation_burst_gas, Some(20));
+    }
+
+    #[tokio::test]
+    async fn every_route_rejects_a_request_while_traffic_control_is_off() {
+        let state = authority(None).await;
+        let mut responses = vec![
+            reconfigure_traffic_control(&state, TrafficControlReconfigParams::default()).await,
+            add_traffic_control_rule_response(&state, query("/?list=allow&client=192.0.2.1")),
+            remove_traffic_control_rule_response(&state, query("/?list=allow&client=192.0.2.1")),
+            block_traffic_control_client_response(&state, query("/?client=192.0.2.1&ttl_sec=9")),
+            unblock_traffic_control_client_response(&state, query("/?client=192.0.2.1")),
+        ];
+        for response in [
+            traffic_control_status_response(&state, None),
+            traffic_control_config_response(&state),
+            traffic_control_rules_response(&state),
+            traffic_control_blocklist_response(&state, query("/")),
+            traffic_control_clients_response(&state, query("/")),
+        ] {
+            responses.push(body(response).await);
+        }
+        for (status, body) in responses {
+            assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+            assert!(body.contains("not configured"), "{body}");
+        }
+    }
+
+    #[tokio::test]
+    async fn the_routes_change_and_report_traffic_control() {
+        let state = authority(Some(PolicyConfig {
+            dry_run: false,
+            ..Default::default()
+        }))
+        .await;
+
+        let status: TrafficControlStatus =
+            json(traffic_control_status_response(&state, None)).await;
+        assert_eq!(status.default_action, DefaultAction::Limit);
+        let refused = traffic_control_status_response(&state, Some("dry_run=true".to_string()));
+        assert_eq!(refused.status(), StatusCode::BAD_REQUEST);
+        let config: PolicyConfig = json(traffic_control_config_response(&state)).await;
+        assert!(!config.dry_run);
+
+        let (status, body) =
+            reconfigure_traffic_control(&state, query("/?default_action=deny")).await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(body.contains(DEFAULT_DENY_WARNING), "{body}");
+        assert!(body.ends_with(UNTIL_RESTART), "{body}");
+        let status: TrafficControlStatus =
+            json(traffic_control_status_response(&state, None)).await;
+        assert_eq!(status.default_action, DefaultAction::Deny);
+        let (_, body) = reconfigure_traffic_control(&state, query("/?default_action=limit")).await;
+        assert!(!body.contains(DEFAULT_DENY_WARNING), "{body}");
+
+        let (status, body) =
+            add_traffic_control_rule_response(&state, query("/?list=allow&client=198.51.100.7"));
+        assert_eq!(status, StatusCode::OK);
+        assert!(
+            body.starts_with("Added 198.51.100.7 to the allow rules."),
+            "{body}"
+        );
+        assert!(body.ends_with(UNTIL_RESTART), "{body}");
+        let rules: AccessRules = json(traffic_control_rules_response(&state)).await;
+        assert_eq!(rules.allow, ["198.51.100.7/32"]);
+        let (_, body) =
+            remove_traffic_control_rule_response(&state, query("/?list=allow&client=198.51.100.7"));
+        assert!(
+            body.starts_with("Removed 198.51.100.7 from the allow rules."),
+            "{body}"
+        );
+
+        let (status, body) = block_traffic_control_client_response(
+            &state,
+            query("/?client=203.0.113.9&ttl_sec=3600"),
+        );
+        assert_eq!(status, StatusCode::OK);
+        assert!(body.starts_with("Blocked 203.0.113.9 for "), "{body}");
+        assert!(!body.contains("Dry run is on"), "{body}");
+        let (_, body) =
+            block_traffic_control_client_response(&state, query("/?client=203.0.113.9&ttl_sec=60"));
+        assert!(
+            body.starts_with("203.0.113.9 keeps the longer block in force: "),
+            "{body}"
+        );
+        let blocklist: BlockedClients =
+            json(traffic_control_blocklist_response(&state, query("/"))).await;
+        assert_eq!(blocklist.clients.len(), 1);
+        assert_eq!(blocklist.clients[0].reason, BlockReason::Manual);
+        let usage: ClientUsage = json(traffic_control_clients_response(&state, query("/"))).await;
+        assert_eq!(usage.blocked, blocklist);
+
+        let (status, body) =
+            unblock_traffic_control_client_response(&state, query("/?client=203.0.113.9"));
+        assert_eq!(status, StatusCode::OK);
+        assert!(body.starts_with("Unblocked 203.0.113.9."), "{body}");
+        let blocklist: BlockedClients = json(traffic_control_blocklist_response(
+            &state,
+            query("/?limit=10"),
+        ))
+        .await;
+        assert_eq!(blocklist, BlockedClients::default());
+    }
+
+    #[tokio::test]
+    async fn a_manual_block_under_dry_run_says_the_node_still_serves_the_client() {
+        let state = authority(Some(PolicyConfig {
+            dry_run: true,
+            ..Default::default()
+        }))
+        .await;
+        let (status, body) =
+            block_traffic_control_client_response(&state, query("/?client=203.0.113.9&ttl_sec=60"));
+        assert_eq!(status, StatusCode::OK);
+        assert!(
+            body.contains("Dry run is on, so the node still serves it."),
+            "{body}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_rejected_change_answers_bad_request() {
+        let state = authority(Some(PolicyConfig::default())).await;
+        let (status, body) =
+            block_traffic_control_client_response(&state, query("/?client=203.0.113.9&ttl_sec=0"));
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+        let (status, _) = error_response(IotaError::Unknown("failed".to_string()));
+        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+    }
 }
