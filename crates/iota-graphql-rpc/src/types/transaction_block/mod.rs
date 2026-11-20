@@ -8,8 +8,11 @@ use std::{
     sync::Arc,
 };
 
-use async_graphql::{connection::CursorType, dataloader::Loader, *};
-use connection::Edge;
+use async_graphql::{
+    connection::{Connection, CursorType, Edge},
+    dataloader::Loader,
+    *,
+};
 use cursor::TxLookup;
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl};
 use fastcrypto::encoding::{Base58, Encoding};
@@ -35,7 +38,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     config::ServiceConfig,
-    connection::{OldestAvailableCheckpointField, ScanConnection},
+    connection::OldestAvailableCheckpointField,
     consistency::UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER,
     data::{self, DataLoader, Db, DbConnection, QueryExecutor},
     error::Error,
@@ -66,7 +69,7 @@ pub(crate) use tx_lookups::{TxBounds, checkpoint_bounds_from_filter, subqueries}
 
 /// A page of transaction blocks, reporting `oldestAvailableCheckpoint`.
 pub(crate) type TransactionBlockConnection =
-    ScanConnection<String, TransactionBlock, OldestAvailableCheckpointField>;
+    Connection<String, TransactionBlock, OldestAvailableCheckpointField>;
 
 /// Wraps the actual transaction block data with the checkpoint sequence number
 /// at which the data was viewed, for consistent results on paginating through
@@ -436,12 +439,6 @@ impl TransactionBlock {
     /// If the `Page<Cursor>` is set, then this function will defer to the
     /// `checkpoint_viewed_at` in the cursor if they are consistent.
     ///
-    /// Filters that involve a combination of `recvAddress`, `inputObject`,
-    /// `changedObject`, and `function` should provide a value for
-    /// `scan_limit`. This modifies querying behavior by limiting how many
-    /// transactions to scan through before applying filters, and also affects
-    /// pagination behavior.
-    ///
     /// The connection reports the oldest checkpoint the query (with given `filter`) has data from.
     /// A checkpoint range or a cursor below it fails with `DATA_PRUNED`.
     pub(crate) async fn paginate(
@@ -449,7 +446,6 @@ impl TransactionBlock {
         page: Page<Cursor>,
         filter: TransactionBlockFilter,
         checkpoint_viewed_at: u64,
-        scan_limit: Option<u64>,
     ) -> Result<TransactionBlockConnection, Error> {
         let db: &Db = ctx.data_unchecked();
         let oldest_available_checkpoint = filter.oldest_available_checkpoint(db);
@@ -458,7 +454,6 @@ impl TransactionBlock {
             page,
             filter,
             checkpoint_viewed_at,
-            scan_limit,
             oldest_available_checkpoint,
         )
         .await?;
@@ -473,7 +468,6 @@ impl TransactionBlock {
         page: Page<Cursor>,
         filter: TransactionBlockFilter,
         checkpoint_viewed_at: u64,
-        scan_limit: Option<u64>,
         oldest_available_checkpoint: OldestAvailableCheckpoint,
     ) -> Result<TransactionBlockConnection, Error> {
         let limits = &ctx.data_unchecked::<ServiceConfig>().limits;
@@ -481,22 +475,6 @@ impl TransactionBlock {
         if filter.is_unsupported() {
             return Err(Error::Client(
                 "The provided filter combination is not supported".into(),
-            ));
-        }
-
-        // If the caller has provided some arbitrary combination of `function`,
-        // `recvAddress`, `inputObject`, or `changedObject`, we require setting a
-        // `scanLimit`.
-        if let Some(scan_limit) = scan_limit {
-            if scan_limit > limits.max_scan_limit as u64 {
-                return Err(Error::Client(format!(
-                    "Scan limit exceeds max limit of '{}'",
-                    limits.max_scan_limit
-                )));
-            }
-        } else if filter.requires_scan_limit() {
-            return Err(Error::Client(
-                "A scan limit must be specified for the given filter combination".to_string(),
             ));
         }
 
@@ -509,19 +487,21 @@ impl TransactionBlock {
             }
         }
 
-        // If page size or scan limit is 0, we want to standardize behavior by returning
-        // an empty connection
-        if filter.is_empty() || page.limit() == 0 || scan_limit.is_some_and(|v| v == 0) {
-            return Ok(TransactionBlockConnection::new(false, false));
+        // If page size is 0, we want to standardize behavior by returning an empty
+        // connection
+        if filter.is_empty() || page.limit() == 0 {
+            return Ok(Connection::with_additional_fields(
+                false,
+                false,
+                Default::default(),
+            ));
         }
 
         let cursor_viewed_at = page.validate_cursor_consistency()?;
         let checkpoint_viewed_at = cursor_viewed_at.unwrap_or(checkpoint_viewed_at);
         let db: &Db = ctx.data_unchecked();
-        let is_from_front = page.is_from_front();
 
         // For the only-`atCheckpoint` case, we support fallback.
-        // `scan_limit` is ignored here
         if let Some(at_checkpoint) = filter.only_at_checkpoint() {
             return Self::paginate_at_checkpoint_with_fallback(
                 db,
@@ -533,7 +513,6 @@ impl TransactionBlock {
         }
 
         // For the only-`affectedAddress` case, we support fallback.
-        // `scan_limit` is ignored here
         if let Some(address) = filter.only_affected_address() {
             return Self::paginate_by_affected_address_with_fallback(
                 db,
@@ -546,7 +525,6 @@ impl TransactionBlock {
         }
 
         // For the only-`transactionIds` case, we support fallback.
-        // `scan_limit` is ignored here
         if let Some(transaction_ids) = filter.only_transaction_ids() {
             return Self::paginate_by_transaction_ids_with_fallback(
                 db,
@@ -564,7 +542,11 @@ impl TransactionBlock {
         page.check_cursors_not_pruned(oldest_available_checkpoint)?;
 
         let Some(cp_bounds) = checkpoint_bounds_from_filter(&filter, checkpoint_viewed_at) else {
-            return Ok(TransactionBlockConnection::new(false, false));
+            return Ok(Connection::with_additional_fields(
+                false,
+                false,
+                Default::default(),
+            ));
         };
         if *cp_bounds.end() < oldest_available_checkpoint.db_checkpoint() {
             return Err(Error::DataPruned {
@@ -578,15 +560,10 @@ impl TransactionBlock {
             ..=*cp_bounds.end();
 
         use transactions::dsl as tx;
-        let (prev, next, transactions, tx_bounds): (
-            bool,
-            bool,
-            Vec<StoredTransaction>,
-            Option<TxBounds>,
-        ) = db
+        let (prev, next, transactions): (bool, bool, Vec<StoredTransaction>) = db
             .execute_repeatable(move |conn| {
-                let Some(tx_bounds) = TxBounds::query(conn, cp_bounds, scan_limit, &page)? else {
-                    return Ok::<_, diesel::result::Error>((false, false, Vec::new(), None));
+                let Some(tx_bounds) = TxBounds::query(conn, cp_bounds, &page)? else {
+                    return Ok::<_, diesel::result::Error>((false, false, Vec::new()));
                 };
 
                 // If no filters are selected, or if the filter is composed of only checkpoint
@@ -600,8 +577,8 @@ impl TransactionBlock {
                         checkpoint_viewed_at,
                         move || {
                             tx::transactions
-                                .filter(tx::tx_sequence_number.ge(tx_bounds.scan_lo() as i64))
-                                .filter(tx::tx_sequence_number.lt(tx_bounds.scan_hi() as i64))
+                                .filter(tx::tx_sequence_number.ge(tx_bounds.db_lo() as i64))
+                                .filter(tx::tx_sequence_number.lt(tx_bounds.db_hi() as i64))
                                 .into_boxed()
                         },
                     )?;
@@ -625,25 +602,11 @@ impl TransactionBlock {
                     (prev, next, transactions)
                 };
 
-                Ok::<_, diesel::result::Error>((prev, next, transactions, Some(tx_bounds)))
+                Ok::<_, diesel::result::Error>((prev, next, transactions))
             })
             .await?;
 
-        let mut conn = TransactionBlockConnection::new(prev, next);
-
-        let Some(tx_bounds) = tx_bounds else {
-            return Ok(conn);
-        };
-
-        if scan_limit.is_some() {
-            apply_scan_limited_pagination(
-                &mut conn,
-                tx_bounds,
-                checkpoint_viewed_at,
-                is_from_front,
-            );
-        }
-
+        let mut conn = Connection::with_additional_fields(prev, next, Default::default());
         for stored in transactions {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
             let inner = TransactionBlockInner::try_from(stored)?;
@@ -670,7 +633,11 @@ impl TransactionBlock {
         checkpoint_viewed_at: u64,
     ) -> Result<TransactionBlockConnection, Error> {
         if at_checkpoint > checkpoint_viewed_at {
-            return Ok(TransactionBlockConnection::new(false, false));
+            return Ok(Connection::with_additional_fields(
+                false,
+                false,
+                Default::default(),
+            ));
         }
 
         // Fetch the page plus the rows at the cursors, to later compute
@@ -704,7 +671,7 @@ impl TransactionBlock {
             results,
         );
 
-        let mut conn = TransactionBlockConnection::new(prev, next);
+        let mut conn = Connection::with_additional_fields(prev, next, Default::default());
         for stored in results {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
             let inner = TransactionBlockInner::try_from(stored)?;
@@ -795,7 +762,7 @@ impl TransactionBlock {
             results,
         );
 
-        let mut conn = TransactionBlockConnection::new(prev, next);
+        let mut conn = Connection::with_additional_fields(prev, next, Default::default());
         for stored in results {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
             let inner = TransactionBlockInner::try_from(stored)?;
@@ -854,7 +821,7 @@ impl TransactionBlock {
             results,
         );
 
-        let mut conn = TransactionBlockConnection::new(prev, next);
+        let mut conn = Connection::with_additional_fields(prev, next, Default::default());
         for stored in results {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
             let inner = TransactionBlockInner::try_from(stored)?;
@@ -1065,93 +1032,5 @@ impl TryFrom<TransactionBlockEffects> for TransactionBlock {
             inner,
             checkpoint_viewed_at,
         })
-    }
-}
-
-fn apply_scan_limited_pagination(
-    conn: &mut TransactionBlockConnection,
-    tx_bounds: TxBounds,
-    checkpoint_viewed_at: u64,
-    is_from_front: bool,
-) {
-    if is_from_front {
-        apply_forward_scan_limited_pagination(conn, tx_bounds, checkpoint_viewed_at);
-    } else {
-        apply_backward_scan_limited_pagination(conn, tx_bounds, checkpoint_viewed_at);
-    }
-}
-
-/// When paginating forwards on a scan-limited query, the starting cursor and
-/// previous page flag will be the first tx scanned in the current window, and
-/// whether this window is within the scanning range. The ending cursor and next
-/// page flag wraps the last element of the result set if there are more matches
-/// in the scanned window that are truncated - if the page size is smaller
-/// than the scan limit - but otherwise is expanded out to the last tx scanned.
-fn apply_forward_scan_limited_pagination(
-    conn: &mut TransactionBlockConnection,
-    tx_bounds: TxBounds,
-    checkpoint_viewed_at: u64,
-) {
-    conn.has_previous_page = tx_bounds.scan_has_prev_page();
-    conn.start_cursor = Some(
-        Cursor::new(cursor::TransactionBlockCursor {
-            checkpoint_viewed_at: UInt53::new_unchecked(checkpoint_viewed_at),
-            tx_sequence_number: UInt53::new_unchecked(tx_bounds.scan_start_cursor()),
-            is_scan_limited: true,
-        })
-        .encode_cursor(),
-    );
-
-    // There may be more results within the scanned range that got truncated, which
-    // occurs when page size is less than `scan_limit`, so only overwrite the
-    // end when the base pagination reports no next page.
-    if !conn.has_next_page {
-        conn.has_next_page = tx_bounds.scan_has_next_page();
-        conn.end_cursor = Some(
-            Cursor::new(cursor::TransactionBlockCursor {
-                checkpoint_viewed_at: UInt53::new_unchecked(checkpoint_viewed_at),
-                tx_sequence_number: UInt53::new_unchecked(tx_bounds.scan_end_cursor()),
-                is_scan_limited: true,
-            })
-            .encode_cursor(),
-        );
-    }
-}
-
-/// When paginating backwards on a scan-limited query, the ending cursor and
-/// next page flag will be the last tx scanned in the current window, and
-/// whether this window is within the scanning range. The starting cursor and
-/// previous page flag wraps the first element of the result set if there
-/// are more matches in the scanned window that are truncated - if the page size
-/// is smaller than the scan limit - but otherwise is expanded out to the first
-/// tx scanned.
-fn apply_backward_scan_limited_pagination(
-    conn: &mut TransactionBlockConnection,
-    tx_bounds: TxBounds,
-    checkpoint_viewed_at: u64,
-) {
-    conn.has_next_page = tx_bounds.scan_has_next_page();
-    conn.end_cursor = Some(
-        Cursor::new(cursor::TransactionBlockCursor {
-            checkpoint_viewed_at: UInt53::new_unchecked(checkpoint_viewed_at),
-            tx_sequence_number: UInt53::new_unchecked(tx_bounds.scan_end_cursor()),
-            is_scan_limited: true,
-        })
-        .encode_cursor(),
-    );
-
-    // There may be more results within the scanned range that are truncated,
-    // especially if page size is less than `scan_limit`, so only overwrite the
-    // end when the base pagination reports no next page.
-    if !conn.has_previous_page {
-        conn.has_previous_page = tx_bounds.scan_has_prev_page();
-        conn.start_cursor = Some(
-            Cursor::new(cursor::TransactionBlockCursor {
-                checkpoint_viewed_at: UInt53::new_unchecked(checkpoint_viewed_at),
-                tx_sequence_number: UInt53::new_unchecked(tx_bounds.scan_start_cursor()),
-                is_scan_limited: true,
-            })
-            .encode_cursor(),
-        );
     }
 }

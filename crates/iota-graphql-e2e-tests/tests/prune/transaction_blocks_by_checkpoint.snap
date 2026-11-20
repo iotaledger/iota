@@ -211,8 +211,8 @@ Response: {
         }
       ],
       "pageInfo": {
-        "endCursor": "eyJjIjoxMSwidCI6OSwiaSI6ZmFsc2V9",
-        "startCursor": "eyJjIjoxMSwidCI6NywiaSI6ZmFsc2V9"
+        "endCursor": "eyJjIjoxMSwidCI6OX0",
+        "startCursor": "eyJjIjoxMSwidCI6N30"
       }
     }
   }

@@ -16,7 +16,7 @@ use crate::{
     filter,
     raw_query::RawQuery,
     types::{
-        cursor::{self, Paginated, RawPaginated, ScanLimited, Target},
+        cursor::{self, Paginated, RawPaginated, Target},
         event::Query,
         uint53::UInt53,
     },
@@ -134,8 +134,6 @@ impl TransactionCursor for Cursor {
         u64::from(self.tx)
     }
 }
-
-impl ScanLimited for Cursor {}
 
 impl Target<Cursor> for EvLookup {
     fn cursor(&self, checkpoint_viewed_at: u64) -> Cursor {

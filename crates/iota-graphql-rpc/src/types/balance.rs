@@ -25,7 +25,7 @@ use crate::{
     types::{
         available_range::AvailableRange,
         big_int::BigInt,
-        cursor::{self, Page, RawPaginated, ScanLimited, Target},
+        cursor::{self, Page, RawPaginated, Target},
         iota_address::IotaAddress,
         move_type::MoveType,
         uint53::UInt53,
@@ -188,8 +188,6 @@ impl Checkpointed for Cursor {
         self.checkpoint_viewed_at.into()
     }
 }
-
-impl ScanLimited for Cursor {}
 
 impl TryFrom<StoredBalance> for Balance {
     type Error = Error;
