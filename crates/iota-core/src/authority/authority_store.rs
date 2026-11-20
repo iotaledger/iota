@@ -1266,7 +1266,8 @@ impl AuthorityStore {
     ) -> IotaResult<Option<Version>> {
         // Only the newest live row: a commit deletes the versions it
         // supersedes from the live table, and a seek from an older version
-        // would step over every deletion. Read before the bucket.
+        // would step over every deletion. Read before the bucket; see
+        // `HistoricObjectsBucket::tombstones`.
         let live = self
             .perpetual_tables
             .get_latest_object_or_tombstone(*object_id)?

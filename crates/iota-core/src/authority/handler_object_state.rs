@@ -1221,6 +1221,7 @@ mod tests {
             Some(Version::from_u64(DELETED_SHARED_CONSUMED_VERSION))
         );
         assert_eq!(version(&fixture.mutated_owned), lamport);
+        // The attestation judge takes a transaction's commit from this row.
         assert_eq!(rows[&fixture.gas].kind, HandlerProcessedObjectKind::Live);
         assert_eq!(
             rows[&fixture.unwrapped].kind,

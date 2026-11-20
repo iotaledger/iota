@@ -1295,13 +1295,14 @@ impl WritebackCache {
             iota_metrics::monitored_scope("WritebackCache::commit_transaction_outputs::flush");
         for outputs in all_outputs {
             let tx_digest = outputs.transaction.digest();
+            self.flush_transactions_from_dirty_to_cached(epoch, *tx_digest, outputs);
+            // Last, so a reader always finds the transaction in one of the two.
             assert!(
                 self.dirty
                     .pending_transaction_writes
                     .remove(tx_digest)
                     .is_some()
             );
-            self.flush_transactions_from_dirty_to_cached(epoch, *tx_digest, outputs);
         }
     }
 
