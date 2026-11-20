@@ -378,6 +378,9 @@ pub(crate) enum ConsensusError {
     #[error("Commit variant {actual} is not the expected V3")]
     WrongCommitVersion { actual: &'static str },
 
+    #[error("Block references invalid authority index {index}, committee size is {max}")]
+    InvalidReferenceAuthority { index: AuthorityIndex, max: usize },
+
     #[error("Block strong_vote contains invalid authority index {index}, committee size is {max}")]
     InvalidStrongVoteAuthority { index: AuthorityIndex, max: usize },
 
@@ -414,6 +417,13 @@ pub(crate) enum ConsensusError {
         peer: AuthorityIndex,
         size: usize,
         limit: usize,
+    },
+
+    #[error("Peer {peer} sent a shard of authority {index} outside the committee of size {max}")]
+    InvalidShardAuthor {
+        peer: AuthorityIndex,
+        index: AuthorityIndex,
+        max: usize,
     },
 
     #[error("Peer {peer} relayed a second shard for slot (author {author}, round {round})")]

@@ -473,7 +473,7 @@ impl DagState {
         state.misbehavior_store.initialize_misbehavior_counts(
             recovered_misbehavior_counts,
             &state.recent_headers_refs_by_authority,
-            &state.evicted_header_rounds,
+            state.gc_round_for_last_commit(),
             state.threshold_clock_round(),
             &state.context,
         );
@@ -548,7 +548,12 @@ impl DagState {
         committed_round: Round,
         data_source: DataSource,
     ) {
-        let eviction_round = Self::eviction_round(committed_round, self.cached_rounds);
+        // Load everything above `cached_rounds` below the authority's last
+        // committed round. As in live eviction, never evict above the GC round
+        // of the last commit: headers there can still be sequenced, and
+        // misbehavior counts above it are recomputed from them.
+        let eviction_round = Self::eviction_round(committed_round, self.cached_rounds)
+            .min(self.gc_round_for_last_commit());
         self.evicted_header_rounds[authority_index] = eviction_round;
         self.evicted_transaction_rounds[authority_index] = eviction_round;
 
@@ -580,7 +585,7 @@ impl DagState {
 
     /// Reinitialize DagState after fast sync completes.
     /// This clears in-memory caches and reloads from storage for the
-    /// cached_rounds window. Should be called after block headers have been
+    /// cached_rounds window. Must be called right after block headers have been
     /// stored via accept_block_headers() and flush().
     pub(crate) fn reinitialize(&mut self) {
         let num_authorities = self.context.committee.size();
@@ -603,7 +608,6 @@ impl DagState {
         self.tx_ref_to_block_digests_by_authority = vec![BTreeMap::new(); num_authorities];
         self.pending_commit_votes.clear();
         self.pending_acknowledgments.clear();
-        self.misbehavior_store.reset();
 
         // 2. Reinitialize threshold_clock with current round
         let current_round = self.threshold_clock.get_round();
@@ -618,19 +622,6 @@ impl DagState {
                 DataSource::FastCommitSyncer,
             );
         }
-
-        // 4. Re-initialize misbehavior counts from storage
-        let recovered_misbehavior_counts = self
-            .store
-            .scan_misbehavior_counts()
-            .expect("reading misbehavior counts from storage should not fail");
-        self.misbehavior_store.initialize_misbehavior_counts(
-            recovered_misbehavior_counts,
-            &self.recent_headers_refs_by_authority,
-            &self.evicted_header_rounds,
-            self.threshold_clock_round(),
-            &self.context,
-        );
 
         // Rebuild scoring_subdag from stored commits so leader schedule state
         // matches peers after fast sync reinitialization.
@@ -2630,25 +2621,20 @@ impl DagState {
         commit_round.saturating_sub(cached_rounds)
     }
 
-    /// Computes misbehavior counts for all authorities and returns those that
-    /// need to be persisted (where the eviction boundary advanced).
+    /// Computes misbehavior counts for all authorities and returns those whose
+    /// persisted counts changed.
     fn misbehavior_counts_to_write(&self) -> BTreeMap<AuthorityIndex, MisbehaviorCounts> {
         let mut metrics_to_write = BTreeMap::new();
+        let gc_round = self.gc_round_for_last_commit();
         let threshold_clock_round = self.threshold_clock_round();
         for (authority_index, _) in self.context.committee.authorities() {
-            let last_eviction_round = self.evicted_header_rounds[authority_index];
-            let current_eviction_round = self.calculate_header_eviction_round(authority_index);
-            if let Some(metrics) = self
-                .misbehavior_store
-                .update_misbehavior_counts_on_eviction(
-                    authority_index,
-                    &self.recent_headers_refs_by_authority[authority_index],
-                    current_eviction_round,
-                    last_eviction_round,
-                    threshold_clock_round,
-                    &self.context,
-                )
-            {
+            if let Some(metrics) = self.misbehavior_store.update_misbehavior_counts(
+                authority_index,
+                &self.recent_headers_refs_by_authority[authority_index],
+                gc_round,
+                threshold_clock_round,
+                &self.context,
+            ) {
                 metrics_to_write.insert(authority_index, metrics);
             }
         }
@@ -4794,6 +4780,7 @@ mod test {
         telemetry_subscribers::init_for_testing();
         let (mut context, _) = Context::new_for_test(4);
         context.parameters.dag_state_cached_rounds = 5;
+        context.protocol_config.set_gc_depth_for_testing(2);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store.clone());

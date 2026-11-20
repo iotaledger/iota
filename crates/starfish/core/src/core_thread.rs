@@ -573,11 +573,17 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::time::Duration;
+    use std::{
+        sync::atomic::{AtomicBool, Ordering},
+        time::Duration,
+    };
 
     use iota_metrics::monitored_mpsc::unbounded_channel;
     use parking_lot::{Mutex, RwLock};
-    use tokio::time::{Instant, timeout};
+    use tokio::{
+        sync::Notify,
+        time::{Instant, timeout},
+    };
 
     use super::*;
     use crate::{
@@ -592,6 +598,7 @@ pub(crate) mod tests {
         leader_schedule::LeaderSchedule,
         storage::{Store, WriteBatch, mem_store::MemStore},
         transaction::{TransactionClient, TransactionConsumer},
+        transaction_ref::TransactionRef,
     };
 
     // TODO: complete the Mock for thread dispatcher to be used from several tests
@@ -605,9 +612,40 @@ pub(crate) mod tests {
         quorum_subscribers_exists: Mutex<bool>,
         reinitialize_components_calls: Mutex<usize>,
         reinitialize_components_should_fail: Mutex<bool>,
+        transactions: Mutex<BTreeMap<TransactionRef, CommitmentVerifiedTransactions>>,
+        /// Reported by `get_missing_transaction_data` until delivered.
+        missing_transactions: Mutex<BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>>,
+        /// When set, `get_missing_transaction_data` never answers.
+        block_missing_transactions_queries: AtomicBool,
+        /// Notified on every `get_missing_transaction_data` call.
+        missing_transactions_query_entered: Notify,
     }
 
     impl MockCoreThreadDispatcher {
+        pub(crate) fn added_transactions(&self) -> Vec<CommitmentVerifiedTransactions> {
+            self.transactions.lock().values().cloned().collect()
+        }
+
+        pub(crate) fn stub_missing_transactions(
+            &self,
+            missing_transactions: BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
+        ) {
+            *self.missing_transactions.lock() = missing_transactions;
+        }
+
+        /// Makes every `get_missing_transaction_data` call block forever, as
+        /// a core thread with a long queue would.
+        pub(crate) fn block_missing_transactions_queries(&self) {
+            self.block_missing_transactions_queries
+                .store(true, Ordering::Relaxed);
+        }
+
+        /// Waits until `get_missing_transaction_data` is called; a call made
+        /// since the last wait counts.
+        pub(crate) async fn missing_transactions_query_entered(&self) {
+            self.missing_transactions_query_entered.notified().await;
+        }
+
         pub(crate) async fn get_and_drain_blocks(&self) -> Vec<VerifiedBlock> {
             let mut blocks = self.blocks.lock();
             blocks.drain(0..).collect()
@@ -695,10 +733,17 @@ pub(crate) mod tests {
 
         async fn add_transactions(
             &self,
-            _transactions: Vec<CommitmentVerifiedTransactions>,
+            transactions: Vec<CommitmentVerifiedTransactions>,
             _source: DataSource,
         ) -> Result<(), CoreError> {
-            unimplemented!()
+            let mut missing = self.missing_transactions.lock();
+            let mut added = self.transactions.lock();
+            for transaction in transactions {
+                let transaction_ref = transaction.transaction_ref();
+                missing.remove(&transaction_ref);
+                added.entry(transaction_ref).or_insert(transaction);
+            }
+            Ok(())
         }
 
         async fn add_shards(&self, _shards: Vec<VerifiedOwnShard>) -> Result<(), CoreError> {
@@ -708,7 +753,14 @@ pub(crate) mod tests {
         async fn get_missing_transaction_data(
             &self,
         ) -> Result<BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
-            Ok(BTreeMap::new())
+            self.missing_transactions_query_entered.notify_one();
+            if self
+                .block_missing_transactions_queries
+                .load(Ordering::Relaxed)
+            {
+                std::future::pending::<()>().await;
+            }
+            Ok(self.missing_transactions.lock().clone())
         }
 
         async fn add_certified_commits(

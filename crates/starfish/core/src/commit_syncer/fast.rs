@@ -707,11 +707,9 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 // Truncation drops whole entries and never corrupts or
                 // reorders one, so a malformed, uncommitted or out-of-order
                 // entry is the peer's fault.
-                inner.misbehavior_store.record_faulty_transactions(
-                    target_authority,
-                    false,
-                    [target_authority],
-                );
+                inner
+                    .misbehavior_store
+                    .record_faulty_transactions(None, [target_authority]);
             })?;
             // Charged as the server charges, less each entry's ref and length
             // prefixes, so an honest server with the same budget stops first.
@@ -721,25 +719,17 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 .sum::<usize>();
             if !fetched_transactions.is_empty() {
                 let verified = spawn_blocking({
-                    let context = inner.context.clone();
+                    let inner = inner.clone();
                     move || {
                         verify_transactions_commitments(
-                            &context,
+                            &inner.context,
+                            &inner.misbehavior_store,
                             target_authority,
                             fetched_transactions,
                         )
                     }
                 })
-                .await?
-                .inspect_err(|_| {
-                    // Not provable against the author, whose commitment the
-                    // peer may have forged.
-                    inner.misbehavior_store.record_faulty_transactions(
-                        target_authority,
-                        false,
-                        [target_authority],
-                    );
-                })?;
+                .await??;
                 transactions_map.extend(verified);
             }
             if budgeted_bytes > byte_budget && first_commit_awaited.is_empty() {
@@ -990,7 +980,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                             Err(e) => {
                                 inner
                                     .misbehavior_store
-                                    .record_faulty_block(authority, authority, &e);
+                                    .record_faulty_block(authority, None, &e);
                                 record_headers_for_reinitialization_failure(
                                     &inner,
                                     &mut failed_authorities,

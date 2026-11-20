@@ -2148,10 +2148,12 @@ pub trait SenderSignedTransactionAPI {
     /// their type arguments if `include_type_arg_packages` is set, in the
     /// order the transaction and then each authenticator name them.
     ///
-    /// Although some shared objects(with a different mutability flag, for
-    /// example) can be duplicated in the transaction and authenticators, we
-    /// load them independently to make it possible to analyze the inputs in
-    /// the transaction checkers.
+    /// Although some shared objects (with a different mutability flag, for
+    /// example) can be duplicated in the transaction and authenticators, each
+    /// of their distinct kinds is returned, to make it possible to analyze the
+    /// inputs in the transaction checkers. A caller that reads the inputs must
+    /// read such an object once for all its kinds: the checkers assert that
+    /// all kinds of one object got the same read result.
     fn collect_all_input_object_kind_for_reading(
         &self,
         include_type_arg_packages: bool,

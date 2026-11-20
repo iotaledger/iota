@@ -66,7 +66,7 @@ async fn poll_all_validators(
             let failures = handle.with(|node| {
                 node.state()
                     .epoch_store_for_testing()
-                    .metrics_for_testing()
+                    .epoch_metrics()
                     .deny_rule_update_execution_failures
                     .get()
             });
@@ -1311,7 +1311,7 @@ async fn deny_rule_checkpoint_catch_up_crosses_the_boundary_quietly() {
         assert_eq!(
             node.state()
                 .epoch_store_for_testing()
-                .metrics_for_testing()
+                .epoch_metrics()
                 .deny_rule_mirror_divergence
                 .get(),
             0
@@ -1386,7 +1386,7 @@ async fn deny_rule_crash_before_flush_replays_the_derivation() {
     let victim_metrics = victim_handle.with(|node| {
         node.state()
             .epoch_store_for_testing()
-            .metrics_for_testing()
+            .epoch_metrics()
             .clone()
     });
     let baseline = victim_metrics.deny_rule_update_transactions_injected.get();
@@ -1446,7 +1446,7 @@ async fn deny_rule_crash_before_flush_replays_the_derivation() {
     }
     victim_handle.with(|node| {
         let store = node.state().epoch_store_for_testing();
-        let metrics = store.metrics_for_testing();
+        let metrics = store.epoch_metrics();
         assert!(
             metrics.deny_rule_update_transactions_injected.get() >= 1,
             "the replay must re-derive and re-schedule the unflushed update"
@@ -1746,7 +1746,7 @@ async fn deny_rule_injection_metrics_and_rpc_rendering() {
     for handle in test_cluster.swarm.validator_node_handles() {
         handle.with(|node| {
             let store = node.state().epoch_store_for_testing();
-            let metrics = store.metrics_for_testing();
+            let metrics = store.epoch_metrics();
             assert_eq!(
                 metrics.deny_rule_updates_injected.get(),
                 1,

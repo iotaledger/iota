@@ -1,9 +1,9 @@
 ---
 source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
 ---
-processed 20 tasks
+processed 23 tasks
 
-task 1, lines 13-16:
+task 1, lines 16-19:
 //# publish
 created: object(1,0)
 mutated: object(0,0)
@@ -14,43 +14,43 @@ gas summary:
 ├── Storage Rebate: 0
 └── Non-Refundable Storage Fee: 0
 
-task 2, line 18:
+task 2, line 21:
 //# create-checkpoint
 Checkpoint created: 1
 
-task 3, line 20:
+task 3, line 23:
 //# advance-epoch
 Epoch advanced: 1
 
-task 4, line 22:
+task 4, line 25:
 //# create-checkpoint
 Checkpoint created: 3
 
-task 5, line 24:
+task 5, line 27:
 //# advance-epoch
 Epoch advanced: 2
 
-task 6, line 26:
+task 6, line 29:
 //# create-checkpoint
 Checkpoint created: 5
 
-task 7, line 28:
+task 7, line 31:
 //# advance-epoch
 Epoch advanced: 3
 
-task 8, line 30:
+task 8, line 33:
 //# create-checkpoint
 Checkpoint created: 7
 
-task 9, line 32:
+task 9, line 35:
 //# create-checkpoint
 Checkpoint created: 8
 
-task 10, line 34:
+task 10, line 37:
 //# create-checkpoint
 Checkpoint created: 9
 
-task 11, lines 36-46:
+task 11, lines 39-50:
 //# run-graphql --wait-for-checkpoint-pruned 6
 Response: {
   "data": {
@@ -66,6 +66,7 @@ Response: {
           "sequenceNumber": 9
         }
       ],
+      "oldestAvailableCheckpoint": 7,
       "pageInfo": {
         "hasNextPage": false,
         "hasPreviousPage": false
@@ -74,7 +75,7 @@ Response: {
   }
 }
 
-task 12, lines 48-57:
+task 12, lines 52-62:
 //# run-graphql
 Response: {
   "data": {
@@ -87,6 +88,7 @@ Response: {
           "sequenceNumber": 8
         }
       ],
+      "oldestAvailableCheckpoint": 7,
       "pageInfo": {
         "hasNextPage": true,
         "hasPreviousPage": false
@@ -95,7 +97,7 @@ Response: {
   }
 }
 
-task 13, lines 59-69:
+task 13, lines 64-75:
 //# run-graphql --cursors {"c":9,"s":2}
 Response: {
   "data": null,
@@ -112,13 +114,14 @@ Response: {
         "checkpoints"
       ],
       "extensions": {
-        "code": "DATA_PRUNED"
+        "code": "DATA_PRUNED",
+        "oldestAvailableCheckpoint": 7
       }
     }
   ]
 }
 
-task 14, lines 71-80:
+task 14, lines 77-87:
 //# run-graphql --cursors {"c":9,"s":42}
 Response: {
   "data": null,
@@ -141,7 +144,7 @@ Response: {
   ]
 }
 
-task 15, lines 82-91:
+task 15, lines 89-99:
 //# run-graphql --cursors {"c":9,"s":7}
 Response: {
   "data": {
@@ -154,6 +157,7 @@ Response: {
           "sequenceNumber": 9
         }
       ],
+      "oldestAvailableCheckpoint": 7,
       "pageInfo": {
         "hasNextPage": false,
         "hasPreviousPage": true
@@ -162,15 +166,63 @@ Response: {
   }
 }
 
-task 16, lines 93-101:
+task 16, lines 101-109:
+//# run-graphql
+Response: {
+  "data": null,
+  "errors": [
+    {
+      "message": "Requested data has been pruned: checkpoint 0 has been pruned",
+      "locations": [
+        {
+          "line": 5,
+          "column": 3
+        }
+      ],
+      "path": [
+        "pruned"
+      ],
+      "extensions": {
+        "code": "DATA_PRUNED",
+        "oldestAvailableCheckpoint": 7
+      }
+    }
+  ]
+}
+
+task 17, lines 111-118:
 //# run-graphql
 Response: {
   "data": {
-    "pruned": null
+    "unknown": null
   }
 }
 
-task 17, lines 103-109:
+task 18, lines 120-128:
+//# run-graphql
+Response: {
+  "data": null,
+  "errors": [
+    {
+      "message": "Requested data has been pruned: checkpoint 11111111111111111111111111111111 not found, it may have been pruned",
+      "locations": [
+        {
+          "line": 5,
+          "column": 3
+        }
+      ],
+      "path": [
+        "unknown"
+      ],
+      "extensions": {
+        "code": "DATA_PRUNED",
+        "oldestAvailableCheckpoint": 7
+      }
+    }
+  ]
+}
+
+task 19, lines 130-136:
 //# run-graphql
 Response: {
   "data": {
@@ -180,7 +232,7 @@ Response: {
   }
 }
 
-task 18, lines 111-124:
+task 20, lines 138-152:
 //# run-graphql
 Response: {
   "data": {
@@ -202,13 +254,14 @@ Response: {
         "checkpoints"
       ],
       "extensions": {
-        "code": "DATA_PRUNED"
+        "code": "DATA_PRUNED",
+        "oldestAvailableCheckpoint": 7
       }
     }
   ]
 }
 
-task 19, lines 126-136:
+task 21, lines 154-165:
 //# run-graphql
 Response: {
   "data": {
@@ -225,6 +278,7 @@ Response: {
             "sequenceNumber": 9
           }
         ],
+        "oldestAvailableCheckpoint": 7,
         "pageInfo": {
           "hasNextPage": false,
           "hasPreviousPage": false
@@ -233,4 +287,31 @@ Response: {
       "epochId": 3
     }
   }
+}
+
+task 22, lines 167-179:
+//# run-graphql --cursors {"c":9,"s":2}
+Response: {
+  "data": {
+    "epoch": null
+  },
+  "errors": [
+    {
+      "message": "Requested data has been pruned: `after` cursor (seq 2) is below the available range 7..=9",
+      "locations": [
+        {
+          "line": 6,
+          "column": 5
+        }
+      ],
+      "path": [
+        "epoch",
+        "checkpoints"
+      ],
+      "extensions": {
+        "code": "DATA_PRUNED",
+        "oldestAvailableCheckpoint": 7
+      }
+    }
+  ]
 }

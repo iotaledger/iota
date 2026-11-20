@@ -21,7 +21,14 @@
 //! successfully, we have reached the end of epoch. This allows us to use it as
 //! a signal for reconfig.
 
-use std::{future::Future, sync::Arc, time::Instant};
+use std::{
+    future::Future,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::Instant,
+};
 
 use futures::{StreamExt, TryStreamExt};
 use iota_common::{debug_fatal, fatal};
@@ -176,6 +183,8 @@ pub struct CheckpointExecutor {
     /// yet; `CheckpointSequenceNumber::MAX` once every synced checkpoint of
     /// this epoch has been.
     next_randomness_to_forward: Mutex<CheckpointSequenceNumber>,
+    /// Whether this executor has executed a checkpoint yet.
+    executed_any_checkpoint: AtomicBool,
 }
 
 impl CheckpointExecutor {
@@ -205,6 +214,7 @@ impl CheckpointExecutor {
             checkpoint_progress_tracker,
             data_sender,
             next_randomness_to_forward: Mutex::new(0),
+            executed_any_checkpoint: AtomicBool::new(false),
         }
     }
 
@@ -1438,6 +1448,14 @@ impl CheckpointExecutor {
             .update_highest_executed_checkpoint(checkpoint)
             .unwrap();
         self.metrics.last_executed_checkpoint.set(seq as i64);
+        // The executor runs from the end of the previous epoch after an epoch
+        // change, so its first checkpoint is the first of the epoch.
+        if !self.executed_any_checkpoint.swap(true, Ordering::Relaxed) {
+            self.epoch_store.metrics.record_epoch_change_stage_now(
+                self.epoch_store.epoch(),
+                "first_checkpoint_executed",
+            );
+        }
 
         self.metrics
             .last_executed_checkpoint_timestamp_ms

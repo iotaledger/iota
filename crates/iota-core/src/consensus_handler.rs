@@ -599,6 +599,11 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
         self.transaction_scheduler
             .schedule(transactions_to_schedule, assigned_versions)
             .await;
+        if commit_sub_dag_index == 1 {
+            self.epoch_store
+                .metrics
+                .record_epoch_change_stage_now(self.epoch_store.epoch(), "first_commit_handled");
+        }
         Ok(())
     }
 }

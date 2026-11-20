@@ -12,7 +12,7 @@ use std::{
 
 use byteorder::{BigEndian, ReadBytesExt};
 use fastcrypto::{error::FastCryptoResult, groups::bls12381, hash::HashFunction};
-use fastcrypto_tbls::dkg_v1;
+use fastcrypto_threshold::dkg_v1;
 use iota_sdk_types::{
     DenyRuleSet, Digest, MisbehaviorReportDigest, ObjectReference, SenderSignedTransaction,
     TransactionDigest, crypto::IntentScope,
@@ -290,11 +290,11 @@ pub enum ConsensusTransactionKind {
 
     // DKG is used to generate keys for use in the random beacon protocol.
     // `RandomnessDkgMessage` is sent out at start-of-epoch to initiate the process.
-    // Contents are a serialized `fastcrypto_tbls::dkg::Message`.
+    // Contents are a serialized `fastcrypto_threshold::dkg::Message`.
     RandomnessDkgMessage(AuthorityName, Vec<u8>),
     // `RandomnessDkgConfirmation` is the second DKG message, sent as soon as a threshold amount
     // of `RandomnessDkgMessages` have been received locally, to complete the key generation
-    // process. Contents are a serialized `fastcrypto_tbls::dkg::Confirmation`.
+    // process. Contents are a serialized `fastcrypto_threshold::dkg::Confirmation`.
     RandomnessDkgConfirmation(AuthorityName, Vec<u8>),
     MisbehaviorReport(VersionedMisbehaviorReport),
     /// P-COOL user transaction. Raw, uncertified transaction submitted

@@ -24,6 +24,7 @@ mod simtests {
     use iota_test_transaction_builder::make_transfer_iota_transaction;
     use iota_types::{
         base_types::AuthorityName,
+        messages_consensus::ConsensusTransaction,
         quorum_driver_types::{
             ExecuteTransactionRequestType, ExecuteTransactionRequestV1, QuorumDriverError,
         },
@@ -183,6 +184,54 @@ mod simtests {
         )
         .await
         .expect("the shed transaction succeeds on retry once the overload clears");
+    }
+
+    /// A validator stops with an overload notification still to be sequenced
+    /// and restarts without overload. The notification is sequenced after the
+    /// restart, and the validator replaces it with its local percentage.
+    #[sim_test]
+    async fn overload_notification_pending_at_a_restart_is_replaced() {
+        telemetry_subscribers::init_for_testing();
+
+        let test_cluster = TestClusterBuilder::new()
+            .with_authority_overload_config(AuthorityOverloadConfig {
+                // Keeps the overload monitor from setting an overload.
+                max_load_shedding_percentage: 0,
+                // Leaves the pending notification recorded for long enough
+                // after the restart to be observed.
+                overload_monitor_interval: Duration::from_secs(30),
+                ..Default::default()
+            })
+            .build()
+            .await;
+        let restarted = test_cluster.swarm.validator_node_handles()[0].with(|node| {
+            let state = node.state();
+            state
+                .epoch_store_for_testing()
+                .insert_pending_consensus_transactions(
+                    &[ConsensusTransaction::new_overload_notification_v1(
+                        state.name, 70,
+                    )],
+                    None,
+                )
+                .unwrap();
+            state.name
+        });
+
+        test_cluster.stop_node(&restarted);
+        // The stopped node releases its store asynchronously; reopening too
+        // early trips the RocksDB lock.
+        tokio::time::sleep(Duration::from_secs(10)).await;
+        test_cluster.start_node(&restarted).await;
+        let states: Vec<_> = test_cluster
+            .swarm
+            .validator_node_handles()
+            .iter()
+            .map(|handle| handle.with(|node| node.state()))
+            .collect();
+
+        wait_for_overload_notification(&states, restarted, 70).await;
+        wait_for_overload_notification(&states, restarted, 0).await;
     }
 
     /// With the consensus queue of every validator at its limit, admission

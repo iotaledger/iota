@@ -187,12 +187,8 @@ impl AttestationVerdictContext<'_> {
 
         // An invariant violation is an internal error, so nobody is at fault.
         // A cancellation was decided at the consensus commit before any
-        // authenticator ran: only a re-run at the recorded versions could tell
-        // whether the account authorized the transaction, and that would add
-        // load exactly when the network is congested. A Move account therefore
-        // pays nothing for a cancelled transaction, while a gas owner that
-        // signed with a key does.
-        // TODO: decide whether a cancelled transaction charges a Move account.
+        // authenticator ran. No validator ran one at execution, and judging
+        // the transaction would mean running one only to charge for that run.
         if is_cancellation(kind) || is_any_invariant_violation(kind) {
             return AuthenticationFailureBlame::Nobody;
         }

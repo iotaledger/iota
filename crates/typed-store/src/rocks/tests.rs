@@ -116,6 +116,29 @@ async fn test_safe_drop_db() {
 }
 
 #[tokio::test]
+async fn test_drop_records_close_duration() {
+    let tmp_dir = iota_common::tempdir();
+    let db_name = "test_drop_records_close_duration";
+    let close_duration = DBMetrics::get()
+        .op_metrics
+        .rocksdb_close_duration_ms
+        .with_label_values(&[db_name]);
+    close_duration.set(-1);
+    let db = open_cf_opts(
+        tmp_dir.path(),
+        None,
+        MetricConf::new(db_name),
+        &[(
+            rocksdb::DEFAULT_COLUMN_FAMILY_NAME,
+            rocksdb::Options::default(),
+        )],
+    )
+    .expect("failed to open rocksdb");
+    drop(db);
+    assert!(close_duration.get() >= 0);
+}
+
+#[tokio::test]
 async fn test_multi_contain() {
     let tmp_dir = iota_common::tempdir();
     let db = open_map(tmp_dir.path(), None);

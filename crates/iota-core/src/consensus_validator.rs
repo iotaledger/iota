@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use eyre::WrapErr;
-use fastcrypto_tbls::dkg_v1;
+use fastcrypto_threshold::dkg_v1;
 use iota_metrics::monitored_scope;
 use iota_sdk_types::SenderSignedTransaction;
 use iota_types::{
@@ -214,11 +214,18 @@ impl IotaTxValidator {
             .verify_certs_and_checkpoints(cert_batch, ckpt_batch, authority_cap_batch)
             .tap_err(|e| warn!("batch verification error: {}", e))?;
 
-        // All checkpoint sigs have been verified, forward them to the checkpoint
-        // service
+        // A failure to forward a verified signature is local, so it must not
+        // reject the block and count against its author.
         for ckpt in ckpt_messages {
-            self.checkpoint_service
-                .notify_checkpoint_signature(&self.epoch_store, ckpt)?;
+            if let Err(e) = self
+                .checkpoint_service
+                .notify_checkpoint_signature(&self.epoch_store, ckpt)
+            {
+                warn!(
+                    "Failed to forward checkpoint signature {}: {e}",
+                    ckpt.summary.sequence_number
+                );
+            }
         }
 
         self.metrics
@@ -321,9 +328,10 @@ mod tests {
     use iota_protocol_config::{Chain, OverrideGuard, ProtocolConfig, ProtocolVersion};
     use iota_sdk_types::{Identifier, ObjectId, UserSignature};
     use iota_types::{
-        attestation::AttestedTransaction,
+        attestation::{Attestation, AttestationData, AttestedTransaction},
         crypto::AuthorityKeyPair,
-        error::{IotaError, UserInputError},
+        error::{IotaError, IotaResult, UserInputError},
+        messages_checkpoint::{CheckpointSignatureMessage, SignedCheckpointSummary},
         messages_consensus::{
             ConsensusTransaction, ConsensusTransactionKind, MisbehaviorObservationsV1,
             VersionedMisbehaviorReport,
@@ -334,11 +342,14 @@ mod tests {
     use starfish_core::TransactionVerifier as _;
 
     use crate::{
-        authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder},
-        checkpoints::CheckpointServiceNoop,
+        authority::{
+            AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore,
+            test_authority_builder::TestAuthorityBuilder,
+        },
+        checkpoints::{CheckpointServiceNoop, CheckpointServiceNotify},
         consensus_adapter::consensus_tests::{test_certificates, test_gas_objects},
         consensus_validator::{IotaTxValidator, IotaTxValidatorMetrics},
-        test_utils::consensus_transaction_feature_gate,
+        test_utils::{certified_summary, consensus_transaction_feature_gate},
     };
 
     #[sim_test]
@@ -750,6 +761,23 @@ mod tests {
         )))
     }
 
+    /// `signed_tx` with an attestation. Block verification checks only that
+    /// one is present, so its content is arbitrary.
+    fn attested_user_transaction(signed_tx: TransactionEnvelope) -> ConsensusTransactionKind {
+        let attestation = Attestation::new_authority(
+            AttestationData::V1 {
+                computation_units: 0,
+                object_versions: vec![],
+            },
+            0,
+        );
+
+        ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            signed_tx,
+            Some(attestation),
+        )))
+    }
+
     /// `signed_tx` certified by the single validator of `state`.
     fn certificate(
         signed_tx: TransactionEnvelope,
@@ -795,6 +823,28 @@ mod tests {
 
         validator
             .validate_transactions(vec![user_transaction(move_call_with_type_name(
+                &state,
+                Identifier::from_static("IOTA"),
+            ))])
+            .unwrap();
+    }
+
+    /// The identifier check of block verification applies to a user
+    /// transaction in the form it takes while validator attestation is on.
+    #[tokio::test]
+    async fn reject_identifier_move_core_rejects_in_attested_user_transaction() {
+        let (state, _, validator) = self_identifier_fixture(None).await;
+        let protocol_config = validator.epoch_store.protocol_config();
+        assert!(protocol_config.disallow_self_identifier_in_transactions());
+        assert!(protocol_config.enable_validator_attestation());
+
+        let result = validator.validate_transactions(vec![attested_user_transaction(
+            move_call_with_type_name(&state, Identifier::new_unchecked("<SELF>")),
+        )]);
+        assert_self_identifier_rejected(&result);
+
+        validator
+            .validate_transactions(vec![attested_user_transaction(move_call_with_type_name(
                 &state,
                 Identifier::from_static("IOTA"),
             ))])
@@ -930,5 +980,45 @@ mod tests {
             matches!(&result, Err(IotaError::UnsupportedFeature { .. })),
             "{result:?}"
         );
+    }
+
+    #[tokio::test]
+    async fn accept_checkpoint_signature_when_forwarding_fails() {
+        struct FailingCheckpointService;
+        impl CheckpointServiceNotify for FailingCheckpointService {
+            fn notify_checkpoint_signature(
+                &self,
+                _: &AuthorityPerEpochStore,
+                _: &CheckpointSignatureMessage,
+            ) -> IotaResult {
+                Err(IotaError::Storage("disk failure".to_string()))
+            }
+
+            fn notify_checkpoint(&self) -> IotaResult {
+                Ok(())
+            }
+        }
+
+        let state = TestAuthorityBuilder::new().build().await;
+        let epoch_store = state.epoch_store_for_testing().clone();
+        let summary = certified_summary(epoch_store.epoch(), 1, None).into_data();
+        let transaction =
+            ConsensusTransaction::new_checkpoint_signature_message(CheckpointSignatureMessage {
+                summary: SignedCheckpointSummary::new(
+                    epoch_store.epoch(),
+                    summary,
+                    &*state.secret,
+                    state.name,
+                ),
+            });
+        let bytes = bcs::to_bytes(&transaction).unwrap();
+
+        let validator = IotaTxValidator::new(
+            epoch_store,
+            Arc::new(FailingCheckpointService),
+            IotaTxValidatorMetrics::new(&Default::default()),
+        );
+        let result = validator.verify_batch(&[&bytes]);
+        assert!(result.is_ok(), "{result:?}");
     }
 }

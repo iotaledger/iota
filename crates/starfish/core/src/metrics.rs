@@ -251,6 +251,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) cordial_knowledge_entries: IntGauge,
     pub(crate) cordial_knowledge_headers_not_known: IntGauge,
     pub(crate) cordial_knowledge_shards_not_known: IntGauge,
+    pub(crate) cordial_knowledge_second_own_shards_for_slot: IntCounter,
     pub(crate) dag_state_store_read_count: IntCounterVec,
     pub(crate) dag_state_store_write_count: IntCounter,
     pub(crate) synchronizer_fetch_block_headers_scheduler_inflight: IntGauge,
@@ -334,6 +335,8 @@ pub(crate) struct NodeMetrics {
     pub(crate) dropped_far_future_headers_total: IntCounterVec,
     pub(crate) threshold_clock_round: IntGauge,
     pub(crate) subscriber_connection_attempts: IntCounterVec,
+    pub(crate) subscriber_connect_failures: IntCounterVec,
+    pub(crate) epoch_start_stage_ms: IntGaugeVec,
     pub(crate) block_stream_resets: IntCounterVec,
     pub(crate) subscribed_to: IntGaugeVec,
     pub(crate) subscribed_by: IntGaugeVec,
@@ -738,6 +741,12 @@ impl NodeMetrics {
             cordial_knowledge_shards_not_known: register_int_gauge_with_registry!(
                 "cordial_knowledge_shards_not_known",
                 "Total unknown shard entries across all connection knowledges",
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            cordial_knowledge_second_own_shards_for_slot: register_int_counter_with_registry!(
+                "cordial_knowledge_second_own_shards_for_slot",
+                "Own shards not disseminated because another own shard was disseminated for the slot",
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),
@@ -1249,6 +1258,20 @@ impl NodeMetrics {
                 "The number of connection attempts per peer",
                 &["authority", "status"],
                 registry,
+            ).unwrap(),
+            subscriber_connect_failures: register_int_counter_vec_with_registry!(
+                "subscriber_connect_failures",
+                "The number of failed connection attempts to each peer when subscribing to its blocks",
+                &["authority"],
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            epoch_start_stage_ms: register_int_gauge_vec_with_registry!(
+                "epoch_start_stage_ms",
+                "Milliseconds from the start of consensus in a fresh epoch to each startup stage",
+                &["stage"],
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             block_stream_resets: register_int_counter_vec_with_registry!(
                 "block_stream_resets",

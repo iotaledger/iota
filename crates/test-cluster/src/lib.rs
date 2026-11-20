@@ -4,6 +4,7 @@
 
 use std::{
     collections::HashMap,
+    ffi::OsString,
     net::SocketAddr,
     num::NonZeroUsize,
     path::PathBuf,
@@ -126,20 +127,51 @@ pub struct TestCluster {
     faucet: Option<Faucet>,
 }
 
-/// Reverts the P-COOL protocol flag override when dropped.
+/// Sets environment variables while alive, and gives each the value it had
+/// before when dropped. So when guards are dropped in the reverse order of
+/// their creation, as local variables are, dropping one leaves the others in
+/// force.
+///
+/// [`ProtocolConfig::apply_overrides_for_testing()`] is thread-local and does
+/// not reach the tasks a cluster spawns, so tests set protocol config
+/// overrides through these environment variables instead, before the cluster
+/// is built.
 #[must_use = "the override only holds while the guard is alive"]
-pub struct PcoolFlowOverride;
+pub struct ProtocolEnvOverride {
+    /// Each variable set, with the value it had before, in the order set.
+    previous_values: Vec<(&'static str, Option<OsString>)>,
+}
 
-impl Drop for PcoolFlowOverride {
+impl ProtocolEnvOverride {
+    /// Sets each variable of `overrides` to its value.
+    pub fn new(overrides: &[(&'static str, &str)]) -> Self {
+        let previous_values = overrides
+            .iter()
+            .map(|&(key, value)| {
+                let previous_value = std::env::var_os(key);
+                // SAFETY: called before the cluster is built, on the test
+                // thread.
+                unsafe { std::env::set_var(key, value) };
+                (key, previous_value)
+            })
+            .collect();
+
+        Self { previous_values }
+    }
+}
+
+impl Drop for ProtocolEnvOverride {
     fn drop(&mut self) {
-        // SAFETY: paired with `override_pcool_flow`; both run on the test
-        // thread, outside the cluster's lifetime.
-        unsafe {
-            std::env::remove_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE");
-            std::env::remove_var("IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW");
-            std::env::remove_var(
-                "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION",
-            );
+        // In reverse order, so a variable set twice gets back the value it
+        // had before the first.
+        for (key, previous_value) in self.previous_values.iter().rev() {
+            // SAFETY: runs on the test thread, outside the cluster's lifetime.
+            unsafe {
+                match previous_value {
+                    Some(value) => std::env::set_var(key, value),
+                    None => std::env::remove_var(key),
+                }
+            }
         }
     }
 }
@@ -147,59 +179,36 @@ impl Drop for PcoolFlowOverride {
 /// Sets the P-COOL protocol flag for every node of a test cluster built while
 /// the returned guard is alive. Turning the flow off also turns validator
 /// attestation off, since attestation cannot run without the flow.
-///
-/// `ProtocolConfig::apply_overrides_for_testing` is thread-local and does not
-/// reach the tasks a cluster spawns, so the flag goes through the protocol
-/// config environment overrides instead.
-pub fn override_pcool_flow(enabled: bool) -> PcoolFlowOverride {
-    // SAFETY: called before the cluster is built, on the test thread.
-    unsafe {
-        std::env::set_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE", "1");
-        std::env::set_var(
+pub fn override_pcool_flow(enabled: bool) -> ProtocolEnvOverride {
+    let flag = enabled.to_string();
+    let mut overrides = vec![
+        ("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE", "1"),
+        (
             "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW",
-            enabled.to_string(),
-        );
-        if !enabled {
-            std::env::set_var(
-                "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION",
-                "false",
-            );
-        }
+            flag.as_str(),
+        ),
+    ];
+    if !enabled {
+        overrides.push((
+            "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION",
+            "false",
+        ));
     }
-    PcoolFlowOverride
-}
 
-/// Reverts the validator attestation flag override when dropped.
-#[must_use = "the override only holds while the guard is alive"]
-pub struct ValidatorAttestationOverride;
-
-impl Drop for ValidatorAttestationOverride {
-    fn drop(&mut self) {
-        // SAFETY: paired with `override_validator_attestation`; both run on the
-        // test thread, outside the cluster's lifetime.
-        unsafe {
-            std::env::remove_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE");
-            std::env::remove_var(
-                "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION",
-            );
-        }
-    }
+    ProtocolEnvOverride::new(&overrides)
 }
 
 /// Sets the validator attestation flag for every node of a test cluster built
 /// while the returned guard is alive, leaving the P-COOL flow as the protocol
-/// version has it. See [`override_pcool_flow`] for why this goes through the
-/// environment.
-pub fn override_validator_attestation(enabled: bool) -> ValidatorAttestationOverride {
-    // SAFETY: called before the cluster is built, on the test thread.
-    unsafe {
-        std::env::set_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE", "1");
-        std::env::set_var(
+/// version has it.
+pub fn override_validator_attestation(enabled: bool) -> ProtocolEnvOverride {
+    ProtocolEnvOverride::new(&[
+        ("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE", "1"),
+        (
             "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION",
-            enabled.to_string(),
-        );
-    }
-    ValidatorAttestationOverride
+            &enabled.to_string(),
+        ),
+    ])
 }
 
 impl TestCluster {
@@ -1703,5 +1712,37 @@ impl TestClusterBuilder {
 impl Default for TestClusterBuilder {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{override_pcool_flow, override_validator_attestation};
+
+    /// Dropping an override leaves an older one that is still alive in force,
+    /// also for the variables both of them set.
+    #[test]
+    fn dropped_override_leaves_older_one_in_force() {
+        let read = |key| std::env::var(key).ok();
+        let enable = "IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE";
+        let pcool_flow = "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW";
+        let attestation =
+            "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION";
+        for key in [enable, pcool_flow, attestation] {
+            assert_eq!(read(key), None, "the test needs {key} unset");
+        }
+
+        let older = override_pcool_flow(false);
+        let newer = override_validator_attestation(true);
+        assert_eq!(read(attestation).as_deref(), Some("true"));
+        drop(newer);
+        assert_eq!(read(enable).as_deref(), Some("1"));
+        assert_eq!(read(pcool_flow).as_deref(), Some("false"));
+        assert_eq!(read(attestation).as_deref(), Some("false"));
+
+        drop(older);
+        for key in [enable, pcool_flow, attestation] {
+            assert_eq!(read(key), None, "{key} should be unset again");
+        }
     }
 }

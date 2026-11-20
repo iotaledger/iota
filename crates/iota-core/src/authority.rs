@@ -144,6 +144,7 @@ pub use crate::checkpoints::checkpoint_executor::utils::{
 };
 use crate::{
     authority::{
+        attestation_semaphore::{AttestationPermit, AttestationSemaphore},
         authority_per_epoch_store::{AuthorityPerEpochStore, TxGuard},
         authority_per_epoch_store_pruner::AuthorityPerEpochStorePruner,
         authority_store::{ExecutionLockReadGuard, ObjectLockStatus},
@@ -254,6 +255,7 @@ mod attestation_verdict_tests;
 pub mod authority_test_utils;
 
 pub(crate) mod attestation;
+pub(crate) mod attestation_semaphore;
 mod attestation_verdict;
 pub mod authority_per_epoch_store;
 pub mod authority_per_epoch_store_pruner;
@@ -350,6 +352,22 @@ pub struct AuthorityMetrics {
 
     pub(crate) transaction_overload_sources: IntCounterVec,
 
+    /// Number of attestation dry runs running now, each counted from the
+    /// checks before it until it has ended and its transaction holds its soft
+    /// locks.
+    pub(crate) attestations_in_progress: IntGauge,
+    /// Number of submissions waiting for a free attestation dry run.
+    pub(crate) attestations_waiting: IntGauge,
+    /// Number of submissions rejected since the node started. A submission is
+    /// rejected when every attestation dry run is taken and the queue is full
+    /// or the wait for one is too long.
+    pub(crate) attestations_rejected_total: IntCounter,
+    /// How long submissions waited for a free attestation dry run, near zero
+    /// when one was free. Rejected submissions are not recorded.
+    pub(crate) attestation_permit_wait: Histogram,
+    /// Number of attestation dry runs started since the node started.
+    pub(crate) attestation_dry_runs_total: IntCounter,
+
     /// Checkpoint-inclusion waits that timed out before the RPC indexes
     /// caught up.
     pub(crate) checkpoint_inclusion_index_wait_timeouts: IntCounter,
@@ -384,6 +402,10 @@ pub struct AuthorityMetrics {
     /// Attested transactions dropped by post-consensus validation because
     /// their attestor is cut off for the rest of the epoch.
     pub(crate) consensus_handler_validation_attestor_cut_off_transactions: IntCounter,
+    /// Attested transactions that were cancelled for congestion, by attestor's
+    /// hostname and by whether the gas owner was charged. A transaction this
+    /// validator executes from a checkpoint is not counted.
+    pub(crate) cancelled_attested_transactions: IntCounterVec,
     /// Number of user transactions dropped during a consensus commit by
     /// post-consensus load shedding, i.e. probabilistically rejected at the
     /// quorum `consensus_handler_load_shedding_percentage` rate.
@@ -748,6 +770,43 @@ impl AuthorityMetrics {
                 &["source"],
                 registry)
                 .unwrap(),
+            attestations_in_progress: register_int_gauge_with_registry!(
+                "attestations_in_progress",
+                "Number of attestation dry runs running, each counted from the checks before it \
+                    until it has ended and its transaction holds its soft locks",
+                registry;
+                MetricLevel::Warn,
+            )
+                .unwrap(),
+            attestations_waiting: register_int_gauge_with_registry!(
+                "attestations_waiting",
+                "Number of submissions waiting for a free attestation dry run",
+                registry,
+            )
+                .unwrap(),
+            attestations_rejected_total: register_int_counter_with_registry!(
+                "attestations_rejected_total",
+                "Number of submissions rejected because every attestation dry run was taken \
+                    and the queue was full or the wait for one too long",
+                registry;
+                MetricLevel::Warn,
+            )
+                .unwrap(),
+            attestation_permit_wait: register_histogram_with_registry!(
+                "attestation_permit_wait",
+                "Time submissions waited for a free attestation dry run, near zero when one was \
+                    free; rejected submissions are not recorded",
+                LOW_LATENCY_SEC_BUCKETS.to_vec(),
+                registry;
+                MetricLevel::Info,
+            )
+                .unwrap(),
+            attestation_dry_runs_total: register_int_counter_with_registry!(
+                "attestation_dry_runs_total",
+                "Number of attestation dry runs started",
+                registry,
+            )
+                .unwrap(),
             execution_driver_executed_transactions: register_int_counter_with_registry!(
                 "execution_driver_executed_transactions",
                 "Cumulative number of transaction executed by execution driver",
@@ -895,6 +954,13 @@ impl AuthorityMetrics {
                 "Number of attested transactions dropped by post-consensus validation because their attestor is cut off for the rest of the epoch",
                 registry,
             ).unwrap(),
+            cancelled_attested_transactions: register_int_counter_vec_with_registry!(
+                "cancelled_attested_transactions",
+                "Number of attested transactions cancelled for congestion, by attestor's hostname and by whether the gas owner was charged. A transaction this validator executes from a checkpoint is not counted.",
+                &["authority", "charged"],
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
             consensus_handler_load_shedding_dropped_transactions: register_int_counter_with_registry!(
                 "consensus_handler_load_shedding_dropped_transactions",
                 "Number of user transactions dropped by post-consensus load shedding, based on the quorum load shedding percentage",
@@ -969,6 +1035,7 @@ impl AuthorityMetrics {
         self.validator_scoreboard_scores.reset();
         self.invalid_misbehavior_reports_by_authority.reset();
         self.consensus_committed_user_transactions.reset();
+        self.cancelled_attested_transactions.reset();
     }
 }
 
@@ -1130,6 +1197,9 @@ pub struct AuthorityState {
 
     /// Current overload status in this authority. Updated periodically.
     pub overload_info: AuthorityOverloadInfo,
+
+    /// Limits the attestation dry runs of submitted transactions.
+    attestation_semaphore: AttestationSemaphore,
 
     pub validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
 
@@ -1538,7 +1608,17 @@ impl AuthorityState {
         // loaded, so its type is read on its own. Execution also checks the
         // coins Move code receives, and the coins it writes, against the deny
         // list as the epoch started.
-        let mut shared_objects = Vec::new();
+        let mut coin_types = coin_types_for_denylist_check(
+            tx_checked_input_objects
+                .inner()
+                .iter_objects()
+                .chain(
+                    per_authenticator_checked_input_objects
+                        .iter()
+                        .flat_map(|objects| objects.inner().iter_objects()),
+                )
+                .chain(tx_receiving_objects.iter_objects()),
+        );
         for input in tx_checked_input_objects.inner().iter().chain(
             per_authenticator_checked_input_objects
                 .iter()
@@ -1553,22 +1633,9 @@ impl AuthorityState {
                 None,
             ) = (input.input_object_kind, input.as_object())
             {
-                shared_objects
-                    .push(reader.read_shared_object_for_type(id, initial_shared_version)?);
+                coin_types.extend(reader.read_shared_coin_type(id, initial_shared_version)?);
             }
         }
-        let coin_types = coin_types_for_denylist_check(
-            tx_checked_input_objects
-                .inner()
-                .iter_objects()
-                .chain(
-                    per_authenticator_checked_input_objects
-                        .iter()
-                        .flat_map(|objects| objects.inner().iter_objects()),
-                )
-                .chain(&shared_objects)
-                .chain(tx_receiving_objects.iter_objects()),
-        );
         if let Some(denial) = DenyListAtCommit::new(reader).denial(tx.sender(), coin_types)? {
             return Err(denial.into());
         }
@@ -1604,6 +1671,16 @@ impl AuthorityState {
                 &self.config.transaction_deny_config,
             )
             .await?;
+
+        // Concurrent requests for the same transaction are signed once; the others
+        // get the stored signature instead of signing and writing it again.
+        let _signing_lock = epoch_store.acquire_signing_lock(transaction.digest());
+        if let Some(signed_transaction) =
+            epoch_store.get_signed_transaction(transaction.digest())?
+        {
+            self.metrics.tx_already_processed.inc();
+            return Ok(signed_transaction);
+        }
 
         let epoch = epoch_store.epoch();
         let signed_transaction =
@@ -1694,8 +1771,8 @@ impl AuthorityState {
     /// The P-COOL flow uses
     /// [`AuthorityState::reserve_consensus_queue_slot()`] instead, which
     /// counts the transaction in the consensus queue and then checks only
-    /// the queue, since execution-based overload is handled after
-    /// consensus.
+    /// the queue and the limit on attestation dry runs, since
+    /// execution-based overload is handled after consensus.
     pub(crate) fn check_system_overload(
         &self,
         consensus_adapter: &Arc<ConsensusAdapter>,
@@ -1735,20 +1812,24 @@ impl AuthorityState {
     }
 
     /// Takes a P-COOL transaction's [`InflightSlot`] in the consensus queue,
-    /// then runs graduated shedding against
+    /// then runs three checks: graduated shedding against
     /// [`InflightSlot::queue_length_before()`], which also counts admissions
-    /// still in progress, and the permit check of
-    /// [`ConsensusAdapter::check_submit_permits()`]. Returns the slot, to be
-    /// passed to [`ConsensusAdapter::submit_with_slot()`]; on an error, the
-    /// slot is released.
+    /// still in progress; the permit check of
+    /// [`ConsensusAdapter::check_submit_permits()`]; and the check of
+    /// [`AttestationSemaphore::check_overload()`] against the limit on
+    /// attestation dry runs. Returns the slot, to be passed to
+    /// [`ConsensusAdapter::submit_with_slot()`]; on an error, the slot is
+    /// released.
     ///
     /// # Errors
     ///
     /// [`IotaError::ValidatorOverloadedRetryAfter`] when graduated shedding
-    /// rejects the transaction between the soft and hard limits, and
-    /// [`IotaError::TooManyTransactionsPendingConsensus`] when the queue has
-    /// reached `max_pending_transactions` or `submit_semaphore` has no
-    /// permits left.
+    /// rejects the transaction between the soft and hard limits, or when every
+    /// attestation dry run is taken and the queue for them is full or the
+    /// expected wait for one too long, and
+    /// [`IotaError::TooManyTransactionsPendingConsensus`] when the consensus
+    /// queue has reached `max_pending_transactions` or `submit_semaphore` has
+    /// no permits left.
     pub(crate) fn reserve_consensus_queue_slot(
         &self,
         consensus_adapter: &Arc<ConsensusAdapter>,
@@ -1777,7 +1858,30 @@ impl AuthorityState {
             self.update_overload_metrics("consensus");
         })?;
 
+        self.attestation_semaphore.check_overload().tap_err(|_| {
+            self.update_overload_metrics("attestation");
+        })?;
+
         Ok(slot)
+    }
+
+    /// Returns a permit for one attestation dry run, waiting for a free one
+    /// within the limits of
+    /// [`AuthorityOverloadConfig::max_concurrent_attestations`],
+    /// [`AuthorityOverloadConfig::max_queued_attestations`] and
+    /// [`AuthorityOverloadConfig::max_attestation_wait`]. The permit must be
+    /// held until the dry run has ended and the transaction's soft locks are
+    /// taken.
+    ///
+    /// # Errors
+    ///
+    /// [`IotaError::ValidatorOverloadedRetryAfter`] when every dry run is
+    /// taken and the queue for them is full, or when none frees within
+    /// [`AuthorityOverloadConfig::max_attestation_wait`].
+    pub(crate) async fn acquire_attestation_permit(&self) -> IotaResult<AttestationPermit> {
+        self.attestation_semaphore.acquire().await.tap_err(|_| {
+            self.update_overload_metrics("attestation");
+        })
     }
 
     /// Rejects `tx` via graduated shedding at `queue_length`, the number of
@@ -2229,6 +2333,46 @@ impl AuthorityState {
         let _metrics_guard = self.metrics.commit_certificate_latency.start_timer();
 
         let tx_digest = transaction.digest();
+        if let (
+            Some(record),
+            ExecutionStatus::Failure {
+                error:
+                    ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestion { .. }
+                    | ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestionV2 { .. }
+                    | ExecutionErrorKind::ExecutionCanceledDueToExecutionWorkerCongestion { .. },
+                ..
+            },
+        ) = (&attestation_record, effects.status())
+        {
+            // The attestor is an authority index, which does not name the same
+            // validator across epochs. `committee_validators()` is not in that
+            // order, so the validator is found by its name.
+            let hostname = epoch_store
+                .committee()
+                .authority_by_index(u32::from(record.attestor))
+                .and_then(|name| {
+                    epoch_store
+                        .epoch_start_state()
+                        .committee_validators()
+                        .iter()
+                        .find(|validator| validator.authority_name() == *name)
+                })
+                .map(|validator| validator.hostname.as_str());
+            let charged = effects.gas_cost_summary().gas_used() > 0;
+            if let Some(hostname) = hostname {
+                self.metrics
+                    .cancelled_attested_transactions
+                    .with_label_values(&[hostname, &charged.to_string()])
+                    .inc();
+            }
+            debug!(
+                ?tx_digest,
+                attestor = record.attestor,
+                ?hostname,
+                charged,
+                "attested transaction cancelled for congestion"
+            );
+        }
         let input_object_count = inner_temporary_store.input_objects.len();
         let shared_object_count = effects.input_shared_objects().len();
 
@@ -3277,6 +3421,8 @@ impl AuthorityState {
                 traffic_controller_metrics,
             ))
         });
+        let attestation_semaphore =
+            AttestationSemaphore::new(&config.authority_overload_config, &metrics);
         let state = Arc::new_cyclic(|this| AuthorityState {
             this: this.clone(),
             name,
@@ -3297,6 +3443,7 @@ impl AuthorityState {
             object_retention,
             config,
             overload_info: AuthorityOverloadInfo::default(),
+            attestation_semaphore,
             validator_tx_finalizer,
             chain_identifier,
             congestion_tracker: Arc::new(CongestionTracker::new(rgp)),
