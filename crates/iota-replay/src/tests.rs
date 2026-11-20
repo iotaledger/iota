@@ -50,10 +50,14 @@ async fn verify_tx_replay() {
 }
 
 /// Turns transaction dependencies on for the nodes of a simulated test
-/// cluster and for replay, while the guard is alive.
+/// cluster and for replay, while the guard is alive, in every protocol version
+/// with the gas price feedback mechanism they require. Replay also reads
+/// versions without it.
 fn enable_transaction_dependencies() -> OverrideGuard {
     ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_transaction_dependencies_for_testing(true);
+        if config.congestion_control_gas_price_feedback_mechanism() {
+            config.set_enable_transaction_dependencies_for_testing(true);
+        }
         config
     })
 }
