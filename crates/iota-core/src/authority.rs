@@ -107,7 +107,7 @@ use iota_types::{
     object::{Object, ObjectRead, ObjectSet, PastObjectRead},
     storage::{
         BackingPackageStore, BackingStore, ObjectKey, ObjectOrTombstone, ObjectStore,
-        OwnedObjectCursor, TrackingBackingStore,
+        OwnedObjectCursor, PageSnapshotRef, TrackingBackingStore,
     },
     supported_protocol_versions::{
         ProtocolConfig, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
@@ -185,7 +185,7 @@ use crate::{
     rpc_indexes::{
         RpcIndexesStore,
         jsonrpc_api::{
-            CachingLayoutResolver, CoinInfo, OwnedObjectsPage, try_create_dynamic_field_info,
+            CachingLayoutResolver, OwnedCoinsPage, OwnedObjectsPage, try_create_dynamic_field_info,
         },
         schema::{IndexGroup, OwnerTypeFilter},
     },
@@ -4697,6 +4697,7 @@ impl AuthorityState {
         owner: Address,
         // If `Some`, the query will start from the next item after the specified cursor
         cursor: Option<&OwnedObjectCursor>,
+        snapshot: Option<PageSnapshotRef>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
         max_read: usize,
@@ -4705,6 +4706,7 @@ impl AuthorityState {
         indexes.get_owner_objects(
             owner,
             cursor,
+            snapshot,
             limit,
             filter,
             max_read,
@@ -4713,7 +4715,8 @@ impl AuthorityState {
     }
 
     /// One page of `owner`'s coins in the owner index's order, of
-    /// `coin_type` alone when it is given. The returned type tag is the
+    /// `coin_type` alone when it is given; see
+    /// [`RpcIndexesStore::get_owned_coins`]. The returned type tag is the
     /// coin's own `T`, not the `Coin<T>` the object carries.
     #[instrument(level = "trace", skip_all)]
     pub fn get_owned_coins_page(
@@ -4721,13 +4724,15 @@ impl AuthorityState {
         owner: Address,
         // If `Some`, the query will start from the next item after the specified cursor
         cursor: Option<&OwnedObjectCursor>,
+        snapshot: Option<PageSnapshotRef>,
         coin_type: Option<TypeTag>,
         limit: usize,
-    ) -> IotaResult<Vec<(TypeTag, ObjectId, CoinInfo, OwnedObjectCursor)>> {
+    ) -> IotaResult<OwnedCoinsPage> {
         let indexes = self.require_jsonrpc_indexes()?;
         indexes.get_owned_coins(
             owner,
             cursor,
+            snapshot,
             coin_type,
             limit,
             &self.object_store_with_historic_fallback(),

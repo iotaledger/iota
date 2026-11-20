@@ -15,7 +15,7 @@
 pub use rocksdb;
 
 pub mod database;
-pub use database::DbSnapshot;
+pub use database::{DbSnapshot, SharedDbSnapshot};
 pub mod traits;
 pub use traits::{DbIterator, Map};
 pub mod memstore;

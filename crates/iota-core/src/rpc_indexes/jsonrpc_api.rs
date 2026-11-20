@@ -36,7 +36,7 @@ use iota_types::{
     iota_sdk_types_conversions::type_tag_core_to_sdk,
     layout_resolver::LayoutResolver,
     object::{Object, bounded_visitor::BoundedVisitor},
-    storage::{DynamicFieldKey, ObjectKey, ObjectStore, OwnedObjectCursor},
+    storage::{DynamicFieldKey, ObjectKey, ObjectStore, OwnedObjectCursor, PageSnapshotRef},
 };
 use itertools::Itertools;
 use move_core_types::{annotated_value as A, language_storage::ModuleId};
@@ -45,7 +45,7 @@ use prometheus_filtered::{IntCounter, Registry, register_int_counter_with_regist
 use serde::{Serialize, de::DeserializeOwned};
 use tracing::{error, warn};
 use typed_store::{
-    TypedStoreError,
+    SharedDbSnapshot, TypedStoreError,
     rocks::{TaggedDBMap, read_size_from_env},
     traits::Map,
 };
@@ -311,7 +311,21 @@ fn sequence_bounds_after_cursor(
 
 /// One page of an owner's objects, each at the version its row names and with
 /// the cursor of its row, and the cursor to continue from when rows are left.
-pub type OwnedObjectsPage = (Vec<(Object, OwnedObjectCursor)>, Option<OwnedObjectCursor>);
+pub struct OwnedObjectsPage {
+    pub objects: Vec<(Object, OwnedObjectCursor)>,
+    pub next_cursor: Option<OwnedObjectCursor>,
+    /// The snapshot the next page reads from, `None` when this node keeps none
+    /// for it.
+    pub snapshot: Option<PageSnapshotRef>,
+}
+
+/// One page of an owner's coins, as [`RpcIndexesStore::get_owned_coins`]
+/// returns them, and the snapshot the next page reads from, `None` when this
+/// node keeps none for it.
+pub struct OwnedCoinsPage {
+    pub coins: Vec<(TypeTag, ObjectId, CoinInfo, OwnedObjectCursor)>,
+    pub snapshot: Option<PageSnapshotRef>,
+}
 
 impl RpcIndexesStore {
     /// Fails fast when this store does not maintain the JSON-RPC group's
@@ -784,10 +798,15 @@ impl RpcIndexesStore {
     ///
     /// A `filter` that pins the object type narrows the scan to that type's
     /// rows; any other filter walks everything `owner` holds.
+    ///
+    /// The rows are read as of the snapshot `snapshot` names if this node
+    /// still keeps it, otherwise as of a new snapshot of the latest indexed
+    /// checkpoint, which is kept for the next page when there is one.
     pub fn get_owner_objects(
         &self,
         owner: Address,
         cursor: Option<&OwnedObjectCursor>,
+        snapshot: Option<PageSnapshotRef>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
         max_read: usize,
@@ -797,7 +816,11 @@ impl RpcIndexesStore {
         let cursor_key = cursor.map(|cursor| OwnerIndexKey::for_cursor(owner, cursor));
         let mut results = Vec::new();
         if limit == 0 {
-            return Ok((results, None));
+            return Ok(OwnedObjectsPage {
+                objects: results,
+                next_cursor: None,
+                snapshot: None,
+            });
         }
         let type_filter = owner_scan_filter(filter.as_ref());
         // Only address-owned objects are indexed.
@@ -814,7 +837,11 @@ impl RpcIndexesStore {
                 )
             })
         };
-        let mut rows = self.owner_iter(owner, cursor_key.as_ref(), type_filter)?;
+        let page = self
+            .page_snapshots
+            .acquire(snapshot, &self.tables.watermark)?;
+        let mut rows =
+            self.owner_iter_at(owner, cursor_key.as_ref(), type_filter, Some(page.snapshot))?;
         let mut read = 0;
         let mut last_read = None;
         loop {
@@ -862,7 +889,15 @@ impl RpcIndexesStore {
                 last_read
             }
         };
-        Ok((results, next_cursor))
+        let snapshot = page.reference.filter(|_| next_cursor.is_some());
+        if let Some(snapshot) = snapshot {
+            self.page_snapshots.extend(snapshot);
+        }
+        Ok(OwnedObjectsPage {
+            objects: results,
+            next_cursor,
+            snapshot,
+        })
     }
 
     /// Owner-index rows of `owner`, narrowed by `type_filter` (excluding rows
@@ -876,26 +911,44 @@ impl RpcIndexesStore {
     ) -> IotaResult<
         impl Iterator<Item = Result<(OwnerIndexKey, OwnerIndexInfo), TypedStoreError>> + '_,
     > {
+        self.owner_iter_at(owner, cursor, type_filter, None)
+    }
+
+    /// [`Self::owner_iter`] as of `snapshot`, or of the current state when it
+    /// is `None`.
+    pub(crate) fn owner_iter_at(
+        &self,
+        owner: Address,
+        cursor: Option<&OwnerIndexKey>,
+        type_filter: OwnerTypeFilter,
+        snapshot: Option<Arc<SharedDbSnapshot>>,
+    ) -> IotaResult<
+        impl Iterator<Item = Result<(OwnerIndexKey, OwnerIndexInfo), TypedStoreError>> + '_,
+    > {
         let (lower_bound, upper_bound) = owner_bounds(owner, cursor, &type_filter);
-        Ok(self
-            .tables
-            .owner
-            .safe_range_iter((lower_bound, Bound::Excluded(upper_bound)))
-            .filter(move |result| match result {
-                // Post-filter out hash collisions based on the full `StructTag` stored in the
-                // value.
-                Ok((_, info)) => match &type_filter {
-                    OwnerTypeFilter::None => true,
-                    OwnerTypeFilter::BaseType { tag, .. } => {
-                        info.object_type.address() == tag.address()
-                            && info.object_type.module() == tag.module()
-                            && info.object_type.name() == tag.name()
-                    }
-                    OwnerTypeFilter::ExactType { tag, .. } => info.object_type == *tag,
-                },
-                // Don't filter out DB errors — let them pass through to the caller.
-                Err(_) => true,
-            }))
+        let range = (lower_bound, Bound::Excluded(upper_bound));
+        let rows = match snapshot {
+            Some(snapshot) => self
+                .tables
+                .owner
+                .safe_range_iter_at_shared_snapshot(snapshot, range),
+            None => self.tables.owner.safe_range_iter(range),
+        };
+        Ok(rows.filter(move |result| match result {
+            // Post-filter out hash collisions based on the full `StructTag` stored in the
+            // value.
+            Ok((_, info)) => match &type_filter {
+                OwnerTypeFilter::None => true,
+                OwnerTypeFilter::BaseType { tag, .. } => {
+                    info.object_type.address() == tag.address()
+                        && info.object_type.module() == tag.module()
+                        && info.object_type.name() == tag.name()
+                }
+                OwnerTypeFilter::ExactType { tag, .. } => info.object_type == *tag,
+            },
+            // Don't filter out DB errors — let them pass through to the caller.
+            Err(_) => true,
+        }))
     }
 
     /// Coins owned by `owner`, in owner-index order (balance-descending within
@@ -904,23 +957,35 @@ impl RpcIndexesStore {
     ///
     /// Each row carries the coin's `T`, which the JSON-RPC `coinType` field
     /// reports, not the object's `Coin<T>` type.
+    ///
+    /// The rows are read from a snapshot as in [`Self::get_owner_objects`],
+    /// which is kept for the next page when this one is full, so ask for one
+    /// coin more than a page shows to tell whether another page follows.
     pub fn get_owned_coins(
         &self,
         owner: Address,
         cursor: Option<&OwnedObjectCursor>,
+        snapshot: Option<PageSnapshotRef>,
         coin_type: Option<TypeTag>,
         limit: usize,
         object_store: &dyn ObjectStore,
-    ) -> IotaResult<Vec<(TypeTag, ObjectId, CoinInfo, OwnedObjectCursor)>> {
+    ) -> IotaResult<OwnedCoinsPage> {
         self.require_jsonrpc()?;
         let tag = coin_type.map_or_else(coin_base_type, StructTag::new_coin);
         let filter = OwnerTypeFilter::from_struct_tag(Some(&tag));
         let cursor_key = cursor.map(|cursor| OwnerIndexKey::for_cursor(owner, cursor));
         let mut results = Vec::new();
         if limit == 0 {
-            return Ok(results);
+            return Ok(OwnedCoinsPage {
+                coins: results,
+                snapshot: None,
+            });
         }
-        let mut rows = self.owner_iter(owner, cursor_key.as_ref(), filter)?;
+        let page = self
+            .page_snapshots
+            .acquire(snapshot, &self.tables.watermark)?;
+        let mut rows =
+            self.owner_iter_at(owner, cursor_key.as_ref(), filter, Some(page.snapshot))?;
         loop {
             // The rows the page still needs, then their coins in one read.
             let mut batch = Vec::new();
@@ -960,7 +1025,14 @@ impl RpcIndexesStore {
                 break;
             }
         }
-        Ok(results)
+        let snapshot = page.reference.filter(|_| results.len() >= limit);
+        if let Some(snapshot) = snapshot {
+            self.page_snapshots.extend(snapshot);
+        }
+        Ok(OwnedCoinsPage {
+            coins: results,
+            snapshot,
+        })
     }
 
     /// The cursors of `owner`'s next `limit` rows of `Coin<coin_type>` after

@@ -24,7 +24,7 @@ use iota_sdk_types::{
 use iota_types::{
     gas_coin::GasCoin,
     object::{MoveStructExt, OBJECT_START_VERSION, Object},
-    storage::{AccountOwnedObjectInfo, OwnedObjectCursor},
+    storage::{AccountOwnedObjectInfo, OwnedObjectCursor, PageSnapshotRef},
 };
 use prost_types::FieldMask;
 use tonic::transport::Channel;
@@ -196,6 +196,35 @@ fn make_coin_mock(owner: Address, count: usize) -> (MockGrpcStateReader, Vec<Obj
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
+
+/// Every page after the first reads from the snapshot the first one read
+/// from, and the snapshot is extended only while another page follows.
+#[tokio::test]
+async fn pages_read_from_one_snapshot_extended_while_more_follow() {
+    let owner = Address::random();
+    let (mut mock, _expected_ids) = make_coin_mock(owner, 3);
+    let snapshot = PageSnapshotRef {
+        node: 7,
+        checkpoint: 42,
+    };
+    mock.page_snapshot = Some(snapshot);
+    let requested = mock.requested_page_snapshots.clone();
+    let extended = mock.extended_page_snapshots.clone();
+    let expected_count = mock.owned_objects.len();
+
+    let (handle, _reader) = start_test_server(Arc::new(mock), |_| {}).await;
+    let mut client = connect_state_client(&handle).await;
+
+    let base = ListOwnedObjectsRequest::default()
+        .with_owner(owner_proto(owner))
+        .with_page_size(2)
+        .with_read_mask(FieldMask::from_str("reference.object_id"));
+    let responses = paginate_all(&mut client, base, expected_count).await;
+
+    assert_eq!(responses.len(), 2);
+    assert_eq!(*requested.lock().unwrap(), vec![None, Some(snapshot)]);
+    assert_eq!(*extended.lock().unwrap(), vec![snapshot]);
+}
 
 /// Walk through all items with page_size=1 and verify every object is returned
 /// exactly once, in the expected order, with no duplicates or gaps.

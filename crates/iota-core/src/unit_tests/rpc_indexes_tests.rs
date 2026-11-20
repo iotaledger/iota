@@ -525,6 +525,7 @@ async fn test_the_history_lives_under_the_root_the_store_is_opened_with() {
         &authority_store,
         &checkpoint_store,
         Default::default(),
+        &Default::default(),
     )
     .await
     .unwrap();
@@ -562,6 +563,7 @@ async fn test_a_rebuild_deletes_the_wiped_history_before_it_runs() {
         &authority_store,
         &checkpoint_store,
         cancelled,
+        &Default::default(),
     )
     .await;
     assert!(opened.is_err(), "the rebuild must have been cut short");
@@ -588,6 +590,7 @@ async fn test_a_cancelled_rebuild_fails_the_open() {
         &authority_store,
         &checkpoint_store,
         cancelled,
+        &Default::default(),
     )
     .await;
     let Err(error) = opened else {
@@ -612,6 +615,7 @@ async fn test_a_cancelled_rebuild_fails_the_open() {
         &authority_store,
         &checkpoint_store,
         Default::default(),
+        &Default::default(),
     )
     .await
     .expect("the next open must rebuild the store the cancelled one left behind");
@@ -644,6 +648,7 @@ async fn test_unopenable_database_is_wiped_and_rebuilt() {
         &authority_state.database_for_testing(),
         checkpoint_store,
         Default::default(),
+        &Default::default(),
     )
     .await
     .unwrap();
@@ -1465,9 +1470,9 @@ impl OwnerObjectsForTesting for RpcIndexesStore {
         filter: Option<IotaObjectDataFilter>,
         object_store: &dyn ObjectStore,
     ) -> IotaResult<Vec<(ObjectInfo, OwnedObjectCursor)>> {
-        self.get_owner_objects(owner, cursor, limit, filter, usize::MAX, object_store)
-            .map(|(objects, _)| {
-                objects
+        self.get_owner_objects(owner, cursor, None, limit, filter, usize::MAX, object_store)
+            .map(|page| {
+                page.objects
                     .into_iter()
                     .map(|(object, cursor)| {
                         (ObjectInfo::new(&object.object_ref(), &object), cursor)
@@ -1510,11 +1515,11 @@ async fn test_owner_page_fills_from_the_objects_the_filter_keeps() {
     let all = seed_ten_owner_objects(&index_store, &mut object_store, owner);
     let odd: Vec<ObjectId> = all.iter().skip(1).step_by(2).copied().collect();
     let page = |cursor: Option<&OwnedObjectCursor>, limit, filter: Option<IotaObjectDataFilter>| {
-        let (objects, next) = index_store
-            .get_owner_objects(owner, cursor, limit, filter, 100, &object_store)
+        let page = index_store
+            .get_owner_objects(owner, cursor, None, limit, filter, 100, &object_store)
             .unwrap();
-        let ids: Vec<ObjectId> = objects.iter().map(|(object, _)| object.id()).collect();
-        (ids, next)
+        let ids: Vec<ObjectId> = page.objects.iter().map(|(object, _)| object.id()).collect();
+        (ids, page.next_cursor)
     };
     let odd_filter = || Some(IotaObjectDataFilter::ObjectIds(odd.clone()));
 
@@ -1549,11 +1554,11 @@ async fn test_owner_page_stops_after_reading_the_limit() {
     let mut object_store = BTreeMap::new();
     let all = seed_ten_owner_objects(&index_store, &mut object_store, owner);
     let page = |filter: IotaObjectDataFilter, max_read| {
-        let (objects, next) = index_store
-            .get_owner_objects(owner, None, 5, Some(filter), max_read, &object_store)
+        let page = index_store
+            .get_owner_objects(owner, None, None, 5, Some(filter), max_read, &object_store)
             .unwrap();
-        let ids: Vec<ObjectId> = objects.iter().map(|(object, _)| object.id()).collect();
-        (ids, next.map(|cursor| cursor.object_id))
+        let ids: Vec<ObjectId> = page.objects.iter().map(|(object, _)| object.id()).collect();
+        (ids, page.next_cursor.map(|cursor| cursor.object_id))
     };
     let never = || IotaObjectDataFilter::ObjectIds(vec![]);
 
@@ -1782,11 +1787,13 @@ async fn test_owned_coins_pages_follow_the_unified_key_order() {
         .get_owned_coins(
             owner,
             None,
+            None,
             Some(TypeTag::from(StructTag::new_gas())),
             10,
             &object_store,
         )
-        .unwrap();
+        .unwrap()
+        .coins;
     assert_eq!(
         one_type
             .iter()
@@ -1810,8 +1817,9 @@ async fn test_owned_coins_pages_follow_the_unified_key_order() {
         .cloned()
         .collect();
     let page_types: BTreeSet<TypeTag> = index_store
-        .get_owned_coins(owner, None, None, 4, &object_store)
+        .get_owned_coins(owner, None, None, None, 4, &object_store)
         .unwrap()
+        .coins
         .into_iter()
         .map(|(coin_type, _, _, _)| coin_type)
         .collect();
@@ -1821,17 +1829,20 @@ async fn test_owned_coins_pages_follow_the_unified_key_order() {
     );
 
     let full = index_store
-        .get_owned_coins(owner, None, None, 4, &object_store)
-        .unwrap();
+        .get_owned_coins(owner, None, None, None, 4, &object_store)
+        .unwrap()
+        .coins;
     assert_eq!(full.len(), 4, "all four seeded coins must resolve");
 
     let page_1 = index_store
-        .get_owned_coins(owner, None, None, 2, &object_store)
-        .unwrap();
+        .get_owned_coins(owner, None, None, None, 2, &object_store)
+        .unwrap()
+        .coins;
     let cursor = page_1.last().unwrap().3;
     let page_2 = index_store
-        .get_owned_coins(owner, Some(&cursor), None, 2, &object_store)
-        .unwrap();
+        .get_owned_coins(owner, Some(&cursor), None, None, 2, &object_store)
+        .unwrap()
+        .coins;
 
     assert_eq!(page_1.len(), 2);
     assert_eq!(page_2.len(), 2);
@@ -1847,10 +1858,80 @@ async fn test_owned_coins_pages_follow_the_unified_key_order() {
 
     assert_eq!(
         index_store
-            .get_owned_coins(owner, None, None, 0, &object_store)
-            .unwrap(),
+            .get_owned_coins(owner, None, None, None, 0, &object_store)
+            .unwrap()
+            .coins,
         vec![],
         "a zero limit must return no rows, not the first matching one"
+    );
+}
+
+/// The later pages of an owner query and of a coin query read the index as
+/// of the checkpoint their first page read, and a last page names no
+/// snapshot.
+#[tokio::test]
+async fn test_owner_and_coin_pages_read_from_the_snapshot_of_their_first_page() {
+    let index_store = open_index_store(iota_common::tempdir().path().to_path_buf());
+    let owner = Address::random();
+    let mut object_store = BTreeMap::new();
+    seed_owner_objects_of_two_types(&index_store, &mut object_store, owner);
+    index_store.tables.watermark.insert(&(), &1).unwrap();
+
+    let objects = index_store
+        .get_owner_objects(owner, None, None, 2, None, 100, &object_store)
+        .unwrap();
+    assert_eq!(objects.snapshot.map(|s| s.checkpoint), Some(1));
+    let coins = index_store
+        .get_owned_coins(owner, None, None, None, 2, &object_store)
+        .unwrap();
+    assert_eq!(coins.snapshot, objects.snapshot);
+
+    let rows: Vec<_> = index_store
+        .tables
+        .owner
+        .safe_iter()
+        .map(|row| row.unwrap().0)
+        .collect();
+    let mut batch = index_store.tables.owner.batch();
+    batch.delete_batch(&index_store.tables.owner, rows).unwrap();
+    batch
+        .insert_batch(&index_store.tables.watermark, [((), 2)])
+        .unwrap();
+    batch.write().unwrap();
+
+    let objects = index_store
+        .get_owner_objects(
+            owner,
+            objects.next_cursor.as_ref(),
+            objects.snapshot,
+            2,
+            None,
+            100,
+            &object_store,
+        )
+        .unwrap();
+    assert_eq!(objects.objects.len(), 2, "the rows the first page saw");
+    assert_eq!(objects.next_cursor, None);
+    assert_eq!(objects.snapshot, None, "the last page names no snapshot");
+    let coins = index_store
+        .get_owned_coins(
+            owner,
+            Some(&coins.coins.last().unwrap().3),
+            coins.snapshot,
+            None,
+            2,
+            &object_store,
+        )
+        .unwrap();
+    assert_eq!(coins.coins.len(), 2, "the rows the first page saw");
+
+    assert!(
+        index_store
+            .get_owner_objects(owner, None, None, 2, None, 100, &object_store)
+            .unwrap()
+            .objects
+            .is_empty(),
+        "a new query reads the latest checkpoint"
     );
 }
 
@@ -1876,8 +1957,9 @@ async fn test_owned_coin_rows_hold_one_coin_type_with_balances() {
         "only the IOTA coins, largest first, each with its row's balance"
     );
     let coins = index_store
-        .get_owned_coins(owner, None, Some(gas.clone()), 10, &object_store)
-        .unwrap();
+        .get_owned_coins(owner, None, None, Some(gas.clone()), 10, &object_store)
+        .unwrap()
+        .coins;
     assert_eq!(
         rows.iter().map(|row| row.object_id).collect::<Vec<_>>(),
         coins.iter().map(|(_, id, _, _)| *id).collect::<Vec<_>>(),
@@ -2424,6 +2506,7 @@ async fn test_restore_built_store_is_adopted_on_open() {
         &authority_store,
         &checkpoint_store,
         Default::default(),
+        &Default::default(),
     )
     .await
     .unwrap();
@@ -2509,6 +2592,7 @@ async fn test_stale_database_is_wiped_and_rebuilt_on_open() {
         &authority_store,
         checkpoint_store,
         Default::default(),
+        &Default::default(),
     )
     .await
     .unwrap();
@@ -2545,6 +2629,7 @@ async fn test_stale_database_is_wiped_and_rebuilt_on_open() {
         &authority_store,
         checkpoint_store,
         Default::default(),
+        &Default::default(),
     )
     .await
     .unwrap();
@@ -2649,6 +2734,7 @@ async fn test_restore_builds_the_same_live_state_as_the_rebuild() {
         &authority_state.database_for_testing(),
         checkpoint_store,
         Default::default(),
+        &Default::default(),
     )
     .await
     .unwrap();
@@ -3008,6 +3094,7 @@ async fn test_reopening_with_fewer_groups_makes_re_enabling_them_rebuild() {
             &authority_store,
             checkpoint_store,
             Default::default(),
+            &Default::default(),
         )
         .await
         .unwrap();
@@ -3378,6 +3465,7 @@ async fn test_a_failed_floor_read_fails_the_open() {
             0,
             Default::default(),
             None,
+            &Default::default(),
         )
         .is_err()
     );
@@ -3580,6 +3668,7 @@ async fn test_rebuild_with_nothing_executed_writes_no_watermark() {
         &authority_store,
         &checkpoint_store,
         Default::default(),
+        &Default::default(),
     )
     .await
     .unwrap();
@@ -3658,6 +3747,7 @@ async fn test_history_backfill_after_rebuild() {
         &authority_state.database_for_testing(),
         checkpoint_store,
         Default::default(),
+        &Default::default(),
     )
     .await
     .unwrap();
@@ -3790,6 +3880,7 @@ async fn open_after_lost_index_commits(missing: Option<u64>) -> (bool, Option<u6
         &authority_store,
         &checkpoint_store,
         Default::default(),
+        &Default::default(),
     )
     .await
     .unwrap();
@@ -3851,6 +3942,7 @@ async fn test_a_watermark_ahead_of_the_checkpoint_store_keeps_the_index() {
         &authority_store,
         &checkpoint_store,
         Default::default(),
+        &Default::default(),
     )
     .await
     .unwrap();

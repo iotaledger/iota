@@ -12,8 +12,9 @@ use iota_grpc_types::{
         state_service::{ListDynamicFieldsRequest, ListDynamicFieldsResponse},
     },
 };
+use iota_node_storage::PageIter;
 use iota_sdk_types::{ObjectId, TypeTag};
-use iota_types::dynamic_field::visitor as DFV;
+use iota_types::{dynamic_field::visitor as DFV, storage::PageSnapshotRef};
 use prost::Message;
 use serde::{Deserialize, Serialize};
 
@@ -35,6 +36,9 @@ const MAX_PAGE_SIZE: u32 = 1000;
 struct PageToken {
     parent: ObjectId,
     cursor: ObjectId,
+    /// The snapshot the next page reads from, so that the pages of one query
+    /// do not change while the node keeps indexing checkpoints.
+    snapshot: Option<PageSnapshotRef>,
 }
 
 /// Check whether the read mask requests any field that requires loading the
@@ -248,10 +252,22 @@ pub(crate) fn list_dynamic_fields(
         }
     }
 
-    let cursor = page_token.map(|t| t.cursor);
+    let cursor = page_token.as_ref().map(|t| t.cursor);
+    let requested_snapshot = page_token.and_then(|t| t.snapshot);
     let load_field = should_load_field(&read_mask);
 
-    let mut iter = reader.dynamic_field_iter(parent_id, cursor)?;
+    let PageIter { mut iter, snapshot } =
+        reader.dynamic_field_page_iter(parent_id, cursor, requested_snapshot)?;
+    let next_page_token = |cursor| {
+        if let Some(snapshot) = snapshot {
+            reader.extend_page_snapshot(snapshot);
+        }
+        encode_page_token(&PageToken {
+            parent: parent_id,
+            cursor,
+            snapshot,
+        })
+    };
 
     let mut items = Vec::with_capacity(page_size);
     let mut size_bytes = 0usize;
@@ -277,10 +293,7 @@ pub(crate) fn list_dynamic_fields(
         if !items.is_empty() && size_bytes + item_size > max_message_size {
             let response = ListDynamicFieldsResponse::default()
                 .with_dynamic_fields(items)
-                .with_next_page_token(encode_page_token(&PageToken {
-                    parent: parent_id,
-                    cursor: last_field_id.expect("items is non-empty"),
-                }));
+                .with_next_page_token(next_page_token(last_field_id.expect("items is non-empty")));
             return Ok(response);
         }
 
@@ -299,10 +312,7 @@ pub(crate) fn list_dynamic_fields(
     let mut response = ListDynamicFieldsResponse::default().with_dynamic_fields(items);
     if has_more {
         if let Some(cursor_id) = last_field_id {
-            response = response.with_next_page_token(encode_page_token(&PageToken {
-                parent: parent_id,
-                cursor: cursor_id,
-            }));
+            response = response.with_next_page_token(next_page_token(cursor_id));
         }
     }
 

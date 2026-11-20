@@ -5,7 +5,7 @@ use std::{fmt, str::FromStr};
 
 use fastcrypto::encoding::{Base64, Encoding};
 use iota_sdk_types::ObjectId;
-use iota_types::storage::OwnedObjectCursor as IndexCursor;
+use iota_types::storage::{OwnedObjectCursor as IndexCursor, PageSnapshotRef};
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as _};
 
@@ -19,14 +19,18 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as _};
 /// - [`Self::ObjectId`] is used by the indexer, whose owner index is ordered by object id, and is
 ///   written as the object id.
 /// - [`Self::Position`] is used by a node's own owner index, ordered by object type and balance
-///   before the object id, and is written as base64.
+///   before the object id, and is written as base64. It also names the snapshot of the index the
+///   next page reads from, if the node keeps one for it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OwnedObjectCursor {
     /// A position in an index ordered by object id alone.
     ObjectId(ObjectId),
     /// A position in an index ordered by object type and balance before the
     /// object id.
-    Position(IndexCursor),
+    Position {
+        position: IndexCursor,
+        snapshot: Option<PageSnapshotRef>,
+    },
 }
 
 impl OwnedObjectCursor {
@@ -37,14 +41,26 @@ impl OwnedObjectCursor {
 
     /// A cursor for a store whose owner index is ordered by type and balance.
     pub fn from_position(cursor: IndexCursor) -> Self {
-        Self::Position(cursor)
+        Self::Position {
+            position: cursor,
+            snapshot: None,
+        }
+    }
+
+    /// The cursor with the snapshot the next page reads from. A cursor that
+    /// names only an object is returned unchanged.
+    pub fn with_snapshot(self, snapshot: Option<PageSnapshotRef>) -> Self {
+        match self {
+            Self::ObjectId(_) => self,
+            Self::Position { position, .. } => Self::Position { position, snapshot },
+        }
     }
 
     /// The object the cursor names.
     pub fn object_id(&self) -> ObjectId {
         match self {
             Self::ObjectId(object_id) => *object_id,
-            Self::Position(cursor) => cursor.object_id,
+            Self::Position { position, .. } => position.object_id,
         }
     }
 
@@ -52,7 +68,15 @@ impl OwnedObjectCursor {
     pub fn position(&self) -> Option<&IndexCursor> {
         match self {
             Self::ObjectId(_) => None,
-            Self::Position(cursor) => Some(cursor),
+            Self::Position { position, .. } => Some(position),
+        }
+    }
+
+    /// The snapshot the next page reads from, if the cursor names one.
+    pub fn snapshot(&self) -> Option<PageSnapshotRef> {
+        match self {
+            Self::ObjectId(_) => None,
+            Self::Position { snapshot, .. } => *snapshot,
         }
     }
 }
@@ -61,8 +85,14 @@ impl fmt::Display for OwnedObjectCursor {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::ObjectId(object_id) => write!(f, "{object_id}"),
-            Self::Position(cursor) => {
-                let bytes = bcs::to_bytes(cursor).map_err(|_| fmt::Error)?;
+            Self::Position { position, snapshot } => {
+                // Without a snapshot the position alone is written, as by
+                // nodes that keep none.
+                let bytes = match snapshot {
+                    None => bcs::to_bytes(position),
+                    Some(snapshot) => bcs::to_bytes(&(position, snapshot)),
+                }
+                .map_err(|_| fmt::Error)?;
                 write!(f, "{}", Base64::encode(bytes))
             }
         }
@@ -79,8 +109,17 @@ impl FromStr for OwnedObjectCursor {
             return Ok(Self::ObjectId(object_id));
         }
         let bytes = Base64::decode(s).map_err(|e| anyhow::anyhow!("invalid cursor: {e}"))?;
-        let cursor = bcs::from_bytes(&bytes).map_err(|e| anyhow::anyhow!("invalid cursor: {e}"))?;
-        Ok(Self::Position(cursor))
+        // BCS refuses trailing bytes, so a position followed by a snapshot is
+        // not read as a position alone.
+        if let Ok(position) = bcs::from_bytes(&bytes) {
+            return Ok(Self::from_position(position));
+        }
+        let (position, snapshot) =
+            bcs::from_bytes(&bytes).map_err(|e| anyhow::anyhow!("invalid cursor: {e}"))?;
+        Ok(Self::Position {
+            position,
+            snapshot: Some(snapshot),
+        })
     }
 }
 
@@ -128,7 +167,11 @@ mod tests {
                 inverted_balance,
                 object_id: ObjectId::random(),
             });
-            for cursor in [by_id, by_position] {
+            let with_snapshot = by_position.with_snapshot(Some(PageSnapshotRef {
+                node: 3,
+                checkpoint: 5,
+            }));
+            for cursor in [by_id, by_position, with_snapshot] {
                 let json = serde_json::to_string(&cursor).unwrap();
                 assert!(json.starts_with('"'), "must be a JSON string: {json}");
                 assert_eq!(
@@ -168,6 +211,22 @@ mod tests {
         });
         assert_eq!(by_position.object_id(), object_id);
         assert!(by_position.position().is_some());
+    }
+
+    /// A position without a snapshot is written as before snapshots were
+    /// kept, so cursors from either kind of node still parse.
+    #[test]
+    fn a_position_without_a_snapshot_is_written_as_the_position_alone() {
+        let position = IndexCursor {
+            object_type_identifier: 1,
+            object_type_params: 2,
+            inverted_balance: Some(3),
+            object_id: ObjectId::random(),
+        };
+        assert_eq!(
+            OwnedObjectCursor::from_position(position).to_string(),
+            Base64::encode(bcs::to_bytes(&position).unwrap())
+        );
     }
 
     #[test]

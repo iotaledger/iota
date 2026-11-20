@@ -12,7 +12,9 @@ use iota_grpc_types::{
         state_service::{ListOwnedObjectsRequest, ListOwnedObjectsResponse},
     },
 };
+use iota_node_storage::PageIter;
 use iota_sdk_types::{Address, StructTag};
+use iota_types::storage::PageSnapshotRef;
 use prost::Message;
 use serde::{Deserialize, Serialize};
 
@@ -36,6 +38,9 @@ struct PageToken {
     owner: Address,
     object_type: Option<StructTag>,
     cursor: OwnedObjectCursor,
+    /// The snapshot the next page reads from, so that the pages of one query
+    /// do not change while the node keeps indexing checkpoints.
+    snapshot: Option<PageSnapshotRef>,
 }
 
 #[tracing::instrument(skip(reader, metrics))]
@@ -80,9 +85,25 @@ pub(crate) fn list_owned_objects(
     }
 
     let cursor = page_token.as_ref().map(|t| &t.cursor);
+    let requested_snapshot = page_token.as_ref().and_then(|t| t.snapshot);
 
-    let mut iter =
-        reader.account_owned_objects_info_iter(owner_address, cursor, type_filter.clone())?;
+    let PageIter { mut iter, snapshot } = reader.account_owned_objects_info_page_iter(
+        owner_address,
+        cursor,
+        type_filter.clone(),
+        requested_snapshot,
+    )?;
+    let next_page_token = |cursor| {
+        if let Some(snapshot) = snapshot {
+            reader.extend_page_snapshot(snapshot);
+        }
+        encode_page_token(&PageToken {
+            owner: owner_address,
+            object_type: type_filter.clone(),
+            cursor,
+            snapshot,
+        })
+    };
 
     let mut objects = Vec::with_capacity(page_size);
     let mut size_bytes = 0usize;
@@ -116,11 +137,7 @@ pub(crate) fn list_owned_objects(
         if !objects.is_empty() && size_bytes + item_size > max_message_size {
             let response = ListOwnedObjectsResponse::default()
                 .with_objects(objects)
-                .with_next_page_token(encode_page_token(&PageToken {
-                    owner: owner_address,
-                    object_type: type_filter,
-                    cursor: last_cursor.expect("objects is non-empty"),
-                }));
+                .with_next_page_token(next_page_token(last_cursor.expect("objects is non-empty")));
             return Ok(response);
         }
 
@@ -139,11 +156,7 @@ pub(crate) fn list_owned_objects(
     let mut response = ListOwnedObjectsResponse::default().with_objects(objects);
     if has_more {
         if let Some(cursor) = last_cursor {
-            response = response.with_next_page_token(encode_page_token(&PageToken {
-                owner: owner_address,
-                object_type: type_filter,
-                cursor,
-            }));
+            response = response.with_next_page_token(next_page_token(cursor));
         }
     }
 

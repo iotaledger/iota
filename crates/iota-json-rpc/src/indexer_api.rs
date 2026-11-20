@@ -154,10 +154,11 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
                 })?;
             }
             let options = options.unwrap_or_default();
+            let snapshot = cursor.and_then(|cursor| cursor.snapshot());
             let cursor = cursor_position(cursor)?;
             let state = self.state.clone();
             let page = spawn_monitored_blocking!(move || {
-                state.get_owner_objects_page(address, cursor, limit, filter)
+                state.get_owner_objects_page(address, cursor, snapshot, limit, filter)
             })
             .await??;
 

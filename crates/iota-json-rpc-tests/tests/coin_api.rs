@@ -438,7 +438,7 @@ async fn get_all_coins() {
     let fullnode_coins = cluster
         .fullnode_handle
         .iota_node
-        .with(|node| node.state().get_owned_coins(address, None, None, 100))
+        .with(|node| node.state().get_owned_coins(address, None, None, None, 100))
         .unwrap();
 
     let fullnode_coins: Vec<_> = fullnode_coins.into_iter().map(|(coin, _)| coin).collect();
@@ -484,7 +484,7 @@ async fn get_all_coins_with_multiple_coin_types() {
     let fullnode_coins = cluster
         .fullnode_handle
         .iota_node
-        .with(|node| node.state().get_owned_coins(address, None, None, 100))
+        .with(|node| node.state().get_owned_coins(address, None, None, None, 100))
         .unwrap();
 
     let fullnode_coins: Vec<_> = fullnode_coins.into_iter().map(|(coin, _)| coin).collect();

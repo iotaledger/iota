@@ -28,7 +28,7 @@ pub(crate) fn validate_input_limit(len: usize) -> RpcResult<()> {
 pub(crate) fn resolve_object_id_cursor(cursor: OwnedObjectCursor) -> RpcResult<ObjectId> {
     match cursor {
         OwnedObjectCursor::ObjectId(object_id) => Ok(object_id),
-        OwnedObjectCursor::Position(_) => {
+        OwnedObjectCursor::Position { .. } => {
             Err(IotaRpcInputError::GenericInvalid("Invalid cursor. Not an ObjectId".into()).into())
         }
     }

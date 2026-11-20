@@ -25,7 +25,8 @@ use iota_types::{
     messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
     storage::{
         CoinInfo, DynamicFieldIteratorItem, EpochInfoV2, ObjectStore, OwnedObjectCursor,
-        OwnedObjectIteratorItem, PackageVersionIteratorItem, ReadStore, error::Result,
+        OwnedObjectIteratorItem, PackageVersionIteratorItem, PageSnapshotRef, ReadStore,
+        error::Result,
     },
 };
 
@@ -128,4 +129,53 @@ pub trait GrpcIndexes: Send + Sync {
         original_package_id: ObjectId,
         cursor: Option<u64>,
     ) -> Result<Box<dyn Iterator<Item = PackageVersionIteratorItem> + '_>>;
+
+    /// [`Self::account_owned_objects_info_iter`] for one page of a paginated
+    /// query, read as of the snapshot `snapshot` names if this node still
+    /// keeps it, otherwise as of a new snapshot of the latest indexed
+    /// checkpoint. The returned [`PageIter::snapshot`] belongs in the token
+    /// of the next page.
+    ///
+    /// The default reads the current state and names no snapshot.
+    fn account_owned_objects_info_page_iter(
+        &self,
+        owner: Address,
+        cursor: Option<&OwnedObjectCursor>,
+        object_type: Option<StructTag>,
+        _snapshot: Option<PageSnapshotRef>,
+    ) -> Result<PageIter<'_, OwnedObjectIteratorItem>> {
+        Ok(PageIter {
+            iter: self.account_owned_objects_info_iter(owner, cursor, object_type)?,
+            snapshot: None,
+        })
+    }
+
+    /// [`Self::dynamic_field_iter`] for one page of a paginated query; the
+    /// snapshot is as for [`Self::account_owned_objects_info_page_iter`].
+    ///
+    /// The default reads the current state and names no snapshot.
+    fn dynamic_field_page_iter(
+        &self,
+        parent: ObjectId,
+        cursor: Option<ObjectId>,
+        _snapshot: Option<PageSnapshotRef>,
+    ) -> Result<PageIter<'_, DynamicFieldIteratorItem>> {
+        Ok(PageIter {
+            iter: self.dynamic_field_iter(parent, cursor)?,
+            snapshot: None,
+        })
+    }
+
+    /// Keeps `snapshot` for another idle period, up to its maximum lifetime.
+    /// Call it only when a page is followed by another one, so that a query
+    /// that has reached its last page does not hold the snapshot any longer.
+    fn extend_page_snapshot(&self, _snapshot: PageSnapshotRef) {}
+}
+
+/// The iterator over one page of a paginated query, and the snapshot it
+/// reads from.
+pub struct PageIter<'a, T> {
+    pub iter: Box<dyn Iterator<Item = T> + 'a>,
+    /// `None` when the page reads the current state.
+    pub snapshot: Option<PageSnapshotRef>,
 }
