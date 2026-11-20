@@ -10,6 +10,7 @@ pub mod metrics;
 pub mod soft_lock;
 #[cfg(test)]
 mod test_server;
+mod tx_status_query_limiter;
 
 use std::{
     net::{IpAddr, SocketAddr},
@@ -31,7 +32,10 @@ use tokio_stream::StreamExt;
 use tracing::error;
 
 use crate::{
-    authority::AuthorityState, authority_server::soft_lock::PreConsensusSoftLocks,
+    authority::AuthorityState,
+    authority_server::{
+        soft_lock::PreConsensusSoftLocks, tx_status_query_limiter::TxStatusQueryLimiter,
+    },
     consensus_adapter::ConsensusAdapter,
 };
 
@@ -49,18 +53,27 @@ pub struct ValidatorService {
     traffic_controller: Option<Arc<TrafficController>>,
     client_id_source: Option<ClientIdSource>,
     soft_locks: Arc<PreConsensusSoftLocks>,
+    tx_status_query_limiter: Arc<TxStatusQueryLimiter>,
 }
 
 impl ValidatorService {
-    /// Creates a new `ValidatorService`.
+    /// Creates a new `ValidatorService`. `ipv6_prefix_len` is the number of
+    /// leading bits of an IPv6 address that identify one client, as set for
+    /// the listener that serves it.
     pub fn new(
         state: Arc<AuthorityState>,
         consensus_adapter: Arc<ConsensusAdapter>,
         validator_metrics: Arc<ValidatorServiceMetrics>,
         client_id_source: Option<ClientIdSource>,
         soft_locks: Arc<PreConsensusSoftLocks>,
+        ipv6_prefix_len: u8,
     ) -> Self {
         let traffic_controller = state.traffic_controller.clone();
+        let tx_status_query_limiter = Arc::new(TxStatusQueryLimiter::new(
+            state.overload_config(),
+            ipv6_prefix_len,
+            &validator_metrics,
+        ));
         Self {
             state,
             consensus_adapter,
@@ -68,6 +81,7 @@ impl ValidatorService {
             traffic_controller,
             client_id_source,
             soft_locks,
+            tx_status_query_limiter,
         }
     }
 
@@ -76,6 +90,11 @@ impl ValidatorService {
         consensus_adapter: Arc<ConsensusAdapter>,
         metrics: Arc<ValidatorServiceMetrics>,
     ) -> Self {
+        let tx_status_query_limiter = Arc::new(TxStatusQueryLimiter::new(
+            state.overload_config(),
+            iota_http::DEFAULT_IPV6_PREFIX_LEN,
+            &metrics,
+        ));
         Self {
             state,
             consensus_adapter,
@@ -83,6 +102,7 @@ impl ValidatorService {
             traffic_controller: None,
             client_id_source: None,
             soft_locks: Arc::new(PreConsensusSoftLocks::new()),
+            tx_status_query_limiter,
         }
     }
 

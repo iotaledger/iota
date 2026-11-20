@@ -272,11 +272,12 @@ pub(crate) const MIN_IPV6_PREFIX_LEN: u8 = 32;
 /// rest set to zero: the server cannot see how long a client's own network
 /// prefix is, so it assumes the same length for every IPv6 client. An IPv4
 /// client seen as an IPv4-mapped IPv6 address counts as that IPv4 address.
-/// See [`ipv6_prefix_len_of`] for the IPv6 addresses kept whole.
+/// An IPv6 address is kept whole in the ranges where unrelated clients share
+/// the leading bits, such as link-local, Teredo and NAT64 addresses.
 ///
 /// The key of an IPv4 client is 4 bytes long and that of an IPv6 client 16,
 /// so the two never collide.
-fn client_prefix(client: IpAddr, ipv6_prefix_len: u8) -> Vec<u8> {
+pub fn client_prefix(client: IpAddr, ipv6_prefix_len: u8) -> Vec<u8> {
     match client.to_canonical() {
         IpAddr::V6(address) => {
             let prefix_len = ipv6_prefix_len_of(address, ipv6_prefix_len);

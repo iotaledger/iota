@@ -2,8 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{net::SocketAddr, num::NonZeroUsize};
+
 use fastcrypto::traits::KeyPair;
-use iota_config::transaction_deny_config::{TransactionDenyConfig, TransactionDenyConfigBuilder};
+use iota_config::{
+    node::AuthorityOverloadConfig,
+    transaction_deny_config::{TransactionDenyConfig, TransactionDenyConfigBuilder},
+};
 use iota_network::api::{
     GetCheckpointRequest, GetTxStatusRequest, NotifyCapabilitiesRequest, SubmitTxRequest,
     TxStatusQuery, ValidatorPeer, ValidatorV2,
@@ -30,6 +35,7 @@ use iota_types::{
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     supported_protocol_versions::SupportedProtocolVersions,
+    traffic_control::ClientIdSource,
     transaction::{
         CallArg, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         VerifiedTransaction,
@@ -1625,6 +1631,323 @@ async fn test_v2_get_tx_status_too_many_queries() {
         Err(status) => assert_eq!(status.code(), tonic::Code::InvalidArgument),
         Ok(_) => panic!("should reject oversized request"),
     }
+}
+
+const STATUS_CLIENT: [u8; 4] = [10, 0, 0, 1];
+const OTHER_STATUS_CLIENT: [u8; 4] = [10, 0, 0, 2];
+
+/// A `get_tx_status` request from `client` for `queries` transactions that
+/// were never submitted.
+fn make_v2_get_tx_status_request_from(
+    client: [u8; 4],
+    queries: usize,
+) -> tonic::Request<GetTxStatusRequest> {
+    make_v2_get_tx_status_request_for(
+        client,
+        (0..queries).map(|_| TransactionDigest::random()).collect(),
+    )
+}
+
+/// A `get_tx_status` request from `client` for `digests`.
+fn make_v2_get_tx_status_request_for(
+    client: [u8; 4],
+    digests: Vec<TransactionDigest>,
+) -> tonic::Request<GetTxStatusRequest> {
+    let mut request =
+        make_v2_get_tx_status_request(digests.into_iter().map(|digest| (digest, false)).collect());
+    request
+        .extensions_mut()
+        .insert(tonic::transport::server::TcpConnectInfo {
+            local_addr: None,
+            remote_addr: Some(SocketAddr::new(client.into(), 0)),
+        });
+    request
+}
+
+/// A `get_tx_status` request for `queries` transactions that were never
+/// submitted, which a proxy at [`STATUS_CLIENT`] forwards for `forwarded_for`.
+fn make_v2_get_tx_status_request_forwarded_for(
+    forwarded_for: &'static str,
+    queries: usize,
+) -> tonic::Request<GetTxStatusRequest> {
+    let mut request = make_v2_get_tx_status_request_from(STATUS_CLIENT, queries);
+    request.metadata_mut().insert(
+        "x-forwarded-for",
+        tonic::metadata::MetadataValue::from_static(forwarded_for),
+    );
+    request
+}
+
+/// A validator service with the limits of `overload_config` that identifies a
+/// client by the address its request arrives from.
+async fn validator_service_with_overload_config(
+    overload_config: AuthorityOverloadConfig,
+) -> (ValidatorService, Arc<ValidatorServiceMetrics>) {
+    let authority_state = TestAuthorityBuilder::new()
+        .with_authority_overload_config(overload_config)
+        .build()
+        .await;
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
+        authority_state.name,
+    ));
+    let metrics = Arc::new(ValidatorServiceMetrics::new_for_tests());
+    let service = ValidatorService {
+        client_id_source: Some(ClientIdSource::SocketAddr),
+        ..ValidatorService::new_for_tests(authority_state, consensus_adapter, metrics.clone())
+    };
+    (service, metrics)
+}
+
+/// A client at its limit of status queries is refused while another client
+/// is served, and is served again once its queries have their status.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn v2_get_tx_status_refuses_a_client_at_its_query_limit() {
+    telemetry_subscribers::init_for_testing();
+
+    let (service, metrics) = validator_service_with_overload_config(AuthorityOverloadConfig {
+        max_pending_tx_status_queries_per_client: NonZeroUsize::new(2),
+        ..Default::default()
+    })
+    .await;
+
+    let held = service
+        .get_tx_status(make_v2_get_tx_status_request_from(STATUS_CLIENT, 2))
+        .await
+        .expect("two queries are within the limit");
+
+    let refused = service
+        .get_tx_status(make_v2_get_tx_status_request_from(STATUS_CLIENT, 1))
+        .await
+        .err()
+        .expect("a third query exceeds the limit");
+    assert_eq!(refused.code(), tonic::Code::ResourceExhausted);
+    assert_eq!(
+        metrics
+            .num_rejected_tx_status_requests
+            .with_label_values(&["per_client"])
+            .get(),
+        1
+    );
+
+    let _other = service
+        .get_tx_status(make_v2_get_tx_status_request_from(OTHER_STATUS_CLIENT, 2))
+        .await
+        .expect("another client has its own limit");
+
+    // With paused time, the queries time out at once.
+    assert_eq!(collect_v2_status_stream(held).await.len(), 2);
+    let _again = service
+        .get_tx_status(make_v2_get_tx_status_request_from(STATUS_CLIENT, 2))
+        .await
+        .expect("the answered queries no longer count");
+}
+
+/// Queries beyond the limit on all clients together are refused, whichever
+/// client sends them.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn v2_get_tx_status_refuses_queries_over_the_total_limit() {
+    telemetry_subscribers::init_for_testing();
+
+    let (service, metrics) = validator_service_with_overload_config(AuthorityOverloadConfig {
+        max_pending_tx_status_queries: NonZeroUsize::new(3),
+        ..Default::default()
+    })
+    .await;
+
+    let _held = service
+        .get_tx_status(make_v2_get_tx_status_request_from(STATUS_CLIENT, 2))
+        .await
+        .expect("two queries are within the limit");
+
+    let refused = service
+        .get_tx_status(make_v2_get_tx_status_request_from(OTHER_STATUS_CLIENT, 2))
+        .await
+        .err()
+        .expect("four queries exceed the limit");
+    assert_eq!(refused.code(), tonic::Code::ResourceExhausted);
+    assert_eq!(
+        metrics
+            .num_rejected_tx_status_requests
+            .with_label_values(&["total"])
+            .get(),
+        1
+    );
+
+    let _third = service
+        .get_tx_status(make_v2_get_tx_status_request_from(OTHER_STATUS_CLIENT, 1))
+        .await
+        .expect("a third query is within the limit");
+}
+
+/// A node without traffic control names no client for a request. The limit
+/// per client then applies to the address the request arrives from.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn v2_get_tx_status_limits_a_client_that_traffic_control_does_not_name() {
+    telemetry_subscribers::init_for_testing();
+
+    let (service, metrics) = validator_service_with_overload_config(AuthorityOverloadConfig {
+        max_pending_tx_status_queries_per_client: NonZeroUsize::new(2),
+        ..Default::default()
+    })
+    .await;
+    let service = ValidatorService {
+        client_id_source: None,
+        ..service
+    };
+
+    let _held = service
+        .get_tx_status(make_v2_get_tx_status_request_from(STATUS_CLIENT, 2))
+        .await
+        .expect("two queries are within the limit");
+
+    let refused = service
+        .get_tx_status(make_v2_get_tx_status_request_from(STATUS_CLIENT, 1))
+        .await
+        .err()
+        .expect("a third query exceeds the limit");
+    assert_eq!(refused.code(), tonic::Code::ResourceExhausted);
+    assert_eq!(
+        metrics
+            .num_rejected_tx_status_requests
+            .with_label_values(&["per_client"])
+            .get(),
+        1
+    );
+
+    let _other = service
+        .get_tx_status(make_v2_get_tx_status_request_from(OTHER_STATUS_CLIENT, 2))
+        .await
+        .expect("another client has its own limit");
+}
+
+/// With the client taken from the forwarded-for header, two clients behind
+/// one proxy have a limit each.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn v2_get_tx_status_limits_each_forwarded_client_on_its_own() {
+    telemetry_subscribers::init_for_testing();
+
+    let (service, _) = validator_service_with_overload_config(AuthorityOverloadConfig {
+        max_pending_tx_status_queries_per_client: NonZeroUsize::new(2),
+        ..Default::default()
+    })
+    .await;
+    let service = ValidatorService {
+        client_id_source: Some(ClientIdSource::XForwardedFor(1)),
+        ..service
+    };
+
+    let _held = service
+        .get_tx_status(make_v2_get_tx_status_request_forwarded_for("10.1.0.1", 2))
+        .await
+        .expect("two queries are within the limit");
+
+    let refused = service
+        .get_tx_status(make_v2_get_tx_status_request_forwarded_for("10.1.0.1", 1))
+        .await
+        .err()
+        .expect("a third query exceeds the limit");
+    assert_eq!(refused.code(), tonic::Code::ResourceExhausted);
+
+    let _other = service
+        .get_tx_status(make_v2_get_tx_status_request_forwarded_for("10.1.0.2", 2))
+        .await
+        .expect("another forwarded client has its own limit");
+}
+
+/// A query stops counting as soon as it has its status, while another query
+/// of the same request still waits.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn v2_get_tx_status_stops_counting_a_query_once_it_has_its_status() {
+    telemetry_subscribers::init_for_testing();
+
+    let (service, _) = validator_service_with_overload_config(AuthorityOverloadConfig {
+        max_pending_tx_status_queries_per_client: NonZeroUsize::new(2),
+        ..Default::default()
+    })
+    .await;
+
+    // A dropped transaction gives its query a status at once.
+    let dropped_digest = TransactionDigest::random();
+    service
+        .validator_state()
+        .load_epoch_store_one_call_per_task()
+        .insert_dropped_digests_for_testing(&[(dropped_digest, IotaError::TransactionExpired)]);
+
+    let _held = service
+        .get_tx_status(make_v2_get_tx_status_request_for(
+            STATUS_CLIENT,
+            vec![dropped_digest, TransactionDigest::random()],
+        ))
+        .await
+        .expect("two queries are within the limit");
+    // Lets the query of the dropped transaction end.
+    tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+
+    let _one = service
+        .get_tx_status(make_v2_get_tx_status_request_from(STATUS_CLIENT, 1))
+        .await
+        .expect("the answered query no longer counts");
+    let refused = service
+        .get_tx_status(make_v2_get_tx_status_request_from(STATUS_CLIENT, 1))
+        .await
+        .err()
+        .expect("the waiting query still counts");
+    assert_eq!(refused.code(), tonic::Code::ResourceExhausted);
+}
+
+/// A request refused for having too many queries does not count toward the
+/// limit of its client.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn v2_get_tx_status_does_not_count_a_request_with_too_many_queries() {
+    telemetry_subscribers::init_for_testing();
+
+    let (service, _) = validator_service_with_overload_config(AuthorityOverloadConfig {
+        max_pending_tx_status_queries_per_client: NonZeroUsize::new(64),
+        ..Default::default()
+    })
+    .await;
+
+    let refused = service
+        .get_tx_status(make_v2_get_tx_status_request_from(STATUS_CLIENT, 33))
+        .await
+        .err()
+        .expect("33 queries exceed the limit of one request");
+    assert_eq!(refused.code(), tonic::Code::InvalidArgument);
+
+    let _first = service
+        .get_tx_status(make_v2_get_tx_status_request_from(STATUS_CLIENT, 32))
+        .await
+        .expect("32 queries are within the limit");
+    let _second = service
+        .get_tx_status(make_v2_get_tx_status_request_from(STATUS_CLIENT, 32))
+        .await
+        .expect("64 queries are within the limit");
+}
+
+/// The queries of a response stream the client dropped stop counting toward
+/// its limit.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn v2_get_tx_status_stops_counting_the_queries_of_a_dropped_stream() {
+    telemetry_subscribers::init_for_testing();
+
+    let (service, _) = validator_service_with_overload_config(AuthorityOverloadConfig {
+        max_pending_tx_status_queries_per_client: NonZeroUsize::new(2),
+        ..Default::default()
+    })
+    .await;
+
+    let held = service
+        .get_tx_status(make_v2_get_tx_status_request_from(STATUS_CLIENT, 2))
+        .await
+        .expect("two queries are within the limit");
+    drop(held);
+    // Lets the query tasks see that their stream is gone.
+    tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+
+    let _again = service
+        .get_tx_status(make_v2_get_tx_status_request_from(STATUS_CLIENT, 2))
+        .await
+        .expect("the dropped queries no longer count");
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
