@@ -292,6 +292,7 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             the named transaction succeeded in the current epoch. If that
 //             transaction fails after the dependent was sequenced, the
 //             dependent executes as failed with `TransactionDependencyFailed`.
+//             Raise `max_auth_gas` to 0.001 IOTA on devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -4030,6 +4031,9 @@ impl ProtocolConfig {
                         // A programmable transaction may carry a transaction
                         // dependency input.
                         cfg.feature_flags.enable_transaction_dependencies = true;
+                        // Raise max_auth_gas to 0.001 IOTA, the minimum transaction
+                        // cost at a gas price of 1000.
+                        cfg.max_auth_gas = Some(1_000_000);
                     }
                 }
                 // Use this template when making changes:
