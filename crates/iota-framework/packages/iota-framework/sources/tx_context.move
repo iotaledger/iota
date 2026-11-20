@@ -12,6 +12,23 @@ const TX_HASH_LENGTH: u64 = 32;
 /// Expected an tx hash of length 32, but found a different length
 const EBadTxHashLength: u64 = 0;
 
+#[test_only]
+/// Number of bytes in a chain identifier
+const CHAIN_IDENTIFIER_LENGTH: u64 = 32;
+
+// Not 1: the native `last_created_id` aborts with 1 in this module.
+#[test_only]
+/// Expected a chain identifier of length 32, but found a different length
+const EBadChainIdentifierLength: u64 = 2;
+
+#[test_only]
+/// Number of bytes in a transaction nonce
+const TX_NONCE_LENGTH: u64 = 32;
+
+#[test_only]
+/// Expected a transaction nonce of length 32, but found a different length
+const EBadTxNonceLength: u64 = 4;
+
 #[allow(unused_field)]
 /// Information about the transaction currently being executed.
 /// This cannot be constructed by a transaction. It is a privileged object created by
@@ -61,6 +78,13 @@ public fun sponsor(_self: &TxContext): Option<address> {
     option_sponsor()
 }
 
+/// Return the chain identifier: the 32-byte digest of the chain's genesis checkpoint.
+/// It is all zeros while genesis runs, as that checkpoint doesn't exist yet.
+public fun chain_identifier(_self: &TxContext): vector<u8> {
+    native_chain_identifier()
+}
+native fun native_chain_identifier(): vector<u8>;
+
 /// Create an `address` that has not been used. As it is an object address, it will never
 /// occur as the address for a user.
 /// In other words, the generated address is a globally unique object ID.
@@ -89,6 +113,21 @@ public fun gas_budget(_self: &TxContext): u64 {
 }
 // native function to retrieve gas budget, currently not exposed
 native fun native_gas_budget(): u64;
+
+/// Return the nonce of this transaction: 32 bytes that at most one executed transaction has.
+/// Every call in the transaction returns the same value. The nonce does not name the network.
+///
+/// The nonce comes from the first gas coin of the transaction. A dry run or dev-inspect without
+/// a gas coin runs with a mock gas coin, so it reads a different nonce than the transaction will
+/// have with its real gas coin: pick the gas coin before asking a key holder to sign over the
+/// nonce, and simulate with that coin.
+///
+/// Aborts with code 3 if the transaction has no nonce, which is the case while authenticators
+/// run and for transactions without a gas coin.
+public fun tx_nonce(_self: &TxContext): vector<u8> {
+    native_tx_nonce()
+}
+native fun native_tx_nonce(): vector<u8>;
 
 // ==== test-only functions ====
 #[test_only]
@@ -124,6 +163,7 @@ public fun create(
         gas_budget,
         sponsor.to_vec(),
     );
+    replace_tx_nonce(vector[]);
     TxContext {
         sender: @0x0,
         tx_hash: vector::empty(),
@@ -229,6 +269,15 @@ public fun increment_epoch_timestamp(self: &mut TxContext, delta_ms: u64) {
     );
 }
 
+#[test_only]
+/// Set the nonce of the transaction, or remove it if `nonce` is empty.
+///
+/// Aborts with `EBadTxNonceLength` if `nonce` is neither empty nor 32 bytes.
+public fun set_tx_nonce_for_testing(_self: &mut TxContext, nonce: vector<u8>) {
+    assert!(nonce.is_empty() || nonce.length() == TX_NONCE_LENGTH, EBadTxNonceLength);
+    replace_tx_nonce(nonce);
+}
+
 fun option_sponsor(): Option<address> {
     let sponsor = native_sponsor();
     if (sponsor.length() == 0) option::none() else option::some(sponsor[0])
@@ -247,6 +296,21 @@ native fun replace(
     gas_budget: u64,
     sponsor: vector<address>,
 );
+
+#[test_only]
+/// Set the chain identifier returned by `chain_identifier`. A test has one chain
+/// identifier: every `TxContext` of the test reads the new value, including those
+/// created before the call.
+public fun set_chain_identifier_for_testing(_self: &mut TxContext, chain_identifier: vector<u8>) {
+    assert!(chain_identifier.length() == CHAIN_IDENTIFIER_LENGTH, EBadChainIdentifierLength);
+    replace_chain_identifier(chain_identifier);
+}
+
+#[test_only]
+native fun replace_chain_identifier(chain_identifier: vector<u8>);
+
+#[test_only]
+native fun replace_tx_nonce(nonce: vector<u8>);
 
 #[allow(unused_function)]
 /// Native function for deriving an ID via hash(tx_hash || ids_created)

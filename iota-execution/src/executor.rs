@@ -16,6 +16,7 @@ use iota_types::{
     auth_context::AuthContextData,
     base_types::TxContext,
     committee::EpochId,
+    digests::ChainIdentifier,
     error::{ExecutionError, ExecutionErrorKind},
     execution::{AuthenticateThenExecuteOutput, ExecutionResult, ExecutionTiming, TypeLayoutStore},
     gas::IotaGasStatus,
@@ -37,6 +38,8 @@ pub trait Executor {
         metrics: Arc<LimitsMetrics>,
         enable_expensive_checks: bool,
         certificate_deny_set: &HashSet<TransactionDigest>,
+        // Chain
+        chain_identifier: ChainIdentifier,
         // Epoch
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
@@ -66,6 +69,8 @@ pub trait Executor {
         metrics: Arc<LimitsMetrics>,
         enable_expensive_checks: bool,
         certificate_deny_set: &HashSet<TransactionDigest>,
+        // Chain
+        chain_identifier: ChainIdentifier,
         // Epoch
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
@@ -94,6 +99,8 @@ pub trait Executor {
         metrics: Arc<LimitsMetrics>,
         enable_expensive_checks: bool,
         certificate_deny_set: &HashSet<TransactionDigest>,
+        // Chain
+        chain_identifier: ChainIdentifier,
         // Epoch
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
@@ -130,6 +137,8 @@ pub trait Executor {
         // Configuration
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
+        // Chain
+        chain_identifier: ChainIdentifier,
         // Epoch
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
