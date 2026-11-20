@@ -844,7 +844,9 @@ struct FeatureFlags {
     // If true, the block-proposing validator attests each received user transaction
     // before sending it to consensus. The attestor certifies that Move authentication
     // passed and the attestation carries a computation cost estimate for
-    // shared-object scheduling.
+    // shared-object scheduling. The Move authenticators run at execution, and
+    // in the attestor's dry run, then share at most `max_auth_gas`; the
+    // transaction body gets the rest of the budget.
     #[serde(skip_serializing_if = "is_false")]
     enable_validator_attestation: bool,
 
@@ -2602,6 +2604,12 @@ impl ProtocolConfig {
             assert!(
                 ret.checkpoint_summary_version_specific_data == Some(2),
                 "enable_validator_attestation requires checkpoint_summary_version_specific_data = 2"
+            );
+            // Execution and the attestor's dry run limit the Move
+            // authenticators to `max_auth_gas`.
+            assert!(
+                ret.max_auth_gas.is_some(),
+                "enable_validator_attestation requires max_auth_gas to be set"
             );
         }
         if ret.attestation_max_refuted_units_squared.is_some() {
@@ -4820,6 +4828,23 @@ mod test {
             config
         });
         let _ = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    }
+
+    /// Execution and the attestor's dry run read `max_auth_gas` under
+    /// attestation, so a configuration without it is rejected at startup
+    /// rather than stopping the validator at the first transaction.
+    #[test]
+    #[should_panic(expected = "enable_validator_attestation requires max_auth_gas to be set")]
+    fn attestation_without_max_auth_gas_is_rejected() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.disable_max_auth_gas_for_testing();
+            config
+        });
+        let config = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        assert!(
+            config.enable_validator_attestation(),
+            "the latest devnet configuration should run attestation"
+        );
     }
 
     /// A zero chunk limit would make every delta unsplittable; the pure
