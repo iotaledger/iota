@@ -14,7 +14,7 @@
 
 use std::{
     cell::Cell,
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, HashMap},
     sync::Arc,
     time::Duration,
 };
@@ -33,7 +33,7 @@ use iota_types::{
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
         validate_account_object,
     },
-    attestation::{self, Attestation},
+    attestation::{self, Attestation, SharedInputIndex, list_move_authenticator_shared_objects},
     auth_context::AuthContextData,
     committee::EpochId,
     effects::TransactionEffectsAPI,
@@ -44,8 +44,7 @@ use iota_types::{
     move_authenticator::MoveAuthenticatorExt,
     storage::{BackingStore, ObjectKey},
     transaction::{
-        CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult, ObjectReadResultKind,
-        TransactionAPI,
+        CheckedInputObjects, InputObjects, ObjectReadResult, ObjectReadResultKind, TransactionAPI,
     },
 };
 
@@ -373,23 +372,10 @@ impl AttestationVerdictContext<'_> {
 
         // Nothing to re-run: the failure already reproduces at the recorded
         // state, or a recorded version refutes on its own.
-        let pinned_by_transaction: BTreeSet<ObjectId> = self
-            .authenticators
-            .iter()
-            .flat_map(|(_, input_objects)| input_objects.iter())
-            .filter(|input| {
-                matches!(
-                    input.input_object_kind,
-                    InputObjectKind::ImmOrOwnedMoveObject(_)
-                )
-            })
-            .map(|input| input.id())
-            .collect();
         let attested_versions = collect_attested_versions(self.attestation, self.transaction);
         if !should_reauthenticate(
             &attested_versions,
             &self.executed_versions,
-            &pinned_by_transaction,
             |object_id, version| {
                 self.attested_versions
                     .superseded_within_window(object_id, version)
@@ -409,31 +395,34 @@ impl AttestationVerdictContext<'_> {
 
 /// Returns the object id and the version of each entry that `attestation`
 /// records, in the order of the record. `transaction` is the signed
-/// transaction in which the entries name objects by index. An entry is left
-/// out when [`SharedInputIndex::find_object_id_in()`] finds no object at its
-/// index.
-///
-/// [`SharedInputIndex::find_object_id_in()`]: iota_types::attestation::SharedInputIndex::find_object_id_in
+/// transaction in which the entries name objects by index, as
+/// [`list_move_authenticator_shared_objects()`] lists them for the check of the
+/// record at the commit. An entry whose index names no shared object there is
+/// left out: the check drops a copy whose record has one.
 fn collect_attested_versions(
     attestation: &Attestation,
     transaction: &SenderSignedTransaction,
 ) -> Vec<(ObjectId, Version)> {
+    let object_ids: HashMap<SharedInputIndex, ObjectId> =
+        list_move_authenticator_shared_objects(transaction)
+            .into_iter()
+            .map(|(index, object)| (index, object.object_id))
+            .collect();
+
     attestation
         .shared_object_versions()
         .iter()
-        .filter_map(|(index, version)| Some((index.find_object_id_in(transaction)?, *version)))
+        .filter_map(|(index, version)| Some((*object_ids.get(index)?, *version)))
         .collect()
 }
 
 /// Whether authentication should be re-run at the recorded versions. `false`
 /// either when nothing the authentication read drifted, so the failure
 /// reproduces at the recorded state, or when a recorded version is refuted
-/// without a re-run. `pinned_by_transaction` holds the authenticator inputs
-/// whose versions the transaction fixes itself.
+/// without a re-run.
 fn should_reauthenticate(
     attested_versions: &[(ObjectId, Version)],
     executed_versions: &BTreeMap<ObjectId, Version>,
-    pinned_by_transaction: &BTreeSet<ObjectId>,
     superseded_within_window: impl Fn(&ObjectId, Version) -> bool,
 ) -> bool {
     let mut drifted = false;
@@ -447,14 +436,7 @@ fn should_reauthenticate(
         // A recorded version ahead of the executed one cannot come from an
         // honest dry run. A recorded version superseded before the freshness
         // window was not current when an honest dry run could have read it.
-        // An honest dry run records no input the transaction pins, so a
-        // differing version for one is a lie as well; judged on its own, it
-        // would send the re-run against an object the transaction never named
-        // at that version.
-        if attested > executed
-            || pinned_by_transaction.contains(&object_id)
-            || !superseded_within_window(&object_id, attested)
-        {
+        if attested > executed || !superseded_within_window(&object_id, attested) {
             return false;
         }
         drifted = true;
@@ -920,29 +902,9 @@ mod tests {
         executed: &BTreeMap<ObjectId, Version>,
         superseded: BTreeSet<(ObjectId, Version)>,
     ) -> bool {
-        should_reauthenticate(
-            attested,
-            executed,
-            &BTreeSet::new(),
-            |object_id, version| superseded.contains(&(*object_id, version)),
-        )
-    }
-
-    /// An honest dry run records no input the transaction pins, so a recorded
-    /// version for one is a lie, however plausible the version.
-    #[test]
-    fn differing_version_of_a_pinned_input_skips_reauthentication() {
-        let input = object_at(3);
-        let superseded: BTreeSet<(ObjectId, Version)> = [input].into();
-        let executed = BTreeMap::from([(input.0, Version::from(5u64))]);
-        let pinned = BTreeSet::from([input.0]);
-
-        assert!(!should_reauthenticate(
-            &[input],
-            &executed,
-            &pinned,
-            |object_id, version| superseded.contains(&(*object_id, version))
-        ));
+        should_reauthenticate(attested, executed, |object_id, version| {
+            superseded.contains(&(*object_id, version))
+        })
     }
 
     /// Authentication failed against exactly the recorded state, so re-running
@@ -1067,10 +1029,10 @@ mod tests {
 
     /// Two Move authenticators name the same account: the first authenticates
     /// it, and the second takes it as an argument, next to an immutable
-    /// object. Each entry becomes the id of the object at its index, shared or
-    /// not, with the recorded version. The two entries for the account are
-    /// both kept, with their different versions, and the entry whose index is
-    /// out of range is left out.
+    /// object. Each entry becomes the id of the shared object at its index,
+    /// with the recorded version. The two entries for the account are both
+    /// kept, with their different versions, and the entries whose index names
+    /// the immutable object or nothing are left out.
     #[test]
     fn entries_become_object_ids_in_record_order() {
         let account = SharedObjectReference {
@@ -1147,7 +1109,6 @@ mod tests {
             collect_attested_versions(&attestation, &transaction),
             vec![
                 (account.object_id, Version::from(3u64)),
-                (immutable_argument.object_id, Version::from(7u64)),
                 (account.object_id, Version::from(4u64)),
             ]
         );
