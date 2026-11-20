@@ -287,6 +287,11 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             if its acknowledgment quorum was reached first, outside Mainnet.
 //             `ecdsa_r1::secp256r1_ecrecover` rejects a signature whose
 //             restored x-coordinate is not below the field modulus.
+//             Outside Mainnet and Testnet, a programmable transaction may
+//             carry a transaction dependency input: its commands run only if
+//             the named transaction succeeded in the current epoch. If that
+//             transaction fails after the dependent was sequenced, the
+//             dependent executes as failed with `TransactionDependencyFailed`.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -4020,6 +4025,12 @@ impl ProtocolConfig {
                     // whose restored x-coordinate is not below the field
                     // modulus.
                     cfg.feature_flags.secp256r1_ecrecover_checks_x_below_p = true;
+
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        // A programmable transaction may carry a transaction
+                        // dependency input.
+                        cfg.feature_flags.enable_transaction_dependencies = true;
+                    }
                 }
                 // Use this template when making changes:
                 //
