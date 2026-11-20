@@ -30,13 +30,3 @@ path = "hybrid_reader.rs"
 [[bin]]
 name = "remote_reader_with_filters"
 path = "remote_reader_with_filters.rs"
-
-[patch.crates-io]
-iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "15c55e14d981170b76639591536ff74e6708ead4" }
-iota-sdk-graphql-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "15c55e14d981170b76639591536ff74e6708ead4" }
-iota-sdk-graphql-client-build = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "15c55e14d981170b76639591536ff74e6708ead4" }
-iota-sdk-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "15c55e14d981170b76639591536ff74e6708ead4" }
-iota-sdk-grpc-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "15c55e14d981170b76639591536ff74e6708ead4" }
-iota-sdk-move-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "15c55e14d981170b76639591536ff74e6708ead4" }
-iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "15c55e14d981170b76639591536ff74e6708ead4" }
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "15c55e14d981170b76639591536ff74e6708ead4" }
