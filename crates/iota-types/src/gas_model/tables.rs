@@ -435,7 +435,7 @@ pub fn initial_cost_schedule_for_unit_tests() -> move_vm_test_utils::gas_schedul
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{Gas, GasStatus, InternalGas, ZERO_COST_SCHEDULE};
 
     /// A metered status with `units` gas units left at `gas_price`.
     fn gas_status(units: u64, gas_price: u64) -> GasStatus {
@@ -452,7 +452,7 @@ mod tests {
         assert_eq!(status.remaining_gas(), Gas::new(30));
         assert_eq!(taken, Some(GasStatus::to_internal_units(70)));
 
-        status.add_gas_left(taken.unwrap());
+        status.add_gas_left(taken.expect("a budget below the gas left must take gas off"));
         assert_eq!(status.remaining_gas(), Gas::new(100));
     }
 

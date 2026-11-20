@@ -22,12 +22,15 @@ use iota_sdk_types::{
 };
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
-    account_abstraction::authenticator_function::MoveAuthenticatorsForExecution,
+    account_abstraction::authenticator_function::{
+        MoveAuthenticatorsForExecution, extract_auth_fun_refs,
+    },
     auth_context::AuthContextData,
     crypto::{AccountPrivateKey, get_key_pair},
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::{ExecutionError, ExecutionErrorKind, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
+    gas::IotaGasStatusAPI,
     move_package,
     object::{OBJECT_START_VERSION, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -40,7 +43,8 @@ use iota_types::{
 
 use crate::{
     authority::{
-        AuthorityState, ExecutionEnv, authority_per_epoch_store::AuthorityPerEpochStore,
+        AuthorityState, ExecutionEnv, ValidationOutputs,
+        authority_per_epoch_store::AuthorityPerEpochStore,
         shared_object_version_manager::Schedulable, test_authority_builder::TestAuthorityBuilder,
     },
     execution_scheduler::ExecutionSchedulerAPI,
@@ -1363,6 +1367,92 @@ impl MoveAccountSponsorSetup {
             ExecutionEnv::new().with_assigned_versions(self.assigned_versions.clone()),
         )
     }
+
+    /// The gas the first `count` of the transfer's Move authenticators use, in
+    /// whole gas units, when they run on their own in the order of execution,
+    /// the gas owner's first: the fewest gas units they pass within. They run
+    /// on the gas status of admission, so they must pass within
+    /// `max_auth_gas`.
+    fn authenticators_gas_units(&self, count: usize) -> u64 {
+        let authority = &self.chain.authority;
+        let epoch_store = authority.epoch_store_for_testing();
+        let transaction = epoch_store
+            .verify_transaction(self.transfer.clone())
+            .unwrap();
+        let ValidationOutputs {
+            move_authenticators,
+            gas_status,
+            per_authenticator_checked_inputs,
+            ..
+        } = authority
+            .run_validation_checks(
+                &transaction,
+                &epoch_store,
+                &authority.config.transaction_deny_config,
+                false,
+            )
+            .unwrap();
+        let tx = transaction.data().transaction();
+        let (kind, signer, gas_data) = tx.execution_parts();
+        let gas_owner = gas_data.owner;
+        let mut authenticators = move_authenticators
+            .into_iter()
+            .zip(per_authenticator_checked_inputs)
+            .map(|(authenticator, (input_objects, function_ref))| {
+                (authenticator.to_owned(), function_ref, input_objects)
+            })
+            .collect::<Vec<_>>();
+        authenticators.sort_by_key(|(authenticator, ..)| authenticator.address() != gas_owner);
+        let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
+            extract_auth_fun_refs(signer, gas_owner, |address| {
+                authenticators
+                    .iter()
+                    .find(|(authenticator, ..)| authenticator.address() == address)
+                    .map(|(_, function_ref, _)| function_ref.clone())
+            });
+        authenticators.truncate(count);
+        let (sender_auth_digest, sponsor_auth_digest) =
+            transaction.data().compute_auth_digests().unwrap();
+        let auth_context_data = AuthContextData {
+            transaction_data_bytes: bcs::to_bytes(tx).unwrap(),
+            sender_auth_digest,
+            sponsor_auth_digest,
+            sender_authenticator_function_ref,
+            sponsor_authenticator_function_ref,
+        };
+        let input_objects = authenticators
+            .iter()
+            .map(|(.., input_objects)| input_objects)
+            .collect::<Vec<_>>();
+        let aggregated_input_objects =
+            iota_transaction_checks::aggregate_authenticator_input_objects(&input_objects).unwrap();
+        // The gas left starts at a whole number of gas units and is rounded
+        // down, so the units it loses are the gas used rounded up.
+        let gas_left = gas_status.move_gas_status().remaining_gas();
+
+        let (gas_status, result) = epoch_store.executor().authenticate_transaction(
+            authority.get_backing_store().as_ref(),
+            epoch_store.protocol_config(),
+            authority.metrics.limits_metrics.clone(),
+            &epoch_store.epoch(),
+            epoch_store
+                .epoch_start_config()
+                .epoch_data()
+                .epoch_start_timestamp(),
+            gas_data,
+            gas_status,
+            authenticators,
+            aggregated_input_objects,
+            kind,
+            signer,
+            *transaction.digest(),
+            auth_context_data,
+            &mut None,
+        );
+
+        result.expect("the authenticators must pass within max_auth_gas");
+        u64::from(gas_left) - u64::from(gas_status.move_gas_status().remaining_gas())
+    }
 }
 
 /// Whether `status` is a failed Move authentication that aborted with `code`.
@@ -1513,11 +1603,17 @@ async fn failing_move_account_sponsor_failure_is_reported_when_both_fail() {
     assert_eq!(effects.gas_cost_summary(), &GasCostSummary::default());
 }
 
-/// The error of authenticators that run out of gas, with the transfer's gas
-/// budget set to `gas_budget` and `max_auth_gas` to `max_auth_gas`. The
-/// minimum gas budget is lifted, so the budget can be too small for any
-/// authenticator.
-async fn authentication_out_of_gas(gas_budget: u64, max_auth_gas: u64) -> ExecutionError {
+/// The error of the sponsor's authenticator of [`passing_accounts_transfer`],
+/// which runs first, running out of gas, with the transfer built from `inputs`,
+/// its gas budget set to `gas_budget` and `max_auth_gas` to `max_auth_gas`. The
+/// minimum gas budget is lifted, so the budget can be too small for the
+/// authenticator. The sponsor did not authorize the transaction, so nobody
+/// pays, and the budget need not cover the failure.
+async fn authentication_out_of_gas(
+    inputs: MoveAccountSponsorInputs,
+    gas_budget: u64,
+    max_auth_gas: u64,
+) -> ExecutionError {
     let _guard = ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
         config.set_base_tx_cost_fixed_for_testing(0);
         config.set_max_auth_gas_for_testing(max_auth_gas);
@@ -1525,19 +1621,15 @@ async fn authentication_out_of_gas(gas_budget: u64, max_auth_gas: u64) -> Execut
     });
     let inputs = MoveAccountSponsorInputs {
         gas_budget: Some(gas_budget),
-        ..MoveAccountSponsorInputs::random()
+        ..inputs
     };
     let setup = MoveAccountSponsorSetup::new(
         &inputs,
-        TestAccount::Account(TestAuthenticator::Passes),
-        TestAccount::Account(TestAuthenticator::Passes),
+        TestAccount::Account(TestAuthenticator::PassesAfterLoop),
+        TestAccount::Account(TestAuthenticator::PassesAfterLoop),
         SponsorSignature::Second,
     )
     .await;
-    assert!(
-        setup.chain.reference_gas_price() > gas_budget,
-        "the budget must buy no gas unit, so that the authenticators run out of it"
-    );
 
     let (effects, error) = setup.execute_with_error();
 
@@ -1550,6 +1642,7 @@ async fn authentication_out_of_gas(gas_budget: u64, max_auth_gas: u64) -> Execut
             command: None,
         }
     );
+    assert_eq!(effects.gas_cost_summary(), &GasCostSummary::default());
     error.expect("the failed authentication must be reported")
 }
 
@@ -1559,14 +1652,23 @@ async fn authentication_out_of_gas(gas_budget: u64, max_auth_gas: u64) -> Execut
 /// `max_auth_gas`.
 #[tokio::test]
 async fn authenticators_out_of_a_budget_that_buys_max_auth_gas_name_it_in_the_error() {
-    let error = authentication_out_of_gas(1, 1).await;
+    let inputs = MoveAccountSponsorInputs::random();
+    let (sponsor, rgp) = smallest_max_auth_gas(&inputs, 1).await;
+    // One gas unit less than the sponsor's authenticator needs.
+    let max_auth_gas = sponsor - rgp;
+    assert!(max_auth_gas >= rgp, "the budget must buy a gas unit");
+
+    let error = authentication_out_of_gas(inputs, max_auth_gas, max_auth_gas).await;
 
     let source = error
         .source()
         .as_ref()
         .expect("the error must say what ran out")
         .to_string();
-    assert!(source.contains("max_auth_gas (1)"), "{source}");
+    assert!(
+        source.contains(&format!("max_auth_gas ({max_auth_gas})")),
+        "{source}"
+    );
 }
 
 /// A gas budget that buys less than `max_auth_gas` is what the authenticators
@@ -1574,7 +1676,14 @@ async fn authenticators_out_of_a_budget_that_buys_max_auth_gas_name_it_in_the_er
 /// name `max_auth_gas`.
 #[tokio::test]
 async fn authenticators_out_of_a_budget_below_max_auth_gas_do_not_name_it() {
-    let error = authentication_out_of_gas(1, 1_000_000_000).await;
+    let inputs = MoveAccountSponsorInputs::random();
+    let (sponsor, rgp) = smallest_max_auth_gas(&inputs, 1).await;
+    // One gas unit less than the sponsor's authenticator needs, and
+    // `max_auth_gas` enough for it.
+    let gas_budget = sponsor - rgp;
+    assert!(gas_budget >= rgp, "the budget must buy a gas unit");
+
+    let error = authentication_out_of_gas(inputs, gas_budget, sponsor).await;
 
     let source = error
         .source()
@@ -1652,32 +1761,21 @@ async fn passing_accounts_transfer(
     (effects, error, setup.sponsor)
 }
 
-/// The smallest `max_auth_gas`, in whole gas units at the reference gas price
-/// `rgp`, that both authenticators of [`passing_accounts_transfer`] pass
-/// within.
-async fn smallest_max_auth_gas_for_both(inputs: &MoveAccountSponsorInputs, rgp: u64) -> u64 {
-    let passes = async |units: u64| {
-        passing_accounts_transfer(inputs, units * rgp)
-            .await
-            .0
-            .status()
-            .is_success()
-    };
-    let (mut too_small, mut enough) = (0, 1);
-    while !passes(enough).await {
-        too_small = enough;
-        enough *= 2;
-        assert!(enough < 1 << 20, "two passing authenticators must fit");
-    }
-    while enough - too_small > 1 {
-        let middle = too_small + (enough - too_small) / 2;
-        if passes(middle).await {
-            enough = middle;
-        } else {
-            too_small = middle;
-        }
-    }
-    enough * rgp
+/// The smallest `max_auth_gas` that the first `count` authenticators of
+/// [`passing_accounts_transfer`] built from `inputs` pass within, the sponsor's
+/// first, next to the reference gas price, of which it is a whole number of gas
+/// units.
+async fn smallest_max_auth_gas(inputs: &MoveAccountSponsorInputs, count: usize) -> (u64, u64) {
+    let setup = MoveAccountSponsorSetup::new(
+        inputs,
+        TestAccount::Account(TestAuthenticator::PassesAfterLoop),
+        TestAccount::Account(TestAuthenticator::PassesAfterLoop),
+        SponsorSignature::Second,
+    )
+    .await;
+    let rgp = setup.chain.reference_gas_price();
+
+    (setup.authenticators_gas_units(count) * rgp, rgp)
 }
 
 /// The sender and the sponsor, the gas owner, share `max_auth_gas`: when each
@@ -1688,16 +1786,7 @@ async fn smallest_max_auth_gas_for_both(inputs: &MoveAccountSponsorInputs, rgp: 
 #[tokio::test]
 async fn sponsor_pays_max_auth_gas_when_the_sender_runs_out_of_the_rest() {
     let inputs = MoveAccountSponsorInputs::random();
-    let rgp = MoveAccountSponsorSetup::new(
-        &inputs,
-        TestAccount::Account(TestAuthenticator::PassesAfterLoop),
-        TestAccount::Account(TestAuthenticator::PassesAfterLoop),
-        SponsorSignature::Second,
-    )
-    .await
-    .chain
-    .reference_gas_price();
-    let both = smallest_max_auth_gas_for_both(&inputs, rgp).await;
+    let (both, rgp) = smallest_max_auth_gas(&inputs, 2).await;
     // Each authenticator alone fits in one gas unit less than both need, as
     // the second one costs at least as much as the first.
     assert!(both >= 2 * rgp, "each authenticator must cost a gas unit");
@@ -1750,16 +1839,7 @@ async fn sponsor_pays_max_auth_gas_when_the_sender_runs_out_of_the_rest() {
 #[tokio::test]
 async fn authenticators_within_max_auth_gas_leave_the_effects_unchanged() {
     let inputs = MoveAccountSponsorInputs::random();
-    let rgp = MoveAccountSponsorSetup::new(
-        &inputs,
-        TestAccount::Account(TestAuthenticator::PassesAfterLoop),
-        TestAccount::Account(TestAuthenticator::PassesAfterLoop),
-        SponsorSignature::Second,
-    )
-    .await
-    .chain
-    .reference_gas_price();
-    let both = smallest_max_auth_gas_for_both(&inputs, rgp).await;
+    let (both, rgp) = smallest_max_auth_gas(&inputs, 2).await;
 
     // A limit as large as the gas budget limits nothing.
     let gas_budget = rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER * 10;
