@@ -45,11 +45,18 @@
 //!    later copy of the digest is validated.
 //! 6. Three-tier lock conflict check (local HashMap → quarantine → DB) — drop with error, except a
 //!    lock held by the same transaction, which is exempt. Cheap; performed before expensive checks.
-//! 7. `handle_transaction_validation_checks_at_commit()` — drop with error. An attested transaction
+//! 7. The commit's limit on input objects validated
+//!    (`pcool_max_input_objects_validated_per_commit`) — a transaction whose declared inputs do not
+//!    fit in what is left of it is dropped with a retriable error, and the loop goes on. The count
+//!    depends only on the commit's transactions and the checks before it, so every validator drops
+//!    the same ones. `ReadAhead` counts the transactions it picks against the same limit, so a
+//!    commit reads at most twice the limit. A replayed commit repeats these drops as saved and
+//!    counts nothing.
+//! 8. `handle_transaction_validation_checks_at_commit()` — drop with error. An attested transaction
 //!    runs the input checks execution runs, gas included, and the checks on receiving objects; the
 //!    publish verifier stays at execution. Only reached when all locks are free. Its result may
 //!    have been computed ahead of the loop, see `ReadAhead`.
-//! 8. All passed — acquire locks in the local tracking map, keep transaction.
+//! 9. All passed — acquire locks in the local tracking map, keep transaction.
 //!
 //! Non-`UserTransactionV1` transactions pass through unchanged.
 //!
@@ -57,7 +64,7 @@
 //!
 //! Step 6 probes every `ImmOrOwnedMoveObject` reference, but only genuinely
 //! owned references are locked — an immutable input never takes a new
-//! version, so its lock would hold until the epoch ends. Step 8 filters via
+//! version, so its lock would hold until the epoch ends. Step 9 filters via
 //! the loaded objects, step 3 via the executed transaction's effects.
 
 use std::{
@@ -83,6 +90,7 @@ use iota_types::{
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult},
     gas::check_gas_bounds,
+    move_authenticator::MoveAuthenticatorExt,
     transaction::{
         InputObjectKind, SenderSignedTransactionAPI, TransactionAPI, TransactionEnvelope,
         VerifiedTransaction,
@@ -134,6 +142,75 @@ pub enum PostConsensusDecision {
     /// digest do not share. Another copy can be kept when sequenced, so the
     /// drop is not the final status of the digest.
     DroppedCopy,
+    /// The transaction was dropped because its declared inputs did not fit in
+    /// what was left of the commit's limit on input objects validated. The
+    /// digest can be kept when sequenced again, so the drop is not its final
+    /// status.
+    DroppedOverInputLimit,
+}
+
+/// Retry-after hint of a transaction dropped at the limit on input objects
+/// validated per commit. The next commit starts a new count.
+const OVER_INPUT_LIMIT_RETRY_AFTER_SECS: u64 = 1;
+
+/// Counts the input objects of the transactions that a commit validates
+/// against [`ProtocolConfig::pcool_max_input_objects_validated_per_commit`].
+struct InputLimit {
+    limit: Option<u64>,
+    counted: u64,
+}
+
+impl InputLimit {
+    /// A count for one commit. A replayed commit repeats its saved decisions,
+    /// the drops at the limit among them, so it has no limit of its own.
+    fn new(protocol_config: &ProtocolConfig, replayed: bool) -> Self {
+        Self {
+            limit: if replayed {
+                None
+            } else {
+                protocol_config.pcool_max_input_objects_validated_per_commit_as_option()
+            },
+            counted: 0,
+        }
+    }
+
+    /// Counts `declared` input objects if they fit in what is left of the
+    /// limit, and returns whether they did.
+    fn try_count(&mut self, declared: u64) -> bool {
+        let counted = self.counted.saturating_add(declared);
+        if self.limit.is_some_and(|limit| counted > limit) {
+            return false;
+        }
+        self.counted = counted;
+        true
+    }
+}
+
+/// The number of input objects `transaction` declares: its inputs, the
+/// objects it receives, and for each Move authenticator its account, its
+/// other inputs, the objects it receives and, where the protocol config makes
+/// them inputs, the packages its type arguments name. An object named more
+/// than once counts each time.
+fn declared_input_objects(
+    transaction: &SenderSignedTransaction,
+    protocol_config: &ProtocolConfig,
+) -> u64 {
+    let data = transaction.transaction();
+    let type_arg_packages = protocol_config.move_authenticator_type_arg_packages_as_inputs();
+    let of_authenticators: usize = transaction
+        .move_authenticators()
+        .into_iter()
+        .map(|authenticator| {
+            authenticator.input_objects(type_arg_packages).len()
+                + authenticator.receiving_objects().len()
+        })
+        .sum();
+    // Check #4 has listed the inputs, so this does not fail for a transaction
+    // that is counted.
+    let declared = data.input_objects().map_or(0, |inputs| inputs.len())
+        + data.receiving_objects().len()
+        + of_authenticators;
+    u64::try_from(declared).unwrap_or(u64::MAX)
 }
 
 /// A post-consensus validation decision as saved, so a replay of the commit
@@ -310,6 +387,13 @@ pub async fn validate_and_resolve_conflicts(
     // The attestors cut off as of this commit's horizon, read at the first
     // attested transaction.
     let mut attestors_cut_off: Option<BTreeSet<u8>> = None;
+    // The input objects counted toward the limit of this commit. The count
+    // depends only on the commit's transactions and the checks before it,
+    // so every validator drops the same transactions at the limit.
+    let protocol_config = epoch_store.protocol_config();
+    let mut input_limit = InputLimit::new(protocol_config, saved_candidates.is_some());
+    // The input objects declared by every copy that got as far as the limit.
+    let mut declared_inputs: u64 = 0;
 
     // The results of Check #6 read ahead of the loop, by position in
     // `transactions`. A replayed commit reads nothing ahead: the inputs of
@@ -326,6 +410,7 @@ pub async fn validate_and_resolve_conflicts(
             previously_deferred,
             transactions,
             &mut attestors_cut_off,
+            InputLimit::new(protocol_config, false),
         )
         .run(
             authority_state,
@@ -601,6 +686,37 @@ pub async fn validate_and_resolve_conflicts(
             continue;
         }
 
+        // The limit on the input objects validated per commit. Counted after
+        // the lock check, so a transaction that check drops does not use it
+        // up. A transaction that does not fit is dropped and the loop goes
+        // on, so a smaller one after it can still be kept. The drop holds for
+        // every copy of the digest at this commit, and a resubmission can be
+        // kept at a later one.
+        let declared = declared_input_objects(transaction.data(), protocol_config);
+        declared_inputs = declared_inputs.saturating_add(declared);
+        if !input_limit.try_count(declared) {
+            debug!(
+                ?digest,
+                commit_index,
+                declared,
+                counted = input_limit.counted,
+                "Transaction does not fit in the commit's limit on input objects, dropping"
+            );
+            authority_state
+                .metrics
+                .consensus_handler_validation_over_input_limit_transactions
+                .inc();
+            decisions.decide(
+                digest,
+                PostConsensusDecision::DroppedOverInputLimit,
+                Some(IotaError::ValidatorOverloadedRetryAfter {
+                    retry_after_secs: OVER_INPUT_LIMIT_RETRY_AFTER_SECS,
+                }),
+            );
+            keep[i] = false;
+            continue;
+        }
+
         // Check #6: Validation and deny checks. Only reached when all locks are
         // free. With one reader that skips the object loading for a
         // transaction the lock conflict check drops. With more, its inputs
@@ -751,6 +867,13 @@ pub async fn validate_and_resolve_conflicts(
     input_reads
         .with_label_values(&["unused"])
         .inc_by(read_ahead.len() as u64);
+    // A replayed commit counts only the transactions it validates again.
+    if saved_candidates.is_none() {
+        authority_state
+            .metrics
+            .consensus_handler_validation_declared_inputs
+            .observe(declared_inputs as f64);
+    }
 
     let dropped: Vec<(TransactionDigest, IotaError, PostConsensusDecision)> = all_user_tx_digests
         .iter()
@@ -861,13 +984,16 @@ impl ReadAhead {
     /// earlier commit. The loop still runs every check itself, so a
     /// transaction picked here that it drops earlier, as the loser of an
     /// owned input is, costs only the reads. `attestors_cut_off` is the
-    /// loop's, filled here when an attested copy gets that far.
+    /// loop's, filled here when an attested copy gets that far. `input_limit`
+    /// counts the picked transactions, so no more input objects are read
+    /// ahead than the commit may validate.
     fn new(
         epoch_store: &AuthorityPerEpochStore,
         commit_index: CommitIndex,
         previously_deferred: &PreviouslyDeferredTransactions,
         transactions: &[VerifiedSequencedConsensusTransaction],
         attestors_cut_off: &mut Option<BTreeSet<u8>>,
+        mut input_limit: InputLimit,
     ) -> Self {
         let mut digests = HashSet::new();
         let mut picked = Vec::new();
@@ -898,6 +1024,12 @@ impl ReadAhead {
             }
             // Only now, so a later copy is picked when this one failed.
             digests.insert(digest);
+            if !input_limit.try_count(declared_input_objects(
+                transaction.data(),
+                epoch_store.protocol_config(),
+            )) {
+                continue;
+            }
             picked.push((
                 i,
                 VerifiedTransaction::new_from_verified((*transaction).clone()),

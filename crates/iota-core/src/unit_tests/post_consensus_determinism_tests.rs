@@ -1918,6 +1918,11 @@ fn real_class(verdict: &SavedPostConsensusDecision) -> VerdictClass {
         PostConsensusDecision::Dropped
         | PostConsensusDecision::DroppedInputNotVisibleYet
         | PostConsensusDecision::DroppedCopy => VerdictClass::InvisibleInput,
+        // The histories declare far fewer input objects than a commit may
+        // validate, and the oracle does not model the limit.
+        PostConsensusDecision::DroppedOverInputLimit => {
+            panic!("a generated history reached the limit on input objects per commit")
+        }
     }
 }
 
