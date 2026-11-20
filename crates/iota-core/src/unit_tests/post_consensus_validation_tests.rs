@@ -2280,9 +2280,9 @@ async fn test_attested_tx_cost_out_of_bounds() {
 
 /// An attested transaction whose attestation records a version at an index
 /// where the transaction names no shared object is malformed and dropped by
-/// Check #3. A transfer of an owned object names no shared object at all, so
-/// its input 0 is such an index. The digest must still surface in
-/// `all_user_tx_digests` for soft-lock release.
+/// Check #3. A transfer signed with a key has no Move authenticator, so the
+/// index of the account of authenticator 0 is such an index. The digest must
+/// still surface in `all_user_tx_digests` for soft-lock release.
 #[tokio::test]
 async fn attested_version_at_index_without_shared_object_is_dropped() {
     let _guard = enable_validator_attestation();
@@ -2315,7 +2315,7 @@ async fn attested_version_at_index_without_shared_object_is_dropped() {
     let digest = *tx.digest();
     // The most units the transaction pays for, so Check #3 passes the units.
     let units = tx.data().transaction().gas_budget() / tx.data().transaction().gas_price();
-    let index = SharedInputIndex::TransactionInput(0);
+    let index = SharedInputIndex::AuthenticatorAccount { authenticator: 0 };
     let mut transactions = vec![make_attested_user_tx_with_versions(
         tx,
         0,
@@ -2351,6 +2351,175 @@ async fn attested_version_at_index_without_shared_object_is_dropped() {
         user_tx_digests,
         vec![digest],
         "digest must be collected before Check #3 for soft-lock release",
+    );
+}
+
+/// Returns a transfer from the Move account `sender` whose gas `sponsor`
+/// pays, signed with `authenticators` in that order. The gas coin is not in
+/// the store: the tests that use it drop the transfer before its inputs are
+/// read.
+fn build_account_transfer(
+    sender: ObjectId,
+    sponsor: ObjectId,
+    authenticators: Vec<MoveAuthenticatorV1>,
+    gas_price: u64,
+) -> TransactionEnvelope {
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.transfer_iota(Address::random(), Some(1));
+    let transfer = Transaction::new_programmable_allow_sponsor(
+        sender.into(),
+        vec![random_object_ref()],
+        builder.finish(),
+        TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * gas_price,
+        gas_price,
+        sponsor.into(),
+    );
+    let signatures = authenticators
+        .into_iter()
+        .map(|authenticator| {
+            UserSignature::MoveAuthenticator(MoveAuthenticator::from(authenticator))
+        })
+        .collect();
+
+    TransactionEnvelope::from_user_sig_data(transfer, signatures)
+}
+
+/// Runs post-consensus validation on `tx`, attested by the block author with
+/// `shared_object_versions` as its record and the most units `tx` pays for.
+/// Asserts that `tx` is dropped without taking a lock, and returns the error
+/// it is dropped with.
+async fn expect_attested_drop(
+    authority: &AuthorityState,
+    tx: TransactionEnvelope,
+    shared_object_versions: Vec<(SharedInputIndex, Version)>,
+) -> IotaError {
+    let epoch_store = authority.epoch_store_for_testing();
+    let digest = *tx.digest();
+    let units = tx.data().transaction().gas_budget() / tx.data().transaction().gas_price();
+    let mut transactions = vec![make_attested_user_tx_with_versions(
+        tx,
+        0,
+        units,
+        shared_object_versions,
+    )];
+
+    let (mut dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        authority,
+        &epoch_store,
+        1,
+        &Default::default(),
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+
+    assert!(transactions.is_empty(), "the transaction must be dropped");
+    assert!(locks.is_empty(), "a dropped transaction acquires no locks");
+    assert_eq!(dropped.len(), 1, "one dropped entry");
+    let (dropped_digest, error, _) = dropped.pop().unwrap();
+    assert_eq!(dropped_digest, digest);
+
+    error
+}
+
+/// The record names the account of the Move authenticator twice, with the
+/// same version.
+#[tokio::test]
+async fn attested_record_naming_index_twice_is_dropped() {
+    let _guard = enable_validator_attestation();
+    let authority = TestAuthorityBuilder::new().build().await;
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let account = ObjectId::random();
+    let tx = build_account_transfer(account, account, vec![account_authenticator(account)], rgp);
+    let index = SharedInputIndex::AuthenticatorAccount { authenticator: 0 };
+
+    let error = expect_attested_drop(
+        &authority,
+        tx,
+        vec![
+            (index, Version::OBJECT_START),
+            (index, Version::OBJECT_START),
+        ],
+    )
+    .await;
+
+    assert_eq!(error, IotaError::AttestationIndexRepeated { index });
+}
+
+/// The sponsor's Move authenticator takes the sender's account as an
+/// argument, and the record gives the account a different version at each
+/// of its two indexes.
+#[tokio::test]
+async fn attested_record_with_two_versions_of_one_object_is_dropped() {
+    let _guard = enable_validator_attestation();
+    let authority = TestAuthorityBuilder::new().build().await;
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let (sender, sponsor) = (ObjectId::random(), ObjectId::random());
+    let sponsor_authenticator = MoveAuthenticatorV1::new(
+        vec![CallArg::Shared(SharedObjectReference::new(
+            sender,
+            Version::OBJECT_START,
+            false,
+        ))],
+        vec![],
+        SharedObjectReference::new(sponsor, Version::OBJECT_START, false),
+    );
+    let tx = build_account_transfer(
+        sender,
+        sponsor,
+        vec![account_authenticator(sender), sponsor_authenticator],
+        rgp,
+    );
+
+    let error = expect_attested_drop(
+        &authority,
+        tx,
+        vec![
+            (
+                SharedInputIndex::AuthenticatorAccount { authenticator: 0 },
+                Version::from(1u64),
+            ),
+            (
+                SharedInputIndex::AuthenticatorArgument {
+                    authenticator: 1,
+                    argument: 0,
+                },
+                Version::from(2u64),
+            ),
+            (
+                SharedInputIndex::AuthenticatorAccount { authenticator: 1 },
+                Version::from(1u64),
+            ),
+        ],
+    )
+    .await;
+
+    assert_eq!(
+        error,
+        IotaError::AttestationObjectVersionsDiffer {
+            object_id: sender,
+            first: Version::from(1u64),
+            second: Version::from(2u64),
+        }
+    );
+}
+
+/// The record has no entry for the account of the Move authenticator.
+#[tokio::test]
+async fn attested_record_missing_authenticator_input_is_dropped() {
+    let _guard = enable_validator_attestation();
+    let authority = TestAuthorityBuilder::new().build().await;
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let account = ObjectId::random();
+    let tx = build_account_transfer(account, account, vec![account_authenticator(account)], rgp);
+
+    let error = expect_attested_drop(&authority, tx, vec![]).await;
+
+    assert_eq!(
+        error,
+        IotaError::AttestationAuthenticatorInputMissing {
+            index: SharedInputIndex::AuthenticatorAccount { authenticator: 0 },
+        }
     );
 }
 

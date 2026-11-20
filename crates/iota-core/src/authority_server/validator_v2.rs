@@ -190,8 +190,10 @@ fn checks_admitted_inputs() -> bool {
 /// input checks, see [`checks_admitted_inputs()`], while validator attestation
 /// is on. Without a dry run, it records no object versions, and it claims the
 /// most units the transaction can pay for, the upper bound that post-consensus
-/// validation allows. Only tests reach it, by registering the
-/// `admit-without-input-checks` fail point.
+/// validation allows. Post-consensus validation drops the transaction when a
+/// Move authenticator of `transaction` names a shared object, such as a
+/// shared account, since this record has no entry for it. Only tests reach
+/// it, by registering the `admit-without-input-checks` fail point.
 fn attest_without_dry_run(transaction: &VerifiedTransaction) -> AttestationData {
     let transaction = transaction.data().transaction();
 

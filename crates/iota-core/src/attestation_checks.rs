@@ -86,26 +86,16 @@ pub(crate) fn check_attested_shared_object_versions(
 
     // An honest attestor attests only after the authentication of its dry run
     // passed, and authentication fails on a deleted input, so it records every
-    // shared input of the Move authenticators. A shared input of the
-    // transaction itself has no entry when the dry run read it as deleted.
+    // shared input of the Move authenticators.
     let missing = shared_inputs
         .iter()
         .map(|(index, _)| *index)
-        .find(|index| is_authenticator_input(index) && !recorded_indexes.contains(index));
+        .find(|index| !recorded_indexes.contains(index));
     if let Some(index) = missing {
         return Err(IotaError::AttestationAuthenticatorInputMissing { index });
     }
 
     Ok(())
-}
-
-/// Whether `index` names an argument or the account of a Move authenticator.
-fn is_authenticator_input(index: &SharedInputIndex) -> bool {
-    match index {
-        SharedInputIndex::TransactionInput(_) => false,
-        SharedInputIndex::AuthenticatorArgument { .. }
-        | SharedInputIndex::AuthenticatorAccount { .. } => true,
-    }
 }
 
 #[cfg(test)]
@@ -120,21 +110,37 @@ mod tests {
 
     use super::*;
 
-    // The indexes at which the transaction of
-    // `build_transaction_naming_shared_objects()` names a shared object.
-    const POOL: SharedInputIndex = SharedInputIndex::TransactionInput(1);
-    const ACCOUNT_AS_INPUT: SharedInputIndex = SharedInputIndex::TransactionInput(3);
+    // The indexes at which the Move authenticators of the transaction of
+    // `build_transaction_naming_shared_objects()` name a shared object.
     const CLOCK: SharedInputIndex = SharedInputIndex::AuthenticatorArgument {
         authenticator: 0,
         argument: 1,
     };
     const ACCOUNT: SharedInputIndex = SharedInputIndex::AuthenticatorAccount { authenticator: 0 };
+    const ACCOUNT_AS_ARGUMENT: SharedInputIndex = SharedInputIndex::AuthenticatorArgument {
+        authenticator: 1,
+        argument: 0,
+    };
+    const SECOND_ACCOUNT: SharedInputIndex =
+        SharedInputIndex::AuthenticatorAccount { authenticator: 1 };
 
-    /// Returns a transaction and the id of its account. The transaction takes
-    /// a pure value at input 0, a shared pool at input 1, an owned object at
-    /// input 2 and the account at input 3. Its Move authenticator takes a
-    /// pure value and then a shared clock as its arguments, and authenticates
-    /// the account.
+    /// A record that an honest attestor can give for the transaction of
+    /// `build_transaction_naming_shared_objects()`. The account has the same
+    /// version at both of its indexes.
+    const HONEST_RECORD: [(SharedInputIndex, u64); 4] = [
+        (CLOCK, 2),
+        (ACCOUNT, 7),
+        (ACCOUNT_AS_ARGUMENT, 7),
+        (SECOND_ACCOUNT, 5),
+    ];
+
+    /// Returns a transaction and the id of the account of its first Move
+    /// authenticator. The transaction takes a pure value at input 0, a shared
+    /// pool at input 1 and an owned object at input 2. Its first Move
+    /// authenticator takes a pure value and then a shared clock as its
+    /// arguments, and authenticates the account. Its second Move authenticator
+    /// takes that account and then an immutable object as its arguments, and
+    /// authenticates another account.
     fn build_transaction_naming_shared_objects() -> (TransactionEnvelope, ObjectId) {
         let shared = |mutable| SharedObjectReference {
             object_id: ObjectId::random(),
@@ -147,17 +153,21 @@ mod tests {
                 CallArg::Pure(vec![0]),
                 CallArg::Shared(shared(true)),
                 CallArg::ImmutableOrOwned(random_object_ref()),
-                CallArg::Shared(SharedObjectReference {
-                    mutable: true,
-                    ..account
-                }),
             ],
             commands: vec![],
         };
-        let authenticator = MoveAuthenticator::V1(MoveAuthenticatorV1::new(
+        let first_authenticator = MoveAuthenticator::V1(MoveAuthenticatorV1::new(
             vec![CallArg::Pure(vec![1]), CallArg::Shared(shared(false))],
             vec![],
             account,
+        ));
+        let second_authenticator = MoveAuthenticator::V1(MoveAuthenticatorV1::new(
+            vec![
+                CallArg::Shared(account),
+                CallArg::ImmutableOrOwned(random_object_ref()),
+            ],
+            vec![],
+            shared(false),
         ));
         let transaction = TransactionEnvelope::from_user_sig_data(
             Transaction::new_programmable(
@@ -167,7 +177,10 @@ mod tests {
                 1,
                 1,
             ),
-            vec![UserSignature::MoveAuthenticator(authenticator)],
+            vec![
+                UserSignature::MoveAuthenticator(first_authenticator),
+                UserSignature::MoveAuthenticator(second_authenticator),
+            ],
         );
 
         (transaction, account.object_id)
@@ -190,54 +203,41 @@ mod tests {
         check_attested_shared_object_versions(transaction, &attestation)
     }
 
-    /// The account has the same version at both of its indexes, as in the
-    /// record of an honest attestor.
+    /// The record of an honest attestor passes. The shared pool that the
+    /// transaction itself takes has no index and needs no entry.
     #[test]
     fn record_of_every_shared_input_passes() {
         let (transaction, _) = build_transaction_naming_shared_objects();
 
-        assert_eq!(
-            check(
-                &transaction,
-                &[(POOL, 4), (ACCOUNT_AS_INPUT, 7), (CLOCK, 2), (ACCOUNT, 7)]
-            ),
-            Ok(())
-        );
+        assert_eq!(check(&transaction, &HONEST_RECORD), Ok(()));
     }
 
-    /// An honest attestor records no version for a shared input that its dry
-    /// run read as deleted. Only a shared input of a Move authenticator needs
-    /// an entry.
-    #[test]
-    fn record_may_leave_out_shared_inputs_of_transaction() {
-        let (transaction, _) = build_transaction_naming_shared_objects();
-
-        assert_eq!(check(&transaction, &[(CLOCK, 2), (ACCOUNT, 7)]), Ok(()));
-    }
-
-    /// The indexes name a pure value, an owned object, nothing past the last
-    /// input or argument, and a Move authenticator the transaction does not
-    /// have.
+    /// The indexes name a pure value, an immutable object, nothing past the
+    /// last argument, and a Move authenticator the transaction does not have.
     #[test]
     fn index_naming_no_shared_object_is_refused() {
         let (transaction, _) = build_transaction_naming_shared_objects();
 
         for index in [
-            SharedInputIndex::TransactionInput(0),
-            SharedInputIndex::TransactionInput(2),
-            SharedInputIndex::TransactionInput(4),
             SharedInputIndex::AuthenticatorArgument {
                 authenticator: 0,
                 argument: 0,
             },
             SharedInputIndex::AuthenticatorArgument {
+                authenticator: 1,
+                argument: 1,
+            },
+            SharedInputIndex::AuthenticatorArgument {
                 authenticator: 0,
                 argument: 2,
             },
-            SharedInputIndex::AuthenticatorAccount { authenticator: 1 },
+            SharedInputIndex::AuthenticatorAccount { authenticator: 2 },
         ] {
+            let mut entries = HONEST_RECORD.to_vec();
+            entries.push((index, 1));
+
             assert_eq!(
-                check(&transaction, &[(CLOCK, 2), (ACCOUNT, 7), (index, 1)]),
+                check(&transaction, &entries),
                 Err(IotaError::AttestationIndexNamesNoSharedObject { index }),
                 "{index:?}"
             );
@@ -248,9 +248,11 @@ mod tests {
     #[test]
     fn repeated_index_is_refused() {
         let (transaction, _) = build_transaction_naming_shared_objects();
+        let mut entries = HONEST_RECORD.to_vec();
+        entries.push((CLOCK, 2));
 
         assert_eq!(
-            check(&transaction, &[(CLOCK, 2), (ACCOUNT, 7), (CLOCK, 2)]),
+            check(&transaction, &entries),
             Err(IotaError::AttestationIndexRepeated { index: CLOCK })
         );
     }
@@ -264,7 +266,7 @@ mod tests {
         assert_eq!(
             check(
                 &transaction,
-                &[(ACCOUNT_AS_INPUT, 7), (CLOCK, 2), (ACCOUNT, 8)]
+                &[(ACCOUNT, 7), (CLOCK, 2), (ACCOUNT_AS_ARGUMENT, 8)]
             ),
             Err(IotaError::AttestationObjectVersionsDiffer {
                 object_id: account_id,
@@ -274,20 +276,24 @@ mod tests {
         );
     }
 
-    /// Both the shared argument and the account of the Move authenticator need
-    /// an entry.
+    /// Every shared argument and account of the Move authenticators needs an
+    /// entry.
     #[test]
     fn missing_authenticator_input_is_refused() {
         let (transaction, _) = build_transaction_naming_shared_objects();
 
-        assert_eq!(
-            check(&transaction, &[(POOL, 4), (ACCOUNT, 7)]),
-            Err(IotaError::AttestationAuthenticatorInputMissing { index: CLOCK })
-        );
-        assert_eq!(
-            check(&transaction, &[(POOL, 4), (CLOCK, 2)]),
-            Err(IotaError::AttestationAuthenticatorInputMissing { index: ACCOUNT })
-        );
+        for (missing, _) in HONEST_RECORD {
+            let entries: Vec<_> = HONEST_RECORD
+                .into_iter()
+                .filter(|(index, _)| *index != missing)
+                .collect();
+
+            assert_eq!(
+                check(&transaction, &entries),
+                Err(IotaError::AttestationAuthenticatorInputMissing { index: missing }),
+                "{missing:?}"
+            );
+        }
     }
 
     #[test]
