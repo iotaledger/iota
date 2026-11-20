@@ -9,7 +9,7 @@ use std::collections::{HashMap, HashSet};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{ObjectId, Version};
 use iota_types::{
-    attestation::{Attestation, SharedInputIndex, list_shared_inputs},
+    attestation::{Attestation, SharedInputIndex, list_move_authenticator_shared_objects},
     error::{IotaError, IotaResult},
     transaction::{TransactionAPI, TransactionEnvelope},
 };
@@ -55,12 +55,12 @@ pub(crate) fn check_attested_units(
 /// [`IotaError::AttestationObjectVersionsDiffer`]. Otherwise, returns
 /// [`IotaError::AttestationAuthenticatorInputMissing`] for the first shared
 /// input of a Move authenticator that has no entry, in the order of
-/// [`list_shared_inputs()`].
+/// [`list_move_authenticator_shared_objects()`].
 pub(crate) fn check_attested_shared_object_versions(
     transaction: &TransactionEnvelope,
     attestation: &Attestation,
 ) -> IotaResult {
-    let shared_inputs = list_shared_inputs(transaction.data());
+    let shared_inputs = list_move_authenticator_shared_objects(transaction.data());
     let object_ids: HashMap<SharedInputIndex, ObjectId> = shared_inputs
         .iter()
         .map(|(index, object)| (*index, object.object_id))
