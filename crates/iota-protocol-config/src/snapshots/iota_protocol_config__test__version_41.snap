@@ -84,6 +84,7 @@ feature_flags:
   enable_validator_attestation: true
   consensus_commit_transactions_once_traversed: true
   secp256r1_ecrecover_checks_x_below_p: true
+  enable_transaction_dependencies: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000
