@@ -134,7 +134,7 @@ use crate::{
     },
     execution_cache::{ObjectCacheRead, TransactionCacheRead, cache_types::CacheResult},
     execution_scheduler::transaction_manager::{
-        SchedulableAttestedTransaction, VerifiedExecutableAttestedTransaction,
+        AttestationSource, SchedulableAttestedTransaction, VerifiedExecutableAttestedTransaction,
     },
     fallback_fetch::do_fallback_lookup,
     module_cache_metrics::ResolverMetrics,
@@ -6090,6 +6090,12 @@ impl AuthorityPerEpochStore {
         };
         let verified_transactions = transactions
             .into_iter()
+            .map(|mut transaction| {
+                // Sequenced in this commit, as the handler would record.
+                transaction.consensus_index.sub_dag_index = commit_index;
+                transaction.consensus_index.last_committed_round = round;
+                transaction
+            })
             .filter_map(|transaction| {
                 self.verify_consensus_transaction(
                     transaction,
@@ -6129,7 +6135,10 @@ impl AuthorityPerEpochStore {
             .iter()
             .cloned()
             .map(|tx| {
-                Schedulable::Transaction(VerifiedExecutableAttestedTransaction::new(tx, None))
+                Schedulable::Transaction(VerifiedExecutableAttestedTransaction::new(
+                    tx,
+                    AttestationSource::Unattested,
+                ))
             })
             .collect();
         let assigned_versions = self.process_consensus_transaction_shared_object_versions(
@@ -6727,7 +6736,7 @@ impl AuthorityPerEpochStore {
         let VerifiedSequencedConsensusTransaction(SequencedConsensusTransaction {
             certificate_author_index: _,
             certificate_author,
-            consensus_index: _,
+            consensus_index,
             transaction,
         }) = transaction;
         let tracking_id = transaction.get_tracking_id();
@@ -6789,8 +6798,10 @@ impl AuthorityPerEpochStore {
                     return Ok(ConsensusTransactionResult::Ignored);
                 }
 
-                let attested_transaction =
-                    VerifiedExecutableAttestedTransaction::new(transaction, None);
+                let attested_transaction = VerifiedExecutableAttestedTransaction::new(
+                    transaction,
+                    AttestationSource::Unattested,
+                );
 
                 let scheduling_result = self.try_schedule(
                     &attested_transaction,
@@ -7039,6 +7050,13 @@ impl AuthorityPerEpochStore {
                 // In contrast to `new_from_certificate` (the proof was authorized by 2f+1
                 // pre-consensus signatures), the `ConsensusOrdered` certificate proof
                 // is authorized by consensus ordering post owned-object conflict resolution.
+                let attestation = match attested_tx.attestation.clone() {
+                    Some(attestation) => AttestationSource::Attestation {
+                        attestation,
+                        sequenced_at: *consensus_index,
+                    },
+                    None => AttestationSource::Unattested,
+                };
                 let executable_tx = VerifiedExecutableAttestedTransaction::new(
                     VerifiedExecutableTransaction::new_unchecked(
                         ExecutableTransaction::new_from_data_and_sig(
@@ -7046,7 +7064,7 @@ impl AuthorityPerEpochStore {
                             CertificateProof::ConsensusOrdered(self.epoch()),
                         ),
                     ),
-                    attested_tx.attestation.clone(),
+                    attestation,
                 );
 
                 let scheduling_result = self.try_schedule(
@@ -7323,7 +7341,7 @@ impl AuthorityPerEpochStore {
         ConsensusTransactionResult::Scheduled {
             transaction: VerifiedExecutableAttestedTransaction::new(
                 system_transaction.clone(),
-                None,
+                AttestationSource::Unattested,
             ),
             start_time: 0,
         }

@@ -16,6 +16,7 @@ use std::{
     cell::Cell,
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
+    time::Duration,
 };
 
 use iota_common::fatal;
@@ -23,7 +24,7 @@ use iota_execution::Executor;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, Digest, GasPayment, MoveAuthenticator, ObjectId, ObjectReference, Transaction,
-    TransactionDigest, Version,
+    TransactionDigest, TransactionEffects, TransactionKind, Version,
 };
 use iota_types::{
     account_abstraction::authenticator_function::{
@@ -35,43 +36,217 @@ use iota_types::{
     attestation::{self, Attestation},
     auth_context::AuthContextData,
     committee::EpochId,
+    effects::TransactionEffectsAPI,
     error::{ExecutionError, ExecutionErrorKind, IotaError},
     execution::{is_any_invariant_violation, is_cancellation, unwrap_move_authentication_error},
     gas::{IotaGasStatus, IotaGasStatusAPI},
     metrics::LimitsMetrics,
     move_authenticator::MoveAuthenticatorExt,
-    storage::BackingStore,
+    storage::{BackingStore, ObjectKey},
     transaction::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult, ObjectReadResultKind,
         TransactionAPI,
     },
 };
 
-use crate::execution_cache::ObjectCacheRead;
+use crate::{
+    authority::authority_per_epoch_store::{
+        AuthorityPerEpochStore, ExecutionIndices,
+        handler_object_state::{CommitIndex, HandlerProcessedObject},
+    },
+    execution_cache::{ObjectCacheRead, TransactionCacheRead},
+};
 
-/// Resolves whether an object version was superseded (overwritten, deleted or
-/// wrapped) by a transaction of the current epoch — such versions stay in the
-/// epoch's historic bucket and can be re-run at.
+/// When a recorded version stopped being current: the commit of the
+/// transaction that replaced it, the leader round when that transaction is a
+/// commit prologue or a deny-rules update, which carry no commit index, or
+/// only the epoch when it is another system transaction, which carries
+/// neither, or when no window is set.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SupersededAt {
+    Commit(CommitIndex),
+    Round(u64),
+    Epoch,
+}
+
+/// Finds when a recorded version stopped being current this epoch.
 pub(crate) struct AttestedObjectVersions<'a> {
     pub(crate) object_cache: &'a dyn ObjectCacheRead,
-    pub(crate) current_epoch: EpochId,
+    pub(crate) transaction_cache: &'a dyn TransactionCacheRead,
+    pub(crate) epoch_store: &'a AuthorityPerEpochStore,
+    /// Where consensus first sequenced the attested transaction.
+    pub(crate) sequenced_at: ExecutionIndices,
+    /// How many commits, or rounds, before `sequenced_at` a supersession may
+    /// be; `None` admits any of the epoch.
+    pub(crate) window: Option<u64>,
 }
 
 impl AttestedObjectVersions<'_> {
-    pub(crate) fn superseded_in_current_epoch(
+    /// When `attested` stopped being current, if a transaction of this epoch
+    /// replaced it inside the window.
+    ///
+    /// # Panics
+    ///
+    /// If a read fails, or the transaction that replaced `attested` has no
+    /// stored body, no row for its gas coin, or does not record its effects:
+    /// a verdict every validator has to reach alike must not depend on this
+    /// node's storage.
+    pub(crate) fn superseded_within_window(
         &self,
         object_id: &ObjectId,
-        version: Version,
-    ) -> bool {
-        // A read failure must not decide a verdict every validator has to
-        // reach alike.
-        self.object_cache
-            .try_object_superseded_in_epoch(object_id, version, self.current_epoch)
+        attested: Version,
+    ) -> Option<SupersededAt> {
+        let epoch = self.epoch_store.epoch();
+        let (replacing, uncommitted) = self
+            .object_cache
+            .try_find_lowest_version_above_in_epoch(object_id, attested, epoch)
             .unwrap_or_else(|error| {
-                fatal!(
-                    "cannot read whether {object_id}@{version} was superseded this epoch: {error}"
-                )
-            })
+                fatal!("cannot read the version after {object_id}@{attested}: {error}")
+            })?;
+        let object = self
+            .object_cache
+            .try_get_object_by_key_with_historic_fallback(object_id, replacing, epoch)
+            .unwrap_or_else(|error| fatal!("cannot read {object_id}@{replacing}: {error}"));
+        let digest = match object {
+            Some(object) => object.previous_transaction,
+            // Deleted: its row names the transaction. A wrap's row names
+            // none, but neither a shared object nor a dynamic field is ever
+            // wrapped.
+            None => self.row(&ObjectKey(*object_id, replacing))?.deleted_by?,
+        };
+        let effects = self.effects_in_epoch(&digest, uncommitted)?;
+        // Consuming another version, or none, means `attested` was never a
+        // version of the object, or was superseded before this epoch.
+        let consumed = effects
+            .modified_at_versions()
+            .into_iter()
+            .find(|modified| modified.object_id() == object_id)?
+            .version();
+        if consumed != attested {
+            return None;
+        }
+        // Without a window, being superseded this epoch is all that counts.
+        let Some(window) = self.window else {
+            return Some(SupersededAt::Epoch);
+        };
+        let at = self.transaction_position(&digest, &effects);
+        within_freshness_window(at, self.sequenced_at, window).then_some(at)
+    }
+
+    /// The effects of `digest` when it executed in this epoch, `None` when it
+    /// ran in an earlier one, whose records a node may have pruned. Waits for
+    /// them when the version naming `digest` is `uncommitted`: a version is
+    /// readable before its writer records its effects.
+    ///
+    /// # Panics
+    ///
+    /// If a read fails, or the effects waited for are still missing after
+    /// ten seconds.
+    fn effects_in_epoch(
+        &self,
+        digest: &TransactionDigest,
+        uncommitted: bool,
+    ) -> Option<TransactionEffects> {
+        // The writer records its effects in the synchronous call that made
+        // its outputs readable: a wait this long means that order broke.
+        const PAUSE: Duration = Duration::from_millis(1);
+        const MAX_PAUSES: u32 = 10_000;
+
+        let epoch = self.epoch_store.epoch();
+        let read = || {
+            let effects_digest = self
+                .transaction_cache
+                .try_multi_get_executed_effects_digests_in_epoch(epoch, &[*digest])
+                .unwrap_or_else(|error| fatal!("cannot read whether {digest} executed: {error}"))
+                .pop()
+                .flatten()?;
+            self.transaction_cache
+                .try_multi_get_effects_in_epoch(epoch, &[effects_digest])
+                .unwrap_or_else(|error| fatal!("cannot read the effects of {digest}: {error}"))
+                .pop()
+                .flatten()
+        };
+        let mut pauses = 0;
+        loop {
+            match read() {
+                // The committed caches outlive the epoch, so either read can
+                // answer for an earlier one.
+                Some(effects) => return (effects.epoch() == epoch).then_some(effects),
+                None if !uncommitted => return None,
+                None if pauses == MAX_PAUSES => fatal!(
+                    "no effects for {digest} {:?} after its outputs became readable",
+                    PAUSE * MAX_PAUSES
+                ),
+                // The writer is inside the cache write that records them.
+                None => {
+                    pauses += 1;
+                    std::thread::sleep(PAUSE);
+                }
+            }
+        }
+    }
+
+    /// Where `digest` ran: its commit; its round for a commit prologue or a
+    /// deny-rules update; only the epoch for any other system transaction.
+    ///
+    /// # Panics
+    ///
+    /// If a read fails, or `digest` has no stored body or no row for its gas
+    /// coin.
+    fn transaction_position(
+        &self,
+        digest: &TransactionDigest,
+        effects: &TransactionEffects,
+    ) -> SupersededAt {
+        let transaction = self
+            .transaction_cache
+            .try_multi_get_transaction_blocks_in_epoch(self.epoch_store.epoch(), &[*digest])
+            .unwrap_or_else(|error| fatal!("cannot read transaction {digest}: {error}"))
+            .pop()
+            .flatten()
+            .unwrap_or_else(|| fatal!("no transaction {digest} behind its executed effects"));
+        match transaction.inner().transaction().kind() {
+            TransactionKind::ConsensusCommitPrologueV1(prologue) => {
+                return SupersededAt::Round(prologue.round);
+            }
+            TransactionKind::TransactionDenyRulesUpdate(update) => {
+                return SupersededAt::Round(update.round);
+            }
+            _ if transaction.is_system_tx() => return SupersededAt::Epoch,
+            _ => {}
+        }
+        // Recorded before the outputs of `digest` became readable.
+        let gas = effects.gas_object();
+        let gas = gas.reference();
+        let row = self
+            .row(&ObjectKey(gas.object_id, gas.version))
+            .unwrap_or_else(|| fatal!("no row for the gas coin of {digest}"));
+        SupersededAt::Commit(row.produced_at)
+    }
+
+    /// The handler row at `key`.
+    ///
+    /// # Panics
+    ///
+    /// If the read fails.
+    fn row(&self, key: &ObjectKey) -> Option<HandlerProcessedObject> {
+        self.epoch_store
+            .handler_processed_object(key)
+            .unwrap_or_else(|error| fatal!("cannot read the row of {key:?}: {error}"))
+    }
+}
+
+/// Whether a version superseded at `at` was current recently enough before
+/// `sequenced_at` for an honest dry run to have read it: at or after the
+/// window's start. A supersession known only by its epoch cannot be
+/// measured, so it is admitted.
+fn within_freshness_window(at: SupersededAt, sequenced_at: ExecutionIndices, window: u64) -> bool {
+    match at {
+        SupersededAt::Commit(commit) => commit >= sequenced_at.sub_dag_index.saturating_sub(window),
+        SupersededAt::Round(round) => {
+            round >= sequenced_at.last_committed_round.saturating_sub(window)
+        }
+        SupersededAt::Epoch => true,
     }
 }
 
@@ -176,9 +351,10 @@ impl AttestationVerdictContext<'_> {
     /// # Panics
     ///
     /// If the recorded state cannot be read. The drift check only admits
-    /// versions superseded this epoch, which the epoch's historic bucket keeps,
-    /// so a missing or unreadable one is a fault of this node and must not
-    /// become a verdict the other validators do not share.
+    /// versions superseded this epoch within the freshness window, which the
+    /// epoch's historic bucket keeps, so a missing or unreadable one is a fault
+    /// of this node and must not become a verdict the other validators do not
+    /// share.
     pub(crate) fn decide_authentication_failure_blame(
         &self,
         kind: &ExecutionErrorKind,
@@ -213,7 +389,8 @@ impl AttestationVerdictContext<'_> {
             &pinned_by_transaction,
             |object_id, version| {
                 self.attested_versions
-                    .superseded_in_current_epoch(object_id, version)
+                    .superseded_within_window(object_id, version)
+                    .is_some()
             },
         ) {
             return AuthenticationFailureBlame::Attestor {
@@ -236,7 +413,7 @@ fn should_reauthenticate(
     attested_versions: &[ObjectReference],
     executed_versions: &BTreeMap<ObjectId, Version>,
     pinned_by_transaction: &BTreeSet<ObjectId>,
-    superseded_in_current_epoch: impl Fn(&ObjectId, Version) -> bool,
+    superseded_within_window: impl Fn(&ObjectId, Version) -> bool,
 ) -> bool {
     let mut drifted = false;
     for object_ref in attested_versions {
@@ -248,15 +425,15 @@ fn should_reauthenticate(
             continue;
         }
         // A recorded version ahead of the executed one cannot come from an
-        // honest dry run. A recorded version superseded before this epoch was
-        // never live this epoch, so an honest dry run could not have seen it.
+        // honest dry run. A recorded version superseded before the freshness
+        // window was not current when an honest dry run could have read it.
         // An honest dry run records no input the transaction pins, so a
         // differing version for one is a lie as well; judged on its own, it
         // would send the re-run against an object the transaction never named
         // at that version.
         if attested > executed
             || pinned_by_transaction.contains(object_ref.object_id())
-            || !superseded_in_current_epoch(object_ref.object_id(), attested)
+            || !superseded_within_window(object_ref.object_id(), attested)
         {
             return false;
         }
@@ -505,7 +682,7 @@ impl AttestationVerdictContext<'_> {
                         .try_get_object_by_key_with_historic_fallback(
                             &object_id,
                             version,
-                            self.attested_versions.current_epoch,
+                            self.epoch_id,
                         )
                         .unwrap_or_else(|error| {
                             fatal!("cannot read {object_id}@{version}: {error}")
@@ -816,5 +993,52 @@ mod tests {
         ]);
 
         assert!(!reauthenticates(&[account, input], &executed, superseded));
+    }
+
+    /// The window admits a supersession at its floor and inside it; a
+    /// prologue's round is measured against the sequencing round, and a
+    /// supersession known only by its epoch is always admitted.
+    #[test]
+    fn freshness_window_admits_recent_supersessions_only() {
+        let sequenced_at = |sub_dag_index, last_committed_round| ExecutionIndices {
+            last_committed_round,
+            sub_dag_index,
+            transaction_index: 0,
+        };
+        assert!(within_freshness_window(
+            SupersededAt::Commit(10),
+            sequenced_at(20, 25),
+            10
+        ));
+        assert!(within_freshness_window(
+            SupersededAt::Commit(15),
+            sequenced_at(20, 25),
+            10
+        ));
+        assert!(!within_freshness_window(
+            SupersededAt::Commit(9),
+            sequenced_at(20, 25),
+            10
+        ));
+        assert!(within_freshness_window(
+            SupersededAt::Round(15),
+            sequenced_at(20, 25),
+            10
+        ));
+        assert!(!within_freshness_window(
+            SupersededAt::Round(14),
+            sequenced_at(20, 25),
+            10
+        ));
+        assert!(within_freshness_window(
+            SupersededAt::Commit(1),
+            sequenced_at(5, 5),
+            32
+        ));
+        assert!(within_freshness_window(
+            SupersededAt::Epoch,
+            sequenced_at(20, 25),
+            10
+        ));
     }
 }

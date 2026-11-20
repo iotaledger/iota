@@ -1128,12 +1128,6 @@ impl StoreState {
         }
     }
 
-    /// Whether `version` was moved into `epoch`'s bucket, which is not expired
-    /// while the epoch runs.
-    fn superseded_in_epoch(&self, id: &ObjectId, version: Version, epoch: EpochId) -> bool {
-        epoch == self.epoch && self.moved.contains(&ObjectKey(*id, version))
-    }
-
     /// [`Self::by_key`], or else the version moved into `epoch`'s bucket,
     /// which is not expired while the epoch runs.
     fn by_key_with_history(
@@ -1399,13 +1393,13 @@ impl ObjectCacheRead for FakeStore {
         Ok(self.lock().by_key_with_history(object_id, version, epoch))
     }
 
-    fn try_object_superseded_in_epoch(
+    fn try_find_lowest_version_above_in_epoch(
         &self,
-        object_id: &ObjectId,
-        version: Version,
-        epoch: EpochId,
-    ) -> IotaResult<bool> {
-        Ok(self.lock().superseded_in_epoch(object_id, version, epoch))
+        _object_id: &ObjectId,
+        _version: Version,
+        _epoch: EpochId,
+    ) -> IotaResult<Option<(Version, bool)>> {
+        unreachable!("post-consensus validation does not judge attestations")
     }
 
     fn try_multi_get_objects_by_key(

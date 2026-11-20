@@ -368,6 +368,8 @@ max_deferral_rounds_for_congestion_control: 10
 min_checkpoint_interval_ms: 200
 checkpoint_rate_window_size: 20
 checkpoint_summary_version_specific_data: 2
+attestation_max_refuted_units_squared: 100000000
+attestation_freshness_window_commits: 12000
 max_soft_bundle_size: 5
 max_accumulated_txn_cost_per_object_in_mysticeti_commit: 10
 max_committee_members_count: 100

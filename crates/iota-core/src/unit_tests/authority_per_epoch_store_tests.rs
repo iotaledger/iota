@@ -27,8 +27,8 @@ use crate::{
     authority::{
         AuthorityState,
         authority_per_epoch_store::{
-            AuthorityPerEpochStore, CongestionControlParameters, compute_deny_rule_update_chunks,
-            consensus_quarantine::ConsensusCommitOutput,
+            AuthorityPerEpochStore, CongestionControlParameters, ExecutionIndices,
+            compute_deny_rule_update_chunks, consensus_quarantine::ConsensusCommitOutput,
         },
         epoch_start_configuration::EpochStartConfiguration,
         shared_object_congestion_tracker::{
@@ -37,7 +37,9 @@ use crate::{
         },
         test_authority_builder::TestAuthorityBuilder,
     },
-    execution_scheduler::transaction_manager::VerifiedExecutableAttestedTransaction,
+    execution_scheduler::transaction_manager::{
+        AttestationSource, VerifiedExecutableAttestedTransaction,
+    },
 };
 
 /// Records an overload notification through the same path
@@ -1023,13 +1025,16 @@ fn attest(
     let (inner, _) = tx.into_parts();
     VerifiedExecutableAttestedTransaction::new(
         inner,
-        Some(Attestation::Authority {
-            payload: AttestationData::V1 {
-                computation_units,
-                object_versions: vec![],
+        AttestationSource::Attestation {
+            attestation: Attestation::Authority {
+                payload: AttestationData::V1 {
+                    computation_units,
+                    object_versions: vec![],
+                },
+                authority_index: 0,
             },
-            authority_index: 0,
-        }),
+            sequenced_at: ExecutionIndices::default(),
+        },
     )
 }
 

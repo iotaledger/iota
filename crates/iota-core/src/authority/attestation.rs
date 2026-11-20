@@ -462,7 +462,7 @@ pub(super) fn attestation_record(
     match source {
         AttestationSource::Unattested => None,
         AttestationSource::Certified(record) => *record,
-        AttestationSource::Attestation(attestation) => {
+        AttestationSource::Attestation { attestation, .. } => {
             // The claim is only measurable against a body that ran.
             let executed_units = outcome
                 .body_ran
@@ -615,6 +615,7 @@ mod tests {
     use iota_types::{effects::TransactionEffectsExtForTesting, error::IotaError, object::Object};
 
     use super::*;
+    use crate::authority::authority_per_epoch_store::ExecutionIndices;
 
     /// A refuted record counts the units execution's own run consumed plus the
     /// judge's re-run, even when the effects charge nothing.
@@ -638,7 +639,10 @@ mod tests {
         };
 
         let record = attestation_record(
-            &AttestationSource::Attestation(attestation),
+            &AttestationSource::Attestation {
+                attestation,
+                sequenced_at: ExecutionIndices::default(),
+            },
             &outcome,
             &effects,
             1,
@@ -674,7 +678,10 @@ mod tests {
         };
 
         let record = attestation_record(
-            &AttestationSource::Attestation(attestation),
+            &AttestationSource::Attestation {
+                attestation,
+                sequenced_at: ExecutionIndices::default(),
+            },
             &outcome,
             &effects,
             1,

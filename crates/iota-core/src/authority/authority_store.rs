@@ -534,18 +534,6 @@ impl AuthorityStore {
             .get_marker_value(object_id, version, epoch_id)
     }
 
-    /// Whether `version` of `object_id` stopped being the current version
-    /// during `epoch`; see [`HistoricObjects::relocated_in_epoch`].
-    pub fn object_superseded_in_epoch(
-        &self,
-        object_id: &ObjectId,
-        version: Version,
-        epoch: EpochId,
-    ) -> IotaResult<bool> {
-        self.historic_objects
-            .relocated_in_epoch(epoch, &ObjectKey(*object_id, version))
-    }
-
     pub fn get_latest_marker(
         &self,
         object_id: &ObjectId,
@@ -1266,6 +1254,29 @@ impl AuthorityStore {
         self.initialize_live_object_markers_impl(&mut batch, objects)
             .unwrap();
         batch.write().unwrap();
+    }
+
+    /// The lowest version of `object_id` above `version` among the newest row
+    /// of the live `objects` table and what `epoch`'s historic bucket holds.
+    pub fn find_lowest_version_above_in_epoch(
+        &self,
+        object_id: &ObjectId,
+        version: Version,
+        epoch: EpochId,
+    ) -> IotaResult<Option<Version>> {
+        // Only the newest live row: a commit deletes the versions it
+        // supersedes from the live table, and a seek from an older version
+        // would step over every deletion. Read before the bucket; see
+        // `HistoricObjectsBucket::tombstones`.
+        let live = self
+            .perpetual_tables
+            .get_latest_object_or_tombstone(*object_id)?
+            .map(|(key, _)| key.1)
+            .filter(|live| *live > version);
+        let relocated = self
+            .historic_objects
+            .lowest_version_above_in_epoch(epoch, object_id, version)?;
+        Ok(live.into_iter().chain(relocated).min())
     }
 
     /// The newest version of `object_id` at or below `version`, from the live

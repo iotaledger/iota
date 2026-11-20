@@ -293,6 +293,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             transaction fails after the dependent was sequenced, the
 //             dependent executes as failed with `TransactionDependencyFailed`.
 //             Raise `max_auth_gas` to 0.001 IOTA on devnet.
+//             Set the attestation freshness window on devnet.
+//             Set the penalty for refuted attestations on devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -1722,6 +1724,13 @@ pub struct ProtocolConfig {
     /// of the epoch. Unset disables the penalty and the cutoff.
     attestation_max_refuted_units_squared: Option<u64>,
 
+    /// How many commits before the one an attested transaction was first
+    /// sequenced in a recorded version may have stopped being current for the
+    /// judge to re-run authentication at it; leader rounds for a version a
+    /// commit prologue or a deny-rules update superseded, the only position
+    /// those carry. Unset admits any commit of the epoch.
+    attestation_freshness_window_commits: Option<u64>,
+
     /// The max number of transactions that can be included in a single Soft
     /// Bundle.
     max_soft_bundle_size: Option<u64>,
@@ -2526,6 +2535,13 @@ impl ProtocolConfig {
                     .expect("failed to parse ProtocolConfig feature flags override env variables");
 
             feature_flag_overrides.apply_to(&mut ret.feature_flags);
+
+            // An environment override can switch attestation off but cannot
+            // unset a parameter, so the parameters that require it go with
+            // the flag.
+            if !ret.feature_flags.enable_validator_attestation {
+                ret.unset_attestation_parameters();
+            }
         }
 
         // Devnet runs the P-COOL flow from version 32, before the settings it
@@ -2630,6 +2646,12 @@ impl ProtocolConfig {
                  pass_validator_scores_to_advance_epoch"
             );
         }
+        if ret.attestation_freshness_window_commits.is_some() {
+            assert!(
+                ret.enable_validator_attestation(),
+                "attestation_freshness_window_commits requires enable_validator_attestation"
+            );
+        }
         // A transaction without shared inputs that waits too long for its
         // dependency is cancelled through its gas object, which carries the
         // suggested gas price.
@@ -2642,6 +2664,13 @@ impl ProtocolConfig {
         }
 
         ret
+    }
+
+    /// Unsets the parameters [`Self::get_for_version`] accepts only with
+    /// `enable_validator_attestation`.
+    fn unset_attestation_parameters(&mut self) {
+        self.attestation_max_refuted_units_squared = None;
+        self.attestation_freshness_window_commits = None;
     }
 
     /// Get the value ProtocolConfig that are in effect during the given
@@ -3158,6 +3187,7 @@ impl ProtocolConfig {
             checkpoint_summary_version_specific_data: Some(1),
             attestor_accuracy_tolerance_percentage: None,
             attestation_max_refuted_units_squared: None,
+            attestation_freshness_window_commits: None,
 
             max_soft_bundle_size: Some(5),
 
@@ -4034,6 +4064,13 @@ impl ProtocolConfig {
                         // Raise max_auth_gas to 0.001 IOTA, the minimum transaction
                         // cost at a gas price of 1000.
                         cfg.max_auth_gas = Some(1_000_000);
+
+                        // Ten minutes at devnet's 20 commits a second.
+                        cfg.attestation_freshness_window_commits = Some(12_000);
+
+                        // Cuts an attestor off after no more than 100 refuted
+                        // attestations per epoch at the current `max_auth_gas`.
+                        cfg.attestation_max_refuted_units_squared = Some(100_000_000);
                     }
                 }
                 // Use this template when making changes:
@@ -4505,8 +4542,12 @@ impl ProtocolConfig {
         }
     }
 
+    /// Turning attestation off also unsets the parameters that require it.
     pub fn set_enable_validator_attestation_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_validator_attestation = val;
+        if !val {
+            self.unset_attestation_parameters();
+        }
     }
 }
 
@@ -5003,6 +5044,30 @@ mod test {
                             .is_some(),
                         "version {version} on {chain:?} runs the P-COOL flow without the \
                          regex reference safety budget"
+                    );
+                }
+            }
+        }
+    }
+
+    /// The penalty's value is calibrated for refuted attestations of at most
+    /// 2 × `gas_rounding_step` units, execution's run plus the judge's re-run.
+    /// That holds while `max_auth_gas` buys no more than one step per run at a
+    /// gas price of 1,000.
+    #[test]
+    fn refuted_attestation_penalty_requires_max_auth_gas_within_one_rounding_step() {
+        const GAS_PRICE: u64 = 1_000;
+        for chain in [Chain::Unknown, Chain::Mainnet, Chain::Testnet] {
+            for version in MIN_PROTOCOL_VERSION..=MAX_PROTOCOL_VERSION {
+                let config = ProtocolConfig::get_for_version(ProtocolVersion::new(version), chain);
+                if config
+                    .attestation_max_refuted_units_squared_as_option()
+                    .is_some()
+                {
+                    assert!(
+                        config.max_auth_gas() <= config.gas_rounding_step() * GAS_PRICE,
+                        "version {version} on {chain:?} penalizes refuted attestations while \
+                         max_auth_gas buys more than one gas_rounding_step"
                     );
                 }
             }
