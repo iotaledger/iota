@@ -10,7 +10,7 @@ iota_treasury_cap:
     id:
       id: "0x470c008da46da4e5c8cbc4106e36b7df6bde7e0638af002e76b716fb1627b8d8"
     total_supply:
-      value: "755500000000000000"
+      value: 755500000000000000
 validators:
   total_stake: 5500000000000000
   active_validators:
