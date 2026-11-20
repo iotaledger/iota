@@ -148,19 +148,22 @@ mod checked {
             protocol_config,
         );
 
-        let mut tx_ctx = TxContext::new_from_components(
-            &transaction_signer,
-            &transaction_digest,
-            epoch_id,
-            epoch_timestamp_ms,
-            rgp,
-            gas_price,
-            gas_data.budget,
-            sponsor,
-            chain_identifier,
-            protocol_config,
-        );
-        tx_ctx.set_nonce(nonce);
+        let tx_ctx = {
+            let mut tx_ctx = TxContext::new_from_components(
+                &transaction_signer,
+                &transaction_digest,
+                epoch_id,
+                epoch_timestamp_ms,
+                rgp,
+                gas_price,
+                gas_data.budget,
+                sponsor,
+                chain_identifier,
+                protocol_config,
+            );
+            tx_ctx.set_nonce(nonce);
+            tx_ctx
+        };
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
 
         execute_transaction_to_effects_inner::<Mode>(

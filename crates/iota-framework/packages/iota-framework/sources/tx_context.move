@@ -140,6 +140,10 @@ native fun native_ids_created(): u64;
 
 #[test_only]
 /// Create a `TxContext` for testing. All fields can be provided.
+///
+/// The new context has no nonce, since a nonce belongs to one transaction: set one with
+/// `set_tx_nonce_for_testing`. It keeps the chain identifier, which belongs to the whole test
+/// (see `set_chain_identifier_for_testing`).
 public fun create(
     sender: address,
     tx_hash: vector<u8>,

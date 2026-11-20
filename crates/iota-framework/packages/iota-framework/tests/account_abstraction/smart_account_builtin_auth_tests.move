@@ -54,6 +54,10 @@ const OTHER_KEY_NEW_ACCOUNT_SIGNATURE: vector<u8> =
 /// K2's proof for the existing account `@0x1`.
 const OTHER_KEY_OTHER_ACCOUNT_SIGNATURE: vector<u8> =
     x"00403a3896d7b465c7120f8b42070ac894f3f45441bf5a5a3d6e61c247f62da9ceb6ccc4c1cb6a89d4c9703bf8daf3a1c9cd99f3fee6caa2bc3ede130bcfd8100faef3f4a4b8eca1dfc343361bf8e436bd42de9259c04b8314eb8e2054dd6e82ab";
+/// K's signature over `NEW_ACCOUNT_KEY_PROOF_MESSAGE` with the first line replaced by the check of
+/// another package, `check: 0xabc::smart_account_builtin_auth::verify_key_proof`.
+const OTHER_CHECK_NEW_ACCOUNT_SIGNATURE: vector<u8> =
+    x"0076050ce08582818f2af8bc081a6d5303d64c9672e94d63e9f58d2a9a04fec9b6e7099c143af9c9508973ba74971d9bdc46a8d699ec5f51e77fdd1e3f09fdd106b9c6ee1630ef3e711144a648db06bbb2284f7274cfbee53ffcee503cc1a49200";
 
 // === builder_v1 ===
 
@@ -165,6 +169,19 @@ fun builder_v1_aborts_for_another_valid_until_epoch() {
 
 #[test]
 #[expected_failure(abort_code = iota::smart_account_builtin_auth::EInvalidKeyProof)]
+fun builder_v1_aborts_for_a_proof_for_another_check() {
+    let mut ctx = ctx_in_epoch(@0x0, 0);
+
+    smart_account_builtin_auth::builder_v1(
+        key(),
+        OTHER_CHECK_NEW_ACCOUNT_SIGNATURE,
+        VALID_UNTIL_EPOCH,
+        &mut ctx,
+    ).build_v1();
+}
+
+#[test]
+#[expected_failure(abort_code = iota::smart_account_builtin_auth::EInvalidKeyProof)]
 fun builder_v1_aborts_for_a_changed_signature() {
     let mut ctx = ctx_in_epoch(@0x0, 0);
     let mut signature = NEW_ACCOUNT_SIGNATURE;
@@ -189,7 +206,7 @@ fun key_proof_message_is_the_text_for_the_transaction() {
     let ctx = ctx_in_epoch(@0x0, 0);
 
     assert_eq(
-        smart_account_builtin_auth::key_proof_message(
+        smart_account_builtin_auth::key_proof_message_for_testing(
             ctx.chain_identifier(),
             @0x0,
             true,
@@ -203,7 +220,7 @@ fun key_proof_message_is_the_text_for_the_transaction() {
 #[test]
 fun key_proof_message_matches_the_example_of_the_design() {
     assert_eq(
-        smart_account_builtin_auth::key_proof_message(
+        smart_account_builtin_auth::key_proof_message_for_testing(
             EXAMPLE_CHAIN_IDENTIFIER,
             EXAMPLE_ACCOUNT,
             true,
@@ -217,7 +234,7 @@ fun key_proof_message_matches_the_example_of_the_design() {
 #[test]
 #[expected_failure(abort_code = 5, location = iota::smart_account_builtin_auth)]
 fun key_proof_message_aborts_for_a_short_chain_identifier() {
-    smart_account_builtin_auth::key_proof_message(
+    smart_account_builtin_auth::key_proof_message_for_testing(
         x"2304aa97",
         EXAMPLE_ACCOUNT,
         true,
@@ -229,7 +246,7 @@ fun key_proof_message_aborts_for_a_short_chain_identifier() {
 #[test]
 #[expected_failure(abort_code = 5, location = iota::smart_account_builtin_auth)]
 fun key_proof_message_aborts_for_a_short_nonce() {
-    smart_account_builtin_auth::key_proof_message(
+    smart_account_builtin_auth::key_proof_message_for_testing(
         EXAMPLE_CHAIN_IDENTIFIER,
         EXAMPLE_ACCOUNT,
         true,
@@ -484,13 +501,7 @@ fun rotate_public_key_replaces_the_key() {
 #[test]
 fun rotate_public_key_accepts_the_same_proof_twice_in_one_transaction() {
     builtin_account_test!(|account, scenario| {
-        smart_account_builtin_auth::rotate_public_key(
-            account,
-            other_key(),
-            OTHER_KEY_ACCOUNT_SIGNATURE,
-            VALID_UNTIL_EPOCH,
-            scenario.ctx(),
-        );
+        // K to K2, back to K, then K2 again with the same proof as the first rotation.
         let previous = smart_account_builtin_auth::rotate_public_key(
             account,
             other_key(),
@@ -498,8 +509,26 @@ fun rotate_public_key_accepts_the_same_proof_twice_in_one_transaction() {
             VALID_UNTIL_EPOCH,
             scenario.ctx(),
         );
+        assert_eq(previous, key());
 
+        let previous = smart_account_builtin_auth::rotate_public_key(
+            account,
+            key(),
+            ACCOUNT_SIGNATURE,
+            VALID_UNTIL_EPOCH,
+            scenario.ctx(),
+        );
         assert_eq(previous, other_key());
+
+        let previous = smart_account_builtin_auth::rotate_public_key(
+            account,
+            other_key(),
+            OTHER_KEY_ACCOUNT_SIGNATURE,
+            VALID_UNTIL_EPOCH,
+            scenario.ctx(),
+        );
+        assert_eq(previous, key());
+        assert_ref_eq(smart_account_builtin_auth::borrow_public_key(account), &other_key());
     });
 }
 
