@@ -435,7 +435,7 @@ pub fn initial_cost_schedule_for_unit_tests() -> move_vm_test_utils::gas_schedul
 
 #[cfg(test)]
 mod tests {
-    use super::{Gas, GasStatus, InternalGas, ZERO_COST_SCHEDULE};
+    use super::{Gas, GasStatus, InternalGas, StatusCode, ZERO_COST_SCHEDULE};
 
     /// A metered status with `units` gas units left at `gas_price`.
     fn gas_status(units: u64, gas_price: u64) -> GasStatus {
@@ -490,5 +490,129 @@ mod tests {
 
         assert_eq!(taken, None);
         assert_eq!(status.remaining_gas(), Gas::new(100));
+    }
+
+    /// A budget that is not a whole number of gas units at the gas price buys
+    /// only the whole units.
+    #[test]
+    fn limit_gas_left_rounds_the_budget_down_to_whole_gas_units() {
+        let gas_price = 5;
+        let mut status = gas_status(100, gas_price);
+
+        let taken = status.limit_gas_left(30 * gas_price + gas_price - 1);
+
+        assert_eq!(status.remaining_gas(), Gas::new(30));
+        assert_eq!(taken, Some(GasStatus::to_internal_units(70)));
+    }
+
+    /// A budget below one gas unit, zero included, leaves no gas.
+    #[test]
+    fn limit_gas_left_leaves_no_gas_for_a_budget_below_one_gas_unit() {
+        let gas_price = 5;
+        for budget in [0, gas_price - 1] {
+            let mut status = gas_status(100, gas_price);
+
+            let taken = status.limit_gas_left(budget);
+
+            assert_eq!(status.remaining_gas(), Gas::new(0), "budget {budget}");
+            assert_eq!(
+                taken,
+                Some(GasStatus::to_internal_units(100)),
+                "budget {budget}"
+            );
+        }
+    }
+
+    /// After a charge, the gas left can end in a fraction of a gas unit. A
+    /// budget of the whole units below it takes the fraction off, and giving
+    /// it back restores the gas left exactly.
+    #[test]
+    fn limit_gas_left_takes_off_the_fraction_of_a_gas_unit_left() {
+        let gas_price = 5;
+        let mut status = gas_status(100, gas_price);
+        let half_a_unit = InternalGas::new(GasStatus::INTERNAL_UNIT_MULTIPLIER / 2);
+        status
+            .deduct_gas(half_a_unit)
+            .expect("100 gas units cover half of one");
+        let gas_left = status.gas_left;
+
+        let taken = status.limit_gas_left(99 * gas_price);
+
+        assert_eq!(status.gas_left, GasStatus::to_internal_units(99));
+        assert_eq!(taken, Some(half_a_unit));
+        status.add_gas_left(taken.expect("a budget below the gas left must take gas off"));
+        assert_eq!(status.gas_left, gas_left);
+    }
+
+    /// A budget of the whole gas units just above a fraction left buys more
+    /// than is left, so it does not bound the gas used.
+    #[test]
+    fn limit_gas_left_takes_nothing_off_when_the_budget_buys_more_than_a_fraction_left() {
+        let gas_price = 5;
+        let mut status = gas_status(100, gas_price);
+        status
+            .deduct_gas(InternalGas::new(GasStatus::INTERNAL_UNIT_MULTIPLIER / 2))
+            .expect("100 gas units cover half of one");
+        let gas_left = status.gas_left;
+
+        let taken = status.limit_gas_left(100 * gas_price);
+
+        assert_eq!(taken, None);
+        assert_eq!(status.gas_left, gas_left);
+    }
+
+    /// Without metering, no budget limits the gas left, not even zero.
+    #[test]
+    fn limit_gas_left_takes_nothing_off_without_metering() {
+        let mut unmetered = GasStatus::new_unmetered();
+        assert_eq!(unmetered.limit_gas_left(0), None);
+
+        let mut status = gas_status(100, 5);
+        status.set_metering(false);
+
+        let taken = status.limit_gas_left(0);
+
+        assert_eq!(taken, None);
+        assert_eq!(status.remaining_gas(), Gas::new(100));
+    }
+
+    /// The limit can be used to its last unit, and what is charged under it
+    /// stays charged once the rest is given back.
+    #[test]
+    fn gas_charged_under_the_limit_stays_charged() {
+        let gas_price = 5;
+        let mut status = gas_status(100, gas_price);
+        let taken = status
+            .limit_gas_left(30 * gas_price)
+            .expect("a budget below the gas left must take gas off");
+
+        status
+            .deduct_gas(GasStatus::to_internal_units(30))
+            .expect("the limit covers a charge of all of it");
+        assert_eq!(status.remaining_gas(), Gas::new(0));
+        status.add_gas_left(taken);
+
+        assert_eq!(status.remaining_gas(), Gas::new(70));
+        assert_eq!(status.gas_used_pre_gas_price(), 30);
+    }
+
+    /// A charge above the limit fails, though the gas left without the limit
+    /// covers it, and uses the whole limit.
+    #[test]
+    fn running_out_under_the_limit_uses_the_whole_limit() {
+        let gas_price = 5;
+        let mut status = gas_status(100, gas_price);
+        let taken = status
+            .limit_gas_left(30 * gas_price)
+            .expect("a budget below the gas left must take gas off");
+
+        let error = status
+            .deduct_gas(GasStatus::to_internal_units(31))
+            .expect_err("a charge above the limit must fail");
+        status.add_gas_left(taken);
+
+        assert_eq!(error.major_status(), StatusCode::OUT_OF_GAS);
+        assert_eq!(status.remaining_gas(), Gas::new(70));
+        assert_eq!(status.gas_used_pre_gas_price(), 30);
     }
 }
