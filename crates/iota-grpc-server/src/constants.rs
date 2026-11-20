@@ -23,7 +23,7 @@ pub const X_IOTA_SDK_GRPC_CLIENT_VERSION_MIN: &str = "x-iota-sdk-grpc-client-ver
 /// decode. `scripts/check_min_iota_sdk_client_version.py` fails in CI when a
 /// change to the BCS schema of `iota-sdk-types` requires raising it. A change
 /// to the proto definitions is not checked and has to be raised by hand.
-pub const IOTA_SDK_GRPC_CLIENT_VERSION_MIN: &str = "1.0.0-rc.1";
+pub const IOTA_SDK_GRPC_CLIENT_VERSION_MIN: &str = "1.0.0";
 
 /// Maximum number of nested `All`, `Any` and `Not` filters in a transaction or
 /// event filter. The event filter of a transaction filter adds one level.

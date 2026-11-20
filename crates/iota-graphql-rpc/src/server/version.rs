@@ -31,7 +31,7 @@ pub(crate) static IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN_HEADER: HeaderName =
 /// panicking on un-decodable values. `scripts/check_min_iota_sdk_client_version.py` fails in CI
 /// when a change to the BCS schema of `iota-sdk-types` requires raising it. A change to the
 /// GraphQL schema is not checked and has to be raised by hand.
-pub(crate) const IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN: &str = "1.0.0-rc.1";
+pub(crate) const IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN: &str = "1.0.0";
 
 #[expect(unused)]
 pub(crate) struct IotaRpcVersion(Vec<u8>, Vec<Vec<u8>>);
