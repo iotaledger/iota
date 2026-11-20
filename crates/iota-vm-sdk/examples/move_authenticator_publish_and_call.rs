@@ -295,9 +295,8 @@ fn run(vm: &mut LocalVm, tx: Transaction) -> Result<ExecutionResult> {
 /// takes. `authenticate_no_args` takes none.
 ///
 /// With `trace` set, the run is traced and the trace returned in
-/// [`ExecutionResult::debug`]. The `MoveAuthenticator` path is the only one the
-/// engine takes a trace builder on, and it covers both the authenticator
-/// function and the PTB body.
+/// [`ExecutionResult::debug`]. It covers both the authenticator function and
+/// the PTB body.
 fn run_signed(
     vm: &mut LocalVm,
     tx: Transaction,
