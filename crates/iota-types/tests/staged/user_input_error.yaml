@@ -75,3 +75,8 @@
 73: RandomnessStateIsInMoveAuthenticatorInput
 74: InvalidArgumentIndex
 75: InputObjectNotAvailableAtCommit
+76: TransactionDependencyNotFound
+77: TransactionDependencyFailed
+78: TransactionDependencyNotInCurrentEpoch
+79: TransactionDependencyInputUsed
+80: TransactionDependencyRequiresExpiration

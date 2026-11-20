@@ -394,6 +394,32 @@ pub enum UserInputError {
         object_id: ObjectId,
         version: Option<Version>,
     },
+    #[error(
+        "Transaction {digest} that this transaction depends on is not among the executed transactions"
+    )]
+    TransactionDependencyNotFound { digest: TransactionDigest },
+    #[error(
+        "Transaction {digest} that this transaction depends on failed, was cancelled, or was rejected"
+    )]
+    TransactionDependencyFailed { digest: TransactionDigest },
+    #[error(
+        "Transaction {digest} that this transaction depends on executed in epoch {executed_epoch}; a dependency must be a transaction of the current epoch"
+    )]
+    TransactionDependencyNotInCurrentEpoch {
+        digest: TransactionDigest,
+        executed_epoch: EpochId,
+    },
+    #[error(
+        "Invalid argument at command {command_idx}, argument {argument_idx}: a transaction dependency input cannot be used by a command"
+    )]
+    TransactionDependencyInputUsed {
+        command_idx: usize,
+        argument_idx: usize,
+    },
+    #[error(
+        "A transaction with a transaction dependency input must set an epoch expiration equal to the current epoch"
+    )]
+    TransactionDependencyRequiresExpiration,
 }
 
 /// Formats `version` as " at version {version}", or as nothing when it is
@@ -940,6 +966,8 @@ impl IotaError {
                     // Every validator drops the transaction at the commit for
                     // good, so a resubmission of it gets the same answer.
                     UserInputError::InputObjectNotAvailableAtCommit { .. } => false,
+                    // The dependency may still be submitted or executed.
+                    UserInputError::TransactionDependencyNotFound { .. } => true,
                     _ => false,
                 }
             }
@@ -1052,6 +1080,7 @@ pub fn categorize(error: &IotaError) -> ErrorCategory {
             UserInputError::InputObjectNotAvailableAtCommit { .. } => {
                 ErrorCategory::InvalidTransaction
             }
+            UserInputError::TransactionDependencyNotFound { .. } => ErrorCategory::Aborted,
             _ => ErrorCategory::InvalidTransaction,
         },
         IotaError::InvalidSignature { .. }

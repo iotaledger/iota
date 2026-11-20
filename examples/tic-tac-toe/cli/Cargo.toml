@@ -19,11 +19,11 @@ time = "=0.3.47"
 tokio = { version = "1.49.0", features = ["time"] }
 
 # internal dependencies
-iota-grpc-client = { version = "1.0.0-rc.2", package = "iota-sdk-grpc-client" }
+iota-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "15c55e14d981170b76639591536ff74e6708ead4", package = "iota-sdk-grpc-client" }
 iota-keys = { path = "../../../crates/iota-keys" }
 iota-sdk = { path = "../../../crates/iota-sdk" }
-iota-sdk-transaction-builder = { version = "1.0.0-rc.2", default-features = false }
-iota-sdk-types = "1.0.0-rc.2"
+iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "15c55e14d981170b76639591536ff74e6708ead4", default-features = false }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "15c55e14d981170b76639591536ff74e6708ead4" }
 iota-types = { path = "../../../crates/iota-types" }
 
 [package.metadata.cargo-machete]
@@ -32,11 +32,11 @@ ignored = [
 ]
 
 [patch.crates-io]
-iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9be66f5538f5fcadab94bab0b0c4df61d743922f" }
-iota-sdk-graphql-client = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9be66f5538f5fcadab94bab0b0c4df61d743922f" }
-iota-sdk-graphql-client-build = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9be66f5538f5fcadab94bab0b0c4df61d743922f" }
-iota-sdk-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9be66f5538f5fcadab94bab0b0c4df61d743922f" }
-iota-sdk-grpc-types = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9be66f5538f5fcadab94bab0b0c4df61d743922f" }
-iota-sdk-move-types = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9be66f5538f5fcadab94bab0b0c4df61d743922f" }
-iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9be66f5538f5fcadab94bab0b0c4df61d743922f" }
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9be66f5538f5fcadab94bab0b0c4df61d743922f" }
+iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "15c55e14d981170b76639591536ff74e6708ead4" }
+iota-sdk-graphql-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "15c55e14d981170b76639591536ff74e6708ead4" }
+iota-sdk-graphql-client-build = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "15c55e14d981170b76639591536ff74e6708ead4" }
+iota-sdk-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "15c55e14d981170b76639591536ff74e6708ead4" }
+iota-sdk-grpc-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "15c55e14d981170b76639591536ff74e6708ead4" }
+iota-sdk-move-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "15c55e14d981170b76639591536ff74e6708ead4" }
+iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "15c55e14d981170b76639591536ff74e6708ead4" }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "15c55e14d981170b76639591536ff74e6708ead4" }

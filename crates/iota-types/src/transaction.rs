@@ -385,13 +385,21 @@ impl CallArgExt for CallArg {
                 initial_shared_version: *initial_shared_version,
                 mutable: *mutable,
             }),
-            CallArg::Pure(_) | CallArg::Receiving(_) => None,
+            CallArg::Pure(_) | CallArg::Receiving(_) | CallArg::TransactionDependency(_) => None,
             _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         }
     }
 
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
         match self {
+            CallArg::TransactionDependency(_) => {
+                fp_ensure!(
+                    config.enable_transaction_dependencies(),
+                    UserInputError::Unsupported(
+                        "transaction dependency inputs are not enabled".to_string()
+                    )
+                );
+            }
             CallArg::Pure(bytes) => {
                 fp_ensure!(
                     bytes.len() < config.max_pure_argument_size() as usize,
@@ -702,6 +710,13 @@ pub trait ProgrammableTransactionExt: Sized + programmable_transaction_ext::Seal
     fn receiving_objects(&self) -> Vec<ObjectReference>;
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
     fn validate_argument_indices(&self) -> UserInputResult;
+    /// The index and digest of the first transaction dependency input, if any.
+    fn dependency_input(&self) -> Option<(usize, TransactionDigest)>;
+    /// The digest named by the transaction dependency input, if any.
+    fn transaction_dependency(&self) -> Option<TransactionDigest>;
+    /// Checks that at most one input is a transaction dependency and that no
+    /// command uses it.
+    fn validate_transaction_dependency_inputs(&self) -> UserInputResult;
     fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectReference>;
     fn move_calls(&self) -> Vec<(&ObjectId, &str, &str)>;
     fn non_system_packages_to_be_published(&self) -> impl Iterator<Item = &Vec<Vec<u8>>>;
@@ -767,6 +782,7 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
         for input in inputs {
             input.validity_check(config)?
         }
+        self.validate_transaction_dependency_inputs()?;
         if let Some(max_publish_commands) = config.max_publish_or_upgrade_per_ptb_as_option() {
             let publish_count = commands
                 .iter()
@@ -809,6 +825,52 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
         Ok(())
     }
 
+    fn dependency_input(&self) -> Option<(usize, TransactionDigest)> {
+        self.inputs
+            .iter()
+            .enumerate()
+            .find_map(|(index, input)| match input {
+                CallArg::TransactionDependency(digest) => Some((index, *digest)),
+                _ => None,
+            })
+    }
+
+    fn transaction_dependency(&self) -> Option<TransactionDigest> {
+        self.dependency_input().map(|(_, digest)| digest)
+    }
+
+    fn validate_transaction_dependency_inputs(&self) -> UserInputResult {
+        let dep_index = match self.dependency_input() {
+            Some((index, _)) => index,
+            None => return Ok(()),
+        };
+        // At most one dependency input.
+        fp_ensure!(
+            self.inputs[dep_index + 1..]
+                .iter()
+                .all(|input| !matches!(input, CallArg::TransactionDependency(_))),
+            UserInputError::SizeLimitExceeded {
+                limit: "maximum transaction dependency inputs in a programmable transaction"
+                    .to_string(),
+                value: "1".to_string(),
+            }
+        );
+        // No command may use it.
+        for (command_idx, command) in self.commands.iter().enumerate() {
+            for (argument_idx, argument) in command_arguments(command).enumerate() {
+                if let Argument::Input(index) = argument {
+                    if *index as usize == dep_index {
+                        return Err(UserInputError::TransactionDependencyInputUsed {
+                            command_idx,
+                            argument_idx,
+                        });
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn validate_argument_indices(&self) -> UserInputResult {
         for (command_idx, command) in self.commands.iter().enumerate() {
             for (argument_idx, argument) in command_arguments(command).enumerate() {
@@ -840,7 +902,10 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
     fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectReference> {
         self.inputs.iter().filter_map(|arg| match arg {
             CallArg::Shared(shared) => Some(*shared),
-            CallArg::Pure(_) | CallArg::Receiving(_) | CallArg::ImmutableOrOwned(_) => None,
+            CallArg::Pure(_)
+            | CallArg::Receiving(_)
+            | CallArg::ImmutableOrOwned(_)
+            | CallArg::TransactionDependency(_) => None,
             _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         })
     }
@@ -1182,6 +1247,11 @@ pub trait TransactionAPI {
 
     /// Returns the transaction expiration.
     fn expiration(&self) -> &TransactionExpiration;
+
+    /// Returns the digest of the transaction this transaction depends on, if
+    /// it carries a transaction dependency input: it executes after that
+    /// transaction, and fails if that transaction failed.
+    fn transaction_dependency(&self) -> Option<TransactionDigest>;
 
     /// Returns a list of the transaction data shared input objects.
     ///
@@ -1594,7 +1664,20 @@ impl TransactionAPI for Transaction {
     #[instrument(level = "trace", skip_all)]
     fn validity_check_no_gas_check(&self, config: &ProtocolConfig) -> UserInputResult {
         self.kind().validity_check(config)?;
+        if self.transaction_dependency().is_some() {
+            fp_ensure!(
+                matches!(self.expiration(), TransactionExpiration::Epoch(_)),
+                UserInputError::TransactionDependencyRequiresExpiration
+            );
+        }
         self.check_sponsorship()
+    }
+
+    fn transaction_dependency(&self) -> Option<TransactionDigest> {
+        match self.kind() {
+            TransactionKind::Programmable(ptb) => ptb.transaction_dependency(),
+            _ => None,
+        }
     }
 
     fn check_gas_payment_size(&self, config: &ProtocolConfig) -> UserInputResult {
@@ -2287,6 +2370,18 @@ impl SenderSignedTransactionAPI for SenderSignedTransaction {
 
         tx.validity_check(context.config)
             .map_err(Into::<IotaError>::into)?;
+
+        // A dependency can only be satisfied within one epoch, so a dependent
+        // has to expire with the current one. An earlier epoch was refused
+        // above as expired.
+        if tx.transaction_dependency().is_some() {
+            fp_ensure!(
+                matches!(tx.expiration(), TransactionExpiration::Epoch(epoch) if *epoch == context.epoch),
+                IotaError::UserInput {
+                    error: UserInputError::TransactionDependencyRequiresExpiration
+                }
+            );
+        }
 
         move_authenticators_validity_check(self, context.config)?;
 
