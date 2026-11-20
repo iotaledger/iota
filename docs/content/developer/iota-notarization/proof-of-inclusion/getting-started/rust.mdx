@@ -1,0 +1,114 @@
+---
+title: Getting Started with Rust
+sidebar_label: Rust
+description: Install the Proof of Inclusion Rust Package, construct a transaction proof, and verify it from a trusted genesis blob.
+tags:
+  - how-to
+  - notarization
+  - proof-of-inclusion
+  - rust
+  - setup
+  - install
+  - getting-started
+---
+
+# Getting Started with Rust
+
+The `poi-rs` Package provides proof construction, committee resolution, and offline verification for Rust applications. Its default `native-grpc` feature connects `PoiClient` to IOTA gRPC endpoints.
+
+## Requirements
+
+- [Rust](https://www.rust-lang.org/) 1.85 or later
+- [Cargo](https://doc.rust-lang.org/cargo/)
+- Access to an IOTA gRPC endpoint for proof construction or committee resolution
+- A trusted genesis blob or committee for anchored verification
+
+## Include the Package
+
+Proof of Inclusion currently builds from the Notarization repository source. Add the Git dependency to your `Cargo.toml`:
+
+```toml title="Cargo.toml"
+[dependencies]
+poi-rs = { git = "https://github.com/iotaledger/notarization", tag = "poi-v0.1" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+```
+
+## Construct a Transaction Proof
+
+Create a client for the network that contains the transaction, select the transaction digest, and build the proof:
+
+```rust
+use poi_rs::PoiClient;
+
+async fn create_proof() -> Result<poi_rs::Proof, Box<dyn std::error::Error>> {
+    let client = PoiClient::testnet()?;
+    let transaction_digest = "<transaction-digest>".parse()?;
+    let proof = client
+        .proof()
+        .transaction(transaction_digest)
+        .build()
+        .await?;
+
+    Ok(proof)
+}
+```
+
+Use `PoiClient::mainnet()` or `PoiClient::devnet()` for the other public networks. Use `PoiClient::from_grpc_client()` for an explicit IOTA SDK gRPC client or `PoiClient::new()` for a custom `Source`.
+
+Network selection controls where the client fetches proof material. It does not establish committee trust.
+
+## Verify the Proof
+
+Obtain a trusted BCS-encoded IOTA genesis blob from the appropriate [genesis source](../explanations/trust-and-verification.mdx#genesis-sources), then create a verifier from the client:
+
+```rust
+use std::fs::File;
+
+use poi_rs::{CommitteeResolution, PoiClient, Proof, VerifiedProof};
+
+async fn verify_proof<'proof>(
+    proof: &'proof Proof,
+) -> Result<VerifiedProof<'proof>, Box<dyn std::error::Error>> {
+    let client = PoiClient::testnet()?;
+    let resolution = CommitteeResolution::from_genesis(
+        File::open("trusted-testnet-genesis.blob")?,
+    )?;
+    let verifier = client.verifier(resolution);
+
+    Ok(verifier.verify(proof).await?)
+}
+```
+
+The resolver authenticates committee transitions from genesis to the proof's epoch. The final proof checks run locally. Retain the verifier when checking multiple proofs so it can reuse authenticated committees.
+
+Use `CommitteeResolution::TrustedNode` only when the connected node is already inside your trust boundary.
+
+## Verify Offline
+
+When you already have a trusted committee for the proof's checkpoint epoch, use `poi_rs::ProofVerifier` directly. This path requires no `PoiClient`, gRPC endpoint, or async runtime.
+
+On a connected machine, call `verifier.resolve(epoch).await?` on a genesis-anchored resolver to obtain the committee for the proof's checkpoint epoch. Transfer it to the offline machine through a trusted channel. A genesis committee alone cannot verify proofs from later epochs.
+
+Deserialize the received proof with `poi_rs::Proof::from_json_slice(&proof_bytes)`. With that `proof` and the previously authenticated `committee`, call `poi_rs::ProofVerifier::new(&committee).verify(&proof)`. The call returns `Result<VerifiedProof<'_>, VerifyError>` synchronously. Handle an error as failed verification and read authenticated data only from the successful result.
+
+The offline verifier does not fetch missing proof data or resolve committee history. Do not trust a committee merely because it accompanies the proof, and do not use the proof's informational `chain` label to choose the trust anchor.
+
+## Examples
+
+The repository examples create fresh Single Notarization transactions and prove their transaction, object, and event outputs.
+
+```bash
+git clone https://github.com/iotaledger/notarization.git
+cd notarization
+cargo run --release -p examples --example 01_transaction_proof
+```
+
+The examples read the active IOTA CLI environment and wallet. Local and custom networks require `IOTA_GENESIS_PATH` for genesis-anchored examples.
+
+See the [Rust examples README](https://github.com/iotaledger/notarization/tree/v0.1/examples/poi) for all prerequisites and workflows.
+
+For local network prerequisites, follow the [PoI example setup](https://github.com/iotaledger/notarization/tree/v0.1/examples/poi/README.md#prerequisites).
+
+## API Reference
+
+See the [Proof of Inclusion Rust API](https://iotaledger.github.io/notarization/poi_rs/index.html) for all public types and methods.
