@@ -27,7 +27,7 @@ use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
     effects::TransactionEffectsAPI, error::ExecutionError, iota_serde::BigInt, object::Object,
 };
-use jsonrpsee::{RpcModule, core::RpcResult};
+use jsonrpsee::{Extensions, RpcModule, core::RpcResult};
 
 use crate::{
     errors::{IndexerError, IndexerResult},
@@ -462,6 +462,7 @@ impl WriteApiServer for WriteApi {
 
     async fn dev_inspect_transaction_block(
         &self,
+        _ext: &Extensions,
         sender_address: Address,
         tx_bytes: Base64,
         gas_price: Option<BigInt<u64>>,
@@ -481,6 +482,7 @@ impl WriteApiServer for WriteApi {
 
     async fn dry_run_transaction_block(
         &self,
+        _ext: &Extensions,
         tx_bytes: Base64,
     ) -> RpcResult<DryRunTransactionBlockResponse> {
         self.dry_run_transaction_block_impl(tx_bytes, &self.package_resolver)
@@ -490,6 +492,7 @@ impl WriteApiServer for WriteApi {
 
     async fn view_function_call(
         &self,
+        ext: &Extensions,
         function_name: String,
         type_args: Option<Vec<IotaTypeTag>>,
         arguments: Vec<IotaJsonValue>,
@@ -513,7 +516,7 @@ impl WriteApiServer for WriteApi {
             .map_err(IndexerError::from)?;
         let tx_bytes = Base64::from_bytes(&tx_kind.to_bcs());
         let dev_inspect_results = self
-            .dev_inspect_transaction_block(sender, tx_bytes, None, None, None)
+            .dev_inspect_transaction_block(ext, sender, tx_bytes, None, None, None)
             .await?;
         Ok(IotaMoveViewCallResults::from_dev_inspect_results(
             self.package_resolver.package_store().clone(),
@@ -544,6 +547,7 @@ impl WriteApiServer for OptimisticWriteApi {
 
     async fn dev_inspect_transaction_block(
         &self,
+        ext: &Extensions,
         sender_address: Address,
         tx_bytes: Base64,
         gas_price: Option<BigInt<u64>>,
@@ -552,6 +556,7 @@ impl WriteApiServer for OptimisticWriteApi {
     ) -> RpcResult<DevInspectResults> {
         self.write_api
             .dev_inspect_transaction_block(
+                ext,
                 sender_address,
                 tx_bytes,
                 gas_price,
@@ -563,19 +568,23 @@ impl WriteApiServer for OptimisticWriteApi {
 
     async fn dry_run_transaction_block(
         &self,
+        ext: &Extensions,
         tx_bytes: Base64,
     ) -> RpcResult<DryRunTransactionBlockResponse> {
-        self.write_api.dry_run_transaction_block(tx_bytes).await
+        self.write_api
+            .dry_run_transaction_block(ext, tx_bytes)
+            .await
     }
 
     async fn view_function_call(
         &self,
+        ext: &Extensions,
         function_name: String,
         type_args: Option<Vec<IotaTypeTag>>,
         arguments: Vec<IotaJsonValue>,
     ) -> RpcResult<IotaMoveViewCallResults> {
         self.write_api
-            .view_function_call(function_name, type_args, arguments)
+            .view_function_call(ext, function_name, type_args, arguments)
             .await
     }
 }
