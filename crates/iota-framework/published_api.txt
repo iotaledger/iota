@@ -2524,6 +2524,9 @@ to_iota_address
 verify_personal_message_signature
 	public(package) fun
 	0x2::public_key
+verify_builtin_signature
+	public(package) fun
+	0x2::public_key
 validate_public_key
 	fun
 	0x2::public_key
@@ -2531,6 +2534,9 @@ to_iota_address_impl
 	fun
 	0x2::public_key
 verify_personal_message_signature_impl
+	fun
+	0x2::public_key
+verify_builtin_signature_impl
 	fun
 	0x2::public_key
 PublicKeyAttached
@@ -2560,7 +2566,7 @@ rotate_public_key
 ensure_builtin_auth_and_public_key_together
 	public fun
 	0x2::builtin_authenticator_functions
-is_builtin_authenticator
+is_builtin_auth
 	public fun
 	0x2::builtin_authenticator_functions
 has_public_key
@@ -2585,9 +2591,6 @@ check_builtin_authenticators_enabled
 	fun
 	0x2::builtin_authenticator_functions
 borrow_account_uid
-	fun
-	0x2::builtin_authenticator_functions
-verify_builtin_signature
 	fun
 	0x2::builtin_authenticator_functions
 claim_address
@@ -3865,7 +3868,7 @@ rotate_field
 rotate_auth_function_ref_v1
 	public fun
 	0x2::smart_account
-claim_builder
+claim_builder_v1
 	public(package) fun
 	0x2::smart_account
 account_uid_mut
@@ -3901,9 +3904,6 @@ rotate_to_custom_auth_v1
 rotate_public_key
 	public fun
 	0x2::smart_account_builtin_auth
-key_proof_message
-	public(package) fun
-	0x2::smart_account_builtin_auth
 claim_account_v1
 	fun
 	0x2::smart_account_builtin_auth
@@ -3911,6 +3911,9 @@ with_public_key
 	fun
 	0x2::smart_account_builtin_auth
 verify_key_proof
+	fun
+	0x2::smart_account_builtin_auth
+key_proof_message
 	fun
 	0x2::smart_account_builtin_auth
 IotaSystemAdminCap

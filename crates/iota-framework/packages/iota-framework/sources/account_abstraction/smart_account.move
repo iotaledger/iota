@@ -38,7 +38,7 @@ use iota::public_key::PublicKey;
 
 #[error(code = 0)]
 const ETransactionSenderIsNotTheSmartAccount: vector<u8> =
-    b"Transaction must be signed by the smart account.";
+    b"The transaction sender must be the smart account.";
 #[error(code = 1)]
 const ESmartAccountsNotEnabled: vector<u8> = b"Smart accounts not enabled.";
 
@@ -251,7 +251,7 @@ public fun rotate_auth_function_ref_v1(
 ///
 /// Aborts if `enable_smart_accounts` is not enabled in the protocol config.
 /// Aborts if `public_key` does not derive the sender's address.
-public(package) fun claim_builder(
+public(package) fun claim_builder_v1(
     public_key: PublicKey,
     authenticator: AuthenticatorFunctionRefV1<SmartAccount>,
     ctx: &TxContext,

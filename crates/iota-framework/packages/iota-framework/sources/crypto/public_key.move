@@ -18,11 +18,12 @@
 /// `PublicKey` values are constructed exclusively through `create`. Once created,
 /// the inner fields are immutable.
 ///
-/// **Validation scope**: `create` checks that the scheme is recognized, that the raw bytes form
-/// a valid curve point (which implicitly rejects wrong-length inputs), and — for MultiSig — that
-/// the BCS structure is well-formed (signer count, weights, threshold), every signer weight is
-/// non-zero, no signer is duplicated, and no Ed25519 signer among other schemes. These
-/// rules match the committee validation of the SDK. Member keys are not checked against curves.
+/// **Validation scope**: `create` checks that the raw bytes form a valid curve point (which
+/// implicitly rejects wrong-length inputs), and — for MultiSig — that the BCS structure is
+/// well-formed (signer count, weights, threshold), every signer weight is non-zero, no signer is
+/// duplicated, and no Ed25519 signer among other schemes. These rules match the committee
+/// validation of the SDK. Member keys are not checked against curves. The scheme needs no check:
+/// `signature_scheme::from_flag` accepts only the schemes above.
 module iota::public_key;
 
 use iota::ecdsa_k1;
@@ -35,8 +36,6 @@ use iota::signature_scheme::{Self, SignatureScheme};
 
 #[error(code = 0)]
 const EPublicKeyBytesEmpty: vector<u8> = b"Public key bytes are empty.";
-#[error(code = 1)]
-const EUnknownPublicKeyScheme: vector<u8> = b"Unknown public key scheme.";
 #[error(code = 2)]
 const EInvalidPublicKeyBytes: vector<u8> = b"Public key bytes are not a valid key for the scheme.";
 
@@ -75,8 +74,8 @@ public fun from_prefixed_bytes(mut prefixed_bytes: vector<u8>): PublicKey {
 /// and a valid BCS-encoded `MultiSigPublicKey` for MultiSig (1–10 distinct signers, each
 /// weight > 0, threshold > 0, total weight ≥ threshold, no Ed25519 signer among other schemes).
 ///
-/// Aborts if `raw_bytes` is empty, if `scheme` is not a recognized scheme, if the bytes do not
-/// form a valid curve point, or if a MultiSig payload fails structural validation.
+/// Aborts if `raw_bytes` is empty, if the bytes do not form a valid curve point, or if a MultiSig
+/// payload fails structural validation.
 public fun create(scheme: SignatureScheme, raw_bytes: vector<u8>): PublicKey {
     assert!(!raw_bytes.is_empty(), EPublicKeyBytesEmpty);
 
@@ -136,6 +135,16 @@ public(package) fun verify_personal_message_signature(
     verify_personal_message_signature_impl(self, signature, message)
 }
 
+/// Returns `true` if `signature` is a valid signature, by `self`, of the transaction being
+/// authenticated, using the signature scheme of `self`.
+///
+/// Only the built-in authenticator calls it, while it authenticates a transaction. See
+/// `builtin_authenticator_functions::builtin_authenticator_function_ref_v1` for the format of
+/// `signature`.
+public(package) fun verify_builtin_signature(self: &PublicKey, signature: &vector<u8>): bool {
+    verify_builtin_signature_impl(self, signature)
+}
+
 // === Private Functions ===
 
 fun validate_public_key(scheme: SignatureScheme, raw_bytes: &vector<u8>) {
@@ -151,7 +160,7 @@ fun validate_public_key(scheme: SignatureScheme, raw_bytes: &vector<u8>) {
     } else if (scheme == signature_scheme::multisig()) {
         assert!(multisig::multisig_validate_pubkey(raw_bytes), EInvalidPublicKeyBytes);
     } else {
-        abort EUnknownPublicKeyScheme
+        abort EInvalidPublicKeyBytes
     }
 }
 
@@ -175,6 +184,10 @@ native fun verify_personal_message_signature_impl(
     signature: &vector<u8>,
     message: &vector<u8>,
 ): bool;
+
+/// Returns `true` if `signature` is a valid signature, by `public_key`, of the transaction being
+/// authenticated. See `verify_builtin_signature`.
+native fun verify_builtin_signature_impl(public_key: &PublicKey, signature: &vector<u8>): bool;
 
 // === Test Functions ===
 

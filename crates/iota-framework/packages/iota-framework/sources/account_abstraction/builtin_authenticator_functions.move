@@ -13,6 +13,10 @@
 /// proof before calling them. For `SmartAccount`, `smart_account_builtin_auth` requires a
 /// signature by the key.
 ///
+/// For a `SmartAccount`, use `smart_account_builtin_auth`, which does the steps below and checks
+/// the key holder's proof. The examples are for an account type `Account` defined in another
+/// module, which can reach the account's `UID`.
+///
 /// # Account creation
 /// To create a new account backed by the built-in authenticator, attach the public key and obtain
 /// the authenticator function ref, then pass it to `account::create_account_v1`:
@@ -20,6 +24,7 @@
 /// ```move
 /// builtin_authenticator_functions::attach_public_key(&mut account.id, public_key::create(scheme, raw_pk_bytes));
 /// let authenticator_function_ref = builtin_authenticator_functions::builtin_authenticator_function_ref_v1<Account>();
+/// builtin_authenticator_functions::ensure_builtin_auth_and_public_key_together(&account.id, &authenticator_function_ref);
 /// account::create_account_v1(account, authenticator_function_ref);
 /// ```
 ///
@@ -38,6 +43,7 @@
 /// ```move
 /// let old_public_key = builtin_authenticator_functions::detach_public_key(&mut account.id);
 /// let new_authenticator_function_ref = ...;
+/// builtin_authenticator_functions::ensure_builtin_auth_and_public_key_together(&account.id, &new_authenticator_function_ref);
 /// account::rotate_auth_function_ref_v1(account, new_authenticator_function_ref);
 /// ```
 module iota::builtin_authenticator_functions;
@@ -147,13 +153,13 @@ public fun builtin_authenticator_function_ref_v1<Account: key>(): AuthenticatorF
 /// `account::create_account_v1`.
 ///
 /// Emits a `PublicKeyAttached` event on success.
-public fun attach_public_key(account_id: &mut UID, public_key: PublicKey) {
-    assert!(!has_public_key(account_id), EPublicKeyAlreadyAttached);
+public fun attach_public_key(account_uid: &mut UID, public_key: PublicKey) {
+    assert!(!has_public_key(account_uid), EPublicKeyAlreadyAttached);
 
-    add_public_key(account_id, public_key);
+    add_public_key(account_uid, public_key);
 
     let event = PublicKeyAttached {
-        account_id: account_id.to_inner(),
+        account_id: account_uid.to_inner(),
         public_key,
     };
     event::emit(event);
@@ -165,13 +171,13 @@ public fun attach_public_key(account_id: &mut UID, public_key: PublicKey) {
 /// Use this when migrating away from a built-in authenticator to a custom one.
 ///
 /// Emits a `PublicKeyDetached` event on success.
-public fun detach_public_key(account_id: &mut UID): PublicKey {
-    assert!(has_public_key(account_id), EPublicKeyMissing);
+public fun detach_public_key(account_uid: &mut UID): PublicKey {
+    assert!(has_public_key(account_uid), EPublicKeyMissing);
 
-    let public_key = remove_public_key(account_id);
+    let public_key = remove_public_key(account_uid);
 
     let event = PublicKeyDetached {
-        account_id: account_id.to_inner(),
+        account_id: account_uid.to_inner(),
         public_key,
     };
     event::emit(event);
@@ -183,14 +189,14 @@ public fun detach_public_key(account_id: &mut UID): PublicKey {
 /// Aborts if no public key is currently attached.
 ///
 /// Emits a `PublicKeyRotated` event on success.
-public fun rotate_public_key(account_id: &mut UID, public_key: PublicKey): PublicKey {
-    assert!(has_public_key(account_id), EPublicKeyMissing);
+public fun rotate_public_key(account_uid: &mut UID, public_key: PublicKey): PublicKey {
+    assert!(has_public_key(account_uid), EPublicKeyMissing);
 
-    let prev_public_key = remove_public_key(account_id);
-    add_public_key(account_id, public_key);
+    let prev_public_key = remove_public_key(account_uid);
+    add_public_key(account_uid, public_key);
 
     let event = PublicKeyRotated {
-        account_id: account_id.to_inner(),
+        account_id: account_uid.to_inner(),
         from: prev_public_key,
         to: public_key,
     };
@@ -208,11 +214,11 @@ public fun rotate_public_key(account_id: &mut UID, public_key: PublicKey): Publi
 /// Aborts if `authenticator` is the built-in one and no public key is attached.
 /// Aborts if `authenticator` is not the built-in one and a public key is attached.
 public fun ensure_builtin_auth_and_public_key_together<Account: key>(
-    account_id: &UID,
+    account_uid: &UID,
     authenticator: &AuthenticatorFunctionRefV1<Account>,
 ) {
-    let public_key_attached = has_public_key(account_id);
-    if (is_builtin_authenticator(authenticator)) {
+    let public_key_attached = has_public_key(account_uid);
+    if (is_builtin_auth(authenticator)) {
         assert!(public_key_attached, EBuiltinAuthWithoutPublicKey);
     } else {
         assert!(!public_key_attached, EPublicKeyWithoutBuiltinAuth);
@@ -222,7 +228,7 @@ public fun ensure_builtin_auth_and_public_key_together<Account: key>(
 // === View Functions ===
 
 /// Returns true if `authenticator` references the built-in authenticator.
-public fun is_builtin_authenticator<Account: key>(
+public fun is_builtin_auth<Account: key>(
     authenticator: &AuthenticatorFunctionRefV1<Account>,
 ): bool {
     let module_name = ascii::string(BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME);
@@ -234,16 +240,16 @@ public fun is_builtin_authenticator<Account: key>(
 }
 
 /// Returns true if the account has a public key attached.
-public fun has_public_key(account_id: &UID): bool {
-    df::exists_(account_id, public_key_field_name())
+public fun has_public_key(account_uid: &UID): bool {
+    df::exists_(account_uid, public_key_field_name())
 }
 
 /// Borrows the public key attached to the account. Aborts if no public key is
 /// currently attached.
-public fun borrow_public_key(account_id: &UID): &PublicKey {
-    assert!(has_public_key(account_id), EPublicKeyMissing);
+public fun borrow_public_key(account_uid: &UID): &PublicKey {
+    assert!(has_public_key(account_uid), EPublicKeyMissing);
 
-    df::borrow(account_id, public_key_field_name())
+    df::borrow(account_uid, public_key_field_name())
 }
 
 // === Admin Functions ===
@@ -261,7 +267,7 @@ fun builtin_authenticator_v1<Account: key>(account: &Account, signature: vector<
     check_builtin_authenticators_enabled();
 
     let public_key = borrow_public_key(borrow_account_uid(account));
-    assert!(verify_builtin_signature(public_key, &signature), EInvalidSignature);
+    assert!(public_key.verify_builtin_signature(&signature), EInvalidSignature);
 }
 
 /// A utility function to construct the dynamic field name for the public key field.
@@ -270,13 +276,13 @@ fun public_key_field_name(): PublicKeyFieldName {
 }
 
 /// Adds the account's public key field, holding `public_key`.
-fun add_public_key(account_id: &mut UID, public_key: PublicKey) {
-    df::add(account_id, public_key_field_name(), public_key);
+fun add_public_key(account_uid: &mut UID, public_key: PublicKey) {
+    df::add(account_uid, public_key_field_name(), public_key);
 }
 
 /// Removes and returns the public key in the account's public key field.
-fun remove_public_key(account_id: &mut UID): PublicKey {
-    df::remove(account_id, public_key_field_name())
+fun remove_public_key(account_uid: &mut UID): PublicKey {
+    df::remove(account_uid, public_key_field_name())
 }
 
 /// Aborts if the built-in Move authenticators feature is disabled in the protocol config.
@@ -293,10 +299,6 @@ fun check_builtin_authenticators_enabled() {
 ///
 /// IMPORTANT: This function is allowed to be called only by the built-in authenticator.
 native fun borrow_account_uid<Account: key>(account: &Account): &UID;
-
-/// Returns true if `signature` is a valid signature of the transaction being authenticated
-/// by `public_key`, using the signature scheme of `public_key`.
-native fun verify_builtin_signature(public_key: &PublicKey, signature: &vector<u8>): bool;
 
 // === Test Functions ===
 

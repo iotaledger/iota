@@ -66,14 +66,14 @@ fun builtin_auth_function_ref_has_correct_fields() {
 }
 
 #[test]
-fun is_builtin_authenticator_accepts_the_builtin_ref() {
+fun is_builtin_auth_accepts_the_builtin_ref() {
     let ref = builtin_authenticator_functions::builtin_authenticator_function_ref_v1<TestAccount>();
 
-    assert_eq(builtin_authenticator_functions::is_builtin_authenticator(&ref), true);
+    assert_eq(builtin_authenticator_functions::is_builtin_auth(&ref), true);
 }
 
 #[test]
-fun is_builtin_authenticator_rejects_other_refs() {
+fun is_builtin_auth_rejects_other_refs() {
     let other_package = authenticator_function::create_auth_function_ref_v1_for_testing<
         TestAccount,
     >(
@@ -89,8 +89,8 @@ fun is_builtin_authenticator_rejects_other_refs() {
         ascii::string(b"other_function"),
     );
 
-    assert_eq(builtin_authenticator_functions::is_builtin_authenticator(&other_package), false);
-    assert_eq(builtin_authenticator_functions::is_builtin_authenticator(&other_function), false);
+    assert_eq(builtin_authenticator_functions::is_builtin_auth(&other_package), false);
+    assert_eq(builtin_authenticator_functions::is_builtin_auth(&other_function), false);
 }
 
 // === attach_public_key / has_public_key / borrow_public_key / detach_public_key ===
