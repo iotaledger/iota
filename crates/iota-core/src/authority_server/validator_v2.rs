@@ -16,7 +16,7 @@ use iota_types::{
     attestation::{Attestation, AttestationData, AttestedTransaction},
     deny_rule_governance::DenyRuleConfig,
     effects::TransactionEffectsAPI,
-    error::{IotaError, IotaResult},
+    error::{IotaError, IotaResult, UserInputError},
     fp_ensure,
     messages_consensus::ConsensusTransaction,
     messages_grpc::{
