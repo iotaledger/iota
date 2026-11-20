@@ -107,6 +107,7 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
         let response = simulate::simulate_transactions(
             &self.reader,
             &self.executor,
+            tally_handle.as_ref(),
             &self.config,
             request.into_inner(),
         )
@@ -137,6 +138,7 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
         let response = view::view_function_calls(
             &self.reader,
             &self.executor,
+            tally_handle.as_ref(),
             &self.builder_client,
             &self.config,
             request.into_inner(),
@@ -165,13 +167,20 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
 
 /// Simulates `transaction` on the blocking thread pool, as a simulation can
 /// run long enough to stall the requests that share a serving thread with it.
-/// Refused with `RESOURCE_EXHAUSTED` while the executor runs as many
-/// simulations as it allows.
+/// Refused with `RESOURCE_EXHAUSTED` while the client of `tally_handle` is over
+/// its simulation gas limit, or while the executor runs as many simulations as
+/// it allows. Neither refusal counts as a client error.
 async fn run_simulation(
     executor: &Arc<dyn TransactionExecutor>,
+    tally_handle: Option<&TallyHandle>,
     transaction: iota_sdk_types::Transaction,
     checks: VmChecks,
 ) -> Result<SimulateTransactionResult, RpcError> {
+    let reservation = tally_handle
+        .map(TallyHandle::reserve_simulation_gas)
+        .transpose()
+        .map_err(|refusal| RpcError::new(tonic::Code::ResourceExhausted, refusal.to_string()))?
+        .flatten();
     let permit = executor.try_acquire_simulation_permit().ok_or_else(|| {
         RpcError::new(
             tonic::Code::ResourceExhausted,
@@ -183,7 +192,16 @@ async fn run_simulation(
         // Held until the simulation ends, even if the request is dropped
         // before.
         let _permit = permit;
-        executor.simulate_transaction(transaction, checks)
+        let simulation = executor.simulate_transaction(transaction, checks);
+        // A simulation that returns an error did not execute, so it gets its
+        // whole reservation back when the reservation is dropped.
+        if let (Some(reservation), Ok(simulation)) = (reservation, &simulation) {
+            reservation.settle(
+                simulation.effects.gas_cost_summary().computation_cost,
+                simulation.gas_data.price,
+            );
+        }
+        simulation
     })
     .await
     .map_err(|e| {
@@ -919,13 +937,13 @@ mod tests {
 
         let simulation = tokio::spawn({
             let executor = executor.clone();
-            async move { run_simulation(&executor, transaction(), VmChecks::Enabled).await }
+            async move { run_simulation(&executor, None, transaction(), VmChecks::Enabled).await }
         });
         gated.started.notified().await;
         simulation.abort();
         assert!(matches!(simulation.await, Err(e) if e.is_cancelled()));
 
-        let refused = run_simulation(&executor, transaction(), VmChecks::Enabled)
+        let refused = run_simulation(&executor, None, transaction(), VmChecks::Enabled)
             .await
             .err()
             .map(|e| tonic::Status::from(e).code());

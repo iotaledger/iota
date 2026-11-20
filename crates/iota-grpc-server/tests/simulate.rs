@@ -22,6 +22,7 @@ use iota_grpc_types::{
     field::FieldMaskUtil,
     v1::{
         bcs::BcsData,
+        ledger_service::{GetServiceInfoRequest, ledger_service_client::LedgerServiceClient},
         transaction::Transaction as ProtoTransaction,
         transaction_execution_service::{
             SimulateTransactionItem, SimulateTransactionsRequest, simulate_transaction_result,
@@ -29,24 +30,27 @@ use iota_grpc_types::{
         },
     },
 };
-use iota_sdk_types::{Transaction, TransactionDigest};
+use iota_sdk_types::{Address, GasPayment, Transaction, TransactionDigest, TransactionEffects};
 use iota_traffic_controller::TrafficController;
 use iota_types::{
+    effects::TestEffectsBuilder,
     error::IotaError,
     messages_checkpoint::CheckpointSequenceNumber,
     quorum_driver_types::{
         ExecuteTransactionRequestV1, ExecuteTransactionResponseV1, QuorumDriverError,
     },
-    traffic_control::{ClientIdSource, PolicyConfig, PolicyType, Weight},
+    traffic_control::{ClientIdSource, PolicyConfig, PolicyType, SimulationGasLimitConfig, Weight},
     transaction_executor::{SimulateTransactionResult, TransactionExecutor, VmChecks},
 };
 use tokio::sync::{Notify, Semaphore};
 use tonic::{Code, transport::Channel};
 
-/// A `TransactionExecutor` that records the thread each simulation runs on,
-/// and fails the simulation. It allows `permits` simulations at once.
+/// A `TransactionExecutor` that records the thread each simulation runs on.
+/// A simulation fails, or with `computation_cost` set succeeds at that cost
+/// and a gas price of 1. It allows `permits` simulations at once.
 struct SimulationExecutor {
     permits: Arc<Semaphore>,
+    computation_cost: Option<u64>,
     threads: Mutex<Vec<ThreadId>>,
     /// Notified when a simulation starts.
     started: Notify,
@@ -59,9 +63,17 @@ impl SimulationExecutor {
     fn new(permits: usize) -> Self {
         Self {
             permits: Arc::new(Semaphore::new(permits)),
+            computation_cost: None,
             threads: Mutex::default(),
             started: Notify::new(),
             gate: Mutex::default(),
+        }
+    }
+
+    fn costing(computation_cost: u64) -> Self {
+        Self {
+            computation_cost: Some(computation_cost),
+            ..Self::new(1)
         }
     }
 }
@@ -92,7 +104,30 @@ impl TransactionExecutor for SimulationExecutor {
             // Either a send or a dropped sender opens the gate.
             let _ = gate.recv();
         }
-        Err(IotaError::Unknown("test simulations fail".to_string()))
+        let computation_cost = self
+            .computation_cost
+            .ok_or_else(|| IotaError::Unknown("test simulations fail".to_string()))?;
+        let (_digest, transaction, _effects) = create_test_transaction();
+        let mut effects = TestEffectsBuilder::new(transaction.data()).build();
+        let TransactionEffects::V1(effects_v1) = &mut effects else {
+            unreachable!("the test effects are V1")
+        };
+        effects_v1.gas_cost_summary.computation_cost = computation_cost;
+        Ok(SimulateTransactionResult {
+            effects,
+            events: None,
+            input_objects: BTreeMap::new(),
+            output_objects: BTreeMap::new(),
+            execution_result: Ok(vec![]),
+            mock_gas_id: None,
+            suggested_gas_price: None,
+            gas_data: GasPayment {
+                objects: vec![],
+                owner: Address::ZERO,
+                price: 1,
+                budget: computation_cost,
+            },
+        })
     }
 
     fn try_acquire_simulation_permit(&self) -> Option<Box<dyn Send + Sync>> {
@@ -118,13 +153,24 @@ impl TransactionExecutor for SimulationExecutor {
 async fn connect(
     executor: Arc<SimulationExecutor>,
 ) -> (GrpcServerHandle, TransactionExecutionServiceClient<Channel>) {
+    connect_with(executor, None).await
+}
+
+/// Like [`connect`], with the given simulation gas limit and a computation cap
+/// of [`MAX_COMPUTATION`].
+async fn connect_with(
+    executor: Arc<SimulationExecutor>,
+    simulation_gas_limit: Option<SimulationGasLimitConfig>,
+) -> (GrpcServerHandle, TransactionExecutionServiceClient<Channel>) {
     let traffic_controller = Arc::new(TrafficController::init_for_test(PolicyConfig {
         connection_blocklist_ttl_sec: 120,
         error_policy_type: PolicyType::TestNConnIP(1),
         spam_sample_rate: Weight::one(),
         dry_run: false,
+        simulation_gas_limit,
         ..Default::default()
     }));
+    traffic_controller.set_max_simulation_computation(MAX_COMPUTATION);
     let (handle, _reader) = start_test_server_with_traffic_controller(
         Arc::new(MockGrpcStateReader::default()),
         traffic_controller,
@@ -139,6 +185,9 @@ async fn connect(
         .expect("failed to connect to test gRPC server");
     (handle, TransactionExecutionServiceClient::new(channel))
 }
+
+/// The computation cap of one transaction in these tests, in gas units.
+const MAX_COMPUTATION: u64 = 1_000;
 
 /// A request that simulates `n` transactions which pass the checks of the
 /// handler.
@@ -229,4 +278,83 @@ async fn a_simulation_is_refused_while_another_runs_and_served_after_it_ends() {
     open_gate.send(()).unwrap();
     assert_eq!(first.await.unwrap().unwrap(), [Code::Internal]);
     assert_eq!(simulate(&mut client, 1).await.unwrap(), [Code::Internal]);
+}
+
+/// A batch whose first items use up the client's gas balance has the later
+/// items refused, without an error weight, and the client's other requests
+/// are still served.
+#[tokio::test]
+async fn simulations_over_the_gas_limit_are_refused() {
+    // Each simulation reserves 1_000 and costs 600, so after two of them 800
+    // of the 2_000 are left.
+    let executor = Arc::new(SimulationExecutor::costing(600));
+    let (handle, mut client) = connect_with(
+        executor,
+        Some(SimulationGasLimitConfig {
+            gas_per_sec: 1,
+            burst_gas: 2_000,
+        }),
+    )
+    .await;
+
+    assert_eq!(
+        simulate(&mut client, 4).await.unwrap(),
+        [
+            Code::Ok,
+            Code::Ok,
+            Code::ResourceExhausted,
+            Code::ResourceExhausted
+        ]
+    );
+    let response = client
+        .simulate_transactions(simulate_request(1))
+        .await
+        .unwrap()
+        .into_inner();
+    let Some(simulate_transaction_result::Result::Error(error)) =
+        &response.transaction_results[0].result
+    else {
+        panic!("the simulation is refused");
+    };
+    assert!(
+        error
+            .message
+            .starts_with("simulation gas limit reached, retry in "),
+        "{}",
+        error.message
+    );
+
+    // The error policy blocks the client on its first client error, so the
+    // refusals must not have counted as one.
+    let mut ledger = LedgerServiceClient::new(
+        Channel::from_shared(format!("http://{}", handle.address()))
+            .unwrap()
+            .connect()
+            .await
+            .unwrap(),
+    );
+    // The mock store has no checkpoints to report, so the handler answers
+    // with an internal error rather than the refusal of a blocked client.
+    let status = ledger
+        .get_service_info(GetServiceInfoRequest::default())
+        .await
+        .expect_err("the mock store has no checkpoints");
+    assert_eq!(status.code(), Code::Internal, "{status:?}");
+}
+
+#[tokio::test]
+async fn a_failed_simulation_gives_its_gas_back() {
+    let executor = Arc::new(SimulationExecutor::new(1));
+    let (_handle, mut client) = connect_with(
+        executor,
+        Some(SimulationGasLimitConfig {
+            gas_per_sec: 1,
+            burst_gas: MAX_COMPUTATION,
+        }),
+    )
+    .await;
+    assert_eq!(
+        simulate(&mut client, 3).await.unwrap(),
+        [Code::Internal, Code::Internal, Code::Internal]
+    );
 }

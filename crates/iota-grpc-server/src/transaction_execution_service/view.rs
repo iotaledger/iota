@@ -37,7 +37,10 @@ use move_binary_format::binary_config::BinaryConfig;
 use tonic::Code;
 
 use super::CommandOutputsReadSource;
-use crate::{error::RpcError, merge::Merge, types::GrpcReader, validation::validate_read_mask};
+use crate::{
+    error::RpcError, merge::Merge, traffic_control::TallyHandle, types::GrpcReader,
+    validation::validate_read_mask,
+};
 
 /// Call each requested `#[view]` Move function and return its results, in
 /// request order.
@@ -57,6 +60,7 @@ use crate::{error::RpcError, merge::Merge, types::GrpcReader, validation::valida
 pub async fn view_function_calls(
     reader: &Arc<GrpcReader>,
     executor: &Arc<dyn TransactionExecutor>,
+    tally_handle: Option<&TallyHandle>,
     build_client: &NodeTransactionBuilderLedgerClient,
     config: &iota_config::node::GrpcApiConfig,
     request: ViewFunctionCallsRequest,
@@ -75,6 +79,7 @@ pub async fn view_function_calls(
         let result = match view_function_call(
             reader,
             executor,
+            tally_handle,
             build_client,
             config,
             item,
@@ -101,6 +106,7 @@ pub async fn view_function_calls(
 async fn view_function_call(
     reader: &Arc<GrpcReader>,
     executor: &Arc<dyn TransactionExecutor>,
+    tally_handle: Option<&TallyHandle>,
     build_client: &NodeTransactionBuilderLedgerClient,
     config: &iota_config::node::GrpcApiConfig,
     item: &ViewFunctionCallItem,
@@ -131,8 +137,13 @@ async fn view_function_call(
     };
 
     // Dev-inspect the transaction
-    let simulation =
-        super::run_simulation(executor, transaction.into(), VmChecks::Disabled).await?;
+    let simulation = super::run_simulation(
+        executor,
+        tally_handle,
+        transaction.into(),
+        VmChecks::Disabled,
+    )
+    .await?;
 
     // Build the response
     let mut response = ViewFunctionCallResult::default();

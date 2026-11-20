@@ -3606,10 +3606,12 @@ impl AuthorityState {
         let traffic_controller_metrics =
             Arc::new(TrafficControllerMetrics::new(prometheus_registry));
         let traffic_controller = policy_config.map(|policy_config| {
-            Arc::new(TrafficController::init(
-                policy_config,
-                traffic_controller_metrics,
-            ))
+            let traffic_controller =
+                TrafficController::init(policy_config, traffic_controller_metrics);
+            traffic_controller.set_max_simulation_computation(
+                epoch_store.protocol_config().max_gas_computation_bucket(),
+            );
+            Arc::new(traffic_controller)
         });
         let attestation_semaphore =
             AttestationSemaphore::new(&config.authority_overload_config, &metrics);
@@ -6671,6 +6673,13 @@ impl AuthorityState {
             expensive_safety_check_config,
             epoch_last_checkpoint,
         )?;
+        if let Some(traffic_controller) = &self.traffic_controller {
+            traffic_controller.set_max_simulation_computation(
+                new_epoch_store
+                    .protocol_config()
+                    .max_gas_computation_bucket(),
+            );
+        }
         self.epoch_store.store(new_epoch_store.clone());
         Ok(new_epoch_store)
     }
