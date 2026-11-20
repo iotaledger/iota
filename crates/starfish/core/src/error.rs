@@ -366,14 +366,6 @@ pub(crate) enum ConsensusError {
         block_round: Round,
     },
 
-    #[error(
-        "All GenericTransactionRef elements must have the same variant (BlockRef, TransactionRef, etc.) for batch operations."
-    )]
-    InconsistentTransactionRefVariants,
-
-    #[error("Expected TransactionRef, but received {received_variant}")]
-    TransactionRefVariantMismatch { received_variant: &'static str },
-
     #[error("Failed to fetch {num_requested} block headers from any peer")]
     FailedToFetchBlockHeaders { num_requested: usize },
 
@@ -383,13 +375,11 @@ pub(crate) enum ConsensusError {
     #[error("ShardWithProof variant {actual} is not the expected V2")]
     WrongShardVersion { actual: &'static str },
 
-    #[error(
-        "Commit variant {actual} does not match protocol flags (consensus_starfish_speed={starfish_speed})"
-    )]
-    WrongCommitVersionForFlags {
-        actual: &'static str,
-        starfish_speed: bool,
-    },
+    #[error("Commit variant {actual} is not the expected V3")]
+    WrongCommitVersion { actual: &'static str },
+
+    #[error("Block references invalid authority index {index}, committee size is {max}")]
+    InvalidReferenceAuthority { index: AuthorityIndex, max: usize },
 
     #[error("Block strong_vote contains invalid authority index {index}, committee size is {max}")]
     InvalidStrongVoteAuthority { index: AuthorityIndex, max: usize },
@@ -404,13 +394,8 @@ pub(crate) enum ConsensusError {
         leader_authority: AuthorityIndex,
     },
 
-    #[error(
-        "BlockHeader variant {actual} does not match protocol flag (consensus_starfish_speed={starfish_speed})"
-    )]
-    WrongBlockHeaderVersionForFlag {
-        actual: &'static str,
-        starfish_speed: bool,
-    },
+    #[error("BlockHeader variant {actual} is not the expected V2")]
+    WrongBlockHeaderVersion { actual: &'static str },
 
     #[error("Authority {authority} equivocated: signed a second block header for round {round}")]
     BlockHeaderEquivocation {
@@ -432,6 +417,13 @@ pub(crate) enum ConsensusError {
         peer: AuthorityIndex,
         size: usize,
         limit: usize,
+    },
+
+    #[error("Peer {peer} sent a shard of authority {index} outside the committee of size {max}")]
+    InvalidShardAuthor {
+        peer: AuthorityIndex,
+        index: AuthorityIndex,
+        max: usize,
     },
 
     #[error("Peer {peer} relayed a second shard for slot (author {author}, round {round})")]

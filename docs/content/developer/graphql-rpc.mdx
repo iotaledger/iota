@@ -236,6 +236,8 @@ The GraphQL service does not support consistent pagination for arbitrarily old c
 
 The results are the first and last checkpoint for which pagination continues to work and produce a consistent result. At the time of writing the available range offers a 5- to 15-minute buffer period to finish pagination.
 
+The available range covers consistent object queries: objects, coins, balances, dynamic fields and name registrations. Transaction, event and checkpoint pages report the checkpoint their data is available from in the `oldestAvailableCheckpoint` field.
+
 ### Page limits
 
 After results are bounded using cursors, a page size limit is applied using the `first` and `last` parameters. The service requires these parameters to be less than or equal to the max page size [limit](#limits), and if you provide neither, it selects a default. In addition to setting a limit, `first` and `last` control where excess elements are discarded from. For example, if there are `10` potential results -- `R0`, `R1`, ..., `R9` -- after cursor bounds have been applied, then

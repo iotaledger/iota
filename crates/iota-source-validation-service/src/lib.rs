@@ -381,8 +381,7 @@ pub async fn verify_packages(config: &Config, dir: &Path) -> anyhow::Result<Netw
                         let package_path = dir
                             .join(network_name.clone())
                             .join(format!("{repo_name}__{sanitized_branch}"))
-                            .join(p.path.clone())
-                            .clone();
+                            .join(p.path.clone());
                         let network = r.network.clone().unwrap_or_default();
                         let t =
                             tokio::spawn(

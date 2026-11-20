@@ -202,18 +202,14 @@ pub struct Parameters {
     /// that the voters are not expected to hold at the next round, judged
     /// from how soon they acknowledged recent blocks. Voters count by how
     /// often this node's blocks reference them. Deferred acknowledgments go
-    /// into later blocks. Effective only when the
-    /// protocol-level `consensus_starfish_speed` flag is also on.
+    /// into later blocks.
     #[serde(default = "Parameters::default_enable_starfish_speed_adaptive_acknowledgments")]
     pub enable_starfish_speed_adaptive_acknowledgments: bool,
 
     /// Prefer more responsive peers when the transactions synchronizer, the
     /// commit syncer and the header synchronizer select peers to fetch from.
     /// Responses are verified the same way regardless, so it cannot affect
-    /// safety. Enabled by default; disabling it restores the previous
-    /// selection: for the transactions synchronizer a uniform random order
-    /// that excludes the most recently failed peers (up to less than f+1 by
-    /// stake), and for the commit syncer and the header synchronizer a uniform
+    /// safety. Enabled by default; disabling it selects peers in a uniform
     /// random order.
     #[serde(default = "Parameters::default_enable_peer_responsiveness_ranking")]
     pub enable_peer_responsiveness_ranking: bool,

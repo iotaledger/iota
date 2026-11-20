@@ -69,7 +69,7 @@ mod test_dag_builder;
 mod test_dag_parser;
 
 /// Exported consensus API.
-pub use authority_node::ConsensusAuthority;
+pub use authority_node::{ConsensusAuthority, StopTimings};
 pub use block_header::{BlockHeaderAPI, BlockRef, Round};
 /// Exported API for testing.
 pub use block_header::{
@@ -86,6 +86,7 @@ pub use storage::delete_all_transactions_from_store;
 #[cfg(msim)]
 pub use transaction::NoopTransactionVerifier;
 pub use transaction::{
-    BlockStatus, ClientError, TransactionClient, TransactionVerifier, ValidationError,
+    BlockStatus, ClientError, Priority, TransactionClient, TransactionSubmissionLimits,
+    TransactionVerifier, ValidationError, check_transactions_fit,
 };
-pub use transaction_ref::GenericTransactionRef;
+pub use transaction_ref::TransactionRef;

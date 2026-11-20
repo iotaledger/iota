@@ -8,9 +8,12 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use iota_sdk_types::{ObjectReference, TransactionDigest, TransactionEffects};
+use iota_sdk_types::{ObjectReference, TransactionDigest, TransactionEffects, Version};
 use iota_types::{
-    attestation::{Attestation, AttestationData, AttestationRecord, AttestedTransaction},
+    attestation::{
+        Attestation, AttestationData, AttestationRecord, AttestedTransaction, SharedInputIndex,
+    },
+    error::IotaResult,
     messages_consensus::ConsensusTransaction,
     transaction::TransactionEnvelope,
 };
@@ -35,15 +38,8 @@ impl AbstractAccountTestEnv {
     /// Runs the attestor's own dry-run, which is how a genuine attestation is
     /// produced. Only succeeds while authentication still passes.
     pub fn attest(&self, tx: &TransactionEnvelope) -> Attestation {
-        let epoch_store = self.authority.epoch_store_for_testing();
-        let verified = epoch_store.verify_transaction(tx.clone()).unwrap();
         let (payload, _) = self
-            .authority
-            .attest_transaction(
-                &verified,
-                &epoch_store,
-                &self.authority.config.transaction_deny_config,
-            )
+            .try_attest(tx)
             .expect("attesting must succeed while authentication passes");
         Attestation::Authority {
             payload,
@@ -51,16 +47,38 @@ impl AbstractAccountTestEnv {
         }
     }
 
-    /// An attestation vouching for the transaction at the given versions, as a
-    /// dishonest attestor would produce. The computation estimate is the
-    /// largest one consensus accepts, so the verdict on the recorded versions
-    /// is never preempted by the attested-units cap on the re-run.
-    pub fn attest_with_versions(&self, object_versions: Vec<ObjectReference>) -> Attestation {
+    /// Runs the attestor's own dry run and returns its result, a refusal
+    /// included.
+    pub fn try_attest(
+        &self,
+        tx: &TransactionEnvelope,
+    ) -> IotaResult<(AttestationData, Vec<ObjectReference>)> {
+        let epoch_store = self.authority.epoch_store_for_testing();
+        let verified = epoch_store.verify_transaction(tx.clone()).unwrap();
+
+        self.authority.attest_transaction(
+            &verified,
+            &epoch_store,
+            &self.authority.config.transaction_deny_config,
+            |_| Ok(()),
+        )
+    }
+
+    /// Returns an attestation vouching for an account transaction at
+    /// `account_version` of the account, as a dishonest attestor would
+    /// produce: its one entry is for the account of the Move authenticator at
+    /// signature 0. The computation estimate is the largest one consensus
+    /// accepts, so the attested-units cap does not cut the judge's re-run
+    /// short.
+    pub fn attest_with_account_version(&self, account_version: Version) -> Attestation {
         let computation_units = self.budget() / self.rgp();
         Attestation::Authority {
             payload: AttestationData::V1 {
                 computation_units,
-                object_versions,
+                shared_object_versions: vec![(
+                    SharedInputIndex::AuthenticatorAccount { authenticator: 0 },
+                    account_version,
+                )],
             },
             authority_index: authority_index(),
         }

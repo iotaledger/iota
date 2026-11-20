@@ -5,14 +5,15 @@
 use std::sync::Arc;
 
 use eyre::WrapErr;
-use fastcrypto_tbls::dkg_v1;
+use fastcrypto_threshold::dkg_v1;
 use iota_metrics::monitored_scope;
 use iota_sdk_types::SenderSignedTransaction;
 use iota_types::{
     base_types::ConciseableName,
     error::IotaError,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
-    transaction::transaction_identifiers_validity_check,
+    move_authenticator::MoveAuthenticatorExt,
+    transaction::{CallArg, TransactionAPI, transaction_identifiers_validity_check},
 };
 use prometheus_filtered::{IntCounter, Registry, register_int_counter_with_registry};
 use starfish_core;
@@ -64,6 +65,41 @@ impl IotaTxValidator {
         Ok(())
     }
 
+    /// Rejects the block when a transaction carries a transaction dependency
+    /// input among a Move authenticator's call arguments, where it is never
+    /// valid, or among its own inputs before the protocol enables the input: a
+    /// validator on a binary that predates the input cannot decode such a
+    /// block, so every validator must refuse it the same way.
+    fn transaction_dependency_check(
+        &self,
+        signed_tx: &SenderSignedTransaction,
+    ) -> Result<(), IotaError> {
+        // Every decoder refuses an object to authenticate that is not a shared
+        // object, so only an authenticator's call arguments can hold the input.
+        let in_authenticator = signed_tx
+            .move_authenticators()
+            .into_iter()
+            .flat_map(|authenticator| authenticator.call_args())
+            .any(|input| matches!(input, CallArg::TransactionDependency(_)));
+        if in_authenticator {
+            return Err(IotaError::UnsupportedFeature {
+                error: "transaction dependency input not supported in a Move authenticator".into(),
+            });
+        }
+        if !self
+            .epoch_store
+            .protocol_config()
+            .enable_transaction_dependencies()
+            && signed_tx.transaction().transaction_dependency().is_some()
+        {
+            return Err(IotaError::UnsupportedFeature {
+                error: "transaction dependency input not supported at current protocol version"
+                    .into(),
+            });
+        }
+        Ok(())
+    }
+
     #[instrument(level = "trace", skip_all)]
     fn validate_transactions(&self, txs: Vec<ConsensusTransactionKind>) -> Result<(), IotaError> {
         let mut cert_batch = Vec::new();
@@ -76,6 +112,7 @@ impl IotaTxValidator {
             match tx {
                 ConsensusTransactionKind::CertifiedTransaction(certificate) => {
                     self.identifiers_check(certificate.data())?;
+                    self.transaction_dependency_check(certificate.data())?;
                     // A certificate carries no attestation, so it would skip the
                     // judge, the units claim and the cutoff.
                     if self
@@ -138,6 +175,7 @@ impl IotaTxValidator {
                         });
                     }
                     self.identifiers_check(attested_tx.transaction.data())?;
+                    self.transaction_dependency_check(attested_tx.transaction.data())?;
                     // An attestation is authenticated by the block signature,
                     // so only its presence is checked here, against the flag;
                     // post-consensus validation checks its content.
@@ -214,11 +252,18 @@ impl IotaTxValidator {
             .verify_certs_and_checkpoints(cert_batch, ckpt_batch, authority_cap_batch)
             .tap_err(|e| warn!("batch verification error: {}", e))?;
 
-        // All checkpoint sigs have been verified, forward them to the checkpoint
-        // service
+        // A failure to forward a verified signature is local, so it must not
+        // reject the block and count against its author.
         for ckpt in ckpt_messages {
-            self.checkpoint_service
-                .notify_checkpoint_signature(&self.epoch_store, ckpt)?;
+            if let Err(e) = self
+                .checkpoint_service
+                .notify_checkpoint_signature(&self.epoch_store, ckpt)
+            {
+                warn!(
+                    "Failed to forward checkpoint signature {}: {e}",
+                    ckpt.summary.sequence_number
+                );
+            }
         }
 
         self.metrics
@@ -319,26 +364,34 @@ mod tests {
     use fastcrypto::traits::KeyPair as _;
     use iota_macros::sim_test;
     use iota_protocol_config::{Chain, OverrideGuard, ProtocolConfig, ProtocolVersion};
-    use iota_sdk_types::{Identifier, ObjectId, UserSignature};
+    use iota_sdk_types::{
+        Identifier, ObjectId, SharedObjectReference, TransactionDigest, UserSignature,
+    };
     use iota_types::{
-        attestation::AttestedTransaction,
+        attestation::{Attestation, AttestationData, AttestedTransaction},
         crypto::AuthorityKeyPair,
-        error::{IotaError, UserInputError},
+        error::{IotaError, IotaResult, UserInputError},
+        messages_checkpoint::{CheckpointSignatureMessage, SignedCheckpointSummary},
         messages_consensus::{
             ConsensusTransaction, ConsensusTransactionKind, MisbehaviorObservationsV1,
             VersionedMisbehaviorReport,
         },
         object::Object,
-        transaction::{CertifiedTransaction, SenderSignedTransactionAPI, TransactionEnvelope},
+        transaction::{
+            CallArg, CertifiedTransaction, SenderSignedTransactionAPI, TransactionEnvelope,
+        },
     };
     use starfish_core::TransactionVerifier as _;
 
     use crate::{
-        authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder},
-        checkpoints::CheckpointServiceNoop,
+        authority::{
+            AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore,
+            test_authority_builder::TestAuthorityBuilder,
+        },
+        checkpoints::{CheckpointServiceNoop, CheckpointServiceNotify},
         consensus_adapter::consensus_tests::{test_certificates, test_gas_objects},
         consensus_validator::{IotaTxValidator, IotaTxValidatorMetrics},
-        test_utils::consensus_transaction_feature_gate,
+        test_utils::{certified_summary, consensus_transaction_feature_gate},
     };
 
     #[sim_test]
@@ -413,6 +466,92 @@ mod tests {
         assert!(res_batch.is_err());
     }
 
+    #[sim_test]
+    async fn verify_batch_checks_user_transaction_v1_signature() {
+        use iota_types::crypto::{AccountPrivateKey, deterministic_random_account_private_key};
+
+        use crate::test_utils::make_transfer_iota_transaction;
+
+        let (sender, sender_key): (_, AccountPrivateKey) =
+            deterministic_random_account_private_key();
+        let gas_object_id = ObjectId::random();
+        let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
+        let network_config =
+            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+                .with_objects(vec![gas_object])
+                .build();
+        let _guard = validator_attestation_off();
+        let state = TestAuthorityBuilder::new()
+            .with_network_config(&network_config, 0)
+            .build()
+            .await;
+        let epoch_store = state.epoch_store_for_testing().clone();
+        assert!(epoch_store.protocol_config().enable_pcool_flow());
+
+        let rgp = epoch_store.reference_gas_price();
+        let gas_ref = state.get_object(&gas_object_id).unwrap().object_ref();
+        let valid_tx = make_transfer_iota_transaction(
+            gas_ref,
+            iota_sdk_types::Address::random(),
+            None,
+            sender,
+            &sender_key,
+            rgp,
+        );
+        // The sender's signature over other data, so that the signer check
+        // passes and only the signature itself is wrong.
+        let mut other_tx = make_transfer_iota_transaction(
+            gas_ref,
+            iota_sdk_types::Address::random(),
+            None,
+            sender,
+            &sender_key,
+            rgp,
+        );
+        let mut bad_tx = valid_tx.clone();
+        bad_tx.tx_signatures_mut_for_testing()[0] =
+            other_tx.tx_signatures_mut_for_testing()[0].clone();
+
+        let expected_error = epoch_store
+            .signature_verifier
+            .verify_tx(bad_tx.data())
+            .unwrap_err();
+        assert!(
+            matches!(expected_error, IotaError::InvalidSignature { .. }),
+            "{expected_error:?}"
+        );
+
+        let to_bytes = |tx: &iota_types::transaction::TransactionEnvelope| {
+            bcs::to_bytes(&ConsensusTransaction::new_user_transaction(tx.clone())).unwrap()
+        };
+        let valid_bytes = to_bytes(&valid_tx);
+        let bad_bytes = to_bytes(&bad_tx);
+
+        let metrics = IotaTxValidatorMetrics::new(&Default::default());
+        let validator = IotaTxValidator::new(
+            epoch_store,
+            Arc::new(CheckpointServiceNoop {}),
+            metrics.clone(),
+        );
+
+        let res = validator.verify_batch(&[&valid_bytes]);
+        assert!(res.is_ok(), "{res:?}");
+        assert_eq!(metrics.user_transaction_signatures_verified.get(), 1);
+
+        for batch in [vec![&bad_bytes[..]], vec![&valid_bytes[..], &bad_bytes[..]]] {
+            let res = validator.verify_batch(&batch);
+            assert!(
+                matches!(
+                    &res,
+                    Err(starfish_core::ValidationError::InvalidTransaction(msg))
+                        if *msg == expected_error.to_string()
+                ),
+                "{res:?}"
+            );
+        }
+        assert_eq!(metrics.user_transaction_signatures_verified.get(), 1);
+    }
+
     /// Verifies that `validate_transactions` correctly gates every
     /// `ConsensusTransactionKind` variant against the current protocol config's
     /// feature flags.
@@ -420,13 +559,20 @@ mod tests {
     /// The exhaustive match forces a compile error when new variants are added,
     /// so the developer must explicitly map each variant to its gating flag.
     ///
-    /// NOTE: This test is primarily useful for variants that are under
-    /// development or not yet fully rolled out on all networks. Once all
-    /// feature-gated variants are enabled on every network, this test can be
-    /// ignored — its value lies in catching missing gates during the upgrade
-    /// window between code deployment and protocol activation.
+    /// Every gating flag is set explicitly and the test runs with them all off
+    /// and all on, so each gated variant is seen rejected and accepted
+    /// regardless of the chain defaults.
     #[sim_test]
-    async fn validate_transactions_feature_gating() {
+    async fn validate_transactions_feature_gating_with_gated_features_enabled() {
+        validate_transactions_feature_gating(true).await;
+    }
+
+    #[sim_test]
+    async fn validate_transactions_feature_gating_with_gated_features_disabled() {
+        validate_transactions_feature_gating(false).await;
+    }
+
+    async fn validate_transactions_feature_gating(gated_features_enabled: bool) {
         use iota_types::crypto::{
             AccountPrivateKey, AuthorityPublicKeyBytes, deterministic_random_account_private_key,
         };
@@ -443,9 +589,15 @@ mod tests {
                 .with_objects(vec![gas_object.clone()])
                 .build();
 
+        let _guard = ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
+            config.set_enable_pcool_flow_for_testing(gated_features_enabled);
+            config.set_calculate_validator_scores_for_testing(gated_features_enabled);
+            // The user transaction below carries no attestation.
+            config.set_enable_validator_attestation_for_testing(false);
+            config
+        });
         let state = TestAuthorityBuilder::new()
             .with_network_config(&network_config, 0)
-            .with_chain_override(Chain::Mainnet)
             .build()
             .await;
 
@@ -463,6 +615,11 @@ mod tests {
         );
 
         let protocol_config = validator.epoch_store.protocol_config();
+        assert_eq!(protocol_config.enable_pcool_flow(), gated_features_enabled);
+        assert_eq!(
+            protocol_config.calculate_validator_scores(),
+            gated_features_enabled
+        );
         let authority = AuthorityPublicKeyBytes::default();
 
         // Variants that can be validated without signature verification setup
@@ -646,6 +803,23 @@ mod tests {
         )))
     }
 
+    /// `signed_tx` with an attestation. Block verification checks only that
+    /// one is present, so its content is arbitrary.
+    fn attested_user_transaction(signed_tx: TransactionEnvelope) -> ConsensusTransactionKind {
+        let attestation = Attestation::new_authority(
+            AttestationData::V1 {
+                computation_units: 0,
+                shared_object_versions: vec![],
+            },
+            0,
+        );
+
+        ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            signed_tx,
+            Some(attestation),
+        )))
+    }
+
     /// `signed_tx` certified by the single validator of `state`.
     fn certificate(
         signed_tx: TransactionEnvelope,
@@ -691,6 +865,28 @@ mod tests {
 
         validator
             .validate_transactions(vec![user_transaction(move_call_with_type_name(
+                &state,
+                Identifier::from_static("IOTA"),
+            ))])
+            .unwrap();
+    }
+
+    /// The identifier check of block verification applies to a user
+    /// transaction in the form it takes while validator attestation is on.
+    #[tokio::test]
+    async fn reject_identifier_move_core_rejects_in_attested_user_transaction() {
+        let (state, _, validator) = self_identifier_fixture(None).await;
+        let protocol_config = validator.epoch_store.protocol_config();
+        assert!(protocol_config.disallow_self_identifier_in_transactions());
+        assert!(protocol_config.enable_validator_attestation());
+
+        let result = validator.validate_transactions(vec![attested_user_transaction(
+            move_call_with_type_name(&state, Identifier::new_unchecked("<SELF>")),
+        )]);
+        assert_self_identifier_rejected(&result);
+
+        validator
+            .validate_transactions(vec![attested_user_transaction(move_call_with_type_name(
                 &state,
                 Identifier::from_static("IOTA"),
             ))])
@@ -822,6 +1018,188 @@ mod tests {
             &state,
             &keypair,
         )]);
+        assert!(
+            matches!(&result, Err(IotaError::UnsupportedFeature { .. })),
+            "{result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn accept_checkpoint_signature_when_forwarding_fails() {
+        struct FailingCheckpointService;
+        impl CheckpointServiceNotify for FailingCheckpointService {
+            fn notify_checkpoint_signature(
+                &self,
+                _: &AuthorityPerEpochStore,
+                _: &CheckpointSignatureMessage,
+            ) -> IotaResult {
+                Err(IotaError::Storage("disk failure".to_string()))
+            }
+
+            fn notify_checkpoint(&self) -> IotaResult {
+                Ok(())
+            }
+        }
+
+        let state = TestAuthorityBuilder::new().build().await;
+        let epoch_store = state.epoch_store_for_testing().clone();
+        let summary = certified_summary(epoch_store.epoch(), 1, None).into_data();
+        let transaction =
+            ConsensusTransaction::new_checkpoint_signature_message(CheckpointSignatureMessage {
+                summary: SignedCheckpointSummary::new(
+                    epoch_store.epoch(),
+                    summary,
+                    &*state.secret,
+                    state.name,
+                ),
+            });
+        let bytes = bcs::to_bytes(&transaction).unwrap();
+
+        let validator = IotaTxValidator::new(
+            epoch_store,
+            Arc::new(FailingCheckpointService),
+            IotaTxValidatorMetrics::new(&Default::default()),
+        );
+        let result = validator.verify_batch(&[&bytes]);
+        assert!(result.is_ok(), "{result:?}");
+    }
+
+    /// Validator attestation off, as for `validator_attestation_off`, with
+    /// transaction dependencies enabled or not.
+    fn transaction_dependencies_enabled(enabled: bool) -> OverrideGuard {
+        ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
+            config.set_enable_validator_attestation_for_testing(false);
+            config.set_enable_transaction_dependencies_for_testing(enabled);
+            config
+        })
+    }
+
+    /// A signed transfer of IOTA, with a transaction dependency input on
+    /// `dependency` when given.
+    fn transfer_with_dependency(
+        state: &AuthorityState,
+        dependency: Option<TransactionDigest>,
+    ) -> TransactionEnvelope {
+        use iota_sdk_types::Address;
+        use iota_test_transaction_builder::TestTransactionBuilder;
+        use iota_types::{
+            base_types::random_object_ref,
+            crypto::{AccountPrivateKey, deterministic_random_account_private_key},
+        };
+
+        let (sender, sender_key): (_, AccountPrivateKey) =
+            deterministic_random_account_private_key();
+        let epoch_store = state.epoch_store_for_testing();
+        let mut builder = TestTransactionBuilder::new(
+            sender,
+            random_object_ref(),
+            epoch_store.reference_gas_price(),
+        )
+        .transfer_iota(None, Address::random());
+        if let Some(dependency) = dependency {
+            builder = builder.with_transaction_dependency(dependency, epoch_store.epoch());
+        }
+        builder.build_and_sign(&sender_key)
+    }
+
+    /// A transfer of IOTA from a Move account whose authenticator takes
+    /// `call_arg` as its only argument.
+    fn move_account_transfer(state: &AuthorityState, call_arg: CallArg) -> TransactionEnvelope {
+        use iota_sdk_types::{Address, MoveAuthenticator, MoveAuthenticatorV1, Version};
+        use iota_test_transaction_builder::TestTransactionBuilder;
+        use iota_types::base_types::random_object_ref;
+
+        let authenticator = MoveAuthenticatorV1::new(
+            vec![call_arg],
+            vec![],
+            SharedObjectReference::new(ObjectId::random(), Version::INITIAL_SHARED_VERSION, false),
+        );
+        let transaction = TestTransactionBuilder::new(
+            authenticator.address(),
+            random_object_ref(),
+            state.epoch_store_for_testing().reference_gas_price(),
+        )
+        .transfer_iota(None, Address::random())
+        .build();
+        TransactionEnvelope::from_user_sig_data(
+            transaction,
+            vec![UserSignature::MoveAuthenticator(MoveAuthenticator::V1(
+                authenticator,
+            ))],
+        )
+    }
+
+    #[tokio::test]
+    async fn reject_transaction_dependency_before_the_flag() {
+        let _guard = transaction_dependencies_enabled(false);
+        let (state, keypair, validator) = self_identifier_fixture(None).await;
+        let dependency = TransactionDigest::random();
+
+        for (case, kind) in [
+            (
+                "user transaction",
+                user_transaction(transfer_with_dependency(&state, Some(dependency))),
+            ),
+            (
+                "certificate",
+                certificate(
+                    transfer_with_dependency(&state, Some(dependency)),
+                    &state,
+                    &keypair,
+                ),
+            ),
+            (
+                "Move authenticator argument",
+                user_transaction(move_account_transfer(
+                    &state,
+                    CallArg::TransactionDependency(dependency),
+                )),
+            ),
+        ] {
+            let result = validator.validate_transactions(vec![kind]);
+            assert!(
+                matches!(&result, Err(IotaError::UnsupportedFeature { .. })),
+                "{case}: {result:?}"
+            );
+        }
+
+        validator
+            .validate_transactions(vec![
+                user_transaction(transfer_with_dependency(&state, None)),
+                certificate(transfer_with_dependency(&state, None), &state, &keypair),
+                user_transaction(move_account_transfer(&state, CallArg::Pure(vec![]))),
+            ])
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn accept_transaction_dependency_with_the_flag() {
+        let _guard = transaction_dependencies_enabled(true);
+        let (state, keypair, validator) = self_identifier_fixture(None).await;
+        let dependency = Some(TransactionDigest::random());
+
+        validator
+            .validate_transactions(vec![
+                user_transaction(transfer_with_dependency(&state, dependency)),
+                certificate(
+                    transfer_with_dependency(&state, dependency),
+                    &state,
+                    &keypair,
+                ),
+            ])
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn reject_transaction_dependency_in_a_move_authenticator_with_the_flag() {
+        let _guard = transaction_dependencies_enabled(true);
+        let (state, _keypair, validator) = self_identifier_fixture(None).await;
+
+        let result =
+            validator.validate_transactions(vec![user_transaction(move_account_transfer(
+                &state,
+                CallArg::TransactionDependency(TransactionDigest::random()),
+            ))]);
         assert!(
             matches!(&result, Err(IotaError::UnsupportedFeature { .. })),
             "{result:?}"

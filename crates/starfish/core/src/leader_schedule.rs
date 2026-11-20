@@ -1375,7 +1375,7 @@ mod tests {
                 // only write one block for the final round, which is the leader
                 // of the committed subdag.
                 if round == max_round {
-                    leader = Some(block.clone());
+                    leader = Some(block);
                     break;
                 }
             }
@@ -1387,7 +1387,6 @@ mod tests {
         let commit_index = 1;
 
         let last_commit = TrustedCommit::new_for_test(
-            &context,
             commit_index,
             CommitDigest::MIN,
             context.clock.timestamp_utc_ms(),

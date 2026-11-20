@@ -251,6 +251,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) cordial_knowledge_entries: IntGauge,
     pub(crate) cordial_knowledge_headers_not_known: IntGauge,
     pub(crate) cordial_knowledge_shards_not_known: IntGauge,
+    pub(crate) cordial_knowledge_second_own_shards_for_slot: IntCounter,
     pub(crate) dag_state_store_read_count: IntCounterVec,
     pub(crate) dag_state_store_write_count: IntCounter,
     pub(crate) synchronizer_fetch_block_headers_scheduler_inflight: IntGauge,
@@ -334,6 +335,8 @@ pub(crate) struct NodeMetrics {
     pub(crate) dropped_far_future_headers_total: IntCounterVec,
     pub(crate) threshold_clock_round: IntGauge,
     pub(crate) subscriber_connection_attempts: IntCounterVec,
+    pub(crate) subscriber_connect_failures: IntCounterVec,
+    pub(crate) epoch_start_stage_ms: IntGaugeVec,
     pub(crate) block_stream_resets: IntCounterVec,
     pub(crate) subscribed_to: IntGaugeVec,
     pub(crate) subscribed_by: IntGaugeVec,
@@ -738,6 +741,12 @@ impl NodeMetrics {
             cordial_knowledge_shards_not_known: register_int_gauge_with_registry!(
                 "cordial_knowledge_shards_not_known",
                 "Total unknown shard entries across all connection knowledges",
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            cordial_knowledge_second_own_shards_for_slot: register_int_counter_with_registry!(
+                "cordial_knowledge_second_own_shards_for_slot",
+                "Own shards not disseminated because another own shard was disseminated for the slot",
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),
@@ -1250,6 +1259,20 @@ impl NodeMetrics {
                 &["authority", "status"],
                 registry,
             ).unwrap(),
+            subscriber_connect_failures: register_int_counter_vec_with_registry!(
+                "subscriber_connect_failures",
+                "The number of failed connection attempts to each peer when subscribing to its blocks",
+                &["authority"],
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            epoch_start_stage_ms: register_int_gauge_vec_with_registry!(
+                "epoch_start_stage_ms",
+                "Milliseconds from the start of consensus in a fresh epoch to each startup stage",
+                &["stage"],
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
             block_stream_resets: register_int_counter_vec_with_registry!(
                 "block_stream_resets",
                 "The number of block stream subscriptions reset after fast sync, per peer",
@@ -1483,14 +1506,14 @@ impl NodeMetrics {
             ).unwrap(),
             strong_vote_extra_wait_seconds: register_histogram_with_registry!(
                 "strong_vote_extra_wait_seconds",
-                "Extra wait at block proposal time imposed by the StarfishSpeed strong-vote condition: time between when the ordinary (base Starfish) propose condition first became satisfiable for the current clock round and when the proposal actually happened. Observed only when consensus_starfish_speed is enabled.",
+                "Extra wait at block proposal time imposed by the StarfishSpeed strong-vote condition: time between when the ordinary (base Starfish) propose condition first became satisfiable for the current clock round and when the proposal actually happened.",
                 FINE_GRAINED_LATENCY_SEC_BUCKETS.to_vec(),
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),
             strong_vote_missing_authorities: register_histogram_with_registry!(
                 "strong_vote_missing_authorities",
-                "Size of the `missing` set in the strong-vote payload of each proposed block: authorities whose transactions are not locally available among the leader and its acknowledgments. 0 means a clean strong vote; >0 means strong blame. Observed only when consensus_starfish_speed is enabled.",
+                "Size of the `missing` set in the strong-vote payload of each proposed block: authorities whose transactions are not locally available among the leader and its acknowledgments. 0 means a clean strong vote; >0 means strong blame.",
                 COMMITTEE_COUNT_BUCKETS.to_vec(),
                 registry;
                 MetricLevel::Warn,
@@ -1517,14 +1540,14 @@ impl NodeMetrics {
             ).unwrap(),
             strong_vote_missing_by_author: register_int_counter_vec_with_registry!(
                 "strong_vote_missing_by_author",
-                "Number of times an authority's transactions were not locally available when a strong-vote payload was built, labeled by that authority. Observed only when consensus_starfish_speed is enabled.",
+                "Number of times an authority's transactions were not locally available when a strong-vote payload was built, labeled by that authority.",
                 &["author"],
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),
             strong_blames_received_for_author: register_int_counter_vec_with_registry!(
                 "strong_blames_received_for_author",
-                "Number of times an authority appeared in the `missing` set of a strong blame received against this node (when acting as leader), labeled by that authority. Observed only when consensus_starfish_speed is enabled.",
+                "Number of times an authority appeared in the `missing` set of a strong blame received against this node (when acting as leader), labeled by that authority.",
                 &["author"],
                 registry;
                 MetricLevel::Warn,

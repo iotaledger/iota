@@ -612,6 +612,55 @@ impl FullCheckpointContents {
         })
     }
 
+    /// Pairs the signatures pinned in `contents` with transactions from this
+    /// node's own store, and puts the pinned signatures on each transaction
+    /// the checkpoint pins signatures for, except where the stored or the
+    /// pinned signatures hold a `MoveAuthenticator`; those are left as stored,
+    /// so the contents fail [`Self::verify`] if the two copies differ.
+    ///
+    /// Only for transactions this node stored itself. Contents received from
+    /// elsewhere must pass [`Self::verify`] as received.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `execution_data` does not hold exactly one
+    /// transaction per entry of `contents`.
+    pub fn from_contents_and_local_execution_data(
+        contents: CheckpointContents,
+        execution_data: impl Iterator<Item = ExecutionData>,
+    ) -> Result<Self> {
+        let mut full_contents = Self::from_contents_and_execution_data(contents, execution_data)?;
+        for (execution_data, pinned_signatures) in full_contents
+            .transactions
+            .iter_mut()
+            .zip(&full_contents.user_signatures)
+        {
+            let stored_signatures = execution_data.transaction.data().signatures();
+            // Genesis and end-of-epoch transactions pin no signatures and keep
+            // their placeholder.
+            if !pinned_signatures.is_empty()
+                && stored_signatures != pinned_signatures.as_slice()
+                // A `MoveAuthenticator` decides part of what the transaction
+                // executes and can read the digests of the other signatures, so
+                // with one in either copy the stored copy's effects might not
+                // match the pinned one. Only checkpoints before protocol version
+                // 36 can hold such a pair: from that version the account object
+                // must be shared, so the transaction is ordered by consensus and
+                // every node executes the copy consensus sequenced.
+                && !stored_signatures
+                    .iter()
+                    .chain(pinned_signatures)
+                    .any(UserSignature::is_move_authenticator)
+            {
+                execution_data.transaction = TransactionEnvelope::from_user_sig_data(
+                    execution_data.transaction.data().transaction().clone(),
+                    pinned_signatures.clone(),
+                );
+            }
+        }
+        Ok(full_contents)
+    }
+
     pub fn try_from_checkpoint_contents<S>(
         store: S,
         contents: CheckpointContents,
@@ -1201,6 +1250,110 @@ mod tests {
         assert_eq!(tampered.checkpoint_contents().digest(), digest);
 
         (digest, contents, tampered)
+    }
+
+    /// Contents built from a node's own copy of a transaction carry the pinned
+    /// signatures, with the same transaction data and effects.
+    #[test]
+    fn local_execution_data_gets_the_pinned_signatures() {
+        let (digest, contents, executed_copy) = contents_with_a_swapped_envelope();
+
+        let built = FullCheckpointContents::from_contents_and_local_execution_data(
+            contents.checkpoint_contents(),
+            executed_copy.into_iter(),
+        )
+        .unwrap();
+
+        assert_eq!(built, contents);
+        built.verify_digests(digest).unwrap();
+    }
+
+    /// An end-of-epoch transaction, which the checkpoint pins no signatures
+    /// for, keeps its placeholder signature.
+    #[test]
+    fn local_execution_data_keeps_the_signatures_of_a_transaction_pinned_without_any() {
+        let transaction = VerifiedTransaction::new_end_of_epoch_transaction(vec![]).into_inner();
+        let effects = TestEffectsBuilder::new(transaction.data()).build();
+        let execution_data = ExecutionData {
+            transaction,
+            effects,
+        };
+        let contents = CheckpointContents::new_with_digests_and_signatures(
+            vec![execution_data.digests()],
+            vec![vec![]],
+        );
+        let digest = contents.digest();
+
+        let built = FullCheckpointContents::from_contents_and_local_execution_data(
+            contents,
+            std::iter::once(execution_data.clone()),
+        )
+        .unwrap();
+
+        assert_eq!(built.transactions, vec![execution_data]);
+        built.verify_digests(digest).unwrap();
+    }
+
+    /// Copies with the same `MoveAuthenticator` that differ in their other
+    /// signatures are left as stored: the authenticator can read the digests
+    /// of the other signatures.
+    #[test]
+    fn local_execution_data_with_the_same_move_authenticator_keeps_the_stored_copy() {
+        let (_, mut contents, mut executed_copy) = contents_with_a_swapped_envelope();
+        let transaction = contents.transactions[0]
+            .transaction
+            .data()
+            .transaction()
+            .clone();
+        let (authenticator, _) = crate::utils::make_move_authenticator_sig(transaction.sender());
+        for full_contents in [&mut contents, &mut executed_copy] {
+            let mut signatures = vec![authenticator.clone()];
+            signatures.extend_from_slice(
+                full_contents.transactions[0]
+                    .transaction
+                    .data()
+                    .signatures(),
+            );
+            full_contents.transactions[0].transaction =
+                TransactionEnvelope::from_user_sig_data(transaction.clone(), signatures.clone());
+            full_contents.user_signatures[0] = signatures;
+        }
+        assert_ne!(contents.transactions, executed_copy.transactions);
+
+        let built = FullCheckpointContents::from_contents_and_local_execution_data(
+            contents.checkpoint_contents(),
+            executed_copy.clone().into_iter(),
+        )
+        .unwrap();
+
+        assert_eq!(built.transactions, executed_copy.transactions);
+    }
+
+    /// A copy whose `MoveAuthenticator` differs from the pinned one is left as
+    /// stored, whichever side has it.
+    #[test]
+    fn local_execution_data_keeps_a_move_authenticator() {
+        let plain = FullCheckpointContents::random_for_testing();
+        let transaction = plain.transactions[0]
+            .transaction
+            .data()
+            .transaction()
+            .clone();
+        let (authenticator, _) = crate::utils::make_move_authenticator_sig(transaction.sender());
+        let mut with_authenticator = plain.clone();
+        with_authenticator.transactions[0].transaction =
+            TransactionEnvelope::from_user_sig_data(transaction, vec![authenticator.clone()]);
+        with_authenticator.user_signatures[0] = vec![authenticator];
+
+        for (pinned, stored) in [(&plain, &with_authenticator), (&with_authenticator, &plain)] {
+            let built = FullCheckpointContents::from_contents_and_local_execution_data(
+                pinned.checkpoint_contents(),
+                stored.clone().into_iter(),
+            )
+            .unwrap();
+
+            assert_eq!(built.transactions, stored.transactions);
+        }
     }
 
     /// The checkpoint pins the signatures separately from the transactions, and

@@ -28,7 +28,7 @@ use crate::{
     context::Context,
     encoder::{ShardEncoder, create_encoder_for_committee},
     error::{ConsensusError, ConsensusResult},
-    transaction_ref::{GenericTransactionRef, TransactionRef},
+    transaction_ref::TransactionRef,
 };
 
 /// Round number of a block.
@@ -356,24 +356,6 @@ impl BlockHeaderV2 {
             transactions_commitment,
             commit_votes,
             strong_vote,
-        }
-    }
-
-    // Will be used when genesis block construction is gated on
-    // consensus_starfish_speed.
-    #[expect(dead_code)]
-    fn genesis_block_header(context: &Context, author: AuthorityIndex) -> Self {
-        Self {
-            epoch: context.committee.epoch(),
-            round: GENESIS_ROUND,
-            author,
-            timestamp_ms: context.epoch_start_timestamp_ms,
-            references: vec![],
-            overlap_start_index: 0,
-            overlap_end_index: 0,
-            commit_votes: vec![],
-            transactions_commitment: TransactionsCommitment::default(),
-            strong_vote: None,
         }
     }
 }
@@ -854,7 +836,7 @@ impl ShardWithProofAPI for ShardWithProofV2 {
 
 pub(crate) struct VerifiedOwnShard {
     pub(crate) serialized_shard: Bytes,
-    pub(crate) gen_transaction_ref: GenericTransactionRef,
+    pub(crate) transaction_ref: TransactionRef,
 }
 
 impl TransactionsCommitment {
@@ -1563,19 +1545,6 @@ pub enum TestBlockHeaderVersion {
     V2,
 }
 
-impl TestBlockHeaderVersion {
-    /// The version `Core` proposes under this context's
-    /// `consensus_starfish_speed` setting.
-    #[cfg(test)]
-    pub(crate) fn from_context(context: &Context) -> Self {
-        if context.protocol_config.consensus_starfish_speed() {
-            Self::V2
-        } else {
-            Self::V1
-        }
-    }
-}
-
 /// This struct is public for testing in other crates.
 #[derive(Clone)]
 pub struct TestBlockHeader {
@@ -1629,7 +1598,7 @@ impl TestBlockHeader {
     /// Commits to `txs` the way a proposer does, so the commitment can be
     /// checked against the transactions.
     #[cfg(test)]
-    fn with_transactions(
+    pub(crate) fn with_transactions(
         round: Round,
         author: u8,
         txs: Vec<Transaction>,

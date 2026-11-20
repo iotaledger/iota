@@ -73,12 +73,13 @@ async fn shutdown_stops_the_server() {
     );
 }
 
-/// The server announces only hyper's default window, frame and header list
-/// sizes: it sets no limit on concurrent streams and does not offer the
-/// extended CONNECT protocol.
+/// The server announces its limit of 100 concurrent streams and hyper's default
+/// window, frame and header list sizes, and does not offer the extended
+/// CONNECT protocol.
 #[tokio::test]
-async fn the_server_announces_no_stream_limit_and_no_extended_connect() {
+async fn the_server_announces_its_stream_limit_and_no_extended_connect() {
     // SETTINGS parameters (RFC 9113, section 6.5.2).
+    const SETTINGS_MAX_CONCURRENT_STREAMS: u16 = 0x3;
     const SETTINGS_INITIAL_WINDOW_SIZE: u16 = 0x4;
     const SETTINGS_MAX_FRAME_SIZE: u16 = 0x5;
     const SETTINGS_MAX_HEADER_LIST_SIZE: u16 = 0x6;
@@ -89,6 +90,7 @@ async fn the_server_announces_no_stream_limit_and_no_extended_connect() {
     assert_eq!(
         server_settings(handle.address()).await,
         BTreeMap::from([
+            (SETTINGS_MAX_CONCURRENT_STREAMS, 100),
             (SETTINGS_INITIAL_WINDOW_SIZE, 1024 * 1024),
             (SETTINGS_MAX_FRAME_SIZE, 16 * 1024),
             (SETTINGS_MAX_HEADER_LIST_SIZE, 16 * 1024),
@@ -103,6 +105,7 @@ async fn a_call_past_its_grpc_timeout_ends_with_deadline_exceeded() {
     let (handle, _reader) = start_test_server_with(
         Arc::new(MockGrpcStateReader::default()),
         Some(Arc::new(PendingExecutor::default())),
+        None,
         None,
         None,
         None,
@@ -129,6 +132,7 @@ async fn shutdown_closes_a_running_call_after_one_second() {
     let (handle, _reader) = start_test_server_with(
         Arc::new(MockGrpcStateReader::default()),
         Some(executor.clone()),
+        None,
         None,
         None,
         None,

@@ -24,7 +24,7 @@ use iota_types::{
     transaction::TransactionAPI,
     utils::to_sender_signed_transaction,
 };
-use starfish_core::{BlockRef, BlockStatus};
+use starfish_core::BlockStatus;
 
 use crate::{
     authority::{
@@ -396,7 +396,7 @@ async fn do_transaction_test_impl(
 
     let client = NetworkAuthorityClient::connect(
         server_handle.address(),
-        authority_state.config.network_key_pair().public_key(),
+        authority_state.config.network_private_key().public_key(),
     )
     .await
     .unwrap();
@@ -549,7 +549,7 @@ async fn test_oversized_txn() {
 
     let client = NetworkAuthorityClient::connect(
         server_handle.address(),
-        authority_state.config.network_key_pair().public_key(),
+        authority_state.config.network_private_key().public_key(),
     )
     .await
     .unwrap();
@@ -597,7 +597,7 @@ async fn test_very_large_certificate() {
 
     let client = NetworkAuthorityClient::connect(
         server_handle.address(),
-        authority_state.config.network_key_pair().public_key(),
+        authority_state.config.network_private_key().public_key(),
     )
     .await
     .unwrap();
@@ -683,7 +683,7 @@ async fn test_handle_certificate_errors() {
 
     let client = NetworkAuthorityClient::connect(
         server_handle.address(),
-        authority_state.config.network_key_pair().public_key(),
+        authority_state.config.network_private_key().public_key(),
     )
     .await
     .unwrap();
@@ -869,7 +869,7 @@ async fn test_handle_soft_bundle_certificates() {
         HashSet::new(),
         true,
         vec![with_block_status(BlockStatus::Sequenced(
-            starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+            starfish_core::TransactionRef::default(),
         ))],
     );
     let server = AuthorityServer::new_for_test_with_consensus_adapter(authority.clone(), adapter);
@@ -877,7 +877,7 @@ async fn test_handle_soft_bundle_certificates() {
     let server_handle = server.spawn_for_test().await.unwrap();
     let client = NetworkAuthorityClient::connect(
         server_handle.address(),
-        authority.config.network_key_pair().public_key(),
+        authority.config.network_private_key().public_key(),
     )
     .await
     .unwrap();
@@ -1038,7 +1038,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
     let server_handle = server.spawn_for_test().await.unwrap();
     let client = NetworkAuthorityClient::connect(
         server_handle.address(),
-        authority.config.network_key_pair().public_key(),
+        authority.config.network_private_key().public_key(),
     )
     .await
     .unwrap();

@@ -20,7 +20,7 @@ use starfish_core::{
 use tokio::{
     sync::{broadcast, mpsc},
     task::yield_now,
-    time::sleep,
+    time::{sleep, timeout},
 };
 
 use crate::{
@@ -81,12 +81,12 @@ async fn test_starfish_manager() {
     let client = Arc::new(LazyStarfishClient::default());
 
     let manager = StarfishManager::new(
-        config.protocol_key_pair(),
-        config.network_key_pair(),
+        config.protocol_private_key(),
+        config.network_private_key(),
         consensus_config.db_path().to_path_buf(),
         registry_service,
         metrics,
-        client,
+        client.clone(),
     );
 
     let boot_counter = *manager.boot_counter.lock().await;
@@ -121,6 +121,21 @@ async fn test_starfish_manager() {
 
         // THEN
         assert!(manager.is_running().await);
+        // The client is handed out only for the epoch consensus runs, and a
+        // clone of it sees the same client.
+        let epoch = epoch_store.epoch();
+        // Well below the 10 s after which a waiter checks again on its own, so the
+        // waiter below can finish only through the wake-up from `set`.
+        let wait = Duration::from_secs(1);
+        let running = timeout(wait, client.clone().get_for_testing(epoch))
+            .await
+            .expect("the running epoch should get its client");
+        let next_epoch = client.get_for_testing(epoch + 1);
+        tokio::pin!(next_epoch);
+        assert!(
+            timeout(wait, &mut next_epoch).await.is_err(),
+            "the next epoch should wait while the consensus of this epoch runs"
+        );
         let boot_counter = *manager.boot_counter.lock().await;
         if i == 1 || i == 2 {
             assert_eq!(boot_counter, 0);
@@ -148,6 +163,19 @@ async fn test_starfish_manager() {
 
         // THEN
         assert!(!manager.is_running().await);
+        assert!(
+            timeout(wait, client.get_for_testing(epoch)).await.is_err(),
+            "a stopped consensus should hand out no client"
+        );
+        client.set(epoch + 1, running);
+        timeout(wait, next_epoch)
+            .await
+            .expect("the waiting caller should get the client set for its epoch");
+        assert!(
+            timeout(wait, client.get_for_testing(epoch)).await.is_err(),
+            "an ended epoch should not get the client of the next epoch"
+        );
+        client.clear();
 
         // Yield to ensure that RocksDB releases the lock before the next iteration.
         yield_now().await;

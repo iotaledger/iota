@@ -50,11 +50,11 @@ pub(crate) fn build_dag(
     let num_authorities = context.committee.size();
     let starting_round = ancestors.first().unwrap().round + 1;
     let leader_schedule = LeaderSchedule::new(context.clone(), LeaderSwapTable::default());
-    let version = TestBlockHeaderVersion::from_context(&context);
+    let version = TestBlockHeaderVersion::V2;
     for round in starting_round..=stop {
         // Every block of the round links the same ancestors, so they all carry
         // the same vote.
-        let strong_vote = strong_vote_for_leader(&context, &leader_schedule, round, &ancestors);
+        let strong_vote = strong_vote_for_leader(&leader_schedule, round, &ancestors);
         let (references, blocks): (Vec<_>, Vec<_>) = context
             .committee
             .authorities()
@@ -94,7 +94,7 @@ pub(crate) fn build_dag_layer(
     dag_state: Arc<RwLock<DagState>>,
 ) -> Vec<BlockRef> {
     let leader_schedule = LeaderSchedule::new(context.clone(), LeaderSwapTable::default());
-    let version = TestBlockHeaderVersion::from_context(context);
+    let version = TestBlockHeaderVersion::V2;
     let mut references = Vec::new();
     for (authority, ancestors) in connections {
         let round = ancestors.first().unwrap().round + 1;
@@ -102,12 +102,7 @@ pub(crate) fn build_dag_layer(
         let block = VerifiedBlockHeader::new_for_test(
             TestBlockHeader::new(round, author)
                 .set_version(version)
-                .set_strong_vote(strong_vote_for_leader(
-                    context,
-                    &leader_schedule,
-                    round,
-                    &ancestors,
-                ))
+                .set_strong_vote(strong_vote_for_leader(&leader_schedule, round, &ancestors))
                 .set_ancestors(ancestors)
                 .build(),
         );
@@ -122,17 +117,12 @@ pub(crate) fn build_dag_layer(
 /// The strong vote for a block at `round` linking `ancestors`. Blocks built
 /// here acknowledge nothing, so the vote on the leader at `round - 1` is a
 /// blame, except on the genesis leader, which carries no transactions to be
-/// missing. `None` when the block does not link the leader, or while
-/// `consensus_starfish_speed` is off.
+/// missing. `None` when the block does not link the leader.
 fn strong_vote_for_leader(
-    context: &Context,
     leader_schedule: &LeaderSchedule,
     round: Round,
     ancestors: &[BlockRef],
 ) -> Option<StrongVote> {
-    if !context.protocol_config.consensus_starfish_speed() {
-        return None;
-    }
     let leader_round = round - 1;
     let leader_authority = leader_schedule.elect_leader(leader_round, 0);
     let mut missing = AuthoritySet::new();

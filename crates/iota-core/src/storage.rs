@@ -241,7 +241,7 @@ impl ReadStore for RocksDbStore {
                 effects,
             ));
         }
-        FullCheckpointContents::from_contents_and_execution_data(
+        FullCheckpointContents::from_contents_and_local_execution_data(
             contents,
             execution_data.into_iter(),
         )
@@ -637,8 +637,6 @@ impl GrpcStateReader for GrpcReadStore {
             .checkpoint_store
             .lowest_checkpoint_with_retained_objects(
                 self.state.get_historic_objects().earliest_readable_epoch(),
-                self.state.get_historic_objects().objects_pruned_through,
-                self.state.get_historic_objects().backlog_sweep_epoch(),
             )
             .map_err(StorageError::custom)
     }

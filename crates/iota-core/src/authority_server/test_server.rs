@@ -100,7 +100,7 @@ impl AuthorityServer {
         address: Multiaddr,
     ) -> Result<AuthorityServerHandle, io::Error> {
         let tls_config = iota_tls::create_rustls_server_config(
-            self.state.config.network_key_pair(),
+            self.state.config.network_private_key(),
             IOTA_TLS_SERVER_NAME.to_string(),
         );
         let validator_service =

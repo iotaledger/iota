@@ -11,12 +11,14 @@
 use std::{path::PathBuf, sync::Arc};
 
 use fastcrypto::encoding::{Encoding, Hex};
+use iota_config::node::AuthorityOverloadConfig;
 use iota_move_build::BuildConfig;
 use iota_sdk_crypto::{Signer, ed25519::Ed25519PrivateKey};
 use iota_sdk_types::{
     Address, Argument, Ed25519Signature, Identifier, MoveAuthenticator, MoveAuthenticatorV1,
-    ObjectId, ObjectReference, Owner, ProgrammableTransaction, SharedObjectReference, Transaction,
-    TransactionEffects, TypeTag, UserSignature,
+    ObjectId, ObjectReference, Owner, ProgrammableTransaction, SharedObjectReference, StructTag,
+    Transaction, TransactionDigest, TransactionEffects, TransactionExpiration, TypeTag,
+    UserSignature,
 };
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
@@ -79,11 +81,16 @@ impl AbstractAccountTestEnv {
     /// Publishes the account package, creates a shared account authenticated by
     /// a fresh ed25519 key, and funds it.
     pub async fn new() -> Self {
+        Self::new_with_overload_config(AuthorityOverloadConfig::default()).await
+    }
+
+    /// Like [`Self::new()`], for a validator that uses `overload_config`.
+    pub async fn new_with_overload_config(overload_config: AuthorityOverloadConfig) -> Self {
         let (funder, funder_key): (_, AccountPrivateKey) = get_key_pair();
         let (_, owner_key): (_, AccountPrivateKey) = get_key_pair();
         let gas_ids = (0..8).map(|_| ObjectId::random()).collect();
 
-        Self::new_with(funder, funder_key, owner_key, gas_ids).await
+        Self::new_with(funder, funder_key, owner_key, gas_ids, overload_config).await
     }
 
     /// Two environments built from the same keys and objects through the same
@@ -99,9 +106,17 @@ impl AbstractAccountTestEnv {
             funder_key.clone(),
             owner_key.clone(),
             gas_ids.clone(),
+            AuthorityOverloadConfig::default(),
         )
         .await;
-        let second = Self::new_with(funder, funder_key, owner_key, gas_ids).await;
+        let second = Self::new_with(
+            funder,
+            funder_key,
+            owner_key,
+            gas_ids,
+            AuthorityOverloadConfig::default(),
+        )
+        .await;
 
         (first, second)
     }
@@ -111,6 +126,7 @@ impl AbstractAccountTestEnv {
         funder_key: AccountPrivateKey,
         owner_key: Ed25519PrivateKey,
         gas_ids: Vec<ObjectId>,
+        overload_config: AuthorityOverloadConfig,
     ) -> Self {
         let objects: Vec<Object> = gas_ids
             .iter()
@@ -118,6 +134,7 @@ impl AbstractAccountTestEnv {
             .collect();
         let authority = TestAuthorityBuilder::new()
             .with_starting_objects(&objects)
+            .with_authority_overload_config(overload_config)
             .build()
             .await;
 
@@ -359,6 +376,21 @@ impl AbstractAccountTestEnv {
         self.sign_with_move_authenticator(pt, signing_key)
     }
 
+    /// Two transactions sent by the account that pay with the same coin, so at
+    /// most one of them can execute.
+    pub fn account_transactions_on_one_coin(
+        &mut self,
+    ) -> (TransactionEnvelope, TransactionEnvelope) {
+        let gas = self.take_account_gas();
+        let owner_key = self.owner_key.clone();
+        let first = self.add_field_transaction();
+        let first = self.sign_with_move_authenticator_paying_with(first, &owner_key, gas);
+        let second = self.add_field_transaction();
+        let second = self.sign_with_move_authenticator_paying_with(second, &owner_key, gas);
+
+        (first, second)
+    }
+
     /// Like [`Self::account_transaction_signed_with()`], but sponsored by the
     /// funder, which signs with its key and pays with a coin of its own: the
     /// gas owner authorized the transaction whatever the account's
@@ -383,6 +415,59 @@ impl AbstractAccountTestEnv {
             authenticator,
             Some(&self.funder_key),
         )
+    }
+
+    /// A transaction from the funder that fails at execution: it transfers
+    /// more than its gas coin holds. Signed, not executed.
+    pub fn failing_funder_transaction(&self) -> TransactionEnvelope {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.transfer_iota(self.funder, Some(u64::MAX));
+        let tx_data = Transaction::new_programmable(
+            self.funder,
+            vec![self.gas_ref(0)],
+            builder.finish(),
+            self.budget(),
+            self.rgp(),
+        );
+
+        to_sender_signed_transaction(tx_data, &self.funder_key)
+    }
+
+    /// Like [`Self::account_transaction()`], with a transaction dependency
+    /// input naming `dependency`.
+    pub fn dependent_account_transaction(
+        &mut self,
+        dependency: TransactionDigest,
+    ) -> TransactionEnvelope {
+        let owner_key = self.owner_key.clone();
+        self.dependent_account_transaction_signed_with(dependency, &owner_key)
+    }
+
+    /// Like [`Self::account_transaction_signed_with()`], with a transaction
+    /// dependency input naming `dependency` and the epoch expiration it
+    /// requires.
+    pub fn dependent_account_transaction_signed_with(
+        &mut self,
+        dependency: TransactionDigest,
+        signing_key: &Ed25519PrivateKey,
+    ) -> TransactionEnvelope {
+        let mut pt = self.add_field_transaction();
+        pt.inputs.push(CallArg::TransactionDependency(dependency));
+        let gas = self.take_account_gas();
+        let mut tx_data = Transaction::new_programmable(
+            self.account_address,
+            vec![gas],
+            pt,
+            self.budget(),
+            self.rgp(),
+        );
+        if let Transaction::V1(v1) = &mut tx_data {
+            v1.expiration =
+                TransactionExpiration::Epoch(self.authority.epoch_store_for_testing().epoch());
+        }
+        let authenticator = self.move_authenticator(&tx_data, signing_key);
+
+        TransactionEnvelope::from_user_sig_data(tx_data, vec![authenticator])
     }
 
     /// The body of an account transaction: it writes a fresh dynamic field, so
@@ -416,6 +501,17 @@ impl AbstractAccountTestEnv {
         signing_key: &Ed25519PrivateKey,
     ) -> TransactionEnvelope {
         let gas = self.take_account_gas();
+
+        self.sign_with_move_authenticator_paying_with(pt, signing_key, gas)
+    }
+
+    /// Like [`Self::sign_with_move_authenticator()`], but pays with `gas`.
+    fn sign_with_move_authenticator_paying_with(
+        &self,
+        pt: ProgrammableTransaction,
+        signing_key: &Ed25519PrivateKey,
+        gas: ObjectReference,
+    ) -> TransactionEnvelope {
         let tx_data = Transaction::new_programmable(
             self.account_address,
             vec![gas],
@@ -547,5 +643,71 @@ impl AbstractAccountTestEnv {
             "rotating the authenticator function must succeed, got {:?}",
             effects.status()
         );
+    }
+
+    /// Freezes one of the account's coins, paying with another, and returns
+    /// the coin's reference from before the freeze, when the account owned it,
+    /// and from after, when it is immutable.
+    pub async fn freeze_account_coin(&mut self) -> (ObjectReference, ObjectReference) {
+        let coin = self.take_account_gas();
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            let coin_arg = builder.obj(CallArg::ImmutableOrOwned(coin)).unwrap();
+            builder.programmable_move_call(
+                IOTA_FRAMEWORK_PACKAGE_ID,
+                Identifier::from_static("transfer"),
+                Identifier::from_static("public_freeze_object"),
+                vec![StructTag::new_gas_coin().into()],
+                vec![coin_arg],
+            );
+
+            builder.finish()
+        };
+        let current_key = self.owner_key.clone();
+        let tx = self.sign_with_move_authenticator(pt, &current_key);
+        let effects = self.submit(tx, None).await;
+        assert!(
+            effects.status().is_success(),
+            "freezing the coin must succeed, got {:?}",
+            effects.status()
+        );
+        let frozen = self
+            .authority
+            .get_object(&coin.object_id)
+            .unwrap()
+            .object_ref();
+
+        (coin, frozen)
+    }
+
+    /// A transaction sent by the account that pays with `gas`, and whose
+    /// authenticator takes `authenticator_input` as one more argument after the
+    /// signature.
+    pub fn account_transaction_with_authenticator_input(
+        &mut self,
+        gas: ObjectReference,
+        authenticator_input: ObjectReference,
+    ) -> TransactionEnvelope {
+        let pt = self.add_field_transaction();
+        let tx_data = Transaction::new_programmable(
+            self.account_address,
+            vec![gas],
+            pt,
+            self.budget(),
+            self.rgp(),
+        );
+        let signature: Ed25519Signature = self.owner_key.sign(tx_data.digest().bytes());
+        let signature_arg = CallArg::Pure(bcs::to_bytes(&Hex::encode(signature.bytes())).unwrap());
+        let authenticator =
+            UserSignature::MoveAuthenticator(MoveAuthenticator::V1(MoveAuthenticatorV1::new(
+                vec![
+                    signature_arg,
+                    CallArg::ImmutableOrOwned(authenticator_input),
+                ],
+                vec![],
+                self.account,
+            )));
+
+        TransactionEnvelope::from_user_sig_data(tx_data, vec![authenticator])
     }
 }

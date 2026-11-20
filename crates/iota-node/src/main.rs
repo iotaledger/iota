@@ -145,7 +145,7 @@ fn main() {
                 iota_metrics_push_client::start_metrics_push_task(
                     metrics_config.push_interval_seconds,
                     push_url.clone(),
-                    config.network_key_pair(),
+                    config.network_private_key(),
                     registry_service.clone(),
                 );
             }

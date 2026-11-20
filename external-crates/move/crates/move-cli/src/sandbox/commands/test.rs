@@ -18,13 +18,14 @@ use move_command_line_common::{
     files::{find_filenames, path_to_string},
 };
 use move_compiler::command_line::COLOR_MODE_ENV_VAR;
-use move_coverage::coverage_map::{CoverageMap, ExecCoverageMapWithModules};
+use move_coverage::coverage_map::{CoverageMap, ExecCoverageMapWithModules, TraceConsumer};
 use move_package::{
     BuildConfig,
     compilation::{compiled_package::OnDiskCompiledPackage, package_layout::CompiledPackageLayout},
     resolution::resolution_graph::ResolvedGraph,
     source_package::{layout::SourcePackageLayout, manifest_parser::parse_move_manifest_from_file},
 };
+use move_unit_test::TRACE_DIR;
 use tempfile::tempdir;
 
 use crate::{DEFAULT_BUILD_DIR, DEFAULT_STORAGE_DIR};
@@ -44,22 +45,12 @@ const NO_MOVE_CLEAN: &str = "NO_MOVE_CLEAN";
 /// The filename that contains the arguments to the Move binary.
 pub const TEST_ARGS_FILENAME: &str = "args.txt";
 
-/// Name of the environment variable we need to set in order to get tracing
-/// enabled in the move VM.
-const MOVE_VM_TRACING_ENV_VAR_NAME: &str = "MOVE_VM_TRACE";
-
-/// The default file name (inside the build output dir) for the runtime to
-/// dump the execution trace to. The trace will be used by the coverage tool
-/// if --track-cov is set. If --track-cov is not set, then no trace file will
-/// be produced.
-const DEFAULT_TRACE_FILE: &str = "trace";
-
 /// The prefix for the stack trace that we want to remove from the stderr output
 /// if present.
 const STACK_TRACE_PREFIX: &str = "\nStack backtrace:";
 
 fn collect_coverage(
-    trace_file: &Path,
+    trace_dir: &Path,
     build_dir: &Path,
 ) -> anyhow::Result<ExecCoverageMapWithModules> {
     let canonical_build = build_dir.canonicalize().unwrap();
@@ -94,7 +85,7 @@ fn collect_coverage(
     }
 
     // collect filtered trace
-    let coverage_map = CoverageMap::from_trace_file(trace_file)
+    let coverage_map = CoverageMap::from_trace_dir(trace_dir)
         .to_unified_exec_map()
         .into_coverage_map_with_modules(filter);
 
@@ -220,10 +211,10 @@ pub fn run_one(
     }
     let mut output = "".to_string();
 
-    // always use the absolute path for the trace file as we may change dirs in the
-    // process
-    let trace_file = if track_cov {
-        Some(wks_dir.canonicalize()?.join(DEFAULT_TRACE_FILE))
+    // always use the absolute path for the trace dir as we may change dirs in
+    // the process
+    let trace_dir = if track_cov {
+        Some(wks_dir.canonicalize()?.join(TRACE_DIR))
     } else {
         None
     };
@@ -265,19 +256,6 @@ pub fn run_one(
             continue;
         }
 
-        // enable tracing in the VM by setting the env var.
-        match &trace_file {
-            None => {
-                // this check prevents cascading the coverage tracking flag.
-                // in particular, if
-                //   1. we run with move-cli test <path-to-args-A.txt> --track-cov, and
-                //   2. in this <args-A.txt>, there is another command: test <args-B.txt>
-                // then, when running <args-B.txt>, coverage will not be tracked nor printed
-                env::remove_var(MOVE_VM_TRACING_ENV_VAR_NAME);
-            }
-            Some(path) => env::set_var(MOVE_VM_TRACING_ENV_VAR_NAME, path.as_os_str()),
-        }
-
         let cmd_output = cli_command_template().args(args_iter).output()?;
         writeln!(&mut output, "Command `{}`:", args_line)?;
         output += std::str::from_utf8(&cmd_output.stdout)?;
@@ -288,14 +266,14 @@ pub fn run_one(
     }
 
     // collect coverage information
-    let cov_info = match &trace_file {
+    let cov_info = match &trace_dir {
         None => None,
         Some(trace_path) => {
             if trace_path.exists() {
                 Some(collect_coverage(trace_path, &build_output)?)
             } else {
                 eprintln!(
-                    "Trace file {:?} not found: coverage is only available with at least one `run` \
+                    "Trace dir {:?} not found: coverage is only available with at least one `run` \
                     command in the args.txt (after a `clean`, if there is one)",
                     trace_path
                 );
@@ -327,9 +305,9 @@ pub fn run_one(
         );
 
         // clean the trace file as well if it exists
-        if let Some(trace_path) = &trace_file {
+        if let Some(trace_path) = &trace_dir {
             if trace_path.exists() {
-                fs::remove_file(trace_path)?;
+                fs::remove_dir_all(trace_path)?;
             }
         }
     }

@@ -58,7 +58,7 @@ mod test {
     use iota_sdk_types::Address;
     use iota_types::{
         committee::CommitteeTrait,
-        crypto::{AuthorityKeyPair, NetworkKeyPair, get_key_pair},
+        crypto::{AuthorityKeyPair, NetworkPrivateKey, get_key_pair},
         iota_system_state::epoch_start_iota_system_state::{
             EpochStartSystemState, EpochStartSystemStateTrait, EpochStartValidatorInfoV1,
         },
@@ -73,7 +73,7 @@ mod test {
 
         for i in 0..10 {
             let (iota_address, authority_key): (Address, AuthorityKeyPair) = get_key_pair();
-            let protocol_network_key = NetworkKeyPair::random();
+            let protocol_network_key = NetworkPrivateKey::random();
 
             committee_validators.push(EpochStartValidatorInfoV1 {
                 iota_address,
@@ -84,7 +84,7 @@ mod test {
                 p2p_address: Multiaddr::empty(),
                 primary_address: Multiaddr::empty(),
                 voting_power: 1_000,
-                hostname: format!("host-{i}").to_string(),
+                hostname: format!("host-{i}"),
             })
         }
 
@@ -142,7 +142,7 @@ mod test {
 
         for i in 0..10 {
             let (iota_address, authority_key): (Address, AuthorityKeyPair) = get_key_pair();
-            let protocol_network_key = NetworkKeyPair::random();
+            let protocol_network_key = NetworkPrivateKey::random();
 
             committee_validators.push(EpochStartValidatorInfoV1 {
                 iota_address,
@@ -153,11 +153,11 @@ mod test {
                 p2p_address: Multiaddr::empty(),
                 primary_address: Multiaddr::empty(),
                 voting_power: 1_000,
-                hostname: format!("committee-{i}").to_string(),
+                hostname: format!("committee-{i}"),
             });
 
             let (iota_address, authority_key): (Address, AuthorityKeyPair) = get_key_pair();
-            let protocol_network_key = NetworkKeyPair::random();
+            let protocol_network_key = NetworkPrivateKey::random();
 
             non_committee_validators.push(EpochStartValidatorInfoV1 {
                 iota_address,
@@ -168,7 +168,7 @@ mod test {
                 p2p_address: Multiaddr::empty(),
                 primary_address: Multiaddr::empty(),
                 voting_power: 500,
-                hostname: format!("non-committee-{i}").to_string(),
+                hostname: format!("non-committee-{i}"),
             });
         }
 

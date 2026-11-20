@@ -22,12 +22,13 @@ use futures::{
     stream::FuturesUnordered,
 };
 use iota_metrics::{GaugeGuard, InflightGuardFutureExt, LATENCY_SEC_BUCKETS, spawn_monitored_task};
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::TransactionDigest;
 use iota_simulator::anemo::PeerId;
 use iota_types::{
     base_types::AuthorityName,
     committee::Committee,
-    error::{IotaError, IotaResult},
+    error::{IotaError, IotaResult, UserInputError},
     fp_ensure,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKey, ConsensusTransactionKind},
 };
@@ -55,6 +56,7 @@ use crate::{
     consensus_handler::{SequencedConsensusTransactionKey, classify},
     epoch::reconfiguration::{ReconfigState, ReconfigurationInitiator},
     metrics::LatencyObserver,
+    starfish_adapter::to_iota_error,
 };
 
 #[cfg(test)]
@@ -260,7 +262,15 @@ pub struct ConsensusAdapter {
     /// certificate-less and certificate-based flows.
     max_pending_transactions: usize,
 
-    /// Number of submitted transactions still inflight at this node.
+    /// Length of the consensus queue: transactions under admission, waiting
+    /// for their turn to be submitted, or submitted and not yet processed by
+    /// consensus. A P-COOL user transaction counts from admission, where
+    /// [`ConsensusAdapter::reserve_inflight_slot()`] takes its slot before the
+    /// overload check. Certificates and system transactions count from the
+    /// start of the task that submits them ([`InflightDropGuard::acquire()`]),
+    /// and transactions recovered after a restart from
+    /// [`ConsensusAdapter::submit_recovered()`], before their tasks start. A
+    /// transaction stops counting when its [`InflightSlot`] is dropped.
     num_inflight_transactions: AtomicU64,
 
     /// Dictates the maximum position  from which will submit to consensus. Even
@@ -373,6 +383,17 @@ impl ConsensusAdapter {
         self.low_scoring_authorities.swap(Arc::new(new_low_scoring));
     }
 
+    /// Submits to consensus the transactions that the pending consensus table
+    /// holds after a restart, except those larger than consensus accepts,
+    /// which are removed from the table. Also submits
+    /// [`ConsensusTransactionKind::EndOfPublish`] when the [`ReconfigState`]
+    /// rejects user certificates, no certificate is pending and the table
+    /// holds no such message.
+    ///
+    /// # Panics
+    ///
+    /// When the pending consensus table cannot be read, or a transaction
+    /// cannot be removed from it.
     pub fn submit_recovered(self: &Arc<Self>, epoch_store: &Arc<AuthorityPerEpochStore>) {
         // Currently consensus worker might lose transactions on restart, so we need to
         // resend them.
@@ -380,6 +401,29 @@ impl ConsensusAdapter {
         // twice when initializing AuthorityPerEpochStore and here, should not
         // be a big deal but can be optimized
         let mut recovered = epoch_store.get_all_pending_consensus_transactions();
+        // Transactions larger than consensus accepts are removed instead of
+        // submitted. Only a build that stored transactions without checking
+        // their size leaves them in the table. They are removed before the
+        // check for pending certificates below, since removing one can change
+        // its result.
+        recovered.retain(|transaction| {
+            let Err(error) = check_consensus_transactions_fit(
+                std::slice::from_ref(transaction),
+                epoch_store.protocol_config(),
+            ) else {
+                return true;
+            };
+            warn!(
+                key = ?transaction.key(),
+                ?error,
+                "Dropping a recovered pending consensus transaction larger than consensus accepts",
+            );
+            epoch_store
+                .remove_pending_consensus_transactions(&[transaction.key()])
+                .expect("Storage error when removing consensus transaction");
+
+            false
+        });
 
         let is_pending_consensus_certificates_empty =
             if epoch_store.protocol_config().enable_pcool_flow() {
@@ -419,7 +463,14 @@ impl ConsensusAdapter {
             if transaction.is_end_of_publish() {
                 info!(epoch=?epoch_store.epoch(), "Submitting EndOfPublish message to consensus");
             }
-            self.submit_unchecked(&[transaction], epoch_store);
+            // Admitted before the restart, so it takes its slot here, before
+            // its submission task starts, and admissions arriving meanwhile
+            // count it.
+            self.submit_unchecked(
+                &[transaction],
+                epoch_store,
+                Some(self.reserve_inflight_slot()),
+            );
         }
     }
 
@@ -623,6 +674,42 @@ impl ConsensusAdapter {
         lock: Option<&RwLockReadGuard<ReconfigState>>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<JoinHandle<()>> {
+        self.submit_batch_inner(transactions, lock, epoch_store, None)
+    }
+
+    /// Submits a user transaction with the [`InflightSlot`] it took at
+    /// admission. The slot stays counted until consensus has processed the
+    /// transaction, and is released on any other outcome.
+    pub(crate) fn submit_with_slot(
+        self: &Arc<Self>,
+        transaction: ConsensusTransaction,
+        lock: Option<&RwLockReadGuard<ReconfigState>>,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+        slot: InflightSlot,
+    ) -> IotaResult<JoinHandle<()>> {
+        self.submit_batch_inner(&[transaction], lock, epoch_store, Some(slot))
+    }
+
+    /// Writes `transactions` to the pending consensus table and spawns the
+    /// task that submits them. `slot` is the [`InflightSlot`] the transaction
+    /// took at admission, if any; the task takes it over, and without one it
+    /// takes a slot when it starts. On an error the slot is released.
+    ///
+    /// # Errors
+    ///
+    /// [`IotaError::InvalidTxKindInSoftBundle`] when a batch of more than one
+    /// mixes kinds or holds anything but user transactions or certificates,
+    /// [`UserInputError::SizeLimitExceeded`] when consensus would refuse the
+    /// submission as larger than it accepts,
+    /// [`IotaError::TransactionSerialization`] when a transaction cannot be
+    /// serialized, and any error writing to the pending consensus table.
+    fn submit_batch_inner(
+        self: &Arc<Self>,
+        transactions: &[ConsensusTransaction],
+        lock: Option<&RwLockReadGuard<ReconfigState>>,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+        slot: Option<InflightSlot>,
+    ) -> IotaResult<JoinHandle<()>> {
         if transactions.len() > 1 {
             // Soft-bundle batches must be homogeneous and limited to the kinds we
             // actually bundle: user or certified transactions. submit_and_wait_inner
@@ -641,9 +728,15 @@ impl ConsensusAdapter {
             );
         }
 
+        // Consensus does not take transactions that do not fit, so they are
+        // refused before they are stored.
+        check_consensus_transactions_fit(transactions, epoch_store.protocol_config())?;
+
         epoch_store.insert_pending_consensus_transactions(transactions, lock)?;
 
-        Ok(self.submit_unchecked(transactions, epoch_store))
+        // The spawned task owns the slot from here on and releases it when it
+        // is dropped, also if the epoch ends before the submission starts.
+        Ok(self.submit_unchecked(transactions, epoch_store, slot))
     }
 
     /// Returns the limit on the number of inflight transactions at this node.
@@ -664,6 +757,21 @@ impl ConsensusAdapter {
         self.num_inflight_transactions.load(Ordering::Relaxed)
     }
 
+    /// Takes a slot in the consensus queue and returns it with the queue's
+    /// length before it; the submission counts until the slot is dropped.
+    /// [`ConsensusAdapter::submit_with_slot()`] keeps it until consensus has
+    /// processed the transaction.
+    pub(crate) fn reserve_inflight_slot(self: &Arc<Self>) -> InflightSlot {
+        let queue_length_before = self
+            .num_inflight_transactions
+            .fetch_add(1, Ordering::SeqCst);
+
+        InflightSlot {
+            adapter: self.clone(),
+            queue_length_before,
+        }
+    }
+
     /// Test-only: sets the number of in-flight transactions.
     #[cfg(test)]
     pub(super) fn set_num_inflight_transactions_for_testing(&self, value: u64) {
@@ -678,12 +786,6 @@ impl ConsensusAdapter {
     /// Uses relaxed atomic reads: the two limits are not observed atomically.
     fn check_consensus_hard_limits(&self) -> bool {
         // First check total in-flight transactions (waiting and in submission).
-        // TODO: this check is redundant in the P-COOL flow - graduated
-        // shedding already rejects at 100% once `num_inflight_transactions`
-        // reaches `max_pending_transactions`. Remove when the certificate-based
-        // flow is removed from the codebase. The semaphore check below stays in
-        // either case, since it is a separate concurrency limit not covered
-        // by graduated shedding.
         if self.num_inflight_transactions.load(Ordering::Relaxed) as usize
             > self.max_pending_transactions
         {
@@ -705,18 +807,38 @@ impl ConsensusAdapter {
         Ok(())
     }
 
+    /// Returns `TooManyTransactionsPendingConsensus` when `submit_semaphore`
+    /// has no free permit. Unlike [`Self::check_consensus_overload()`], it does
+    /// not check the number of in-flight transactions.
+    pub(crate) fn check_submit_permits(&self) -> IotaResult {
+        fp_ensure!(
+            self.submit_semaphore.available_permits() > 0,
+            IotaError::TooManyTransactionsPendingConsensus
+        );
+
+        Ok(())
+    }
+
+    /// Spawns the task that submits `transactions` to consensus, which must
+    /// already be in the pending consensus table. `slot` is the
+    /// [`InflightSlot`] the transaction already holds, taken at admission or
+    /// when it was recovered after a restart, if any; without one, the task
+    /// takes a slot when it starts.
     fn submit_unchecked(
         self: &Arc<Self>,
         transactions: &[ConsensusTransaction],
         epoch_store: &Arc<AuthorityPerEpochStore>,
+        slot: Option<InflightSlot>,
     ) -> JoinHandle<()> {
         // Reconfiguration lock is dropped when pending_consensus_transactions is
         // persisted, before it is handled by consensus
-        let async_stage = self
-            .clone()
-            .submit_and_wait(transactions.to_vec(), epoch_store.clone());
-        // Number of these tasks is weakly limited based on `num_inflight_transactions`.
-        // (Limit is not applied atomically, and only to user transactions.)
+        let async_stage =
+            self.clone()
+                .submit_and_wait(transactions.to_vec(), epoch_store.clone(), slot);
+        // `num_inflight_transactions` limits user transactions only. The limit
+        // is exact in the P-COOL flow, where an admission takes its slot first
+        // and is judged by the queue before it, and loose in the certificate
+        // flow, where the count rises only once this task runs.
         let join_handle = spawn_monitored_task!(async_stage);
         join_handle
     }
@@ -725,6 +847,7 @@ impl ConsensusAdapter {
         self: Arc<Self>,
         transactions: Vec<ConsensusTransaction>,
         epoch_store: Arc<AuthorityPerEpochStore>,
+        slot: Option<InflightSlot>,
     ) {
         // When epoch_terminated signal is received all pending submit_and_wait_inner
         // are dropped.
@@ -740,7 +863,7 @@ impl ConsensusAdapter {
         // restarts, this means we might be sending transactions from previous
         // epochs to consensus of new epoch if we have not had this barrier.
         epoch_store
-            .within_alive_epoch(self.submit_and_wait_inner(transactions, &epoch_store))
+            .within_alive_epoch(self.submit_and_wait_inner(transactions, &epoch_store, slot))
             .await
             .ok(); // result here indicates if epoch ended earlier, we don't
         // care about it
@@ -750,6 +873,7 @@ impl ConsensusAdapter {
         self: Arc<Self>,
         transactions: Vec<ConsensusTransaction>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
+        slot: Option<InflightSlot>,
     ) {
         if transactions.is_empty() {
             return;
@@ -760,6 +884,7 @@ impl ConsensusAdapter {
         // (in practice all CertifiedTransaction or all UserTransactionV1).
         // Single-tx submits can be any kind.
         let is_soft_bundle = transactions.len() > 1;
+        let high_priority = !is_soft_bundle && is_high_priority(&transactions[0]);
 
         let mut transaction_keys = Vec::new();
 
@@ -778,7 +903,9 @@ impl ConsensusAdapter {
             "soft_bundle"
         };
 
-        let mut guard = InflightDropGuard::acquire(&self, tx_type);
+        let mut guard = InflightDropGuard::acquire(&self, tx_type, slot);
+        // A batch holds one kind of transaction, so the first one decides.
+        guard.sample_latency = !transactions[0].kind.is_user_transaction();
 
         // Create the waiter until the node's turn comes to submit to consensus
         let (await_submit, position, positions_moved, preceding_disconnected) =
@@ -850,12 +977,17 @@ impl ConsensusAdapter {
             guard.positions_moved = Some(positions_moved);
             guard.preceding_disconnected = Some(preceding_disconnected);
 
-            let _permit: SemaphorePermit = self
-                .submit_semaphore
-                .acquire()
-                .count_in_flight(self.metrics.sequencing_in_flight_semaphore_wait.clone())
-                .await
-                .expect("Consensus adapter does not close semaphore");
+            let _permit: Option<SemaphorePermit> = if high_priority {
+                None
+            } else {
+                Some(
+                    self.submit_semaphore
+                        .acquire()
+                        .count_in_flight(self.metrics.sequencing_in_flight_semaphore_wait.clone())
+                        .await
+                        .expect("Consensus adapter does not close semaphore"),
+                )
+            };
             let _in_flight_submission_guard =
                 GaugeGuard::acquire(&self.metrics.sequencing_in_flight_submissions);
 
@@ -868,7 +1000,7 @@ impl ConsensusAdapter {
                 loop {
                     // Submit the transaction to consensus and return the submit result with a
                     // status waiter
-                    let status_waiter = self
+                    let Some(status_waiter) = self
                         .submit_inner(
                             &transactions,
                             epoch_store,
@@ -876,7 +1008,10 @@ impl ConsensusAdapter {
                             tx_type,
                             is_soft_bundle,
                         )
-                        .await;
+                        .await
+                    else {
+                        return false;
+                    };
 
                     match status_waiter.await {
                         Ok(BlockStatusInternal::Sequenced) => {
@@ -919,14 +1054,20 @@ impl ConsensusAdapter {
                         }
                     }
                 }
+
+                true
             };
 
             guard.processed_method = match select(processed_waiter, submit_inner.boxed()).await {
                 Either::Left((observed_via_consensus, _submit_inner)) => observed_via_consensus,
-                Either::Right(((), processed_waiter)) => {
+                Either::Right((true, processed_waiter)) => {
                     debug!("Submitted {transaction_keys:?} to consensus");
                     processed_waiter.await
                 }
+                // Consensus does not process transactions it refuses, so
+                // there is nothing to wait for. They are removed from the
+                // pending table below.
+                Either::Right((false, _processed_waiter)) => ProcessedMethod::Refused,
             };
         }
         debug!("{transaction_keys:?} processed by consensus");
@@ -1008,12 +1149,18 @@ impl ConsensusAdapter {
                 }
             });
         }
-        self.metrics
-            .sequencing_certificate_success
-            .with_label_values(&[tx_type])
-            .inc();
+        if guard.processed_method != ProcessedMethod::Refused {
+            self.metrics
+                .sequencing_certificate_success
+                .with_label_values(&[tx_type])
+                .inc();
+        }
     }
 
+    /// Submits `transactions` to consensus, retrying until consensus takes
+    /// them, and returns the receiver for the status of the block that
+    /// includes them. Returns `None` when consensus refuses them as larger than
+    /// it accepts.
     async fn submit_inner(
         self: &Arc<Self>,
         transactions: &[ConsensusTransaction],
@@ -1021,7 +1168,7 @@ impl ConsensusAdapter {
         transaction_keys: &[SequencedConsensusTransactionKey],
         tx_type: &str,
         is_soft_bundle: bool,
-    ) -> BlockStatusReceiver {
+    ) -> Option<BlockStatusReceiver> {
         let ack_start = Instant::now();
         let mut retries: u32 = 0;
 
@@ -1031,6 +1178,22 @@ impl ConsensusAdapter {
                 .submit(transactions, epoch_store)
                 .await
             {
+                Err(
+                    err @ IotaError::UserInput {
+                        error: UserInputError::SizeLimitExceeded { .. },
+                    },
+                ) => {
+                    warn!(
+                        "Consensus refuses transactions {transaction_keys:?} as larger than it \
+                            accepts, so they are not submitted again: {err:?}"
+                    );
+                    self.metrics
+                        .sequencing_certificate_failures
+                        .with_label_values(&[tx_type])
+                        .inc();
+
+                    return None;
+                }
                 Err(err) => {
                     // This can happen during reconfig, or when consensus has full internal buffers
                     // and needs to back pressure, so retry a few times before logging warnings.
@@ -1077,7 +1240,7 @@ impl ConsensusAdapter {
             .with_label_values(&[bucket.as_str(), tx_type])
             .observe(ack_start.elapsed().as_secs_f64());
 
-        status_waiter
+        Some(status_waiter)
     }
 
     /// Waits for transactions to appear either to consensus output or been
@@ -1276,6 +1439,26 @@ impl CheckConnection for ConnectionMonitorStatusForTests {
     }
 }
 
+/// Whether a lone `transaction` goes ahead of this validator's own user
+/// transactions: it skips the submit semaphore and uses the consensus priority
+/// lane. Any other kind, including a new one, keeps the normal path.
+pub(crate) fn is_high_priority(transaction: &ConsensusTransaction) -> bool {
+    // Only messages this validator creates for itself, at a rate it bounds,
+    // and whose position against its user transactions no handler relies on.
+    // `EndOfPublish` is not one: peers drop this validator's user transactions
+    // sequenced after it.
+    matches!(
+        transaction.kind,
+        ConsensusTransactionKind::CheckpointSignature(_)
+            | ConsensusTransactionKind::CapabilityNotificationV1(_)
+            | ConsensusTransactionKind::RandomnessDkgMessage(..)
+            | ConsensusTransactionKind::RandomnessDkgConfirmation(..)
+            | ConsensusTransactionKind::MisbehaviorReport(_)
+            | ConsensusTransactionKind::OverloadNotificationV1(..)
+            | ConsensusTransactionKind::TransactionDenyRuleProposal(_)
+    )
+}
+
 pub fn get_position_in_list(
     search_authority: AuthorityName,
     positions: Vec<AuthorityName>,
@@ -1364,15 +1547,48 @@ impl<T> Drop for CancelOnDrop<T> {
     }
 }
 
+/// A slot in the consensus queue, counted in `num_inflight_transactions`
+/// until it is dropped. Take one with
+/// [`ConsensusAdapter::reserve_inflight_slot()`].
+#[must_use = "dropping the slot releases it"]
+pub(crate) struct InflightSlot {
+    adapter: Arc<ConsensusAdapter>,
+    queue_length_before: u64,
+}
+
+impl InflightSlot {
+    /// Length of the consensus queue just before this slot was taken: every
+    /// slot taken earlier and not yet released, including those of
+    /// admissions still in progress.
+    pub(crate) fn queue_length_before(&self) -> u64 {
+        self.queue_length_before
+    }
+}
+
+impl Drop for InflightSlot {
+    fn drop(&mut self) {
+        self.adapter
+            .num_inflight_transactions
+            .fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
 /// Tracks number of inflight consensus requests and relevant metrics
 struct InflightDropGuard<'a> {
-    adapter: &'a ConsensusAdapter,
+    adapter: &'a Arc<ConsensusAdapter>,
+    /// The submission's [`InflightSlot`], released first when the guard
+    /// drops.
+    slot: Option<InflightSlot>,
     start: Instant,
     position: Option<usize>,
     positions_moved: Option<usize>,
     preceding_disconnected: Option<usize>,
     tx_type: &'static str,
     processed_method: ProcessedMethod,
+    /// Whether the submission's latency is reported to the latency observer.
+    /// User transactions are not: at an epoch change they wait for the
+    /// consensus of their epoch to start, which is not consensus latency.
+    sample_latency: bool,
 }
 
 #[derive(PartialEq, Eq, Copy, Clone)]
@@ -1380,13 +1596,24 @@ enum ProcessedMethod {
     Consensus,
     Checkpoint,
     Dropped,
+    /// Consensus refused the submission as larger than it accepts, so the
+    /// transactions were removed from the pending table without being
+    /// processed.
+    Refused,
 }
 
 impl<'a> InflightDropGuard<'a> {
-    pub fn acquire(adapter: &'a ConsensusAdapter, tx_type: &'static str) -> Self {
-        adapter
-            .num_inflight_transactions
-            .fetch_add(1, Ordering::SeqCst);
+    /// Returns a guard that holds the submission's [`InflightSlot`] and
+    /// counts the submission in the `sequencing_certificate_inflight` metric
+    /// until the guard is dropped. `slot` is the [`InflightSlot`] the
+    /// transaction already holds, taken at admission or when it was recovered
+    /// after a restart, if any; without one, the guard takes a slot now.
+    pub fn acquire(
+        adapter: &'a Arc<ConsensusAdapter>,
+        tx_type: &'static str,
+        slot: Option<InflightSlot>,
+    ) -> Self {
+        let slot = slot.unwrap_or_else(|| adapter.reserve_inflight_slot());
         adapter
             .metrics
             .sequencing_certificate_inflight
@@ -1397,23 +1624,27 @@ impl<'a> InflightDropGuard<'a> {
             .sequencing_certificate_attempt
             .with_label_values(&[tx_type])
             .inc();
+
         Self {
             adapter,
+            slot: Some(slot),
             start: Instant::now(),
             position: None,
             positions_moved: None,
             preceding_disconnected: None,
             tx_type,
             processed_method: ProcessedMethod::Consensus,
+            sample_latency: true,
         }
     }
 }
 
 impl Drop for InflightDropGuard<'_> {
     fn drop(&mut self) {
-        self.adapter
-            .num_inflight_transactions
-            .fetch_sub(1, Ordering::SeqCst);
+        // Release the slot here instead of when the field is dropped after
+        // this function, so `num_inflight_transactions` goes down together
+        // with the `sequencing_certificate_inflight` gauge below.
+        drop(self.slot.take());
         self.adapter
             .metrics
             .sequencing_certificate_inflight
@@ -1449,6 +1680,7 @@ impl Drop for InflightDropGuard<'_> {
             ProcessedMethod::Consensus => "processed_via_consensus",
             ProcessedMethod::Checkpoint => "processed_via_checkpoint",
             ProcessedMethod::Dropped => "dropped",
+            ProcessedMethod::Refused => "refused_by_consensus",
         };
         self.adapter
             .metrics
@@ -1471,7 +1703,8 @@ impl Drop for InflightDropGuard<'_> {
             // Exclude checkpoint-synced and dropped txs from the latency observer:
             // their latency reflects state-sync timing or rejection, not consensus
             // throughput, and would skew the observed consensus latency.
-            if sampled && self.processed_method == ProcessedMethod::Consensus {
+            if self.sample_latency && sampled && self.processed_method == ProcessedMethod::Consensus
+            {
                 self.adapter.latency_observer.report(latency);
             }
         }
@@ -1487,6 +1720,39 @@ impl SubmitToConsensus for Arc<ConsensusAdapter> {
         self.submit_batch(transactions, None, epoch_store)
             .map(|_| ())
     }
+}
+
+/// Checks that consensus accepts `transactions` as one submission, by the
+/// rule Starfish applies to their serialized sizes,
+/// [`starfish_core::check_transactions_fit()`].
+///
+/// # Errors
+///
+/// [`UserInputError::SizeLimitExceeded`] naming the limit exceeded, and
+/// [`IotaError::TransactionSerialization`] when a transaction cannot be
+/// serialized. For the total size, `value` is the total up to and including
+/// the first transaction that takes it over the limit, not the size of the
+/// whole submission.
+fn check_consensus_transactions_fit(
+    transactions: &[ConsensusTransaction],
+    protocol_config: &ProtocolConfig,
+) -> IotaResult {
+    let transaction_sizes = transactions
+        .iter()
+        .map(|transaction| {
+            bcs::serialized_size(transaction)
+                .map(|size| size as u64)
+                .map_err(|error| IotaError::TransactionSerialization {
+                    error: error.to_string(),
+                })
+        })
+        .collect::<IotaResult<Vec<_>>>()?;
+
+    starfish_core::check_transactions_fit(
+        &transaction_sizes,
+        starfish_core::TransactionSubmissionLimits::new(protocol_config),
+    )
+    .map_err(to_iota_error)
 }
 
 pub fn position_submit_certificate(
@@ -1512,7 +1778,7 @@ mod adapter_tests {
         crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes},
     };
 
-    use super::position_submit_certificate;
+    use super::{InflightDropGuard, position_submit_certificate};
     use crate::{
         checkpoints::CheckpointStore,
         consensus_adapter::{
@@ -1520,6 +1786,38 @@ mod adapter_tests {
         },
         starfish_adapter::LazyStarfishClient,
     };
+
+    /// A slot counts in the consensus queue from the moment it is taken until
+    /// it is dropped, on its own or inside the guard it was passed to.
+    #[tokio::test]
+    async fn an_inflight_slot_counts_until_it_is_dropped() {
+        let adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
+            AuthorityPublicKeyBytes::ZERO,
+        ));
+        assert_eq!(adapter.num_inflight_transactions(), 0);
+
+        let first = adapter.reserve_inflight_slot();
+        let second = adapter.reserve_inflight_slot();
+        assert_eq!(first.queue_length_before(), 0);
+        assert_eq!(second.queue_length_before(), 1);
+        assert_eq!(adapter.num_inflight_transactions(), 2);
+
+        drop(second);
+        assert_eq!(adapter.num_inflight_transactions(), 1);
+
+        // The guard takes over a slot taken at admission without counting it
+        // again, and releases it when it drops.
+        let guard = InflightDropGuard::acquire(&adapter, "owned_user_transaction", Some(first));
+        assert_eq!(adapter.num_inflight_transactions(), 1);
+        drop(guard);
+        assert_eq!(adapter.num_inflight_transactions(), 0);
+
+        // Without one, the guard takes a slot itself.
+        let guard = InflightDropGuard::acquire(&adapter, "checkpoint_signature", None);
+        assert_eq!(adapter.num_inflight_transactions(), 1);
+        drop(guard);
+        assert_eq!(adapter.num_inflight_transactions(), 0);
+    }
 
     /// A committee built from fixed keys and stakes, so the submission order
     /// these tests check depends only on the code under test, not on `rand`

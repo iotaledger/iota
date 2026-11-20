@@ -41,7 +41,7 @@ use crate::{
     misbehavior_store::MisbehaviorStore,
     network::{NetworkClient, SerializedTransactionsV2},
     task::spawn_blocking,
-    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _, TransactionRef},
+    transaction_ref::TransactionRef,
 };
 
 pub(crate) struct RegularCommitSyncer<C: NetworkClient> {
@@ -342,15 +342,13 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
 
             for certified_commit in commits.commits() {
                 // Collect committed_transactions from the TrustedCommit
-                for gen_tx_ref in certified_commit.committed_transactions() {
-                    expected_transactions.insert(gen_tx_ref);
+                for tx_ref in certified_commit.committed_transactions() {
+                    expected_transactions.insert(*tx_ref);
                 }
 
                 // Collect available transactions from CommitmentVerifiedTransactions
                 for verified_txns in certified_commit.transactions() {
-                    let gen_tx_ref =
-                        GenericTransactionRef::TransactionRef(verified_txns.transaction_ref());
-                    available_transactions.insert(gen_tx_ref);
+                    available_transactions.insert(verified_txns.transaction_ref());
                 }
             }
 
@@ -410,12 +408,12 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                                 .map(|b| b.to_string())
                                 .join(","),
                         );
-                        for (gen_tran_ref, _ack_authorities) in missing_committed_txns {
+                        for (tx_ref, _ack_authorities) in missing_committed_txns {
                             let hostname = &self
                                 .inner
                                 .context
                                 .committee
-                                .authority(gen_tran_ref.author())
+                                .authority(tx_ref.author)
                                 .hostname;
                             metrics
                                 .commit_sync_fetch_missing_transactions
@@ -558,18 +556,11 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
             .cloned()
             .collect();
 
-        // 3a. Collect the committed transaction refs of each commit. Commits
-        //     passing verify_commits are V2/V3, which only carry
-        //     `TransactionRef`s, so the legacy `BlockRef` variant is an error.
+        // 3a. Collect the committed transaction refs of each commit.
         let commits_tx_refs: Vec<Vec<TransactionRef>> = commits
             .iter()
-            .map(|c| {
-                c.committed_transactions()
-                    .into_iter()
-                    .map(GenericTransactionRef::expect_transaction_ref)
-                    .collect()
-            })
-            .collect::<ConsensusResult<_>>()?;
+            .map(|c| c.committed_transactions().to_vec())
+            .collect();
         let committed_tx_refs: Vec<TransactionRef> =
             commits_tx_refs.iter().flatten().copied().collect();
 
@@ -609,11 +600,9 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                         serialized_block_headers,
                     )
                     .inspect_err(|e| {
-                        inner.misbehavior_store.record_faulty_block(
-                            target_authority,
-                            target_authority,
-                            e,
-                        );
+                        inner
+                            .misbehavior_store
+                            .record_faulty_block(target_authority, None, e);
                     })
                 }
             })
@@ -660,11 +649,9 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                         //     TransactionSynchronizer will take care of fetching missing
                         //     transactions later.
                         if request_tx_refs.len() < serialized_transactions.len() {
-                            inner.misbehavior_store.record_faulty_transactions(
-                                target_authority,
-                                false,
-                                [target_authority],
-                            );
+                            inner
+                                .misbehavior_store
+                                .record_faulty_transactions(None, [target_authority]);
                             return Err(ConsensusError::TooManyFetchedTransactionsReturned(
                                 target_authority,
                             ));
@@ -681,11 +668,9 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                             let serialized_tx: SerializedTransactionsV2 =
                                 bcs::from_bytes(&serialized_bytes)
                                     .inspect_err(|_| {
-                                        inner.misbehavior_store.record_faulty_transactions(
-                                            target_authority,
-                                            false,
-                                            [target_authority],
-                                        )
+                                        inner
+                                            .misbehavior_store
+                                            .record_faulty_transactions(None, [target_authority])
                                     })
                                     .map_err(ConsensusError::MalformedTransactions)?;
 
@@ -693,11 +678,9 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                             //     refs.
                             let committed_transaction_ref = serialized_tx.transaction_ref;
                             if !requested_tx_refs_set.contains(&committed_transaction_ref) {
-                                inner.misbehavior_store.record_faulty_transactions(
-                                    target_authority,
-                                    false,
-                                    [target_authority],
-                                );
+                                inner
+                                    .misbehavior_store
+                                    .record_faulty_transactions(None, [target_authority]);
                                 return Err(ConsensusError::UnexpectedTransactionForCommit {
                                     peer: target_authority,
                                     received: committed_transaction_ref,
@@ -739,26 +722,17 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
         // 13. Verify the transactions against their commitments
         let mut transactions_map = if !fetched_transactions.is_empty() {
             spawn_blocking({
-                let context = inner.context.clone();
-
+                let inner = inner.clone();
                 move || {
                     verify_transactions_commitments(
-                        &context,
+                        &inner.context,
+                        &inner.misbehavior_store,
                         target_authority,
                         fetched_transactions,
                     )
                 }
             })
-            .await?
-            .inspect_err(|_| {
-                // Not provable against the author, whose commitment the
-                // peer may have forged.
-                inner.misbehavior_store.record_faulty_transactions(
-                    target_authority,
-                    false,
-                    [target_authority],
-                );
-            })?
+            .await??
         } else {
             BTreeMap::new()
         };
@@ -1094,7 +1068,7 @@ mod tests {
             misbehavior_store::MisbehaviorStore,
             network::SerializedTransactionsV2,
             storage::{Store, mem_store::MemStore},
-            transaction_ref::{GenericTransactionRef, TransactionRef},
+            transaction_ref::TransactionRef,
             transactions_synchronizer::TransactionsSynchronizer,
         };
 
@@ -1175,22 +1149,20 @@ mod tests {
             let leader_header_2 =
                 VerifiedBlockHeader::new_for_test(TestBlockHeader::new(2, 1).build());
             let commit_1 = TrustedCommit::new_for_test(
-                context,
                 1,
                 CommitDigest::MIN,
                 0,
                 leader_header_1.reference(),
                 vec![leader_header_1.reference()],
-                vec![GenericTransactionRef::TransactionRef(transaction_refs[0])],
+                vec![transaction_refs[0]],
             );
             let commit_2 = TrustedCommit::new_for_test(
-                context,
                 2,
                 commit_1.digest(),
                 0,
                 leader_header_2.reference(),
                 vec![leader_header_2.reference()],
-                vec![GenericTransactionRef::TransactionRef(transaction_refs[1])],
+                vec![transaction_refs[1]],
             );
 
             let vote_headers: Vec<Bytes> = (0..3)

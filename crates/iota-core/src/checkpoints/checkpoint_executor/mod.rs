@@ -21,7 +21,14 @@
 //! successfully, we have reached the end of epoch. This allows us to use it as
 //! a signal for reconfig.
 
-use std::{future::Future, sync::Arc, time::Instant};
+use std::{
+    future::Future,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::Instant,
+};
 
 use futures::{StreamExt, TryStreamExt};
 use iota_common::{debug_fatal, fatal};
@@ -176,6 +183,8 @@ pub struct CheckpointExecutor {
     /// yet; `CheckpointSequenceNumber::MAX` once every synced checkpoint of
     /// this epoch has been.
     next_randomness_to_forward: Mutex<CheckpointSequenceNumber>,
+    /// Whether this executor has executed a checkpoint yet.
+    executed_any_checkpoint: AtomicBool,
 }
 
 impl CheckpointExecutor {
@@ -205,6 +214,7 @@ impl CheckpointExecutor {
             checkpoint_progress_tracker,
             data_sender,
             next_randomness_to_forward: Mutex::new(0),
+            executed_any_checkpoint: AtomicBool::new(false),
         }
     }
 
@@ -462,33 +472,63 @@ impl CheckpointExecutor {
             &ckpt_state.data.tx_digests,
         );
 
+        // Before the outputs, so no durable object lacks its bookkeeping. In
+        // this stage, so the write overlaps the output writes of earlier
+        // checkpoints and still runs in checkpoint order. A transaction whose
+        // outputs are already durable is not in `batch` and needs nothing:
+        // its bookkeeping was written before them.
+        let batch = if self.epoch_store.pcool_bookkeeping_enabled() {
+            tokio::task::spawn_blocking({
+                let this = self.clone();
+                move || {
+                    this.epoch_store
+                        .persist_checkpoint_bookkeeping(
+                            batch.0.iter().map(|outputs| &outputs.effects),
+                        )
+                        .expect(
+                            "the epoch tables should accept the checkpoint's bookkeeping batch",
+                        );
+                    batch
+                }
+            })
+            .await?
+        } else {
+            batch
+        };
+
         finish_stage!(pipeline_handle, BuildDbBatch);
 
-        let ckpt_state = tokio::task::spawn_blocking({
+        let (ckpt_state, written_outputs) = tokio::task::spawn_blocking({
             let this = self.clone();
             move || {
-                // Before the outputs, so no durable object lacks its
-                // bookkeeping. A transaction whose outputs are already durable
-                // is not in `batch` and needs nothing: its bookkeeping was
-                // written before them.
-                this.epoch_store
-                    .persist_checkpoint_bookkeeping(batch.0.iter().map(|outputs| &outputs.effects))
-                    .expect("the epoch tables should accept the checkpoint's bookkeeping batch");
                 // Commit all transaction effects to disk
                 let cache_commit = this.state.get_cache_commit();
                 debug!(?seq, "committing checkpoint transactions to disk");
-                cache_commit.commit_transaction_outputs(
-                    this.epoch_store.epoch(),
-                    batch,
-                    &ckpt_state.data.tx_digests,
-                );
+                let written_outputs = cache_commit
+                    .write_transaction_outputs_batch(batch, &ckpt_state.data.tx_digests);
                 fail_point!("crash-after-checkpoint-outputs-commit");
-                ckpt_state
+                (ckpt_state, written_outputs)
             }
         })
         .await?;
 
         finish_stage!(pipeline_handle, CommitTransactionOutputs);
+
+        // In this stage, so the flush overlaps the next checkpoint's write.
+        // It relies on the stage running in checkpoint order, after this
+        // checkpoint's write.
+        tokio::task::spawn_blocking({
+            let this = self.clone();
+            move || {
+                this.state
+                    .get_cache_commit()
+                    .flush_committed_transaction_outputs(
+                        this.epoch_store.epoch(),
+                        &written_outputs,
+                    );
+            }
+        })
+        .await?;
 
         self.epoch_store
             .handle_finalized_checkpoint(&ckpt_state.data.checkpoint, &ckpt_state.data.tx_digests)
@@ -1153,7 +1193,7 @@ impl CheckpointExecutor {
                     .iter()
                     .zip(effects.iter())
                     .map(|(tx, fx)| ExecutionData::new(tx.clone().into_inner(), fx.clone()));
-                let full_contents = FullCheckpointContents::from_contents_and_execution_data(
+                let full_contents = FullCheckpointContents::from_contents_and_local_execution_data(
                     checkpoint_contents.clone(),
                     execution_data,
                 )
@@ -1408,6 +1448,14 @@ impl CheckpointExecutor {
             .update_highest_executed_checkpoint(checkpoint)
             .unwrap();
         self.metrics.last_executed_checkpoint.set(seq as i64);
+        // The executor runs from the end of the previous epoch after an epoch
+        // change, so its first checkpoint is the first of the epoch.
+        if !self.executed_any_checkpoint.swap(true, Ordering::Relaxed) {
+            self.epoch_store.metrics.record_epoch_change_stage_now(
+                self.epoch_store.epoch(),
+                "first_checkpoint_executed",
+            );
+        }
 
         self.metrics
             .last_executed_checkpoint_timestamp_ms

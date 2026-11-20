@@ -3,10 +3,12 @@
 
 use std::collections::BTreeMap;
 
-use iota_sdk_types::{GasCostSummary, ObjectReference, TransactionDigest};
+use iota_sdk_types::{
+    GasCostSummary, SenderSignedTransaction, SharedObjectReference, TransactionDigest, Version,
+};
 use serde::{Deserialize, Serialize};
 
-use crate::transaction::TransactionEnvelope;
+use crate::{move_authenticator::MoveAuthenticatorExt, transaction::TransactionEnvelope};
 
 /// Index of a validator in the current epoch's consensus committee. Kept as a
 /// plain `u8` so `iota-types` does not depend on `starfish-config`, whose
@@ -44,14 +46,73 @@ pub enum AttestationData {
         /// (`computation_cost / gas_price`). Used by the sequencer to improve
         /// shared-object scheduling before execution.
         computation_units: u64,
-        /// Versions of the run-time-resolved objects the attestor read during
-        /// the dry-run whose version is NOT already pinned by the signed
-        /// `TransactionData`. This covers shared objects,
-        /// Move-authenticator account and function-ref field objects,
-        /// coin-deny-list references, and dynamic fields / child objects loaded
-        /// during execution.
-        object_versions: Vec<ObjectReference>,
+        /// The version the attestor's dry run read of each shared object that
+        /// a Move authenticator of the transaction names, as an argument or as
+        /// its account, each with the [`SharedInputIndex`] that names it. Every
+        /// such object has an entry, and an object named at two indexes has
+        /// one for each.
+        shared_object_versions: Vec<(SharedInputIndex, Version)>,
     },
+}
+
+/// Where a Move authenticator of a signed transaction names a shared object.
+/// The variant order is protocol-significant: a new variant goes at the end.
+#[cfg_attr(test, derive(iota_macros::EnumVariantOrder))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum SharedInputIndex {
+    /// The object is an argument of a Move authenticator: `authenticator` is
+    /// the index of the authenticator among the signatures, and `argument`
+    /// the index of the argument among its arguments.
+    AuthenticatorArgument { authenticator: u8, argument: u8 },
+    /// The object is the account of a Move authenticator: `authenticator` is
+    /// the index of the authenticator among the signatures.
+    AuthenticatorAccount { authenticator: u8 },
+}
+
+/// Returns each shared object that a Move authenticator of `transaction`
+/// names, with its index: the arguments and then the account of each Move
+/// authenticator, in the order of the signatures. An object named at two
+/// indexes is returned for each. An object whose index does not fit
+/// [`SharedInputIndex`] is left out.
+pub fn list_move_authenticator_shared_objects(
+    transaction: &SenderSignedTransaction,
+) -> Vec<(SharedInputIndex, &SharedObjectReference)> {
+    transaction
+        .signatures()
+        .iter()
+        .enumerate()
+        .filter_map(|(signature_index, signature)| {
+            Some((
+                u8::try_from(signature_index).ok()?,
+                signature.as_opt_move_authenticator()?,
+            ))
+        })
+        .flat_map(|(authenticator, move_authenticator)| {
+            let arguments = move_authenticator
+                .call_args()
+                .iter()
+                .enumerate()
+                .filter_map(move |(argument_index, argument)| {
+                    let index = SharedInputIndex::AuthenticatorArgument {
+                        authenticator,
+                        argument: u8::try_from(argument_index).ok()?,
+                    };
+
+                    Some((index, argument.as_opt_shared()?))
+                });
+            let account = move_authenticator
+                .object_to_authenticate()
+                .as_opt_shared()
+                .map(|account| {
+                    (
+                        SharedInputIndex::AuthenticatorAccount { authenticator },
+                        account,
+                    )
+                });
+
+            arguments.chain(account)
+        })
+        .collect()
 }
 
 /// A user transaction bundled with its attestation. This is the inner payload
@@ -82,12 +143,14 @@ impl Attestation {
         *computation_units
     }
 
-    pub fn object_versions(&self) -> &[ObjectReference] {
+    pub fn shared_object_versions(&self) -> &[(SharedInputIndex, Version)] {
         let Attestation::Authority { payload, .. } = self;
         let AttestationData::V1 {
-            object_versions, ..
+            shared_object_versions,
+            ..
         } = payload;
-        object_versions
+
+        shared_object_versions
     }
 }
 
@@ -260,14 +323,205 @@ impl AttestedTransaction {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
+    use iota_protocol_config::ProtocolConfig;
+    use iota_sdk_types::{
+        Address, MoveAuthenticator, MoveAuthenticatorV1, ObjectId, ProgrammableTransaction,
+        Transaction, UserSignature,
+    };
+
     use super::*;
-    use crate::{base_types::random_object_ref, utils::create_fake_transaction};
+    use crate::{
+        base_types::random_object_ref,
+        error::UserInputError,
+        transaction::{CallArg, TransactionAPI},
+        utils::create_fake_transaction,
+    };
 
     fn make_attestation_data() -> AttestationData {
         AttestationData::V1 {
             computation_units: 1_000_000,
-            object_versions: vec![random_object_ref()],
+            shared_object_versions: vec![
+                (
+                    SharedInputIndex::AuthenticatorArgument {
+                        authenticator: 0,
+                        argument: 1,
+                    },
+                    Version::from(7u64),
+                ),
+                (
+                    SharedInputIndex::AuthenticatorAccount { authenticator: 0 },
+                    Version::from(7u64),
+                ),
+            ],
         }
+    }
+
+    /// An entry takes one byte for the variant of [`SharedInputIndex`], one for
+    /// each `u8` index, and eight for the version.
+    #[test]
+    fn entries_take_eleven_bytes_or_ten_for_account() {
+        let size = |index: SharedInputIndex| {
+            bcs::to_bytes(&(index, Version::from(u64::MAX)))
+                .unwrap()
+                .len()
+        };
+
+        assert_eq!(
+            size(SharedInputIndex::AuthenticatorArgument {
+                authenticator: u8::MAX,
+                argument: u8::MAX,
+            }),
+            11
+        );
+        assert_eq!(
+            size(SharedInputIndex::AuthenticatorAccount {
+                authenticator: u8::MAX
+            }),
+            10
+        );
+    }
+
+    /// The largest record and the largest transaction together stay under the
+    /// size limit of a consensus transaction. The record has an entry for every
+    /// argument and the account of a Move authenticator for the sender and one
+    /// for the sponsor.
+    #[test]
+    fn largest_record_fits_beside_largest_transaction() {
+        let config = ProtocolConfig::get_for_max_version_UNSAFE();
+        // The validity check of a Move authenticator allows fewer arguments
+        // than `max_function_parameters` minus 3. The two assertions on
+        // `validity_check()` tie this count to that rule.
+        let max_arguments = config.max_function_parameters() - 4;
+        let authenticator_with = |arguments: u64| {
+            MoveAuthenticator::V1(MoveAuthenticatorV1::new(
+                vec![CallArg::Pure(vec![]); usize::try_from(arguments).unwrap()],
+                vec![],
+                SharedObjectReference {
+                    object_id: ObjectId::random(),
+                    initial_shared_version: Version::from(1u64),
+                    mutable: false,
+                },
+            ))
+        };
+        assert!(
+            authenticator_with(max_arguments)
+                .validity_check(&config)
+                .is_ok()
+        );
+        assert!(matches!(
+            authenticator_with(max_arguments + 1).validity_check(&config),
+            Err(UserInputError::SizeLimitExceeded { .. })
+        ));
+        let version = Version::from(u64::MAX);
+        let authenticator_inputs = (0..2).flat_map(|authenticator| {
+            (0..max_arguments)
+                .map(move |argument| {
+                    let index = SharedInputIndex::AuthenticatorArgument {
+                        authenticator,
+                        argument: u8::try_from(argument).unwrap(),
+                    };
+
+                    (index, version)
+                })
+                .chain([(
+                    SharedInputIndex::AuthenticatorAccount { authenticator },
+                    version,
+                )])
+        });
+        let attestation = Attestation::new_authority(
+            AttestationData::V1 {
+                computation_units: u64::MAX,
+                shared_object_versions: authenticator_inputs.collect(),
+            },
+            u8::MAX,
+        );
+
+        let record_size = u64::try_from(bcs::serialized_size(&attestation).unwrap()).unwrap();
+
+        assert!(
+            config.max_tx_size_bytes() + record_size
+                < config.consensus_max_transaction_size_bytes(),
+            "a record of {record_size} bytes"
+        );
+    }
+
+    /// The transaction names shared objects at its inputs 1 and 3, at the
+    /// second argument of its Move authenticator and as the authenticator's
+    /// account. [`list_move_authenticator_shared_objects()`] lists the last
+    /// two with their indexes: the shared objects of the Move authenticators,
+    /// as [`MoveAuthenticatorExt::shared_objects()`] gives them. It leaves out
+    /// the pure value and the immutable object that the authenticator also
+    /// takes.
+    #[test]
+    fn listing_names_shared_objects_of_move_authenticators() {
+        let shared = |mutable| SharedObjectReference {
+            object_id: ObjectId::random(),
+            initial_shared_version: Version::from(1u64),
+            mutable,
+        };
+        let (argument, account) = (shared(false), shared(false));
+        let programmable = ProgrammableTransaction {
+            inputs: vec![
+                CallArg::Pure(vec![0]),
+                CallArg::Shared(shared(true)),
+                CallArg::ImmutableOrOwned(random_object_ref()),
+                CallArg::Shared(shared(false)),
+            ],
+            commands: vec![],
+        };
+        let authenticator = MoveAuthenticator::V1(MoveAuthenticatorV1::new(
+            vec![
+                CallArg::Pure(vec![1]),
+                CallArg::Shared(argument),
+                CallArg::ImmutableOrOwned(random_object_ref()),
+            ],
+            vec![],
+            account,
+        ));
+        let transaction = SenderSignedTransaction::new(
+            Transaction::new_programmable(
+                Address::ZERO,
+                vec![random_object_ref()],
+                programmable,
+                1,
+                1,
+            ),
+            vec![UserSignature::MoveAuthenticator(authenticator)],
+        );
+
+        let listed = list_move_authenticator_shared_objects(&transaction);
+
+        assert_eq!(
+            listed,
+            vec![
+                (
+                    SharedInputIndex::AuthenticatorArgument {
+                        authenticator: 0,
+                        argument: 1,
+                    },
+                    &argument,
+                ),
+                (
+                    SharedInputIndex::AuthenticatorAccount { authenticator: 0 },
+                    &account,
+                ),
+            ]
+        );
+        assert_eq!(
+            listed
+                .iter()
+                .map(|(_, object)| object.object_id)
+                .collect::<BTreeSet<_>>(),
+            transaction
+                .move_authenticators()
+                .iter()
+                .flat_map(|authenticator| authenticator.shared_objects())
+                .map(|object| object.object_id)
+                .collect::<BTreeSet<_>>(),
+            "the record covers every shared object that a Move authenticator names"
+        );
     }
 
     #[test]

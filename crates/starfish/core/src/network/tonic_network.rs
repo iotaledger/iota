@@ -5,6 +5,7 @@
 use std::{
     collections::BTreeMap,
     net::{SocketAddr, SocketAddrV4, SocketAddrV6},
+    num::{NonZeroU32, NonZeroUsize},
     pin::Pin,
     sync::Arc,
     time::{Duration, Instant},
@@ -13,6 +14,7 @@ use std::{
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{Stream, StreamExt as _, TryStreamExt as _, future, stream};
+use hyper_util::client::legacy::connect::HttpConnector;
 use iota_http::{PeerConnectionEvent, ServerHandle};
 use iota_network_stack::{
     Multiaddr,
@@ -34,9 +36,9 @@ use tower_http::trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer};
 use tracing::{debug, error, info, trace, warn};
 
 use super::{
-    BlockBundleStream, FetchedCommitsAndTransactions, NetworkClient, NetworkService,
-    SerializedBlockBundle, TransactionChunkStream,
-    admission::AdmissionLayer,
+    BlockBundleStream, ChunkStream, FetchedCommitsAndTransactions, NetworkClient, NetworkService,
+    SerializedBlockBundle,
+    admission::{AdmissionGuard, AdmissionLayer},
     bounded_codec::{
         EntryLimit, NO_ENTRY_LIMIT, TOO_MANY_ENTRIES_IN_REQUEST, TOO_MANY_ENTRIES_IN_RESPONSE,
     },
@@ -110,7 +112,7 @@ fn max_fetch_block_headers_response_bytes(
 /// Upper bound on one fetched transaction entry: a `SerializedTransactionsV2`
 /// carrying the maximum serialized per-block transaction payload, framed with
 /// its `TransactionRef` and length prefix.
-fn max_serialized_transactions_entry_bytes(context: &Context) -> usize {
+pub(crate) fn max_serialized_transactions_entry_bytes(context: &Context) -> usize {
     serialized_transactions_size_limit(context)
         .saturating_add(SERIALIZED_TRANSACTION_REF_BYTES)
         .saturating_add(MAX_BCS_LENGTH_PREFIX_BYTES)
@@ -451,8 +453,8 @@ impl NetworkClient for TonicClient {
 /// Reads the commits and certifier headers of a
 /// `fetch_commits_and_transactions` response stream, which come before its
 /// transactions, and returns the rest of the stream as transaction chunks. If
-/// the stream is cut by an error after commits arrived, the transaction chunks
-/// end with that error.
+/// the stream is cut by an error after the transactions started, the
+/// transaction chunks end with that error; an earlier cut fails the fetch.
 async fn collect_commits_and_transactions<S>(
     context: &Context,
     peer: AuthorityIndex,
@@ -559,19 +561,9 @@ where
                         limit: FetchCommitsAndTransactionsResponse::MAX_ENTRIES,
                     });
                 }
-                let error = mid_stream_error(e);
-                if commits.is_empty() {
-                    return Err(error);
-                }
-                // Keep what arrived and surface the cut alongside it: only
-                // the caller can tell whether the delivered chunks cover
-                // anything usable.
-                warn!("fetch_commits_and_transactions from {peer} failed mid-stream: {error}");
-                return Ok(FetchedCommitsAndTransactions {
-                    commits,
-                    certifier_block_headers,
-                    transactions: stream::once(future::ready(Err(error))).boxed(),
-                });
+                // A cut here can leave commits without the votes that certify
+                // them, and checking those would charge the peer for the cut.
+                return Err(mid_stream_error(e));
             }
         }
     };
@@ -615,7 +607,7 @@ where
 {
     /// Yields the entries of each response message, ending after the first
     /// error.
-    fn into_stream(self) -> TransactionChunkStream {
+    fn into_stream(self) -> ChunkStream {
         stream::unfold(Some(self), |state| async move {
             let mut chunks = state?;
             let response = chunks.responses.next().await?;
@@ -908,6 +900,12 @@ impl ChannelPool {
                 Ok(channel) => return Ok(channel),
                 Err(e) => e,
             };
+            self.context
+                .metrics
+                .node_metrics
+                .subscriber_connect_failures
+                .with_label_values(&[self.context.authority_hostname(peer)])
+                .inc();
             let retry_at = tokio::time::Instant::now() + Duration::from_secs(1);
             if retry_at >= deadline {
                 return Err(error);
@@ -963,7 +961,7 @@ impl ChannelPool {
                 .clone()
                 .into_inner(),
             certificate_server_name(&self.context),
-            Some(network_keypair.private_key().into_inner()),
+            Some(network_keypair.private_key()),
         );
         let endpoint = tonic_rustls::Channel::from_shared(address.clone())
             .map_err(|e| ConsensusError::NetworkConfig(format!("invalid URI '{address}': {e}")))?
@@ -979,21 +977,31 @@ impl ChannelPool {
             .tls_config(client_tls_config)
             .unwrap();
 
+        // `Endpoint::connect` bounds only the TCP connect by `connect_timeout`.
+        // Passing the connector in bounds every connection attempt of the
+        // channel, TLS handshake included, so a reconnect to a peer that
+        // stalls the handshake gives up too.
+        let mut http = HttpConnector::new();
+        http.enforce_http(false);
+        http.set_nodelay(true);
+        http.set_connect_timeout(Some(connect_timeout));
+
         trace!("Connecting to endpoint at {address}");
-        let channel = match tokio::time::timeout_at(deadline, endpoint.connect()).await {
-            Ok(Ok(channel)) => channel,
-            Ok(Err(e)) => {
-                debug!("Failed to connect to endpoint at {address}: {e:?}");
-                return Err(ConsensusError::NetworkClientConnection(format!(
-                    "Failed to connect to endpoint at {address}: {e:?}"
-                )));
-            }
-            Err(_) => {
-                return Err(ConsensusError::NetworkClientConnection(format!(
-                    "Timed out connecting to endpoint at {address}"
-                )));
-            }
-        };
+        let channel =
+            match tokio::time::timeout_at(deadline, endpoint.connect_with_connector(http)).await {
+                Ok(Ok(channel)) => channel,
+                Ok(Err(e)) => {
+                    debug!("Failed to connect to endpoint at {address}: {e:?}");
+                    return Err(ConsensusError::NetworkClientConnection(format!(
+                        "Failed to connect to endpoint at {address}: {e:?}"
+                    )));
+                }
+                Err(_) => {
+                    return Err(ConsensusError::NetworkClientConnection(format!(
+                        "Timed out connecting to endpoint at {address}"
+                    )));
+                }
+            };
         trace!("Connected to {address}");
 
         let channel = tower::ServiceBuilder::new()
@@ -1102,6 +1110,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         else {
             return Err(tonic::Status::internal("PeerInfo not found"));
         };
+        let admission_guard = request.extensions().get::<Arc<AdmissionGuard>>().cloned();
         let inner = request.into_inner();
         let highest_accepted_rounds = inner.highest_accepted_rounds;
         let max_fetch_size = self
@@ -1128,22 +1137,21 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
                 }
             })
             .collect();
-        let blocks = self
+        let stream = self
             .service
-            .handle_fetch_headers(peer_index, block_refs, highest_accepted_rounds)
+            .handle_fetch_headers(
+                peer_index,
+                block_refs,
+                highest_accepted_rounds,
+                admission_guard,
+            )
             .await
-            .map_err(|e| tonic::Status::internal(format!("{e:?}")))?;
-        let responses: std::vec::IntoIter<Result<FetchBlockHeadersResponse, tonic::Status>> =
-            chunk_data(blocks, MAX_FETCH_RESPONSE_BYTES)
-                .into_iter()
-                .map(|block_headers| {
-                    Ok(FetchBlockHeadersResponse {
-                        vec_serialized_block_header: block_headers,
-                    })
-                })
-                .collect::<Vec<_>>()
-                .into_iter();
-        let stream = iter(responses).boxed();
+            .map_err(|e| tonic::Status::internal(format!("{e:?}")))?
+            .map_ok(|block_headers| FetchBlockHeadersResponse {
+                vec_serialized_block_header: block_headers,
+            })
+            .map_err(|e| tonic::Status::internal(format!("{e:?}")))
+            .boxed();
         Ok(Response::new(stream))
     }
 
@@ -1197,6 +1205,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         else {
             return Err(tonic::Status::internal("PeerInfo not found"));
         };
+        let admission_guard = request.extensions().get::<Arc<AdmissionGuard>>().cloned();
         let request = request.into_inner();
         let FetchedCommitsAndTransactions {
             commits: serialized_commits,
@@ -1204,7 +1213,11 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             transactions,
         } = self
             .service
-            .handle_fetch_commits_and_transactions(peer_index, (request.start..=request.end).into())
+            .handle_fetch_commits_and_transactions(
+                peer_index,
+                (request.start..=request.end).into(),
+                admission_guard,
+            )
             .await
             .map_err(|e| match e {
                 ConsensusError::TransactionsNotAvailable { .. } => {
@@ -1307,6 +1320,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         else {
             return Err(tonic::Status::internal("PeerInfo not found"));
         };
+        let admission_guard = request.extensions().get::<Arc<AdmissionGuard>>().cloned();
 
         let request = request.into_inner();
         let committed_transactions_refs: Vec<TransactionRef> = request
@@ -1321,23 +1335,16 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             })
             .collect();
 
-        let vec_serialized_transactions = self
+        let stream = self
             .service
-            .handle_fetch_transactions(peer_index, committed_transactions_refs)
+            .handle_fetch_transactions(peer_index, committed_transactions_refs, admission_guard)
             .await
-            .map_err(|e| tonic::Status::internal(format!("fetch_transactions failed: {e:?}")))?;
-
-        let responses: std::vec::IntoIter<Result<FetchTransactionsResponse, tonic::Status>> =
-            chunk_data(vec_serialized_transactions, MAX_FETCH_RESPONSE_BYTES)
-                .into_iter()
-                .map(|transactions| {
-                    Ok(FetchTransactionsResponse {
-                        vec_serialized_transactions: transactions,
-                    })
-                })
-                .collect::<Vec<_>>()
-                .into_iter();
-        let stream = iter(responses).boxed();
+            .map_err(|e| tonic::Status::internal(format!("fetch_transactions failed: {e:?}")))?
+            .map_ok(|transactions| FetchTransactionsResponse {
+                vec_serialized_transactions: transactions,
+            })
+            .map_err(|e| tonic::Status::internal(format!("fetch_transactions failed: {e:?}")))
+            .boxed();
         Ok(Response::new(stream))
     }
 }
@@ -1372,7 +1379,7 @@ const TIMEOUT_EXEMPT_PATHS: &[&str] = &["/consensus.ConsensusService/SubscribeBl
 /// once. One is enough to serve a peer: the channel pool keeps a single
 /// connection per authority and multiplexes every RPC over it. The rest is
 /// headroom for a reconnect whose predecessor has not been reaped yet.
-const MAX_CONNECTIONS_PER_PEER: usize = 4;
+const MAX_CONNECTIONS_PER_PEER: NonZeroUsize = NonZeroUsize::new(4).unwrap();
 
 /// Time a bounded RPC has to deliver its request message after its headers;
 /// a request still waiting for it is answered with `DEADLINE_EXCEEDED`, which
@@ -1497,7 +1504,7 @@ impl<S: NetworkService> TonicManager<S> {
             .route_layer(layers);
 
         let tls_server_config = iota_tls::create_rustls_server_config_with_client_verifier(
-            self.network_keypair.clone().private_key().into_inner(),
+            self.network_keypair.clone().private_key(),
             certificate_server_name(&self.context),
             AllowPublicKeys::new(
                 self.context
@@ -1546,11 +1553,9 @@ impl<S: NetworkService> TonicManager<S> {
         }
 
         let http_config = iota_http::Config::default()
-            .initial_connection_window_size(64 << 20)
-            .initial_stream_window_size(32 << 20)
-            .max_concurrent_streams(
-                (config.max_concurrent_streams > 0).then_some(config.max_concurrent_streams),
-            )
+            .initial_connection_window_size(NonZeroU32::new(64 << 20))
+            .initial_stream_window_size(NonZeroU32::new(32 << 20))
+            .max_concurrent_streams(NonZeroU32::new(config.max_concurrent_streams))
             .http2_keepalive_interval(Some(config.keepalive_interval))
             .http2_keepalive_timeout(Some(config.keepalive_interval))
             .accept_http1(false)
@@ -2063,7 +2068,7 @@ fn commit_and_header_messages(
 // Splits a list of byte sequences into chunks where each chunk's total size
 // does not exceed the specified `chunk_limit`.
 // Returns a vector of chunks, each being a vector of `Bytes`.
-fn chunk_data(data: Vec<Bytes>, chunk_limit: usize) -> Vec<Vec<Bytes>> {
+pub(crate) fn chunk_data(data: Vec<Bytes>, chunk_limit: usize) -> Vec<Vec<Bytes>> {
     let mut chunks = vec![];
     let mut chunk = vec![];
     let mut chunk_size = 0;
@@ -2093,9 +2098,9 @@ mod tests {
     use starfish_config::{AuthorityIndex, HEADERS_PER_FETCH_CEILING};
 
     use super::{
-        CONSENSUS_SERVICE_METHODS, CONSENSUS_SERVICE_PATH_PREFIX, FetchBlockHeadersResponse,
-        FetchCommitsAndTransactionsResponse, FetchTransactionsResponse, TonicClient, TonicManager,
-        TransactionChunkStream, UNKNOWN_ROUTE, collect_block_headers,
+        CONSENSUS_SERVICE_METHODS, CONSENSUS_SERVICE_PATH_PREFIX, ChunkStream,
+        FetchBlockHeadersResponse, FetchCommitsAndTransactionsResponse, FetchTransactionsResponse,
+        TonicClient, TonicManager, UNKNOWN_ROUTE, collect_block_headers,
         collect_commits_and_transactions, collect_transactions, commit_and_header_messages,
         max_fetch_block_headers_response_bytes, max_fetch_transactions_response_bytes,
         max_serialized_transactions_entry_bytes, route_label,
@@ -2136,9 +2141,7 @@ mod tests {
 
     /// Reads transaction chunks to their end, returning the entries and the
     /// error that ended them, if any.
-    async fn read_to_end(
-        mut transactions: TransactionChunkStream,
-    ) -> (Vec<Bytes>, Option<ConsensusError>) {
+    async fn read_to_end(mut transactions: ChunkStream) -> (Vec<Bytes>, Option<ConsensusError>) {
         let mut entries = Vec::new();
         while let Some(chunk) = transactions.next().await {
             match chunk {
@@ -2466,23 +2469,37 @@ mod tests {
         ));
     }
 
-    /// A stream cut before anything arrived delivers nothing to keep, so the
-    /// fetch fails outright.
+    /// A stream cut before the transactions start fails the fetch, including
+    /// after commits and, from older servers, certifier headers arrived.
     #[tokio::test]
-    async fn cut_before_any_commit_fails_the_fetch() {
+    async fn cut_before_the_transactions_fails_the_fetch() {
         let (context, _keys) = Context::new_for_test(4);
         let peer = AuthorityIndex::new_for_test(1);
-        let cut = stream::iter([Err(tonic::Status::unknown("h2 protocol error"))]);
+        let cut = || Err(tonic::Status::unknown("h2 protocol error"));
+        let headers_first = FetchCommitsAndTransactionsResponse {
+            certifier_block_headers: vec![Bytes::from_static(b"header")],
+            ..chunk(2, 0)
+        };
+        for responses in [
+            vec![cut()],
+            vec![Ok(chunk(2, 0)), cut()],
+            vec![Ok(headers_first), Ok(chunk(2, 0)), cut()],
+        ] {
+            let result = collect_commits_and_transactions(
+                &context,
+                peer,
+                &requested_range(),
+                stream::iter(responses),
+            )
+            .await;
 
-        let result =
-            collect_commits_and_transactions(&context, peer, &requested_range(), cut).await;
-
-        assert!(matches!(result, Err(ConsensusError::NetworkRequest(_))));
+            assert!(matches!(result, Err(ConsensusError::NetworkRequest(_))));
+        }
     }
 
-    /// A cut after commits arrived keeps the delivered chunks and returns the
-    /// error alongside them, so the caller can attribute missing transactions
-    /// to the connection instead of the peer's data.
+    /// A cut after the transactions started keeps the delivered chunks and
+    /// returns the error alongside them, so the caller can attribute missing
+    /// transactions to the connection instead of the peer's data.
     #[tokio::test]
     async fn cut_after_commits_keeps_the_delivered_chunks_and_the_error() {
         let (context, _keys) = Context::new_for_test(4);
@@ -2535,14 +2552,12 @@ mod tests {
             Err(tonic::Status::deadline_exceeded("deadline")),
         ]);
 
-        let response = collect_commits_and_transactions(&context, peer, &requested_range(), cut)
-            .await
-            .expect("a cut after commits arrived keeps them");
-        let (_transactions, stream_error) = read_to_end(response.transactions).await;
+        let result =
+            collect_commits_and_transactions(&context, peer, &requested_range(), cut).await;
 
         assert!(matches!(
-            stream_error,
-            Some(ConsensusError::NetworkRequestTimeout(_))
+            result,
+            Err(ConsensusError::NetworkRequestTimeout(_))
         ));
     }
 
@@ -2876,6 +2891,102 @@ mod tests {
         long.abort();
     }
 
+    /// A pooled channel whose peer comes back without answering the TLS
+    /// handshake fails each call once the connect timeout passes, instead of
+    /// hanging, and connects again once the peer serves.
+    #[cfg(not(msim))]
+    #[tokio::test]
+    async fn pooled_channel_gives_up_on_a_peer_that_stalls_the_tls_handshake() {
+        use std::{net::TcpListener, time::Duration};
+
+        use parking_lot::Mutex;
+
+        use super::{TonicManager, to_socket_addr};
+        use crate::network::{NetworkClient as _, test_network::TestService};
+
+        const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
+        /// How long the test waits for a call before deciding that no deadline
+        /// ended it. Far longer than `CONNECT_TIMEOUT`, so a slow machine does
+        /// not fail the test.
+        const GIVE_UP: Duration = Duration::from_secs(10);
+
+        let (context, keys) = Context::new_for_test(4);
+        let server_index = context.committee.to_authority_index(0).unwrap();
+        let server_context = Arc::new(context.clone().with_authority_index(server_index));
+        let start_server = || {
+            let mut server = TonicManager::new(server_context.clone(), keys[0].0.clone());
+            async move {
+                server
+                    .install_service(Arc::new(Mutex::new(TestService::new())))
+                    .await;
+                server
+            }
+        };
+        let mut server = start_server().await;
+
+        let client_context = Arc::new(
+            context
+                .clone()
+                .with_authority_index(context.committee.to_authority_index(1).unwrap()),
+        );
+        let client =
+            TonicManager::<Mutex<TestService>>::new(client_context, keys[1].0.clone()).client();
+        client
+            .channel_pool
+            .get_channel(
+                client.network_keypair.clone(),
+                server_index,
+                CONNECT_TIMEOUT,
+            )
+            .await
+            .expect("the server is up");
+
+        server.stop().await;
+        // Never accepted, so the TLS handshake of the next connection attempt
+        // gets no answer.
+        let listener = TcpListener::bind(
+            to_socket_addr(&context.committee.authority(server_index).address).unwrap(),
+        )
+        .unwrap();
+
+        // The first call can still reach the closing connection and fail at
+        // once. The second one has to connect again.
+        for call in 1..=2 {
+            let started = tokio::time::Instant::now();
+            // A request timeout past `GIVE_UP`, so only the connect timeout
+            // can end the call in time.
+            let result = tokio::time::timeout(
+                GIVE_UP,
+                client.fetch_commits(server_index, (1..=2).into(), 2 * GIVE_UP),
+            )
+            .await
+            .unwrap_or_else(|_| panic!("call {call} was still pending after {GIVE_UP:?}"));
+            assert!(
+                matches!(result, Err(ConsensusError::NetworkRequest(_))),
+                "call {call} must fail, got {result:?}"
+            );
+            if call == 2 {
+                assert!(
+                    started.elapsed() >= CONNECT_TIMEOUT,
+                    "call {call} failed after {:?}, before the connect timeout: {result:?}",
+                    started.elapsed()
+                );
+            }
+        }
+
+        drop(listener);
+        let _server = start_server().await;
+        // Only a call makes the pooled channel connect; taking it from the
+        // pool does not.
+        tokio::time::timeout(
+            GIVE_UP,
+            client.fetch_commits(server_index, (1..=2).into(), GIVE_UP),
+        )
+        .await
+        .unwrap_or_else(|_| panic!("the call was still pending after {GIVE_UP:?}"))
+        .expect("the pooled channel connects again once the peer serves");
+    }
+
     /// A header fetch whose request message never arrives is charged to its
     /// peer's budget from the moment its headers land, so a peer cannot stack
     /// pending decodes across connections. The permit is returned when the
@@ -3140,8 +3251,9 @@ mod tests {
         let admitted = fetch().await.expect("the shared budget is free again");
         assert_eq!(in_use.get(), 2);
 
-        // Reading the abandoned response fails before its payload arrives,
-        // and only that releases the peer's slot.
+        // Reading the abandoned response fails with the deadline before its
+        // payload arrives, and only that ends the stream and releases the
+        // peer's slot.
         let mut unread = unread.into_inner();
         let read_to_the_end = async {
             while let Some(response) = unread.message().await? {
@@ -3153,12 +3265,14 @@ mod tests {
             Ok::<(), tonic::Status>(())
         }
         .await;
-        assert!(
-            read_to_the_end.is_err(),
-            "reading a reclaimed response must fail"
+        assert_eq!(
+            read_to_the_end
+                .expect_err("reading a reclaimed response must fail")
+                .code(),
+            tonic::Code::DeadlineExceeded
         );
         drop((unread, admitted));
-        settles("the reset streams keep their slots", &|| in_use.get() == 0).await;
+        settles("the ended streams keep their slots", &|| in_use.get() == 0).await;
         // The deadline fired once, for the response that was never read.
         tokio::time::sleep(SEND_TIMEOUT).await;
         assert_eq!(reclaimed.get(), 1);

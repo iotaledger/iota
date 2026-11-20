@@ -34,10 +34,12 @@ use crate::{
 
 /// Server-side deadline for a request whose config sets no `request_timeout`.
 ///
-/// A request holds its admission slot from the moment its headers arrive
-/// until the handler responds, including the time spent receiving the body,
-/// so without a deadline a peer that never finishes sending pins the slot
-/// indefinitely.
+/// It bounds the time until the response headers are returned, including
+/// waiting for an admission slot and receiving the request, so a peer that
+/// never finishes sending cannot hold a slot for good. Sending the response
+/// body is not bounded by it; for a service added with
+/// [`ServerBuilder::add_service_with_concurrency_limit`], it is bounded by
+/// that service's `response_send_timeout`.
 pub const DEFAULT_GRPC_REQUEST_TIMEOUT: Duration = Duration::from_secs(300);
 
 pub struct ServerBuilder<M: MetricsCallbackProvider = DefaultMetricsCallbackProvider> {
@@ -46,6 +48,7 @@ pub struct ServerBuilder<M: MetricsCallbackProvider = DefaultMetricsCallbackProv
     router: tonic::service::Routes,
     health_reporter: tonic_health::server::HealthReporter,
     listener_metrics: Option<ListenerMetrics>,
+    http_config: iota_http::Config,
 }
 
 impl<M: MetricsCallbackProvider> ServerBuilder<M> {
@@ -59,6 +62,7 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
             router,
             health_reporter,
             listener_metrics: None,
+            http_config: iota_http::Config::default(),
         }
     }
 
@@ -66,6 +70,15 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
     /// [`iota_http::Config::metrics`].
     pub fn listener_metrics(mut self, metrics: ListenerMetrics) -> Self {
         self.listener_metrics = Some(metrics);
+        self
+    }
+
+    /// Sets the listener's connection and HTTP/2 settings. Its metrics are set
+    /// by [`Self::listener_metrics`], which replaces any in `http_config`.
+    ///
+    /// Default is [`iota_http::Config::default`].
+    pub fn http_config(mut self, http_config: iota_http::Config) -> Self {
+        self.http_config = http_config;
         self
     }
 
@@ -101,12 +114,20 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
     ///
     /// With `load_shed` enabled, requests over the limit are rejected
     /// immediately with gRPC `RESOURCE_EXHAUSTED`; otherwise they wait for a
-    /// slot to free up.
+    /// slot, up to [`Self::request_timeout`].
+    ///
+    /// A request keeps its slot until its response body has been sent, so a
+    /// streaming response counts for as long as it streams.
+    /// `response_send_timeout` bounds that: a response still unsent that long
+    /// after its headers is given up, ending with gRPC status
+    /// `DEADLINE_EXCEEDED`, and frees its slot. It must exceed the longest time
+    /// a response of `svc` legitimately takes to send.
     pub fn add_service_with_concurrency_limit<S>(
         mut self,
         svc: S,
         limit: NonZeroUsize,
         load_shed: bool,
+        response_send_timeout: Duration,
     ) -> Self
     where
         S: Service<Request<Body>, Response = Response<Body>, Error = Infallible>
@@ -117,15 +138,18 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
             + 'static,
         S::Future: Send + 'static,
     {
-        self.router = self
-            .router
-            .add_service(ServiceConcurrencyLimit::new(svc, limit, load_shed));
+        self.router = self.router.add_service(ServiceConcurrencyLimit::new(
+            svc,
+            limit,
+            load_shed,
+            response_send_timeout,
+        ));
         self
     }
 
     pub async fn bind(self, addr: &Multiaddr, tls_config: Option<ServerConfig>) -> Result<Server> {
         let request_timeout = self.request_timeout();
-        let http_config = self.config.http_config().metrics(self.listener_metrics);
+        let http_config = self.http_config.metrics(self.listener_metrics);
 
         let metrics_provider = self.metrics_provider;
         let metrics = MetricsHandler::new(metrics_provider.clone());
@@ -669,7 +693,12 @@ mod test {
         let address: Multiaddr = "/ip4/127.0.0.1/tcp/0/http".parse().unwrap();
         let server = config
             .server_builder()
-            .add_service_with_concurrency_limit(DrainBody, std::num::NonZeroUsize::MIN, false)
+            .add_service_with_concurrency_limit(
+                DrainBody,
+                std::num::NonZeroUsize::MIN,
+                false,
+                Duration::from_secs(60),
+            )
             .bind(&address, None)
             .await
             .unwrap();
@@ -718,6 +747,138 @@ mod test {
         server.server_handle.shutdown().await;
     }
 
+    /// Length of the response `ImmediateData` answers with, far more than a
+    /// response with a send timeout hands to the transport at a time, so most
+    /// of it is still in the body when the client stops reading.
+    const IMMEDIATE_DATA_LEN: usize = 1024 * 1024;
+
+    /// Answers at once with a body that has data ready, so whether the body is
+    /// sent depends only on the client granting flow-control window. Like a
+    /// tonic response, the body does not declare its length, so the response
+    /// carries no `content-length` that cutting it short would contradict.
+    #[derive(Clone)]
+    struct ImmediateData;
+
+    impl tower::Service<http::Request<tonic::body::Body>> for ImmediateData {
+        type Response = http::Response<tonic::body::Body>;
+        type Error = std::convert::Infallible;
+        type Future = std::future::Ready<Result<Self::Response, Self::Error>>;
+
+        fn poll_ready(
+            &mut self,
+            _cx: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<Result<(), Self::Error>> {
+            std::task::Poll::Ready(Ok(()))
+        }
+
+        fn call(&mut self, _request: http::Request<tonic::body::Body>) -> Self::Future {
+            let data: Result<_, std::convert::Infallible> = Ok(http_body::Frame::data(
+                bytes::Bytes::from(vec![0; IMMEDIATE_DATA_LEN]),
+            ));
+            let body = http_body_util::StreamBody::new(futures::stream::iter([data]));
+            std::future::ready(Ok(http::Response::builder()
+                .header("content-type", "application/grpc")
+                .body(tonic::body::Body::new(body))
+                .unwrap()))
+        }
+    }
+
+    impl tonic::server::NamedService for ImmediateData {
+        const NAME: &'static str = "test.ImmediateData";
+    }
+
+    /// A client that stops reading keeps its response body from being sent.
+    /// The admission slot it holds must still come back once the response send
+    /// timeout passes, and not before, and the client that reads on must get
+    /// the gRPC status `DEADLINE_EXCEEDED`.
+    #[tokio::test]
+    async fn a_response_the_client_does_not_read_gives_back_its_slot_after_the_send_timeout() {
+        // Far smaller than the response, so the response stalls unless read.
+        const CLIENT_WINDOW: u32 = 1024;
+        // A real listener cannot run on a paused clock, so the margin must
+        // cover a slow machine between the first two requests.
+        const SEND_TIMEOUT: Duration = Duration::from_secs(2);
+
+        let address: Multiaddr = "/ip4/127.0.0.1/tcp/0/http".parse().unwrap();
+        let server = Config::new()
+            .server_builder()
+            .add_service_with_concurrency_limit(
+                ImmediateData,
+                std::num::NonZeroUsize::MIN,
+                true,
+                SEND_TIMEOUT,
+            )
+            .bind(&address, None)
+            .await
+            .unwrap();
+
+        let stream = tokio::net::TcpStream::connect(server.local_addr().to_socket_addr().unwrap())
+            .await
+            .unwrap();
+        let (mut sender, connection) =
+            hyper::client::conn::http2::Builder::new(hyper_util::rt::TokioExecutor::new())
+                .initial_stream_window_size(CLIENT_WINDOW)
+                .handshake::<_, http_body_util::Empty<bytes::Bytes>>(hyper_util::rt::TokioIo::new(
+                    stream,
+                ))
+                .await
+                .unwrap();
+        tokio::spawn(connection);
+
+        let request = || {
+            http::Request::post("/test.ImmediateData/Get")
+                .header("content-type", "application/grpc")
+                .body(http_body_util::Empty::new())
+                .unwrap()
+        };
+        let shed = |response: &http::Response<hyper::body::Incoming>| {
+            response
+                .headers()
+                .get("grpc-status")
+                .is_some_and(|status| *status == (Code::ResourceExhausted as i32).to_string())
+        };
+
+        // Its headers arrive, but its body is not read.
+        let unread = sender.send_request(request()).await.unwrap();
+        assert!(!shed(&unread));
+
+        let while_unread = sender.send_request(request()).await.unwrap();
+        assert!(
+            shed(&while_unread),
+            "the slot must stay taken while the first response is unsent"
+        );
+
+        tokio::time::sleep(SEND_TIMEOUT * 3).await;
+        let after_timeout = sender.send_request(request()).await.unwrap();
+        assert!(
+            !shed(&after_timeout),
+            "the slot must be free once the send timeout has passed"
+        );
+
+        let read_late = tokio::time::timeout(
+            SEND_TIMEOUT * 10,
+            http_body_util::BodyExt::collect(unread.into_body()),
+        )
+        .await
+        .expect("a response given up at the send timeout must end once read")
+        .expect("the stream must end with a status, not be reset");
+        let trailers = read_late
+            .trailers()
+            .expect("the status must arrive in trailers")
+            .clone();
+        assert_eq!(
+            tonic::Status::from_header_map(&trailers).map(|status| status.code()),
+            Some(Code::DeadlineExceeded)
+        );
+        assert!(
+            read_late.to_bytes().len() < IMMEDIATE_DATA_LEN,
+            "the rest of the response must be given up"
+        );
+
+        drop(after_timeout);
+        server.server_handle.shutdown().await;
+    }
+
     /// The configured stream cap is advertised to the peer, so requests beyond
     /// it on one connection never reach the server until an earlier one ends.
     #[tokio::test]
@@ -745,11 +906,14 @@ mod test {
         const STREAM_CAP: u32 = 2;
 
         let started = Started::default();
-        let mut config = Config::new();
-        config.http2_max_concurrent_streams = Some(STREAM_CAP);
+        let config = Config::new();
         let address: Multiaddr = "/ip4/127.0.0.1/tcp/0/http".parse().unwrap();
         let server = config
             .server_builder_with_metrics(started.clone())
+            .http_config(
+                iota_http::Config::default()
+                    .max_concurrent_streams(std::num::NonZeroU32::new(STREAM_CAP)),
+            )
             .add_service(DrainBody)
             .bind(&address, None)
             .await

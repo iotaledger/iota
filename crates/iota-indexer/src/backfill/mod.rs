@@ -13,6 +13,7 @@ use crate::{
         ingestion::{
             jobs::{
                 object_changes_unwrapped::ObjectChangesUnwrappedBackfill,
+                objects_backward_history::ObjectsBackwardHistoryBackfill,
                 tx_wrapped_or_deleted_objects::TxWrappedOrDeletedObjectsBackfill,
             },
             task::IngestionBackfillTask,
@@ -81,6 +82,8 @@ pub enum IngestionBackfillKind {
     /// Backfills the `tx_wrapped_or_deleted_objects` table.
     TxWrappedOrDeletedObjects,
     ObjectChangesUnwrapped,
+    /// Backfills the `objects_backward_history` table.
+    ObjectsBackwardHistory,
 }
 
 pub(crate) async fn get_backfill(
@@ -99,6 +102,13 @@ pub(crate) async fn get_backfill(
             )),
             IngestionBackfillKind::ObjectChangesUnwrapped => Ok(Arc::new(
                 IngestionBackfillTask::<ObjectChangesUnwrappedBackfill>::new(
+                    *config,
+                    range_start as CheckpointSequenceNumber,
+                )
+                .await?,
+            )),
+            IngestionBackfillKind::ObjectsBackwardHistory => Ok(Arc::new(
+                IngestionBackfillTask::<ObjectsBackwardHistoryBackfill>::new(
                     *config,
                     range_start as CheckpointSequenceNumber,
                 )

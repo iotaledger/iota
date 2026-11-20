@@ -909,7 +909,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 author: block_ref.author,
                 round: block_ref.round,
             };
-            misbehavior_store.record_faulty_block(peer_index, peer_index, &e);
+            misbehavior_store.record_faulty_block(peer_index, None, &e);
             metrics
                 .synchronizer_fetch_window_violations
                 .with_label_values(&[peer_hostname.as_str(), sync_method])
@@ -1015,10 +1015,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 "Missing committed transactions after fetching blocks: {:?}",
                 missing_committed_txns
             );
-            if let Err(err) = transactions_synchronizer
-                .fetch_transactions(missing_committed_txns)
-                .await
-            {
+            if let Err(err) = transactions_synchronizer.fetch_transactions(missing_committed_txns) {
                 warn!(
                     "Error while trying to fetch missing transactions via transactions synchronizer: {err}"
                 );
@@ -1068,7 +1065,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 .map_err(ConsensusError::MalformedHeader)
                 .inspect_err(|e| {
                     // Author is unknown when deserialization fails — blame the peer.
-                    misbehavior_store.record_faulty_block(peer_index, peer_index, e);
+                    misbehavior_store.record_faulty_block(peer_index, None, e);
                 })?;
 
             if already_verified {
@@ -1087,7 +1084,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                         .inc();
                     misbehavior_store.record_faulty_block(
                         peer_index,
-                        signed_block_header.author(),
+                        Some(signed_block_header.slot()),
                         &e,
                     );
                     warn!("Invalid block received from {}: {}", peer_index, e);
@@ -1267,7 +1264,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                                 // Author unknown when deserialization fails — blame the peer.
                                                 misbehavior_store.record_faulty_block(
                                                     authority_index,
-                                                    authority_index,
+                                                    None,
                                                     e,
                                                 );
                                             })?;
@@ -1281,7 +1278,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                                 .inc();
                                             misbehavior_store.record_faulty_block(
                                                 authority_index,
-                                                signed_block_header.author(),
+                                                Some(signed_block_header.slot()),
                                                 err,
                                             );
                                             warn!("Invalid block header received from {}: {}", authority_index, err);
@@ -1289,7 +1286,9 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
 
                                         let verified_block_header = VerifiedBlockHeader::new_verified(signed_block_header, serialized_block_header);
                                         if verified_block_header.author() != context.own_index {
-                                            return Err(ConsensusError::UnexpectedLastOwnHeader { index: authority_index, block_ref: verified_block_header.reference()});
+                                            let e = ConsensusError::UnexpectedLastOwnHeader { index: authority_index, block_ref: verified_block_header.reference()};
+                                            misbehavior_store.record_faulty_block(authority_index, None, &e);
+                                            return Err(e);
                                         }
                                         result.push(verified_block_header);
                                     }
@@ -1930,7 +1929,7 @@ mod tests {
         misbehavior_store::MisbehaviorStore,
         network::{BlockBundleStream, FetchedCommitsAndTransactions, NetworkClient},
         storage::mem_store::MemStore,
-        transaction_ref::{GenericTransactionRef, TransactionRef},
+        transaction_ref::TransactionRef,
         transactions_synchronizer::TransactionsSynchronizer,
     };
 
@@ -3107,7 +3106,6 @@ mod tests {
             let mut d = dag_state.write();
             for index in 1..=commit_index {
                 let commit = TrustedCommit::new_for_test(
-                    &context,
                     index,
                     CommitDigest::MIN,
                     0,
@@ -3221,7 +3219,6 @@ mod tests {
             let mut d = dag_state.write();
             for index in 1..=12u32 {
                 d.add_commit(TrustedCommit::new_for_test(
-                    &context,
                     index,
                     CommitDigest::MIN,
                     0,
@@ -3447,7 +3444,7 @@ mod tests {
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
@@ -3465,7 +3462,7 @@ mod tests {
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
@@ -3486,7 +3483,7 @@ mod tests {
 
         async fn get_missing_transaction_data(
             &self,
-        ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
+        ) -> Result<BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
             unimplemented!("Unimplemented")
         }
 
@@ -3497,7 +3494,7 @@ mod tests {
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
@@ -3523,7 +3520,7 @@ mod tests {
             &self,
             _round: Round,
             _reason: ReasonToCreateBlock,
-        ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
+        ) -> Result<BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
             Ok(BTreeMap::new())
         }
 

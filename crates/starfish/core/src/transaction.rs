@@ -6,22 +6,31 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use iota_common::debug_fatal;
 use iota_metrics::monitored_mpsc::{Receiver, Sender, channel};
+use iota_protocol_config::ProtocolConfig;
 use parking_lot::Mutex;
 use tap::tap::TapFallible;
 use thiserror::Error;
 use tokio::sync::oneshot;
 use tracing::{error, warn};
 
-use crate::{
-    Round,
-    block_header::Transaction,
-    context::Context,
-    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
-};
+use crate::{Round, block_header::Transaction, context::Context, transaction_ref::TransactionRef};
 
 /// The maximum number of transactions pending to the queue to be pulled for
 /// block proposal
 const MAX_PENDING_TRANSACTIONS: usize = 2_000;
+
+/// Reserved capacity for the validator's own high-priority submissions, which
+/// are low-volume and pulled ahead of normal-priority ones.
+const MAX_PENDING_PRIORITY_TRANSACTIONS: usize = 128;
+
+/// Priority of a submission to consensus. Consensus is agnostic to transaction
+/// type; the submitter decides. `High` submissions use a reserved lane and are
+/// pulled ahead of `Normal` ones for block proposal.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum Priority {
+    Normal,
+    High,
+}
 
 /// The guard acts as an acknowledgment mechanism for the inclusion of the
 /// transactions to a block. When its last transaction is included to a block
@@ -34,7 +43,7 @@ pub(crate) struct TransactionsGuard {
     // holds the remaining transactions.
     transactions: Vec<Transaction>,
 
-    included_in_block_ack: oneshot::Sender<(GenericTransactionRef, oneshot::Receiver<BlockStatus>)>,
+    included_in_block_ack: oneshot::Sender<(TransactionRef, oneshot::Receiver<BlockStatus>)>,
 }
 
 /// The TransactionConsumer is responsible for fetching the next transactions to
@@ -43,22 +52,25 @@ pub(crate) struct TransactionsGuard {
 /// TransactionClient and are pulled every time the `next` method is called.
 pub(crate) struct TransactionConsumer {
     tx_receiver: Receiver<TransactionsGuard>,
+    // Reserved lane for the validator's own high-priority submissions, drained
+    // ahead of `tx_receiver`.
+    priority_tx_receiver: Receiver<TransactionsGuard>,
     max_transactions_in_block_bytes: u64,
     max_num_transactions_in_block: u64,
     pending_transactions: Option<TransactionsGuard>,
     block_status_subscribers:
-        Arc<Mutex<BTreeMap<GenericTransactionRef, Vec<oneshot::Sender<BlockStatus>>>>>,
+        Arc<Mutex<BTreeMap<TransactionRef, Vec<oneshot::Sender<BlockStatus>>>>>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum BlockStatus {
     /// The transaction data associated with this block ref has been sequenced
     /// as part of a committed sub dag.
-    Sequenced(GenericTransactionRef),
+    Sequenced(TransactionRef),
     /// The block or transaction data corresponding to this block ref has been
     /// garbage collected and will never be committed. The transaction data
     /// must be attempted to be resent by the client
-    GarbageCollected(GenericTransactionRef),
+    GarbageCollected(TransactionRef),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -72,9 +84,14 @@ pub enum LimitReached {
 }
 
 impl TransactionConsumer {
-    pub(crate) fn new(tx_receiver: Receiver<TransactionsGuard>, context: Arc<Context>) -> Self {
+    pub(crate) fn new(
+        tx_receiver: Receiver<TransactionsGuard>,
+        priority_tx_receiver: Receiver<TransactionsGuard>,
+        context: Arc<Context>,
+    ) -> Self {
         Self {
             tx_receiver,
+            priority_tx_receiver,
             max_transactions_in_block_bytes: context
                 .protocol_config
                 .max_transactions_in_block_bytes(),
@@ -94,7 +111,7 @@ impl TransactionConsumer {
         &mut self,
     ) -> (
         Vec<Transaction>,
-        Box<dyn FnOnce(GenericTransactionRef)>,
+        Box<dyn FnOnce(TransactionRef)>,
         LimitReached,
     ) {
         let mut transactions = Vec::new();
@@ -137,32 +154,34 @@ impl TransactionConsumer {
             }
         }
 
-        // Until we have reached the limit for the pull.
-        // We may have already reached limit in the first iteration above, in which case
-        // we stop immediately.
-        while self.pending_transactions.is_none() {
-            if let Ok(t) = self.tx_receiver.try_recv() {
-                self.pending_transactions = handle_txs(t);
-            } else {
-                break;
+        // Pull until the block limit is reached, which may already have happened
+        // above. The priority lane is drained first, so the validator's own
+        // high-priority submissions get block space ahead of a normal backlog.
+        for receiver in [&mut self.priority_tx_receiver, &mut self.tx_receiver] {
+            while self.pending_transactions.is_none() {
+                if let Ok(t) = receiver.try_recv() {
+                    self.pending_transactions = handle_txs(t);
+                } else {
+                    break;
+                }
             }
         }
         let block_status_subscribers = self.block_status_subscribers.clone();
 
         (
             transactions,
-            Box::new(move |gen_tx_ref: GenericTransactionRef| {
+            Box::new(move |tx_ref: TransactionRef| {
                 let mut block_status_subscribers = block_status_subscribers.lock();
 
                 for ack in acks {
                     let (status_tx, status_rx) = oneshot::channel();
 
                     block_status_subscribers
-                        .entry(gen_tx_ref)
+                        .entry(tx_ref)
                         .or_default()
                         .push(status_tx);
 
-                    let _ = ack.send((gen_tx_ref, status_rx));
+                    let _ = ack.send((tx_ref, status_rx));
                 }
             }),
             limit_reached,
@@ -175,15 +194,15 @@ impl TransactionConsumer {
     /// all own committed transaction data.
     pub(crate) fn notify_own_transactions_status(
         &self,
-        committed_transaction_refs: Vec<GenericTransactionRef>,
+        committed_transaction_refs: Vec<TransactionRef>,
         gc_round: Round,
     ) {
         // Notify for all own committed transaction data first
         let mut block_status_subscribers = self.block_status_subscribers.lock();
-        for gen_tx_ref in committed_transaction_refs {
-            if let Some(subscribers) = block_status_subscribers.remove(&gen_tx_ref) {
+        for tx_ref in committed_transaction_refs {
+            if let Some(subscribers) = block_status_subscribers.remove(&tx_ref) {
                 subscribers.into_iter().for_each(|s| {
-                    let _ = s.send(BlockStatus::Sequenced(gen_tx_ref));
+                    let _ = s.send(BlockStatus::Sequenced(tx_ref));
                 });
             }
         }
@@ -191,7 +210,7 @@ impl TransactionConsumer {
         // Now notify everyone <= gc_round that their block has been garbage collected
         // and clean up the entries
         while let Some((block_ref, subscribers)) = block_status_subscribers.pop_first() {
-            if block_ref.round() <= gc_round {
+            if block_ref.round <= gc_round {
                 subscribers.into_iter().for_each(|s| {
                     let _ = s.send(BlockStatus::GarbageCollected(block_ref));
                 });
@@ -205,14 +224,11 @@ impl TransactionConsumer {
     #[cfg(test)]
     pub(crate) fn subscribe_for_block_status_testing(
         &self,
-        gen_tx_ref: GenericTransactionRef,
+        tx_ref: TransactionRef,
     ) -> oneshot::Receiver<BlockStatus> {
         let (tx, rx) = oneshot::channel();
         let mut block_status_subscribers = self.block_status_subscribers.lock();
-        block_status_subscribers
-            .entry(gen_tx_ref)
-            .or_default()
-            .push(tx);
+        block_status_subscribers.entry(tx_ref).or_default().push(tx);
         rx
     }
 
@@ -221,9 +237,11 @@ impl TransactionConsumer {
         if self.pending_transactions.is_some() {
             return false;
         }
-        if let Ok(t) = self.tx_receiver.try_recv() {
-            self.pending_transactions = Some(t);
-            return false;
+        for receiver in [&mut self.priority_tx_receiver, &mut self.tx_receiver] {
+            if let Ok(t) = receiver.try_recv() {
+                self.pending_transactions = Some(t);
+                return false;
+            }
         }
         true
     }
@@ -232,9 +250,9 @@ impl TransactionConsumer {
 #[derive(Clone)]
 pub struct TransactionClient {
     sender: Sender<TransactionsGuard>,
-    max_transaction_size: u64,
-    max_transactions_in_block_bytes: u64,
-    max_transactions_in_block_count: u64,
+    // Reserved channel for the validator's own high-priority submissions.
+    priority_sender: Sender<TransactionsGuard>,
+    limits: TransactionSubmissionLimits,
 }
 
 #[derive(Debug, Error)]
@@ -253,21 +271,45 @@ pub enum ClientError {
 }
 
 impl TransactionClient {
-    pub(crate) fn new(context: Arc<Context>) -> (Self, Receiver<TransactionsGuard>) {
-        let (sender, receiver) = channel("consensus_input", MAX_PENDING_TRANSACTIONS);
+    /// Returns the client and the receivers for normal and priority
+    /// transactions, in that order.
+    pub(crate) fn new(
+        context: Arc<Context>,
+    ) -> (
+        Self,
+        Receiver<TransactionsGuard>,
+        Receiver<TransactionsGuard>,
+    ) {
+        Self::new_with_max_pending_transactions(
+            context,
+            MAX_PENDING_TRANSACTIONS,
+            MAX_PENDING_PRIORITY_TRANSACTIONS,
+        )
+    }
+
+    fn new_with_max_pending_transactions(
+        context: Arc<Context>,
+        max_pending_transactions: usize,
+        max_pending_priority_transactions: usize,
+    ) -> (
+        Self,
+        Receiver<TransactionsGuard>,
+        Receiver<TransactionsGuard>,
+    ) {
+        let (sender, receiver) = channel("consensus_input", max_pending_transactions);
+        let (priority_sender, priority_receiver) = channel(
+            "consensus_input_priority",
+            max_pending_priority_transactions,
+        );
 
         (
             Self {
                 sender,
-                max_transaction_size: context.protocol_config.max_transaction_size_bytes(),
-                max_transactions_in_block_bytes: context
-                    .protocol_config
-                    .max_transactions_in_block_bytes(),
-                max_transactions_in_block_count: context
-                    .protocol_config
-                    .max_num_transactions_in_block(),
+                priority_sender,
+                limits: TransactionSubmissionLimits::new(&context.protocol_config),
             },
             receiver,
+            priority_receiver,
         )
     }
 
@@ -277,10 +319,11 @@ impl TransactionClient {
     pub async fn submit(
         &self,
         transactions: Vec<Vec<u8>>,
-    ) -> Result<(GenericTransactionRef, oneshot::Receiver<BlockStatus>), ClientError> {
+        priority: Priority,
+    ) -> Result<(TransactionRef, oneshot::Receiver<BlockStatus>), ClientError> {
         // TODO: Support returning the block refs for transactions that span multiple
         // blocks
-        let included_in_block = self.submit_no_wait(transactions).await?;
+        let included_in_block = self.submit_no_wait(transactions, priority).await?;
         included_in_block
             .await
             .tap_err(|e| warn!("Transaction acknowledge failed with {:?}", e))
@@ -288,65 +331,129 @@ impl TransactionClient {
     }
 
     /// Submits a list of transactions to be sequenced.
-    /// If any transaction's length exceeds `max_transaction_size`, no
-    /// transaction will be submitted. That shouldn't be the common case as
-    /// sizes should be aligned between consensus and client. The method returns
-    /// a receiver to wait on until the transactions has been included in the
-    /// next block to get proposed. The consumer should wait on it to
+    /// If [`check_transactions_fit()`] refuses them, no transaction is
+    /// submitted and its error is returned. That shouldn't be the common case
+    /// as sizes should be aligned between consensus and client. The method
+    /// returns a receiver to wait on until the transactions has been included
+    /// in the next block to get proposed. The consumer should wait on it to
     /// consider as inclusion acknowledgement. If the receiver errors then
     /// consensus is shutting down and transaction has not been included to
     /// any block. If multiple transactions are submitted, the method will
-    /// attempt to bundle them together in a single block. If the total size of
-    /// the transactions exceeds `max_transactions_in_block_bytes`, no
-    /// transaction will be submitted and an error will be returned instead.
-    /// Similar if transactions exceed `max_transactions_in_block_count` an
-    /// error will be returned.
+    /// attempt to bundle them together in a single block.
     pub(crate) async fn submit_no_wait(
         &self,
         transactions: Vec<Vec<u8>>,
-    ) -> Result<
-        oneshot::Receiver<(GenericTransactionRef, oneshot::Receiver<BlockStatus>)>,
-        ClientError,
-    > {
+        priority: Priority,
+    ) -> Result<oneshot::Receiver<(TransactionRef, oneshot::Receiver<BlockStatus>)>, ClientError>
+    {
         let (included_in_block_ack_send, included_in_block_ack_receive) = oneshot::channel();
 
-        let mut bundle_size = 0;
-
-        if transactions.len() as u64 > self.max_transactions_in_block_count {
-            return Err(ClientError::OversizedTransactionBundleCount(
-                transactions.len() as u64,
-                self.max_transactions_in_block_count,
-            ));
-        }
-
-        for transaction in &transactions {
-            if transaction.len() as u64 > self.max_transaction_size {
-                return Err(ClientError::OversizedTransaction(
-                    transaction.len() as u64,
-                    self.max_transaction_size,
-                ));
-            }
-            bundle_size += transaction.len() as u64;
-
-            if bundle_size > self.max_transactions_in_block_bytes {
-                return Err(ClientError::OversizedTransactionBundleBytes(
-                    bundle_size,
-                    self.max_transactions_in_block_bytes,
-                ));
-            }
-        }
+        let transaction_sizes: Vec<u64> = transactions
+            .iter()
+            .map(|transaction| transaction.len() as u64)
+            .collect();
+        check_transactions_fit(&transaction_sizes, self.limits)?;
 
         let t = TransactionsGuard {
             transactions: transactions.into_iter().map(Transaction::new).collect(),
             included_in_block_ack: included_in_block_ack_send,
         };
-        self.sender
+        let sender = match priority {
+            Priority::High => &self.priority_sender,
+            Priority::Normal => &self.sender,
+        };
+        sender
             .send(t)
             .await
             .tap_err(|e| error!("Submit transactions failed with {:?}", e))
             .map_err(|e| ClientError::ConsensusShuttingDown(e.to_string()))?;
         Ok(included_in_block_ack_receive)
     }
+}
+
+/// The limits of Starfish on one submission of transactions.
+#[derive(Clone, Copy, Debug)]
+pub struct TransactionSubmissionLimits {
+    /// The largest serialized size of one transaction, in bytes.
+    max_transaction_size: u64,
+    /// The largest total serialized size of the transactions, in bytes.
+    max_transactions_in_block_bytes: u64,
+    /// The largest number of transactions.
+    max_transactions_in_block_count: u64,
+}
+
+impl TransactionSubmissionLimits {
+    /// Returns the limits that `protocol_config` sets:
+    /// [`ProtocolConfig::max_transaction_size_bytes()`],
+    /// [`ProtocolConfig::max_transactions_in_block_bytes()`] and
+    /// [`ProtocolConfig::max_num_transactions_in_block()`].
+    pub fn new(protocol_config: &ProtocolConfig) -> Self {
+        Self {
+            max_transaction_size: protocol_config.max_transaction_size_bytes(),
+            max_transactions_in_block_bytes: protocol_config.max_transactions_in_block_bytes(),
+            max_transactions_in_block_count: protocol_config.max_num_transactions_in_block(),
+        }
+    }
+
+    /// Checks that a transaction of `size` bytes is no larger than one
+    /// transaction may be.
+    ///
+    /// # Errors
+    ///
+    /// [`ClientError::OversizedTransaction`] when it is larger.
+    pub fn check_transaction_size(&self, size: u64) -> Result<(), ClientError> {
+        if size > self.max_transaction_size {
+            return Err(ClientError::OversizedTransaction(
+                size,
+                self.max_transaction_size,
+            ));
+        }
+
+        Ok(())
+    }
+}
+
+/// Checks that Starfish accepts, as one submission, transactions whose
+/// serialized sizes are `transaction_sizes`: there are no more of them than
+/// `limits` allows, each is no larger than the size `limits` allows for one
+/// transaction, and together they are no larger than the total size `limits`
+/// allows.
+///
+/// # Errors
+///
+/// [`ClientError::OversizedTransactionBundleCount`] when there are more
+/// transactions than the limit, and otherwise
+/// [`ClientError::OversizedTransaction`] or
+/// [`ClientError::OversizedTransactionBundleBytes`] for the first transaction
+/// that is over the size limit or takes the total over its limit. The total
+/// in [`ClientError::OversizedTransactionBundleBytes`] is the total up to and
+/// including that transaction, not the size of the whole submission.
+pub fn check_transactions_fit(
+    transaction_sizes: &[u64],
+    limits: TransactionSubmissionLimits,
+) -> Result<(), ClientError> {
+    let max_count = limits.max_transactions_in_block_count;
+    let count = transaction_sizes.len() as u64;
+    if count > max_count {
+        return Err(ClientError::OversizedTransactionBundleCount(
+            count, max_count,
+        ));
+    }
+
+    let max_total_size = limits.max_transactions_in_block_bytes;
+    let mut total_size: u64 = 0;
+    for &size in transaction_sizes {
+        limits.check_transaction_size(size)?;
+        total_size = total_size.saturating_add(size);
+        if total_size > max_total_size {
+            return Err(ClientError::OversizedTransactionBundleBytes(
+                total_size,
+                max_total_size,
+            ));
+        }
+    }
+
+    Ok(())
 }
 
 /// `TransactionVerifier` implementation is supplied by IOTA to validate
@@ -383,15 +490,80 @@ mod tests {
     use tokio::time::timeout;
 
     use crate::{
-        block_header::{BlockHeaderDigest, BlockRef},
+        block_header::{Transaction, TransactionsCommitment},
         block_verifier::SignedBlockVerifier,
         context::Context,
         transaction::{
-            BlockStatus, LimitReached, NoopTransactionVerifier, TransactionClient,
-            TransactionConsumer,
+            BlockStatus, ClientError, LimitReached, NoopTransactionVerifier, Priority,
+            TransactionClient, TransactionConsumer, TransactionSubmissionLimits,
+            check_transactions_fit,
         },
-        transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI},
+        transaction_ref::TransactionRef,
     };
+
+    /// The limits the tests of [`check_transactions_fit()`] use: transactions
+    /// of up to 10 bytes, at most 4 of them, and 25 bytes in total.
+    const LIMITS: TransactionSubmissionLimits = TransactionSubmissionLimits {
+        max_transaction_size: 10,
+        max_transactions_in_block_bytes: 25,
+        max_transactions_in_block_count: 4,
+    };
+
+    /// [`check_transactions_fit()`] accepts a submission at each limit, and
+    /// refuses one with a transaction or a byte more.
+    #[test]
+    fn transactions_fit_exactly_at_each_limit() {
+        check_transactions_fit(&[0; 4], LIMITS).expect("four transactions should fit");
+        assert!(
+            matches!(
+                check_transactions_fit(&[0; 5], LIMITS),
+                Err(ClientError::OversizedTransactionBundleCount(5, 4))
+            ),
+            "a fifth transaction should not fit"
+        );
+
+        check_transactions_fit(&[10], LIMITS).expect("a transaction of 10 bytes should fit");
+        assert!(
+            matches!(
+                check_transactions_fit(&[11], LIMITS),
+                Err(ClientError::OversizedTransaction(11, 10))
+            ),
+            "a transaction of 11 bytes should not fit"
+        );
+
+        check_transactions_fit(&[10, 10, 5], LIMITS).expect("25 bytes in total should fit");
+        assert!(
+            matches!(
+                check_transactions_fit(&[10, 10, 6], LIMITS),
+                Err(ClientError::OversizedTransactionBundleBytes(26, 25))
+            ),
+            "26 bytes in total should not fit"
+        );
+    }
+
+    /// [`check_transactions_fit()`] checks the total after each transaction,
+    /// in the order of the submission. Its error for the total size reports
+    /// the total up to the transaction that takes it over the limit, not the
+    /// size of the whole submission, and it comes before the error for a
+    /// later transaction that is over the size limit.
+    #[test]
+    fn total_size_error_reports_running_total_before_later_oversized_transaction() {
+        // The third transaction takes the total to 30 bytes, over the limit.
+        assert!(
+            matches!(
+                check_transactions_fit(&[10, 10, 10, 1], LIMITS),
+                Err(ClientError::OversizedTransactionBundleBytes(30, 25))
+            ),
+            "the error should report the total up to the third transaction, not all 31 bytes"
+        );
+        assert!(
+            matches!(
+                check_transactions_fit(&[10, 10, 10, 11], LIMITS),
+                Err(ClientError::OversizedTransactionBundleBytes(30, 25))
+            ),
+            "the total error should come before the oversized fourth transaction"
+        );
+    }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn basic_submit_and_consume() {
@@ -402,8 +574,9 @@ mod tests {
         });
 
         let context = Arc::new(Context::new_for_test(4).0);
-        let (client, tx_receiver) = TransactionClient::new(context.clone());
-        let mut consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (client, tx_receiver, priority_tx_receiver) = TransactionClient::new(context.clone());
+        let mut consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
 
         // submit asynchronously the transactions and keep the waiters
         let mut included_in_block_waiters = FuturesUnordered::new();
@@ -411,7 +584,7 @@ mod tests {
             let transaction =
                 bcs::to_bytes(&format!("transaction {i}")).expect("Serialization should not fail.");
             let w = client
-                .submit_no_wait(vec![transaction])
+                .submit_no_wait(vec![transaction], Priority::Normal)
                 .await
                 .expect("Shouldn't submit successfully transaction");
             included_in_block_waiters.push(w);
@@ -423,7 +596,7 @@ mod tests {
 
         for (i, t) in transactions.iter().enumerate() {
             let t: String = bcs::from_bytes(t.data()).unwrap();
-            assert_eq!(format!("transaction {i}").to_string(), t);
+            assert_eq!(format!("transaction {i}"), t);
         }
 
         assert!(
@@ -434,7 +607,7 @@ mod tests {
         );
 
         // Now acknowledge the inclusion of transactions
-        ack_transactions(GenericTransactionRef::from(BlockRef::MIN));
+        ack_transactions(TransactionRef::default());
 
         // Now make sure that all the waiters have returned
         while let Some(result) = included_in_block_waiters.next().await {
@@ -454,8 +627,9 @@ mod tests {
         });
 
         let context = Arc::new(Context::new_for_test(4).0);
-        let (client, tx_receiver) = TransactionClient::new(context.clone());
-        let mut consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (client, tx_receiver, priority_tx_receiver) = TransactionClient::new(context.clone());
+        let mut consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
 
         // submit the transactions and include 2 of each on a new block
         let mut included_in_block_waiters = FuturesUnordered::new();
@@ -463,7 +637,7 @@ mod tests {
             let transaction =
                 bcs::to_bytes(&format!("transaction {i}")).expect("Serialization should not fail.");
             let w = client
-                .submit_no_wait(vec![transaction])
+                .submit_no_wait(vec![transaction], Priority::Normal)
                 .await
                 .expect("Shouldn't submit successfully transaction");
             included_in_block_waiters.push(w);
@@ -473,11 +647,11 @@ mod tests {
             if i % 2 == 0 {
                 let (transactions, ack_transactions, _limit_reached) = consumer.next();
                 assert_eq!(transactions.len(), 2);
-                ack_transactions(GenericTransactionRef::from(BlockRef::new(
-                    i,
-                    AuthorityIndex::new_for_test(0),
-                    BlockHeaderDigest::MIN,
-                )));
+                ack_transactions(TransactionRef {
+                    round: i,
+                    author: AuthorityIndex::new_for_test(0),
+                    transactions_commitment: TransactionsCommitment::MIN,
+                });
             }
         }
 
@@ -494,21 +668,21 @@ mod tests {
         let gc_round = 5;
         consumer.notify_own_transactions_status(
             vec![
-                GenericTransactionRef::from(BlockRef::new(
-                    6,
-                    AuthorityIndex::new_for_test(0),
-                    BlockHeaderDigest::MIN,
-                )),
-                GenericTransactionRef::from(BlockRef::new(
-                    8,
-                    AuthorityIndex::new_for_test(0),
-                    BlockHeaderDigest::MIN,
-                )),
-                GenericTransactionRef::from(BlockRef::new(
-                    10,
-                    AuthorityIndex::new_for_test(0),
-                    BlockHeaderDigest::MIN,
-                )),
+                TransactionRef {
+                    round: 6,
+                    author: AuthorityIndex::new_for_test(0),
+                    transactions_commitment: TransactionsCommitment::MIN,
+                },
+                TransactionRef {
+                    round: 8,
+                    author: AuthorityIndex::new_for_test(0),
+                    transactions_commitment: TransactionsCommitment::MIN,
+                },
+                TransactionRef {
+                    round: 10,
+                    author: AuthorityIndex::new_for_test(0),
+                    transactions_commitment: TransactionsCommitment::MIN,
+                },
             ],
             gc_round,
         );
@@ -518,7 +692,7 @@ mod tests {
         for (block_ref, waiter) in block_status_waiters {
             let block_status = waiter.await.expect("Block status waiter shouldn't fail");
 
-            if block_ref.round() <= gc_round {
+            if block_ref.round <= gc_round {
                 assert!(matches!(block_status, BlockStatus::GarbageCollected(_)))
             } else {
                 assert!(matches!(block_status, BlockStatus::Sequenced(_)));
@@ -538,15 +712,16 @@ mod tests {
         });
 
         let context = Arc::new(Context::new_for_test(4).0);
-        let (client, tx_receiver) = TransactionClient::new(context.clone());
-        let mut consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (client, tx_receiver, priority_tx_receiver) = TransactionClient::new(context.clone());
+        let mut consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
 
         // submit some transactions
         for i in 0..10 {
             let transaction =
                 bcs::to_bytes(&format!("transaction {i}")).expect("Serialization should not fail.");
             let _w = client
-                .submit_no_wait(vec![transaction])
+                .submit_no_wait(vec![transaction], Priority::Normal)
                 .await
                 .expect("Shouldn't submit successfully transaction");
         }
@@ -583,7 +758,7 @@ mod tests {
 
         for (i, t) in all_transactions.iter().enumerate() {
             let t: String = bcs::from_bytes(t.data()).unwrap();
-            assert_eq!(format!("transaction {i}").to_string(), t);
+            assert_eq!(format!("transaction {i}"), t);
         }
     }
 
@@ -596,15 +771,16 @@ mod tests {
         });
 
         let context = Arc::new(Context::new_for_test(4).0);
-        let (client, tx_receiver) = TransactionClient::new(context.clone());
-        let mut consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (client, tx_receiver, priority_tx_receiver) = TransactionClient::new(context.clone());
+        let mut consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
         let mut all_receivers = Vec::new();
         // submit a few transactions individually.
         for i in 0..10 {
             let transaction =
                 bcs::to_bytes(&format!("transaction {i}")).expect("Serialization should not fail.");
             let w = client
-                .submit_no_wait(vec![transaction])
+                .submit_no_wait(vec![transaction], Priority::Normal)
                 .await
                 .expect("Should submit successfully transaction");
             all_receivers.push(w);
@@ -619,7 +795,7 @@ mod tests {
                 })
                 .collect();
             let w = client
-                .submit_no_wait(transactions)
+                .submit_no_wait(transactions, Priority::Normal)
                 .await
                 .expect("Should submit successfully transaction");
             all_receivers.push(w);
@@ -631,7 +807,7 @@ mod tests {
             let transaction =
                 bcs::to_bytes(&format!("transaction {i}")).expect("Serialization should not fail.");
             let w = client
-                .submit_no_wait(vec![transaction])
+                .submit_no_wait(vec![transaction], Priority::Normal)
                 .await
                 .expect("Shouldn't submit successfully transaction");
             all_receivers.push(w);
@@ -645,7 +821,10 @@ mod tests {
                         .expect("Serialization should not fail.")
                 })
                 .collect();
-            let result = client.submit_no_wait(transactions).await.unwrap_err();
+            let result = client
+                .submit_no_wait(transactions, Priority::Normal)
+                .await
+                .unwrap_err();
             assert_eq!(
                 result.to_string(),
                 "Transaction bundle size (210B) is over limit (200B)"
@@ -655,7 +834,7 @@ mod tests {
         // now pull the transactions from the consumer.
         // we expect all transactions are fetched in order, not missing any, and not
         // exceeding the size limit.
-        let mut all_acks: Vec<Box<dyn FnOnce(GenericTransactionRef)>> = Vec::new();
+        let mut all_acks: Vec<Box<dyn FnOnce(TransactionRef)>> = Vec::new();
         let mut batch_index = 0;
         while !consumer.is_empty() {
             let (transactions, ack_transactions, _limit_reached) = consumer.next();
@@ -680,7 +859,7 @@ mod tests {
                 assert_eq!(transactions.len(), 10);
                 for (i, transaction) in transactions.iter().enumerate() {
                     let t: String = bcs::from_bytes(transaction.data()).unwrap();
-                    assert_eq!(format!("transaction {i}").to_string(), t);
+                    assert_eq!(format!("transaction {i}"), t);
                 }
             // second batch will contain the soft bundle and the additional last
             // transaction.
@@ -688,7 +867,7 @@ mod tests {
                 assert_eq!(transactions.len(), 6);
                 for (i, transaction) in transactions.iter().enumerate() {
                     let t: String = bcs::from_bytes(transaction.data()).unwrap();
-                    assert_eq!(format!("transaction {}", i + 10).to_string(), t);
+                    assert_eq!(format!("transaction {}", i + 10), t);
                 }
             } else {
                 panic!("Unexpected batch index");
@@ -701,7 +880,7 @@ mod tests {
 
         // now acknowledge the inclusion of all transactions.
         for ack in all_acks {
-            ack(GenericTransactionRef::from(BlockRef::MIN));
+            ack(TransactionRef::default());
         }
 
         // expect all receivers to be resolved.
@@ -724,8 +903,10 @@ mod tests {
             });
 
             let context = Arc::new(Context::new_for_test(4).0);
-            let (client, tx_receiver) = TransactionClient::new(context.clone());
-            let mut consumer = TransactionConsumer::new(tx_receiver, context.clone());
+            let (client, tx_receiver, priority_tx_receiver) =
+                TransactionClient::new(context.clone());
+            let mut consumer =
+                TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
             let mut all_receivers = Vec::new();
 
             // create enough transactions
@@ -735,7 +916,7 @@ mod tests {
                 let transaction = bcs::to_bytes(&format!("transaction {i}"))
                     .expect("Serialization should not fail.");
                 let w = client
-                    .submit_no_wait(vec![transaction])
+                    .submit_no_wait(vec![transaction], Priority::Normal)
                     .await
                     .expect("Should submit successfully transaction");
                 all_receivers.push(w);
@@ -768,8 +949,10 @@ mod tests {
             });
 
             let context = Arc::new(Context::new_for_test(4).0);
-            let (client, tx_receiver) = TransactionClient::new(context.clone());
-            let mut consumer = TransactionConsumer::new(tx_receiver, context.clone());
+            let (client, tx_receiver, priority_tx_receiver) =
+                TransactionClient::new(context.clone());
+            let mut consumer =
+                TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
             let mut all_receivers = Vec::new();
 
             let max_transactions_in_block_bytes =
@@ -780,7 +963,7 @@ mod tests {
                     .expect("Serialization should not fail.");
                 total_size += transaction.len() as u64;
                 let w = client
-                    .submit_no_wait(vec![transaction])
+                    .submit_no_wait(vec![transaction], Priority::Normal)
                     .await
                     .expect("Should submit successfully transaction");
                 all_receivers.push(w);
@@ -815,5 +998,176 @@ mod tests {
                 "Total size of transactions limit verification failed"
             );
         }
+    }
+
+    fn decode(transactions: &[Transaction]) -> Vec<String> {
+        transactions
+            .iter()
+            .map(|t| bcs::from_bytes(t.data()).unwrap())
+            .collect()
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn high_priority_transactions_included_first() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_consensus_max_transaction_size_bytes_for_testing(2_000);
+            config.set_consensus_max_transactions_in_block_bytes_for_testing(2_000);
+            config
+        });
+
+        let context = Arc::new(Context::new_for_test(4).0);
+        let (client, tx_receiver, priority_tx_receiver) = TransactionClient::new(context.clone());
+        let mut consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
+
+        // Submit normal transactions first, then a high-priority one.
+        for i in 0..3 {
+            let transaction = bcs::to_bytes(&format!("normal {i}")).unwrap();
+            client
+                .submit_no_wait(vec![transaction], Priority::Normal)
+                .await
+                .unwrap();
+        }
+        let transaction = bcs::to_bytes(&"high".to_string()).unwrap();
+        client
+            .submit_no_wait(vec![transaction], Priority::High)
+            .await
+            .unwrap();
+
+        // The high-priority transaction is pulled ahead of the normal backlog.
+        let (transactions, _ack, _limit) = consumer.next();
+        assert_eq!(
+            decode(&transactions),
+            vec!["high", "normal 0", "normal 1", "normal 2"]
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn high_priority_bypasses_full_normal_lane() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_consensus_max_transaction_size_bytes_for_testing(2_000);
+            config.set_consensus_max_transactions_in_block_bytes_for_testing(2_000);
+            config
+        });
+
+        // Each lane holds a single entry. The receivers are held but never drained,
+        // so a lane stays full once an entry is buffered.
+        let context = Arc::new(Context::new_for_test(4).0);
+        let (client, _tx_receiver, _priority_tx_receiver) =
+            TransactionClient::new_with_max_pending_transactions(context, 1, 1);
+
+        // Fill the normal lane.
+        let transaction = bcs::to_bytes(&"n0".to_string()).unwrap();
+        client
+            .submit_no_wait(vec![transaction], Priority::Normal)
+            .await
+            .unwrap();
+
+        // A further normal submission blocks on the full normal lane.
+        let transaction = bcs::to_bytes(&"n1".to_string()).unwrap();
+        assert!(
+            timeout(
+                Duration::from_millis(100),
+                client.submit_no_wait(vec![transaction], Priority::Normal)
+            )
+            .await
+            .is_err(),
+            "normal lane is full, so this submission must block"
+        );
+
+        // A high-priority submission uses the reserved lane and is not blocked.
+        let transaction = bcs::to_bytes(&"h0".to_string()).unwrap();
+        timeout(
+            Duration::from_millis(100),
+            client.submit_no_wait(vec![transaction], Priority::High),
+        )
+        .await
+        .expect("high-priority submission must not block on a full normal lane")
+        .expect("high-priority submission should succeed");
+
+        // The priority lane is full now, so a further high-priority submission
+        // blocks.
+        let transaction = bcs::to_bytes(&"h1".to_string()).unwrap();
+        assert!(
+            timeout(
+                Duration::from_millis(100),
+                client.submit_no_wait(vec![transaction], Priority::High)
+            )
+            .await
+            .is_err(),
+            "priority lane is full, so this submission must block"
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn priority_overflow_held_and_drained_before_normal() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_consensus_max_transaction_size_bytes_for_testing(2_000);
+            config.set_consensus_max_transactions_in_block_bytes_for_testing(2_000);
+            // Only two transactions fit per block.
+            config.set_consensus_max_num_transactions_in_block_for_testing(2);
+            config
+        });
+
+        let context = Arc::new(Context::new_for_test(4).0);
+        let (client, tx_receiver, priority_tx_receiver) = TransactionClient::new(context.clone());
+        let mut consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
+
+        for i in 0..3 {
+            let transaction = bcs::to_bytes(&format!("p{i}")).unwrap();
+            client
+                .submit_no_wait(vec![transaction], Priority::High)
+                .await
+                .unwrap();
+        }
+        let transaction = bcs::to_bytes(&"n0".to_string()).unwrap();
+        client
+            .submit_no_wait(vec![transaction], Priority::Normal)
+            .await
+            .unwrap();
+
+        // Block 1: only the first two priority transactions fit; the third is held.
+        let (transactions, ack, limit) = consumer.next();
+        assert_eq!(decode(&transactions), vec!["p0", "p1"]);
+        assert_eq!(limit, LimitReached::MaxNumOfTransactions);
+        ack(TransactionRef::default());
+
+        // Block 2: the held priority transaction is drained ahead of the normal one.
+        let (transactions, ack, _limit) = consumer.next();
+        assert_eq!(decode(&transactions), vec!["p2", "n0"]);
+        ack(TransactionRef::default());
+        assert!(consumer.is_empty());
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn interleaved_submissions_ordered_priority_first_then_fifo() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_consensus_max_transaction_size_bytes_for_testing(2_000);
+            config.set_consensus_max_transactions_in_block_bytes_for_testing(2_000);
+            config
+        });
+
+        let context = Arc::new(Context::new_for_test(4).0);
+        let (client, tx_receiver, priority_tx_receiver) = TransactionClient::new(context.clone());
+        let mut consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
+
+        for (payload, priority) in [
+            ("n0", Priority::Normal),
+            ("p0", Priority::High),
+            ("n1", Priority::Normal),
+            ("p1", Priority::High),
+        ] {
+            let transaction = bcs::to_bytes(&payload.to_string()).unwrap();
+            client
+                .submit_no_wait(vec![transaction], priority)
+                .await
+                .unwrap();
+        }
+
+        // All priority transactions first, in submission order, then the normal ones.
+        let (transactions, _ack, _limit) = consumer.next();
+        assert_eq!(decode(&transactions), vec!["p0", "p1", "n0", "n1"]);
     }
 }
