@@ -27,7 +27,7 @@ use iota_types::{
     committee::Committee,
     deny_rule_governance::DenyRuleConfig,
     effects::TransactionEffectsAPI,
-    error::{IotaError, IotaResult, UserInputError},
+    error::{ExecutionError, IotaResult, UserInputError},
     gas::IotaGasStatus,
     inner_temporary_store::InnerTemporaryStore,
     messages_checkpoint::CheckpointSummaryExt,
@@ -43,6 +43,7 @@ use crate::{
         AuthorityState, ValidationOutputs,
         attestation_verdict::{AuthenticationFailureBlame, ExecutionOutcome},
         authority_per_epoch_store::{AuthorityPerEpochStore, scorer::MAX_SCORE},
+        move_authentication_failure,
     },
     execution_scheduler::transaction_manager::AttestationSource,
 };
@@ -197,7 +198,7 @@ impl AuthorityState {
         // source of truth for the input versions the attestor observed. The account
         // objects are read outside the store, so their observed versions are captured
         // separately.
-        let (inner_temp_store, effects, authentication_failed, account_object_refs) =
+        let (inner_temp_store, effects, authentication_error, account_object_refs) =
             if move_authenticators.is_empty() {
                 // No Move authentication, execute directly.
                 let (inner_temp_store, _, effects, _, _) =
@@ -218,7 +219,7 @@ impl AuthorityState {
                         &mut None,
                     );
                 // This branch has no Move authentication, so it can never fail auth.
-                (inner_temp_store, effects, false, Vec::new())
+                (inner_temp_store, effects, None, Vec::new())
             } else {
                 // Recover the `AuthenticatorFunctionRefForExecution` for each authenticator and
                 // run auth + execution in one pass.
@@ -298,55 +299,60 @@ impl AuthorityState {
                     sponsor_authenticator_function_ref,
                 };
 
-                let (inner_temp_store, _, effects, _, _, authentication_error) = epoch_store
-                    .executor()
-                    .authenticate_then_execute_transaction_to_effects(
-                        backing_store.as_ref(),
-                        protocol_config,
-                        self.metrics.limits_metrics.clone(),
-                        false, // expensive_checks
-                        self.config.certificate_deny_config.certificate_deny_set(),
-                        &epoch_id,
-                        epoch_start_timestamp,
-                        gas_data,
-                        gas_status,
-                        MoveAuthenticatorsForExecution::Resolved(authenticators_for_exec),
-                        auth_and_tx_checked,
-                        None, // gas_owner_pays
-                        kind,
-                        signer,
-                        tx_digest,
-                        auth_context_data,
-                        &mut None,
-                    );
+                let (inner_temp_store, _, effects, _, execution_result, authentication_error) =
+                    epoch_store
+                        .executor()
+                        .authenticate_then_execute_transaction_to_effects(
+                            backing_store.as_ref(),
+                            protocol_config,
+                            self.metrics.limits_metrics.clone(),
+                            false, // expensive_checks
+                            self.config.certificate_deny_config.certificate_deny_set(),
+                            &epoch_id,
+                            epoch_start_timestamp,
+                            gas_data,
+                            gas_status,
+                            MoveAuthenticatorsForExecution::Resolved(authenticators_for_exec),
+                            auth_and_tx_checked,
+                            None, // gas_owner_pays
+                            kind,
+                            signer,
+                            tx_digest,
+                            auth_context_data,
+                            &mut None,
+                        );
+                // The error of the dry run is that of the failed
+                // authentication, with its source, unless another failure of
+                // the dry run took its place; then only the kind is left.
+                let authentication_error =
+                    authentication_error.map(|kind| match execution_result {
+                        Err(error) if *error.kind() == kind => error,
+                        _ => ExecutionError::from_kind(kind),
+                    });
                 (
                     inner_temp_store,
                     effects,
-                    authentication_error.is_some(),
+                    authentication_error,
                     account_object_refs,
                 )
             };
 
         // Build `AttestationData`. The claim is in gas units, independent
         // of the gas price the user chose.
-        let computation_units = if authentication_failed {
+        let computation_units = match authentication_error {
             // Refuse to attest a transaction when its Move authentication did
-            // not succeed. Any other failure (out-of-gas or a Move abort in the
-            // transaction body) is the issuer's responsibility and is still
-            // attested, sequenced and charged as a failed transaction under
-            // the normal flow.
-            units_despite_failed_authentication.get().ok_or_else(|| {
+            // not succeed, with the error admission reports for it. Any other
+            // failure (out-of-gas or a Move abort in the transaction body) is
+            // the issuer's responsibility and is still attested, sequenced and
+            // charged as a failed transaction under the normal flow.
+            Some(error) => units_despite_failed_authentication.get().ok_or_else(|| {
                 self.authentication_failure(
                     tx,
                     epoch_store.epoch(),
-                    IotaError::Execution(format!(
-                        "refusing to attest transaction with failed Move authentication: {:?}",
-                        effects.status()
-                    )),
+                    move_authentication_failure(error),
                 )
-            })?
-        } else {
-            attestation::computation_units(effects.gas_cost_summary(), tx.gas_price())
+            })?,
+            None => attestation::computation_units(effects.gas_cost_summary(), tx.gas_price()),
         };
 
         // Tests register the `attest-object-versions` fail point to make a
@@ -606,7 +612,7 @@ fn check_input_read_consistency(input_sets: &[&CheckedInputObjects]) -> IotaResu
 #[cfg(test)]
 mod tests {
     use iota_sdk_types::{GasCostSummary, TransactionDigest, Version};
-    use iota_types::{effects::TransactionEffectsExtForTesting, object::Object};
+    use iota_types::{effects::TransactionEffectsExtForTesting, error::IotaError, object::Object};
 
     use super::*;
 

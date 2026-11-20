@@ -733,7 +733,11 @@ async fn assert_conflicting_submissions_get_one_dry_run(
     });
     let mut results = Vec::new();
     for submission in submissions {
-        results.push(submission.await.unwrap());
+        results.push(
+            submission
+                .await
+                .expect("the submission task must not panic"),
+        );
     }
 
     let submitted = results
@@ -966,6 +970,53 @@ async fn move_account_transaction_on_held_coin_gets_no_dry_run() {
         1,
         "only the first transaction may get a dry run"
     );
+    assert!(submitted.try_recv().is_err());
+}
+
+/// A Move account transaction whose authenticator needs more gas than
+/// `max_auth_gas` is refused by the authenticators' own run, before its locks
+/// are taken and before any dry run, with the error admission gives, which
+/// weighs one.
+#[tokio::test]
+async fn move_account_transaction_over_max_auth_gas_is_refused_before_any_dry_run() {
+    telemetry_subscribers::init_for_testing();
+    // Ten gas units at the reference gas price, far below what the ed25519
+    // verification of the account's authenticator costs.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(true);
+        config.set_checkpoint_summary_version_specific_data_for_testing(2);
+        config.set_max_auth_gas_for_testing(10_000);
+
+        config
+    });
+
+    let mut env = AbstractAccountTestEnv::new().await;
+    let transaction = env.account_transaction();
+    let (validator, mut submitted) = TestValidator::from_state(env.authority.clone());
+
+    let (update, weight) = validator.submit(transaction).await;
+    let TxStatusUpdate::Rejected {
+        error: IotaError::MoveAuthenticatorExecutionFailure { error },
+    } = &update
+    else {
+        panic!("expected a failed Move authentication, got {update:?}");
+    };
+    assert!(
+        error.contains("Insufficient Gas"),
+        "the authenticator must run out of max_auth_gas, got: {error}"
+    );
+    assert_eq!(
+        weight.value(),
+        1.0,
+        "a failed Move authentication weighs one"
+    );
+    assert_eq!(
+        validator.state.metrics.attestation_dry_runs_total.get(),
+        0,
+        "the authenticators' own run must refuse it before any dry run"
+    );
+    assert_eq!(validator.soft_locks.lock_count(), 0);
     assert!(submitted.try_recv().is_err());
 }
 
