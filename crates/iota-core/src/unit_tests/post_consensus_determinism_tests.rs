@@ -20,7 +20,8 @@
 //!   roots of every commit below it, all have effects.
 //!
 //! The oracle decides the result of a random consensus history (objects,
-//! commits, candidates) once. Then one validator runs that history under a
+//! commits, candidates, claims of addresses and plain signatures for them)
+//! once. Then one validator runs that history under a
 //! random local schedule of:
 //! - the execution order among the commits its handler assigned;
 //! - commit completions by the execution watcher;
@@ -45,7 +46,8 @@
 //!   against the checkpoint's row writes and the execution watcher;
 //! - the consensus handler's duplicate filter;
 //! - the transaction loop of `validate_and_resolve_conflicts`, whose per-candidate checks are
-//!   copied here over the real storage tiers;
+//!   copied here over the real storage tiers, the account rules' claim lock included; whether an
+//!   address was claimed at the horizon is answered by the real reader;
 //! - execution itself, whose effects come from the oracle's transitions.
 //!
 //! What is compared with the oracle after every step: every result, every
@@ -79,14 +81,14 @@ use std::{
 use futures::{FutureExt, future::BoxFuture};
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
 use iota_sdk_types::{
-    ExecutionError, ExecutionStatus, GasCostSummary, ObjectDigest, ObjectId, ObjectReference,
-    Owner, TransactionDigest, TransactionEffects, Version,
+    Address, ExecutionError, ExecutionStatus, GasCostSummary, ObjectDigest, ObjectId,
+    ObjectReference, Owner, TransactionDigest, TransactionEffects, Version,
     effects::{ChangedObject, IdOperation, ObjectIn, ObjectOut},
 };
 use iota_types::{
     base_types::EpochId,
     effects::TransactionEffectsExt,
-    error::{IotaError, IotaResult},
+    error::{IotaError, IotaResult, UserInputError},
     execution::SharedInput,
     iota_system_state::IotaSystemState,
     messages_consensus::ConsensusTransactionKey,
@@ -103,8 +105,8 @@ use proptest::{
 use typed_store::Map;
 
 use super::{
-    DropKind, DropReason, KeptObject, OwnedVerdict, PackageVerdict, SharedVerdict, owned, package,
-    reader::CommitIndexedReader, shared,
+    ClaimedAddressAtHorizon, DropKind, DropReason, KeptObject, OwnedVerdict, PackageVerdict,
+    SharedVerdict, owned, package, reader::CommitIndexedReader, shared,
 };
 use crate::{
     authority::{
@@ -128,7 +130,7 @@ mod oracle;
 
 use oracle::{
     Candidate, ChangeKind, Execution, Input, InputClass, Oracle, PACKAGE_ID, SENDER, Slot, State,
-    Verdict, Write, coin, package, wrong_digest,
+    Verdict, Write, authenticator_field_id, claim_lock, coin, package, wrong_digest,
 };
 
 type Outcome<T> = Result<T, TestCaseError>;
@@ -215,6 +217,11 @@ struct FreshSpec {
     extra: ExtraSpec,
     defer: bool,
     fails: bool,
+    /// A claim of one of the claimable addresses, by index. A claim names only
+    /// its gas coin, is never deferred and never fails.
+    claim: Option<u8>,
+    /// A claimable address, by index, that signs with a plain signature.
+    plain_signer: Option<u8>,
 }
 
 #[derive(Clone, Debug)]
@@ -225,6 +232,12 @@ enum CandidateSpec {
     Retry(u8),
     /// A copy of an earlier candidate of the same commit.
     SameCommitDuplicate(u8),
+    /// A claim of the claimable address picked by `address`, paid with gas
+    /// `gas`.
+    Claim {
+        address: u8,
+        gas: u8,
+    },
     /// Two candidates, where `C` is the commit of the first. At `C` the first
     /// makes `change` to an object picked by `object`. At `C + K - 1` the
     /// second names that object as it is in `S_{C-1}`, before the change, and
@@ -339,6 +352,8 @@ fn gas_only_spec(gas: u8) -> FreshSpec {
         extra: ExtraSpec::None,
         defer: false,
         fails: false,
+        claim: None,
+        plain_signer: None,
     }
 }
 
@@ -363,6 +378,11 @@ struct HistorySpec {
     /// Receivable objects (by bit) deleted before the epoch, their tombstone
     /// latest and the previous version retained.
     receivable_deleted_mask: u8,
+    /// Addresses claims and plain signatures pick from.
+    claimable: u8,
+    /// Claimable addresses (by bit) claimed before the epoch: their account
+    /// and its authenticator function field are in the epoch-start state.
+    claimed_pre_epoch_mask: u8,
     commits: Vec<Vec<CandidateSpec>>,
 }
 
@@ -399,6 +419,17 @@ fn shared_spec() -> impl Strategy<Value = SharedSpec> {
 
 fn fresh_spec() -> impl Strategy<Value = FreshSpec> {
     (
+        fresh_spec_without_signers(),
+        proptest::option::weighted(0.3, any::<u8>()),
+    )
+        .prop_map(|(fresh, plain_signer)| FreshSpec {
+            plain_signer,
+            ..fresh
+        })
+}
+
+fn fresh_spec_without_signers() -> impl Strategy<Value = FreshSpec> {
+    (
         input_spec(),
         proptest::option::weighted(0.7, input_spec()),
         proptest::option::weighted(0.4, proptest::collection::vec(shared_spec(), 1..=2)),
@@ -432,6 +463,8 @@ fn fresh_spec() -> impl Strategy<Value = FreshSpec> {
                     extra,
                     defer,
                     fails,
+                    claim: None,
+                    plain_signer: None,
                 }
             },
         )
@@ -450,6 +483,8 @@ fn candidate_spec() -> impl Strategy<Value = CandidateSpec> {
         8 => fresh_spec().prop_map(CandidateSpec::Fresh),
         1 => any::<u8>().prop_map(CandidateSpec::Retry),
         1 => any::<u8>().prop_map(CandidateSpec::SameCommitDuplicate),
+        2 => (any::<u8>(), any::<u8>())
+            .prop_map(|(address, gas)| CandidateSpec::Claim { address, gas }),
         2 => (deferred_input_change(), any::<u8>(), any::<u8>(), any::<u8>()).prop_map(
             |(change, object, gas, deferred_gas)| CandidateSpec::ChangeUnderDeferral {
                 change,
@@ -462,6 +497,19 @@ fn candidate_spec() -> impl Strategy<Value = CandidateSpec> {
 }
 
 fn history_spec() -> impl Strategy<Value = HistorySpec> {
+    (
+        history_spec_without_claims(),
+        prop_oneof![1 => Just(0u8), 3 => 1..=2u8],
+        prop_oneof![3 => Just(0u8), 1 => 1..=3u8],
+    )
+        .prop_map(|(history, claimable, claimed_pre_epoch_mask)| HistorySpec {
+            claimable,
+            claimed_pre_epoch_mask,
+            ..history
+        })
+}
+
+fn history_spec_without_claims() -> impl Strategy<Value = HistorySpec> {
     (
         1..=3u8,
         2..=4u8,
@@ -497,6 +545,8 @@ fn history_spec() -> impl Strategy<Value = HistorySpec> {
                     receivable,
                     receivable_stale_mask,
                     receivable_deleted_mask,
+                    claimable: 0,
+                    claimed_pre_epoch_mask: 0,
                     commits,
                 }
             },
@@ -508,6 +558,29 @@ fn object_id(tag: u8, index: u8) -> ObjectId {
     bytes[0] = tag;
     bytes[1] = index;
     ObjectId::new(bytes)
+}
+
+/// A claimable address. No object of the history has its id.
+fn claim_address(index: u8) -> Address {
+    let mut bytes = [0u8; 32];
+    bytes[0] = 0xC1;
+    bytes[1] = index;
+    Address::new(bytes)
+}
+
+/// Inserts into `state` the account of `address` and its authenticator
+/// function field, as a claim at `version` leaves them.
+fn insert_claimed_account(state: &mut State, address: Address, version: Version) {
+    let account = ObjectId::from(address);
+    state.slots.insert(
+        account,
+        Slot::Live(coin(account, version, Owner::Shared(version))),
+    );
+    let field = authenticator_field_id(address);
+    state.slots.insert(
+        field,
+        Slot::Live(coin(field, version, Owner::Object(account))),
+    );
 }
 
 fn transaction_digest(commit: CommitIndex, index: usize) -> TransactionDigest {
@@ -708,7 +781,18 @@ fn describe_candidate(candidate: &Candidate) -> String {
     if candidate.deferral_reload {
         out.push_str(" reload");
     }
+    if let Some(address) = &candidate.claim {
+        let _ = write!(out, " claim:{}", short_address(address));
+    }
+    for address in &candidate.plain_signers {
+        let _ = write!(out, " plain:{}", short_address(address));
+    }
     out
+}
+
+fn short_address(address: &Address) -> String {
+    let bytes: &[u8] = address.as_ref();
+    format!("{:02x}{:02x}", bytes[0], bytes[1])
 }
 
 /// Resolves a history spec against the oracle, commit by commit, so every
@@ -772,6 +856,16 @@ fn build_history(spec: &HistorySpec) -> History {
             .slots
             .insert(PACKAGE_ID, Slot::Live(package(Version::from_u64(1))));
     }
+    let claim_addresses: Vec<Address> = (0..spec.claimable).map(claim_address).collect();
+    for (i, address) in claim_addresses.iter().enumerate() {
+        if spec.claimed_pre_epoch_mask & (1 << i) != 0 {
+            insert_claimed_account(
+                &mut epoch_start,
+                *address,
+                Version::from_u64(EPOCH_START_VERSION),
+            );
+        }
+    }
 
     let mut oracle = Oracle::new(epoch_start.clone(), spec.k as CommitIndex);
     let mut commits: Vec<Vec<Candidate>> = Vec::new();
@@ -824,6 +918,10 @@ fn build_history(spec: &HistorySpec) -> History {
                     CandidateSpec::Retry(_) | CandidateSpec::SameCommitDuplicate(_) => {
                         gas_only_spec(0)
                     }
+                    CandidateSpec::Claim { address, gas } => FreshSpec {
+                        claim: Some(*address),
+                        ..gas_only_spec(*gas)
+                    },
                     CandidateSpec::ChangeUnderDeferral {
                         change,
                         object,
@@ -938,7 +1036,13 @@ fn build_history(spec: &HistorySpec) -> History {
                     }
                 }
             }
-            candidates.push(Candidate {
+            let pick = |index: Option<u8>| {
+                index
+                    .filter(|_| !claim_addresses.is_empty())
+                    .map(|index| claim_addresses[index as usize % claim_addresses.len()])
+            };
+            let claim = pick(fresh.claim);
+            let built = Candidate {
                 digest: transaction_digest(commit, index),
                 owned_inputs: std::iter::once(gas).chain(object).collect(),
                 shared_inputs,
@@ -953,6 +1057,18 @@ fn build_history(spec: &HistorySpec) -> History {
                 fails: fresh.fails,
                 defer: fresh.defer,
                 deferral_reload: false,
+                claim: None,
+                plain_signers: pick(fresh.plain_signer).into_iter().collect(),
+            };
+            // A claim names only its gas coin, and only the execution worker
+            // limit, which no version sets with claims, could defer it.
+            candidates.push(match claim {
+                Some(address) => Candidate {
+                    owned_inputs: vec![gas],
+                    claim: Some(address),
+                    ..candidate(commit, index, Vec::new(), Vec::new())
+                },
+                None => built,
             });
             index += 1;
         }
@@ -1892,6 +2008,8 @@ enum VerdictClass {
     Kept,
     LockConflict,
     InvisibleInput,
+    AlreadyExplicit,
+    PlainSignature,
 }
 
 /// The oracle's result as a class; `None` for a duplicate, which never
@@ -1904,21 +2022,45 @@ fn oracle_class(verdict: Verdict) -> Option<VerdictClass> {
         Verdict::Dropped(oracle::DropClass::Stale | oracle::DropClass::Missing) => {
             Some(VerdictClass::InvisibleInput)
         }
+        Verdict::Dropped(oracle::DropClass::AlreadyExplicit) => Some(VerdictClass::AlreadyExplicit),
+        Verdict::Dropped(oracle::DropClass::PlainSignature) => Some(VerdictClass::PlainSignature),
     }
 }
 
 fn real_class(verdict: &SavedPostConsensusDecision) -> VerdictClass {
-    match verdict.decision {
-        PostConsensusDecision::Kept => VerdictClass::Kept,
-        PostConsensusDecision::Dropped
-            if matches!(verdict.error(), IotaError::ObjectLockConflict { .. }) =>
+    if verdict.decision == PostConsensusDecision::Kept {
+        return VerdictClass::Kept;
+    }
+    match verdict.error() {
+        IotaError::ObjectLockConflict { .. }
+            if verdict.decision == PostConsensusDecision::Dropped =>
         {
             VerdictClass::LockConflict
         }
-        PostConsensusDecision::Dropped
-        | PostConsensusDecision::DroppedInputNotVisibleYet
-        | PostConsensusDecision::DroppedCopy => VerdictClass::InvisibleInput,
+        IotaError::UserInput {
+            error: UserInputError::AccountAlreadyExplicit { .. },
+        } => VerdictClass::AlreadyExplicit,
+        IotaError::UserInput {
+            error: UserInputError::PlainSignatureForExplicitAccount { .. },
+        } => VerdictClass::PlainSignature,
+        _ => VerdictClass::InvisibleInput,
     }
+}
+
+/// A claim of `address` dropped because the address was claimed.
+fn already_explicit(address: Address) -> SavedPostConsensusDecision {
+    SavedPostConsensusDecision::dropped(
+        PostConsensusDecision::Dropped,
+        &UserInputError::AccountAlreadyExplicit { address }.into(),
+    )
+}
+
+/// A copy dropped for a plain signature by the claimed `address`.
+fn plain_signature(address: Address) -> SavedPostConsensusDecision {
+    SavedPostConsensusDecision::dropped(
+        PostConsensusDecision::DroppedCopy,
+        &UserInputError::PlainSignatureForExplicitAccount { address }.into(),
+    )
 }
 
 /// The reader's answer for one input, reduced to what the oracle models.
@@ -2793,7 +2935,7 @@ impl<'a> Validator<'a> {
             }
             let verdict = match &saved {
                 // A saved drop is repeated without checks.
-                Some(saved) if saved.decision == PostConsensusDecision::Dropped => saved.clone(),
+                Some(saved) if saved.decision != PostConsensusDecision::Kept => saved.clone(),
                 // Up to the switch, a saved keep is repeated without checks
                 // and registers no locks.
                 Some(saved)
@@ -2811,7 +2953,11 @@ impl<'a> Validator<'a> {
                     if saved.decision == PostConsensusDecision::Kept
                         && self.executed.contains_key(&candidate.digest) =>
                 {
-                    for reference in &candidate.owned_inputs {
+                    for reference in candidate
+                        .owned_inputs
+                        .iter()
+                        .chain(candidate.claim.map(claim_lock).as_ref())
+                    {
                         if let Some(holder) = self.find_lock(reference, &commit_locks)? {
                             if holder != candidate.digest {
                                 return self.fail(format!(
@@ -2836,12 +2982,20 @@ impl<'a> Validator<'a> {
                             }
                         }
                     }
-                    match conflict {
-                        Some(error) => SavedPostConsensusDecision::dropped(
+                    let account_rule = match conflict {
+                        Some(_) => None,
+                        None => match self.claim_lock_drop(candidate, &commit_locks)? {
+                            Some(drop) => Some(drop),
+                            None => self.claimed_at_horizon_drop(commit, candidate)?,
+                        },
+                    };
+                    match (conflict, account_rule) {
+                        (Some(error), _) => SavedPostConsensusDecision::dropped(
                             PostConsensusDecision::Dropped,
                             &error,
                         ),
-                        None => {
+                        (None, Some(drop)) => drop,
+                        (None, None) => {
                             let this_interleave = interleave.next();
                             match self.read_inputs(commit, candidate, this_interleave)? {
                                 Ok(verdict) => verdict,
@@ -2874,7 +3028,11 @@ impl<'a> Validator<'a> {
             }
             if verdict.decision == PostConsensusDecision::Kept {
                 if last_before_switch.is_none() && !candidate.deferral_reload {
-                    for reference in &candidate.owned_inputs {
+                    for reference in candidate
+                        .owned_inputs
+                        .iter()
+                        .chain(candidate.claim.map(claim_lock).as_ref())
+                    {
                         commit_locks.insert(*reference, candidate.digest);
                     }
                 }
@@ -2923,6 +3081,79 @@ impl<'a> Validator<'a> {
         self.validated_through = commit;
         self.epoch_store.record_handled_commit(commit);
         Ok(Ok(()))
+    }
+
+    /// The account rules' lock checks, after the owned-input locks: a claim of
+    /// an address whose claim lock another digest holds, then a plain signer
+    /// whose claim lock another digest holds.
+    fn claim_lock_drop(
+        &mut self,
+        candidate: &Candidate,
+        commit_locks: &BTreeMap<ObjectReference, TransactionDigest>,
+    ) -> Outcome<Option<SavedPostConsensusDecision>> {
+        if let Some(address) = candidate.claim {
+            if self
+                .find_lock(&claim_lock(address), commit_locks)?
+                .is_some_and(|holder| holder != candidate.digest)
+            {
+                return Ok(Some(already_explicit(address)));
+            }
+        }
+        for address in &candidate.plain_signers {
+            if self
+                .find_lock(&claim_lock(*address), commit_locks)?
+                .is_some_and(|holder| holder != candidate.digest)
+            {
+                return Ok(Some(plain_signature(*address)));
+            }
+        }
+        Ok(None)
+    }
+
+    /// The account rules' reads at the horizon, before the inputs: the claimed
+    /// address, then each plain signer, through the real reader. Each answer
+    /// is compared with the oracle.
+    fn claimed_at_horizon_drop(
+        &mut self,
+        commit: CommitIndex,
+        candidate: &Candidate,
+    ) -> Outcome<Option<SavedPostConsensusDecision>> {
+        let reader = self.reader(commit);
+        let addresses = candidate
+            .claim
+            .iter()
+            .map(|address| (*address, true))
+            .chain(
+                candidate
+                    .plain_signers
+                    .iter()
+                    .map(|address| (*address, false)),
+            );
+        for (address, is_claim) in addresses {
+            let claimed = self.storage(reader.read_claimed_address(address))?
+                == ClaimedAddressAtHorizon::Claimed;
+            let expected = self.history.oracle.claimed_at_horizon(commit, address);
+            self.trace.push(format!(
+                "    read claimed {} -> {claimed}",
+                short_address(&address)
+            ));
+            if claimed != expected {
+                return self.fail(format!(
+                    "claimed read mismatch at {commit} for {}: {} read as claimed {claimed}, \
+                     oracle {expected}",
+                    describe_candidate(candidate),
+                    short_address(&address)
+                ));
+            }
+            if claimed {
+                return Ok(Some(if is_claim {
+                    already_explicit(address)
+                } else {
+                    plain_signature(address)
+                }));
+            }
+        }
+        Ok(None)
     }
 
     /// Reads every input of `candidate` at `commit` and compares each answer
@@ -3488,6 +3719,26 @@ fn run_case(env: &Env, history: &History, schedule: &Schedule) -> Outcome<Vec<St
     Ok(validator.drop_or_missing_differences)
 }
 
+/// The oracle's results for the candidates the account rules apply to, by
+/// kind of candidate and result.
+fn account_rule_results(history: &History) -> Vec<String> {
+    let mut found = Vec::new();
+    for (i, candidates) in history.commits.iter().enumerate() {
+        let outcome = history.oracle.outcome(i as CommitIndex + 1);
+        for candidate in candidates {
+            let kind = match (candidate.claim, candidate.plain_signers.is_empty()) {
+                (Some(_), _) => "claim",
+                (None, false) => "plain signature",
+                (None, true) => continue,
+            };
+            if let Some(verdict) = outcome.verdict(&candidate.digest) {
+                found.push(format!("{kind}: {verdict:?}"));
+            }
+        }
+    }
+    found
+}
+
 /// For every deferral reload of `history` with an input not visible at its
 /// commit's horizon, which a check of the reload there would have dropped: the
 /// kind and class of the first such input, and how the reload executed.
@@ -3556,6 +3807,7 @@ async fn random_histories_and_schedules_match_the_oracle() {
     tokio::task::block_in_place(|| {
         let drop_or_missing_differences = Mutex::new(BTreeMap::<String, usize>::new());
         let reloads_gone = Mutex::new(BTreeMap::<String, usize>::new());
+        let account_rules = Mutex::new(BTreeMap::<String, usize>::new());
         let mut runner = TestRunner::new(Config {
             cases,
             max_shrink_iters: 4096,
@@ -3576,6 +3828,14 @@ async fn random_histories_and_schedules_match_the_oracle() {
                     .expect("the reload counter is only locked by the harness thread");
                 for reload in reloads_with_inputs_gone(&history) {
                     *counts.entry(reload).or_default() += 1;
+                }
+            }
+            {
+                let mut counts = account_rules
+                    .lock()
+                    .expect("the account rule counter is only locked by the harness thread");
+                for result in account_rule_results(&history) {
+                    *counts.entry(result).or_default() += 1;
                 }
             }
             let mismatches = run_case(&env, &history, &schedule).inspect_err(|_| {
@@ -3610,6 +3870,10 @@ async fn random_histories_and_schedules_match_the_oracle() {
              {reloads_gone:#?}",
             runs.load(Ordering::SeqCst)
         );
+        let account_rules = account_rules
+            .lock()
+            .expect("the account rule counter is only locked by the harness thread");
+        eprintln!("claims and plain signatures by result: {account_rules:#?}");
         if let Err(error) = result {
             panic!(
                 "{error}\n\nfirst failure at case {}\nreplay with PROPTEST_RNG_SEED={seed} \
@@ -3669,6 +3933,8 @@ fn candidate(
         fails: false,
         defer: false,
         deferral_reload: false,
+        claim: None,
+        plain_signers: Vec::new(),
     }
 }
 
@@ -4059,6 +4325,65 @@ async fn restart_after_the_switch_replays_only_up_to_the_switch() {
         "restart after the switch",
         &switch_history(),
         switch_then_crash_steps(),
+    )
+    .await;
+}
+
+/// Claim `C` of address `A` at commit 1, with K = 2. A plain-signed transfer
+/// by `A` at commit 2 and a second claim of `A` at commit 4 meet `C`'s lock. A
+/// plain-signed transfer by `A` at commit 5, whose horizon includes `C`, meets
+/// the lock and would meet the read of `A`'s field.
+fn claim_history() -> History {
+    let epoch_start = epoch_start_with_owned(4);
+    let address = claim_address(0);
+    let gas = |index| live_reference(&epoch_start, owned_object(index));
+    let claim = |commit, index| Candidate {
+        claim: Some(address),
+        ..candidate(commit, 0, vec![gas(index)], Vec::new())
+    };
+    let plain = |commit, index| Candidate {
+        plain_signers: vec![address],
+        ..candidate(commit, 0, vec![gas(index)], Vec::new())
+    };
+    let commits = vec![
+        vec![claim(1, 0)],
+        vec![plain(2, 1)],
+        Vec::new(),
+        vec![claim(4, 2)],
+        vec![plain(5, 3)],
+    ];
+    History::judge(2, epoch_start, Vec::new(), commits)
+}
+
+/// `C` executes and its checkpoint commits its outputs before commit 1
+/// flushes. After a crash, the replay of commit 1 finds `C` executed and takes
+/// its lock again, so every later candidate of `A` is dropped as before.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn replayed_executed_claim_keeps_its_address_claimed() {
+    let mut steps = vec![validate(), writer(WriterStep::Execute)];
+    steps.extend(checkpoints(1));
+    steps.push(Step::Crash);
+    steps.extend(validates(5));
+    run_scenario(
+        "claim checkpointed before its commit flushes, then a crash",
+        &claim_history(),
+        steps,
+    )
+    .await;
+}
+
+/// Commit 1 flushes, moving `C`'s lock to the lock table, before the later
+/// commits are validated.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn flushed_claim_lock_keeps_its_address_claimed() {
+    let mut steps = vec![validate(), writer(WriterStep::Execute)];
+    steps.extend(checkpoints(1));
+    steps.push(writer(WriterStep::Flush));
+    steps.extend(validates(4));
+    run_scenario(
+        "claim lock flushed to the lock table",
+        &claim_history(),
+        steps,
     )
     .await;
 }

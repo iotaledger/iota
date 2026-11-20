@@ -28,7 +28,13 @@
 //!    saved decision;
 //! 4. an owned input locked by another digest, counting locks taken earlier in this commit, drops
 //!    the candidate (lock conflict);
-//! 5. every input is checked against `S_{C-K}`:
+//! 5. a claim of an address whose claim lock another digest holds is dropped as already explicit,
+//!    and a candidate with a plain signer whose claim lock another digest holds is dropped for the
+//!    plain signature. A claim lock is taken by a kept claim and held until the epoch ends;
+//! 6. a claim of an address whose authenticator function field is live in `S_{C-K}` is dropped as
+//!    already explicit, and a candidate with a plain signer whose field is live there is dropped
+//!    for the plain signature;
+//! 7. every input is checked against `S_{C-K}`:
 //!    - an owned input is visible only if the state has exactly the named version and digest live,
 //!      stale if the state has a newer version or a tombstone at or above it, and missing if the
 //!      version is not produced yet or the id is unknown;
@@ -38,8 +44,9 @@
 //!      deletion;
 //!    - a package is visible if present and missing otherwise;
 //!    - a receiving object is checked as an owned input is, after every input;
-//! 6. a candidate with every input visible is kept: its owned inputs are locked, its digest is
-//!    processed, and unless deferred it executes at `C`. Receiving references take no lock.
+//! 8. a candidate with every input visible is kept: its owned inputs are locked, and a claim's lock
+//!    too, its digest is processed, and unless deferred it executes at `C`. Receiving references
+//!    take no lock. A claim that executes creates the account and its authenticator function field.
 //!
 //! Content checks (gas balance, ownership, deny rules) are not modeled: the
 //! synthetic harness has no content, and the real-execution level exercises
@@ -53,7 +60,10 @@ use std::{
 use iota_sdk_types::{
     Address, ObjectDigest, ObjectId, ObjectReference, Owner, TransactionDigest, Version,
 };
-use iota_types::object::Object;
+use iota_types::{
+    account_abstraction::authenticator_function::derive_authenticator_function_ref_v1_dynamic_field_id,
+    object::Object,
+};
 use move_binary_format::CompiledModule;
 
 use crate::authority::authority_per_epoch_store::handler_object_state::CommitIndex;
@@ -140,6 +150,11 @@ pub struct Candidate {
     pub defer: bool,
     /// This occurrence is the intentional reload of a deferred transaction.
     pub deferral_reload: bool,
+    /// The address a `ClaimAccount` claims; `None` for any other candidate.
+    pub claim: Option<Address>,
+    /// The addresses that sign with a plain signature, other than a claim's
+    /// own sender.
+    pub plain_signers: Vec<Address>,
 }
 
 /// One input of a candidate, as the oracle and the reader identify it. A
@@ -175,7 +190,7 @@ impl Candidate {
     }
 }
 
-/// The class of one input checked against the state at the horizon (item 5
+/// The class of one input checked against the state at the horizon (item 7
 /// of the module doc).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum InputClass {
@@ -189,6 +204,10 @@ pub enum DropClass {
     Lock,
     Stale,
     Missing,
+    /// A claim of an address already claimed (items 5 and 6).
+    AlreadyExplicit,
+    /// A plain signature for a claimed address (items 5 and 6).
+    PlainSignature,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -317,12 +336,20 @@ impl Oracle {
         self.state(commit.saturating_sub(self.k))
     }
 
+    /// Whether `address`'s authenticator function field is live in the state
+    /// validation at `commit` reads (item 6 of the module doc).
+    pub fn claimed_at_horizon(&self, commit: CommitIndex, address: Address) -> bool {
+        self.horizon_state(commit)
+            .live(&authenticator_field_id(address))
+            .is_some()
+    }
+
     pub fn outcome(&self, commit: CommitIndex) -> &CommitOutcome {
         &self.outcomes[commit as usize - 1]
     }
 
     /// The class of every input of `candidate` at `commit`, in input order
-    /// (item 5 of the module doc).
+    /// (item 7 of the module doc).
     pub fn input_classes(&self, commit: CommitIndex, candidate: &Candidate) -> Vec<InputClass> {
         let state = self.horizon_state(commit);
         candidate
@@ -348,7 +375,11 @@ impl Oracle {
                 continue;
             }
             if !candidate.deferral_reload {
-                for reference in &candidate.owned_inputs {
+                for reference in candidate
+                    .owned_inputs
+                    .iter()
+                    .chain(candidate.claim.map(claim_lock).as_ref())
+                {
                     outcome.locks.insert(*reference, candidate.digest);
                     self.locks.insert(*reference, candidate.digest);
                 }
@@ -381,6 +412,26 @@ impl Oracle {
                 return Verdict::Dropped(DropClass::Lock);
             }
         }
+        let held_by_another = |address: Address| {
+            let lock = claim_lock(address);
+            commit_locks
+                .get(&lock)
+                .or_else(|| self.locks.get(&lock))
+                .is_some_and(|holder| *holder != candidate.digest)
+        };
+        if candidate.claim.is_some_and(held_by_another) {
+            return Verdict::Dropped(DropClass::AlreadyExplicit);
+        }
+        if candidate.plain_signers.iter().copied().any(held_by_another) {
+            return Verdict::Dropped(DropClass::PlainSignature);
+        }
+        let claimed = |address: Address| self.claimed_at_horizon(commit, address);
+        if candidate.claim.is_some_and(claimed) {
+            return Verdict::Dropped(DropClass::AlreadyExplicit);
+        }
+        if candidate.plain_signers.iter().copied().any(claimed) {
+            return Verdict::Dropped(DropClass::PlainSignature);
+        }
         for class in self.input_classes(commit, candidate) {
             match class {
                 InputClass::Visible => {}
@@ -392,7 +443,24 @@ impl Oracle {
     }
 }
 
-/// Checks one input against the state at the horizon (item 5 of the module
+/// The lock a kept claim of `address` takes: the account's id at version 0
+/// with the zero digest, which no object has.
+pub fn claim_lock(address: Address) -> ObjectReference {
+    ObjectReference::new(
+        ObjectId::from(address),
+        Version::from_u64(0),
+        ObjectDigest::MIN,
+    )
+}
+
+/// The id of the authenticator function field a claim of `address` attaches
+/// to its account.
+pub fn authenticator_field_id(address: Address) -> ObjectId {
+    derive_authenticator_function_ref_v1_dynamic_field_id(address)
+        .expect("an address always derives the field id")
+}
+
+/// Checks one input against the state at the horizon (item 7 of the module
 /// doc).
 pub fn input_class(state: &State, input: &Input) -> InputClass {
     match input {
@@ -624,6 +692,26 @@ fn execute(state: &mut State, candidate: &Candidate) -> Execution {
                 before: None,
                 after,
             });
+        }
+        // The shared account, and its authenticator function field owned by
+        // it. A second claim of the address is never kept, so neither exists.
+        if let Some(address) = candidate.claim {
+            let account = ObjectId::from(address);
+            for (id, owner) in [
+                (account, Owner::Shared(lamport)),
+                (authenticator_field_id(address), Owner::Object(account)),
+            ] {
+                assert!(
+                    !state.slots.contains_key(&id),
+                    "a second claim of {address} executes"
+                );
+                changes.push(ObjectChange {
+                    id,
+                    kind: ChangeKind::Create,
+                    before: None,
+                    after: Slot::Live(coin(id, lamport, owner)),
+                });
+            }
         }
     }
     for change in &changes {
