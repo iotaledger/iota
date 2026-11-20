@@ -73,6 +73,7 @@ pub struct TestAuthorityBuilder<'a> {
     num_epochs_to_retain_for_checkpoints: Option<u64>,
     num_epochs_to_retain_for_indexes: Option<u64>,
     post_consensus_validation_readers: Option<NonZeroUsize>,
+    max_concurrent_simulations: Option<NonZeroUsize>,
 }
 
 /// The readers a test authority validates a commit with unless a test sets
@@ -89,6 +90,15 @@ impl<'a> TestAuthorityBuilder<'a> {
         assert!(
             self.post_consensus_validation_readers
                 .replace(readers)
+                .is_none()
+        );
+        self
+    }
+
+    pub fn with_max_concurrent_simulations(mut self, simulations: NonZeroUsize) -> Self {
+        assert!(
+            self.max_concurrent_simulations
+                .replace(simulations)
                 .is_none()
         );
         self
@@ -418,6 +428,7 @@ impl<'a> TestAuthorityBuilder<'a> {
             self.post_consensus_validation_readers
                 .unwrap_or(TEST_POST_CONSENSUS_VALIDATION_READERS),
         );
+        config.max_concurrent_simulations = self.max_concurrent_simulations;
 
         let chain_identifier = ChainIdentifier::from(*genesis.checkpoint().digest());
         let policy_config = config.policy_config.clone();
