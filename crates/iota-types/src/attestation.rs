@@ -58,6 +58,7 @@ pub enum AttestationData {
 
 /// Where a Move authenticator of a signed transaction names a shared object.
 /// The variant order is protocol-significant: a new variant goes at the end.
+#[cfg_attr(test, derive(iota_macros::EnumVariantOrder))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SharedInputIndex {
     /// The object is an argument of a Move authenticator: `authenticator` is
