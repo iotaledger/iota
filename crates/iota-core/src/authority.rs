@@ -1479,13 +1479,7 @@ impl AuthorityState {
             &mut None,
         );
         result.map_err(|error| {
-            self.authentication_failure(
-                tx,
-                epoch_store.epoch(),
-                IotaError::MoveAuthenticatorExecutionFailure {
-                    error: error.to_string(),
-                },
-            )
+            self.authentication_failure(tx, epoch_store.epoch(), move_authentication_failure(error))
         })
     }
 
@@ -7887,6 +7881,16 @@ impl From<MoveAccountCheckError> for IotaError {
             MoveAccountCheckError::Input(error) => IotaError::UserInput { error },
             MoveAccountCheckError::Storage(error) => error,
         }
+    }
+}
+
+/// The error that admission and the attestor give for a transaction whose
+/// Move authentication failed with `error`, unless
+/// [`AuthorityState::authentication_failure`] gives its transaction
+/// dependency's error instead.
+fn move_authentication_failure(error: ExecutionError) -> IotaError {
+    IotaError::MoveAuthenticatorExecutionFailure {
+        error: error.to_string(),
     }
 }
 

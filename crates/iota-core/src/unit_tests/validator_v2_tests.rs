@@ -733,7 +733,11 @@ async fn assert_conflicting_submissions_get_one_dry_run(
     });
     let mut results = Vec::new();
     for submission in submissions {
-        results.push(submission.await.unwrap());
+        results.push(
+            submission
+                .await
+                .expect("the submission task must not panic"),
+        );
     }
 
     let submitted = results
@@ -969,6 +973,53 @@ async fn move_account_transaction_on_held_coin_gets_no_dry_run() {
     assert!(submitted.try_recv().is_err());
 }
 
+/// A Move account transaction whose authenticator needs more gas than
+/// `max_auth_gas` is refused by the authenticators' own run, before its locks
+/// are taken and before any dry run, with the error admission gives, which
+/// weighs one.
+#[tokio::test]
+async fn move_account_transaction_over_max_auth_gas_is_refused_before_any_dry_run() {
+    telemetry_subscribers::init_for_testing();
+    // Ten gas units at the reference gas price, far below what the ed25519
+    // verification of the account's authenticator costs.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(true);
+        config.set_checkpoint_summary_version_specific_data_for_testing(2);
+        config.set_max_auth_gas_for_testing(10_000);
+
+        config
+    });
+
+    let mut env = AbstractAccountTestEnv::new().await;
+    let transaction = env.account_transaction();
+    let (validator, mut submitted) = TestValidator::from_state(env.authority.clone());
+
+    let (update, weight) = validator.submit(transaction).await;
+    let TxStatusUpdate::Rejected {
+        error: IotaError::MoveAuthenticatorExecutionFailure { error },
+    } = &update
+    else {
+        panic!("expected a failed Move authentication, got {update:?}");
+    };
+    assert!(
+        error.contains("Insufficient Gas"),
+        "the authenticator must run out of max_auth_gas, got: {error}"
+    );
+    assert_eq!(
+        weight.value(),
+        1.0,
+        "a failed Move authentication weighs one"
+    );
+    assert_eq!(
+        validator.state.metrics.attestation_dry_runs_total.get(),
+        0,
+        "the authenticators' own run must refuse it before any dry run"
+    );
+    assert_eq!(validator.soft_locks.lock_count(), 0);
+    assert!(submitted.try_recv().is_err());
+}
+
 /// A transaction whose inputs another transaction locks while it waits for a
 /// dry run is refused once a dry run frees, before its own dry run.
 #[tokio::test]
@@ -1173,15 +1224,11 @@ async fn conflicting_submissions_get_one_dry_run_with_two_permits() {
     assert_conflicting_submissions_get_one_dry_run(&validator, first, second).await;
 }
 
-/// Two transactions of a Move account that pay with the same coin and arrive
-/// together, with a permit each. A Move account authorizes a transaction only
-/// in the dry run, so it takes its locks after it: both can get a dry run, and
-/// the one that takes the locks second is refused. That refusal weighs one,
-/// because its dry run ran. If the first has taken its locks before the second
-/// reaches its checks for conflicts, the second gets no dry run and its
-/// refusal weighs nothing.
+/// Like [`conflicting_submissions_get_one_dry_run_with_two_permits()`], for
+/// two transactions of a Move account, which takes its locks once its
+/// authenticators have passed their own run.
 #[tokio::test]
-async fn conflicting_move_account_submissions_lock_after_their_dry_runs() {
+async fn conflicting_move_account_submissions_get_one_dry_run_with_two_permits() {
     telemetry_subscribers::init_for_testing();
     let _guard = enable_attestation();
 
@@ -1189,40 +1236,7 @@ async fn conflicting_move_account_submissions_lock_after_their_dry_runs() {
     let (first, second) = env.account_transactions_on_one_coin();
     let (validator, _submitted) = TestValidator::from_state(env.authority.clone());
 
-    let submissions = [first, second].map(|transaction| {
-        let validator = validator.clone();
-
-        tokio::spawn(async move { validator.submit(transaction).await })
-    });
-    let mut results = Vec::new();
-    for submission in submissions {
-        results.push(submission.await.unwrap());
-    }
-
-    let submitted = results
-        .iter()
-        .filter(|(update, _)| matches!(update, TxStatusUpdate::Submitted))
-        .count();
-    let refused: Vec<_> = results
-        .iter()
-        .filter(|(update, _)| {
-            matches!(
-                update,
-                TxStatusUpdate::Rejected {
-                    error: IotaError::ObjectLockConflict { .. }
-                }
-            )
-        })
-        .collect();
-    assert_eq!(submitted, 1);
-    assert_eq!(refused.len(), 1);
-    let dry_runs = validator.state.metrics.attestation_dry_runs_total.get();
-    let expected_weight = match dry_runs {
-        2 => 1.0,
-        1 => 0.0,
-        _ => panic!("expected one or two dry runs, got {dry_runs}"),
-    };
-    assert_eq!(refused[0].1.value(), expected_weight);
+    assert_conflicting_submissions_get_one_dry_run(&validator, first, second).await;
 }
 
 /// The check of the owned inputs' versions also fails when the validator

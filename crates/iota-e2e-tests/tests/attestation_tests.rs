@@ -170,8 +170,8 @@ async fn test_aa_tx_with_failed_authentication_is_dropped() -> Result<(), anyhow
 }
 
 /// A valid AA transaction whose Move authentication needs more gas than
-/// `max_auth_gas` must be refused by the attestor. The dry run limits the
-/// authenticators to `max_auth_gas`, as execution does, so the attestor does no
+/// `max_auth_gas` must be refused by the attestor. The authenticators' own run
+/// at `max_auth_gas` refuses it before the dry run, so the attestor does no
 /// more unpaid work on it than that.
 #[sim_test]
 async fn test_aa_tx_with_authentication_over_max_auth_gas_is_refused() -> Result<(), anyhow::Error>
@@ -220,18 +220,13 @@ async fn test_aa_tx_with_authentication_over_max_auth_gas_is_refused() -> Result
         panic!("an authentication over max_auth_gas must be refused, got: {results:?}");
     };
     // The refusal is the one admission gives: the failed authentication's
-    // status and what caused it, here the dry run's limit for the
-    // authenticators.
+    // status and what caused it.
     let IotaError::MoveAuthenticatorExecutionFailure { error } = error else {
         panic!("the refusal must be a failed Move authentication, got: {error:?}");
     };
     assert!(
         error.contains("Insufficient Gas") && error.contains("caused by"),
         "the authentication must be refused for running out of gas, got: {error}"
-    );
-    assert!(
-        error.contains("ran out of max_auth_gas"),
-        "the dry run must refuse it at its limit for the authenticators, got: {error}"
     );
 
     Ok(())
