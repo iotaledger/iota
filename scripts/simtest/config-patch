@@ -15,9 +15,11 @@ diff --git a/Cargo.toml b/Cargo.toml
 index 1a337b0f..9a72817a 100644
 --- a/Cargo.toml
 +++ b/Cargo.toml
-@@ -496,3 +496,5 @@ iota-sdk-grpc-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "15c55e14d981170b76639591536ff74e6708ead4" }
- iota-sdk-move-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "15c55e14d981170b76639591536ff74e6708ead4" }
- iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "15c55e14d981170b76639591536ff74e6708ead4" }
- iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "15c55e14d981170b76639591536ff74e6708ead4" }
+@@ -486,3 +486,7 @@ telemetry-subscribers = { path = "crates/telemetry-subscribers" }
+ typed-store = { path = "crates/typed-store" }
+ typed-store-derive = { path = "crates/typed-store-derive" }
+ typed-store-error = { path = "crates/typed-store-error" }
++
++[patch.crates-io]
 +tokio = { git = "https://github.com/iotaledger/iota-sim.git", rev = "c1614cba95bde47819471ae90ed9207182548a40" }
 +futures-timer = { git = "https://github.com/iotaledger/iota-sim.git", rev = "c1614cba95bde47819471ae90ed9207182548a40" }

@@ -20,7 +20,7 @@ tokio = "1.46.1"
 iota-keys = { path = "../../../crates/iota-keys" }
 iota-move-build = { path = "../../../crates/iota-move-build" }
 iota-sdk = { path = "../../../crates/iota-sdk" }
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "15c55e14d981170b76639591536ff74e6708ead4" }
+iota-sdk-types = { version = "1.0.0", features = ["unstable"] }
 iota-types = { path = "../../../crates/iota-types" }
 move-binary-format = { path = "../../../external-crates/move/crates/move-binary-format", features = ["fuzzing"] }
 
@@ -96,13 +96,3 @@ path = "abstract_account/authenticator-tx-data-cryptographic-protection.rs"
 ignored = [
   "move-binary-format", # `serialize` method is gated by its `fuzzing` feature
 ]
-
-[patch.crates-io]
-iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "15c55e14d981170b76639591536ff74e6708ead4" }
-iota-sdk-graphql-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "15c55e14d981170b76639591536ff74e6708ead4" }
-iota-sdk-graphql-client-build = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "15c55e14d981170b76639591536ff74e6708ead4" }
-iota-sdk-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "15c55e14d981170b76639591536ff74e6708ead4" }
-iota-sdk-grpc-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "15c55e14d981170b76639591536ff74e6708ead4" }
-iota-sdk-move-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "15c55e14d981170b76639591536ff74e6708ead4" }
-iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "15c55e14d981170b76639591536ff74e6708ead4" }
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "15c55e14d981170b76639591536ff74e6708ead4" }
