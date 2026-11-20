@@ -15,8 +15,8 @@ use futures::future::BoxFuture;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, Command, ExecutionError, ExecutionStatus, MoveAuthenticator, MoveAuthenticatorV1,
-    ObjectId, SharedObjectReference, Transaction, TransactionDigest, TransactionEffects,
-    TransactionEffectsDigest, TransactionEvents, UserSignature, VersionAssignment,
+    ObjectId, Owner, SharedObjectReference, Transaction, TransactionDigest, TransactionEffects,
+    TransactionEffectsDigest, TransactionEvents, UserSignature, Version, VersionAssignment,
 };
 use iota_types::{
     attestation::AttestationRecord,
@@ -163,9 +163,15 @@ async fn attested_object_version_state_follows_the_superseding_transaction() {
 
     let attested_id = ObjectId::random();
     let gas_id = ObjectId::random();
+    // The gas coin starts above the object, so the transfer's output version
+    // skips the ones in between.
     let objects = vec![
         Object::with_id_owner_for_testing(attested_id, sender),
-        Object::with_id_owner_for_testing(gas_id, sender),
+        Object::with_id_owner_version_for_testing(
+            gas_id,
+            Version::from_u64(10),
+            Owner::Address(sender),
+        ),
     ];
     let authority = TestAuthorityBuilder::new()
         .with_starting_objects(&objects)
@@ -250,6 +256,16 @@ async fn attested_object_version_state_follows_the_superseding_transaction() {
         versions.superseded_within_window(&ObjectId::random(), attested_ref.version()),
         None,
         "an unknown object has no version above the recorded one"
+    );
+    let never_a_version = Version::from_u64(attested_ref.version().as_u64() + 1);
+    assert!(
+        never_a_version < current_version,
+        "the transfer must have skipped a version"
+    );
+    assert_eq!(
+        versions.superseded_within_window(&attested_id, never_a_version),
+        None,
+        "a version the object never had was not superseded"
     );
 
     // With a window, the supersession counts only for a transaction sequenced
@@ -380,9 +396,10 @@ async fn attested_object_version_state_does_not_depend_on_flush_state() {
 /// Deleting the object supersedes the attested version just like overwriting
 /// it: the object can no longer be read, but the version it held was superseded
 /// this epoch and is still re-runnable rather than being written off as stale.
+/// From the next epoch on it is stale.
 #[tokio::test]
 async fn attested_object_version_state_judges_a_deleted_object() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+    let config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config.set_enable_validator_attestation_for_testing(true);
         config.set_checkpoint_summary_version_specific_data_for_testing(2);
@@ -470,13 +487,28 @@ async fn attested_object_version_state_judges_a_deleted_object() {
         Some(SupersededAt::Commit(commit)),
         "a version a deletion superseded this epoch carries the deleting commit"
     );
+
+    // The override goes with the epoch: reconfiguration installs its own.
+    drop(config_guard);
+    authority.reconfigure_for_testing().await;
+    let epoch_store = authority.epoch_store_for_testing();
+    assert_eq!(
+        AttestedObjectVersions {
+            epoch_store: &epoch_store,
+            ..versions
+        }
+        .superseded_within_window(&attested_id, attested_ref.version()),
+        None,
+        "a version a deletion superseded in an earlier epoch is stale"
+    );
 }
 
-/// A recorded version superseded in an earlier epoch is stale without the
-/// effects of the transaction that superseded it, which a node may have
-/// pruned: here they are gone from the ledger and from the caches.
+/// A recorded version superseded in an earlier epoch is stale with or without
+/// the effects of the transaction that superseded it: while the caches still
+/// hold them, and once they are gone from the ledger and from the caches, as
+/// on a node that has pruned them.
 #[tokio::test]
-async fn attested_version_superseded_in_an_earlier_epoch_is_stale_without_its_effects() {
+async fn attested_version_superseded_in_an_earlier_epoch_is_stale() {
     let config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config.set_enable_validator_attestation_for_testing(true);
@@ -530,13 +562,6 @@ async fn attested_version_superseded_in_an_earlier_epoch_is_stale_without_its_ef
     // The override goes with the epoch: reconfiguration installs its own.
     drop(config_guard);
     authority.reconfigure_for_testing().await;
-    // Epoch 0's ledger bucket is gone, and so are the cached effects, as on a
-    // node whose retention has passed them.
-    authority
-        .get_historic_ledger()
-        .prune(epoch + 1, 0, &|| {})
-        .unwrap();
-    authority.clear_execution_caches_for_testing();
 
     let epoch_store = authority.epoch_store_for_testing();
     let versions = AttestedObjectVersions {
@@ -546,6 +571,19 @@ async fn attested_version_superseded_in_an_earlier_epoch_is_stale_without_its_ef
         sequenced_at: ExecutionIndices::default(),
         window: None,
     };
+    assert_eq!(
+        versions.superseded_within_window(&attested_id, attested_ref.version()),
+        None,
+        "stale while the caches still hold the earlier epoch's effects"
+    );
+
+    // Epoch 0's ledger bucket is gone, and so are the cached effects, as on a
+    // node whose retention has passed them.
+    authority
+        .get_historic_ledger()
+        .prune(epoch + 1, 0, &|| {})
+        .unwrap();
+    authority.clear_execution_caches_for_testing();
     assert_eq!(
         versions.superseded_within_window(&attested_id, attested_ref.version()),
         None,

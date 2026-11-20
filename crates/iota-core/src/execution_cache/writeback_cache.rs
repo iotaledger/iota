@@ -1137,6 +1137,9 @@ impl WritebackCache {
             }
         }
 
+        // The objects above are readable before the effects below are. The
+        // attestation judge waits for the effects of a version it can read,
+        // so both must stay in this one synchronous call.
         let tx_digest = *transaction.digest();
         let effects_digest = effects.digest();
 
