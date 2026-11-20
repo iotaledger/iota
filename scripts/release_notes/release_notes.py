@@ -156,6 +156,36 @@ NOTE_ORDER = [
 ]
 
 
+class SdkClientVersionMin(NamedTuple):
+    """Where a service declares the lowest SDK client version able to decode
+    its responses."""
+
+    # The release notes section the minimum is printed in.
+    section: str
+    client_crate: str
+    # Relative to the repository root.
+    file: str
+    # Every name the constant has had in a release, so that older release tags
+    # are read too.
+    constants: tuple
+
+
+SDK_CLIENT_VERSION_MINS = [
+    SdkClientVersionMin(
+        "GraphQL",
+        "iota-sdk-graphql-client",
+        "crates/iota-graphql-rpc/src/server/version.rs",
+        ("IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN", "MIN_SDK_VERSION"),
+    ),
+    SdkClientVersionMin(
+        "gRPC",
+        "iota-sdk-grpc-client",
+        "crates/iota-grpc-server/src/constants.rs",
+        ("IOTA_SDK_GRPC_CLIENT_VERSION_MIN",),
+    ),
+]
+
+
 class Note(NamedTuple):
     checked: bool
     note: str
@@ -701,6 +731,83 @@ def extract_protocol_version(commit):
         return match[0]
 
 
+def extract_sdk_client_version_min(commit, version_min):
+    """Find the lowest SDK client version declared in `version_min.file` at
+    this commit.
+
+    Returns `None` if neither the file nor any of the constant's names exist
+    at this commit, i.e. the service did not declare a minimum yet.
+
+    Assumes that it is being called from the root of the iota repository."""
+    try:
+        source = subprocess.check_output(
+            ["git", "show", f"{commit}:{version_min.file}"],
+            stderr=subprocess.DEVNULL,
+        ).decode()
+    except subprocess.CalledProcessError:
+        return None
+
+    for constant in version_min.constants:
+        match = re.search(
+            rf'\bconst\s+{re.escape(constant)}\s*:\s*&str\s*=\s*"([^"]+)"',
+            source,
+        )
+        if match:
+            return match[1]
+
+    return None
+
+
+def version_key(version):
+    """A key that orders versions as semantic versioning does."""
+    core, _, pre_release = version.partition("+")[0].partition("-")
+    # A release is newer than its pre-releases, and a numeric pre-release
+    # identifier is older than an alphanumeric one.
+    identifiers = [
+        (0, int(identifier), "") if identifier.isdigit() else (1, 0, identifier)
+        for identifier in pre_release.split(".")
+        if identifier
+    ]
+    return (
+        [int(number) for number in core.split(".")],
+        0 if pre_release else 1,
+        identifiers,
+    )
+
+
+def print_sdk_client_version_min(version_min, version_from, version_to):
+    """Print the lowest SDK client version supported by this release, and
+    whether it changed since `version_from`."""
+    crate = f"`{version_min.client_crate}`"
+
+    if version_from == version_to:
+        print(
+            f"\n#### This release does not change the minimum supported {crate} "
+            f"version (current minimum: `{version_to}`)"
+        )
+        return
+
+    if version_from is not None and version_key(version_to) < version_key(version_from):
+        print(
+            f"\n#### This release lowers the minimum supported {crate} version "
+            f"to `{version_to}` (previously `{version_from}`)"
+        )
+        return
+
+    if version_from is None:
+        print(f"\n#### This release sets the minimum supported {crate} version to `{version_to}`")
+    else:
+        print(
+            f"\n#### This release raises the minimum supported {crate} version "
+            f"to `{version_to}` (previously `{version_from}`)"
+        )
+    print(
+        f"\nUpgrade your {crate} to at least `{version_to}` before using it with "
+        f"this release: older versions cannot decode its {version_min.section} "
+        f"responses."
+    )
+
+
 def earliest_protocol_upgrade(network):
     """Earliest epoch and time at which `network` can enable a new protocol version.
 
@@ -845,6 +952,9 @@ def do_generate(from_, to, is_dry_run, network=None):
     introduces a new protocol version, also reports the earliest epoch
     at which that network can enable it, read from its fullnode.
 
+    Likewise injects the lowest supported SDK client version into the
+    "GraphQL" and "gRPC" changelogs, once the service declares one.
+
     """
     results = defaultdict(list)
     rollout_entries = defaultdict(lambda: defaultdict(list))
@@ -855,6 +965,17 @@ def do_generate(from_, to, is_dry_run, network=None):
 
     protocol_version_from = extract_protocol_version(from_) or "XX"
     protocol_version_to = extract_protocol_version(to) or "XX"
+
+    sdk_client_version_mins = {}
+    for version_min in SDK_CLIENT_VERSION_MINS:
+        version_to = extract_sdk_client_version_min(to, version_min)
+        if version_to is not None:
+            version_from = extract_sdk_client_version_min(from_, version_min)
+            sdk_client_version_mins[version_min.section] = (
+                version_min,
+                version_from,
+                version_to,
+            )
 
     commits = git(
         "log",
@@ -910,7 +1031,8 @@ def do_generate(from_, to, is_dry_run, network=None):
     # Print the impact areas we know about first
     for impacted in NOTE_ORDER:
         notes = results.pop(impacted, None)
-        if not notes and impacted != "Protocol":
+        sdk_client_version_min = sdk_client_version_mins.get(impacted)
+        if not notes and impacted != "Protocol" and not sdk_client_version_min:
             continue
 
         print(f"## {impacted}")
@@ -929,6 +1051,8 @@ def do_generate(from_, to, is_dry_run, network=None):
                         f"Please ensure that you update your validators before this epoch change. "
                         f"Otherwise, if the upgrade threshold is reached, the protocol will remove you from the committee, and both you and your delegators will lose rewards."
                     )
+        elif sdk_client_version_min:
+            print_sdk_client_version_min(*sdk_client_version_min)
         print()
 
         if notes:
