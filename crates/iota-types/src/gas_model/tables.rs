@@ -276,6 +276,31 @@ impl GasStatus {
         self.gas_left.to_unit_round_down()
     }
 
+    /// Lowers the gas left to what `budget` buys at this gas price, when that
+    /// is not more, and returns the gas taken off, for [`Self::add_gas_left`]
+    /// to give back: zero when `budget` buys exactly the gas left. Returns
+    /// `None` and leaves the gas left as it is when `budget` buys more, so it
+    /// does not bound the gas used, and for an unmetered status.
+    pub fn limit_gas_left(&mut self, budget: u64) -> Option<InternalGas> {
+        if !self.charge {
+            return None;
+        }
+        // Saturating: a budget that buys more internal units than a `u64`
+        // holds is above any gas left.
+        let limit = InternalGas::new(
+            (budget / self.gas_price).saturating_mul(Self::INTERNAL_UNIT_MULTIPLIER),
+        );
+        let taken = self.gas_left.checked_sub(limit)?;
+        self.gas_left = limit;
+        Some(taken)
+    }
+
+    /// Adds `gas` to the gas left, such as the gas
+    /// [`Self::limit_gas_left`] took off.
+    pub fn add_gas_left(&mut self, gas: InternalGas) {
+        self.gas_left += gas;
+    }
+
     /// Charge a given amount of gas and fail if not enough gas units are left.
     pub fn deduct_gas(&mut self, amount: InternalGas) -> PartialVMResult<()> {
         if !self.charge {
@@ -405,5 +430,65 @@ pub fn initial_cost_schedule_for_unit_tests() -> move_vm_test_utils::gas_schedul
         instruction_tiers: table.instruction_tiers,
         stack_height_tiers: table.stack_height_tiers,
         stack_size_tiers: table.stack_size_tiers,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Gas, GasStatus, InternalGas, ZERO_COST_SCHEDULE};
+
+    /// A metered status with `units` gas units left at `gas_price`.
+    fn gas_status(units: u64, gas_price: u64) -> GasStatus {
+        GasStatus::new(ZERO_COST_SCHEDULE.clone(), units * gas_price, gas_price, 1)
+    }
+
+    #[test]
+    fn limit_gas_left_takes_off_what_the_budget_does_not_buy() {
+        let gas_price = 5;
+        let mut status = gas_status(100, gas_price);
+
+        let taken = status.limit_gas_left(30 * gas_price);
+
+        assert_eq!(status.remaining_gas(), Gas::new(30));
+        assert_eq!(taken, Some(GasStatus::to_internal_units(70)));
+
+        status.add_gas_left(taken.expect("a budget below the gas left must take gas off"));
+        assert_eq!(status.remaining_gas(), Gas::new(100));
+    }
+
+    /// A budget that buys exactly the gas left bounds the gas used as much as
+    /// a smaller one, though it takes nothing off.
+    #[test]
+    fn limit_gas_left_bounds_the_gas_left_when_the_budget_buys_exactly_it() {
+        let gas_price = 5;
+        let mut status = gas_status(100, gas_price);
+
+        let taken = status.limit_gas_left(100 * gas_price);
+
+        assert_eq!(taken, Some(InternalGas::new(0)));
+        assert_eq!(status.remaining_gas(), Gas::new(100));
+    }
+
+    #[test]
+    fn limit_gas_left_takes_nothing_off_when_the_budget_buys_more() {
+        let gas_price = 5;
+        let mut status = gas_status(100, gas_price);
+
+        let taken = status.limit_gas_left(101 * gas_price);
+
+        assert_eq!(taken, None);
+        assert_eq!(status.remaining_gas(), Gas::new(100));
+    }
+
+    /// At a gas price below the internal unit multiplier, a budget can buy
+    /// more internal units than a `u64` holds.
+    #[test]
+    fn limit_gas_left_takes_nothing_off_when_the_budget_buys_more_than_a_u64_holds() {
+        let mut status = gas_status(100, 1);
+
+        let taken = status.limit_gas_left(u64::MAX);
+
+        assert_eq!(taken, None);
+        assert_eq!(status.remaining_gas(), Gas::new(100));
     }
 }

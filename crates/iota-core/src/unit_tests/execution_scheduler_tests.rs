@@ -22,9 +22,9 @@ use iota_framework::BuiltInFramework;
 use iota_move_build::BuildConfig;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    MoveAuthenticatorV1, ObjectId, RandomnessRound, SenderSignedTransaction, SharedObjectReference,
-    TransactionDigest, TransactionEffectsDigest, TypeTag, UserSignature, Version,
-    VersionAssignment,
+    Address, MoveAuthenticatorV1, ObjectId, RandomnessRound, SenderSignedTransaction,
+    SharedObjectReference, TransactionDigest, TransactionEffectsDigest, TypeTag, UserSignature,
+    Version, VersionAssignment,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -32,6 +32,7 @@ use iota_types::{
     error::IotaError,
     executable_transaction::VerifiedExecutableTransaction,
     object::Object,
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::InputKey,
     transaction::{CallArg, TransactionEnvelope, VerifiedTransaction},
 };
@@ -43,6 +44,7 @@ use tokio::{
 use crate::{
     authority::{
         AuthorityState, ExecutionEnv,
+        authority_test_utils::init_certified_transaction,
         authority_tests::{
             init_state_with_objects, randomness_assigned_versions, resolve_randomness_round,
         },
@@ -1110,4 +1112,55 @@ async fn execution_scheduler_dispatches_gas_object_cancellation_with_its_env() {
         .unwrap();
     assert_eq!(pending.transaction.digest(), transaction.digest());
     assert_eq!(pending.execution_env.assigned_versions, assigned_versions);
+}
+
+/// A dependent is released once its dependency's effects are written, which
+/// the scheduler learns from the transaction cache.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn execution_scheduler_waits_for_the_transaction_dependency() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_transaction_dependencies_for_testing(true);
+        config
+    });
+    let (sender, key) = deterministic_random_account_private_key();
+    let gas_objects: Vec<Object> = (0..2)
+        .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), sender))
+        .collect();
+    let state = init_state_with_objects(gas_objects.clone()).await;
+    let epoch_store = state.epoch_store_for_testing();
+    let (execution_scheduler, mut rx_ready_transactions) = make_execution_scheduler(&state);
+    let transfer = |gas_object: &Object, dependency: Option<TransactionDigest>| {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.transfer_iota(Address::random(), Some(1_000));
+        let mut transaction = TestTransactionBuilder::new(
+            sender,
+            gas_object.object_ref(),
+            epoch_store.reference_gas_price(),
+        )
+        .programmable(builder.finish());
+        if let Some(dependency) = dependency {
+            transaction = transaction.with_transaction_dependency(dependency, 0);
+        }
+        init_certified_transaction(transaction.build_and_sign(&key), &state)
+    };
+
+    let dependency = transfer(&gas_objects[0], None);
+    let dependent = VerifiedExecutableTransaction::new_from_certificate(transfer(
+        &gas_objects[1],
+        Some(*dependency.digest()),
+    ));
+    execution_scheduler
+        .enqueue_transactions(vec![(dependent.clone(), ExecutionEnv::new())], &epoch_store);
+    sleep(Duration::from_secs(1)).await;
+    assert!(rx_ready_transactions.try_recv().is_err());
+
+    state
+        .try_execute_for_test(&dependency, ExecutionEnv::new())
+        .unwrap();
+
+    let ready = timeout(Duration::from_secs(10), rx_ready_transactions.recv())
+        .await
+        .expect("dispatched within the deadline")
+        .unwrap();
+    assert_eq!(ready.transaction.digest(), dependent.digest());
 }
