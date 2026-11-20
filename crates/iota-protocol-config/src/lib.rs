@@ -2517,9 +2517,10 @@ impl ProtocolConfig {
             feature_flag_overrides.apply_to(&mut ret.feature_flags);
 
             // An environment override can switch attestation off but cannot
-            // unset a parameter, so the window goes with the flag.
+            // unset a parameter, so the parameters that require it go with
+            // the flag.
             if !ret.feature_flags.enable_validator_attestation {
-                ret.attestation_freshness_window_commits = None;
+                ret.unset_attestation_parameters();
             }
         }
 
@@ -2627,6 +2628,13 @@ impl ProtocolConfig {
         }
 
         ret
+    }
+
+    /// Unsets the parameters [`Self::get_for_version`] accepts only with
+    /// `enable_validator_attestation`.
+    fn unset_attestation_parameters(&mut self) {
+        self.attestation_max_refuted_units_squared = None;
+        self.attestation_freshness_window_commits = None;
     }
 
     /// Get the value ProtocolConfig that are in effect during the given
@@ -4487,8 +4495,7 @@ impl ProtocolConfig {
     pub fn set_enable_validator_attestation_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_validator_attestation = val;
         if !val {
-            self.attestation_max_refuted_units_squared = None;
-            self.attestation_freshness_window_commits = None;
+            self.unset_attestation_parameters();
         }
     }
 }
