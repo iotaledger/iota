@@ -44,7 +44,7 @@ use iota_types::{
     storage::{BackingStore, ObjectKey},
     transaction::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult, ObjectReadResultKind,
-        TransactionAPI, TransactionKey,
+        TransactionAPI,
     },
 };
 
@@ -60,7 +60,7 @@ use crate::{
 /// transaction that replaced it, the leader round when that transaction is a
 /// commit prologue or a deny-rules update, which carry no commit index, or
 /// only the epoch when it is another system transaction, which carries
-/// neither.
+/// neither, or when no window is set.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum SupersededAt {
     Commit(CommitIndex),
@@ -68,11 +68,7 @@ pub(crate) enum SupersededAt {
     Epoch,
 }
 
-/// Finds when a recorded version stopped being current this epoch, with
-/// nothing written for it: the version that replaced it names the
-/// transaction that did, whose commit is on the handler's assignment or on
-/// the row of its gas coin, or whose round it carries when it is a commit
-/// prologue or a deny-rules update.
+/// Finds when a recorded version stopped being current this epoch.
 pub(crate) struct AttestedObjectVersions<'a> {
     pub(crate) object_cache: &'a dyn ObjectCacheRead,
     pub(crate) transaction_cache: &'a dyn TransactionCacheRead,
@@ -110,9 +106,10 @@ impl AttestedObjectVersions<'_> {
             .unwrap_or_else(|error| fatal!("cannot read {object_id}@{replacing}: {error}"));
         let digest = match object {
             Some(object) => object.previous_transaction,
-            // A wrap names no transaction here, but authenticator inputs are
-            // shared objects or dynamic fields, which are never wrapped.
-            None => self.deleting_transaction(object_id, replacing)?,
+            // Deleted: its row names the transaction. A wrap's row names
+            // none, but neither a shared object nor a dynamic field is ever
+            // wrapped.
+            None => self.row(&ObjectKey(*object_id, replacing))?.deleted_by?,
         };
         let effects = self.effects_in_epoch(&digest, uncommitted)?;
         // Consuming another version means `attested` was never a version of
@@ -125,8 +122,12 @@ impl AttestedObjectVersions<'_> {
         if consumed != attested {
             return None;
         }
+        // Without a window, being superseded this epoch is all that counts.
+        let Some(window) = self.window else {
+            return Some(SupersededAt::Epoch);
+        };
         let at = self.transaction_position(&digest, &effects);
-        within_freshness_window(at, self.sequenced_at, self.window).then_some(at)
+        within_freshness_window(at, self.sequenced_at, window).then_some(at)
     }
 
     /// The effects of `digest` when it executed in this epoch, `None` when it
@@ -164,27 +165,9 @@ impl AttestedObjectVersions<'_> {
         }
     }
 
-    /// The transaction that deleted `object_id` at `version`: from the marker
-    /// of a shared object, else from the tombstone's row.
-    fn deleting_transaction(
-        &self,
-        object_id: &ObjectId,
-        version: Version,
-    ) -> Option<TransactionDigest> {
-        let epoch = self.epoch_store.epoch();
-        let marker = self
-            .object_cache
-            .try_get_deleted_shared_object_previous_tx_digest(object_id, version, epoch)
-            .unwrap_or_else(|error| {
-                fatal!("cannot read the deletion of {object_id}@{version}: {error}")
-            });
-        marker.or_else(|| self.row(&ObjectKey(*object_id, version))?.deleted_by)
-    }
-
-    /// Where `digest` ran: its commit from the handler's assignment while the
-    /// commit is open, afterwards from the row of the gas coin it mutated;
-    /// its round for a commit prologue or a deny-rules update, only the epoch
-    /// for any other system transaction.
+    /// Where `digest` ran: its commit, from the row of the gas coin it
+    /// mutated; its round for a commit prologue or a deny-rules update; only
+    /// the epoch for any other system transaction.
     fn transaction_position(
         &self,
         digest: &TransactionDigest,
@@ -192,7 +175,10 @@ impl AttestedObjectVersions<'_> {
     ) -> SupersededAt {
         let transaction = self
             .transaction_cache
-            .get_transaction_block(digest)
+            .try_multi_get_transaction_blocks_in_epoch(self.epoch_store.epoch(), &[*digest])
+            .unwrap_or_else(|error| fatal!("cannot read transaction {digest}: {error}"))
+            .pop()
+            .flatten()
             .unwrap_or_else(|| fatal!("no transaction {digest} behind its executed effects"));
         match transaction.inner().transaction().kind() {
             TransactionKind::ConsensusCommitPrologueV1(prologue) => {
@@ -204,21 +190,13 @@ impl AttestedObjectVersions<'_> {
             _ if transaction.is_system_tx() => return SupersededAt::Epoch,
             _ => {}
         }
-        let commit = self
-            .epoch_store
-            .commit_index_of(&TransactionKey::Digest(*digest))
-            .or_else(|| {
-                let gas = effects.gas_object();
-                let gas = gas.reference();
-                Some(
-                    self.row(&ObjectKey(gas.object_id, gas.version))?
-                        .produced_at,
-                )
-            })
-            .unwrap_or_else(|| {
-                fatal!("no commit for {digest}: neither assigned nor on its gas coin's row")
-            });
-        SupersededAt::Commit(commit)
+        // Recorded before the outputs of `digest` became readable.
+        let gas = effects.gas_object();
+        let gas = gas.reference();
+        let row = self
+            .row(&ObjectKey(gas.object_id, gas.version))
+            .unwrap_or_else(|| fatal!("no row for the gas coin of {digest}"));
+        SupersededAt::Commit(row.produced_at)
     }
 
     fn row(&self, key: &ObjectKey) -> Option<HandlerProcessedObject> {
@@ -230,17 +208,10 @@ impl AttestedObjectVersions<'_> {
 
 /// Whether a version superseded at `at` was current recently enough before
 /// `sequenced_at` for an honest dry run to have read it: at or after the
-/// window's start, or anywhere in the epoch when there is no window. A
-/// supersession known only by its epoch is always admitted: it cannot be
-/// measured, and refusing it would refute an honest dry run.
-fn within_freshness_window(
-    at: SupersededAt,
-    sequenced_at: ExecutionIndices,
-    window: Option<u64>,
-) -> bool {
-    let Some(window) = window else {
-        return true;
-    };
+/// window's start. A supersession known only by its epoch is always
+/// admitted: it cannot be measured, and refusing it would refute an honest
+/// dry run.
+fn within_freshness_window(at: SupersededAt, sequenced_at: ExecutionIndices, window: u64) -> bool {
     match at {
         SupersededAt::Commit(commit) => commit >= sequenced_at.sub_dag_index.saturating_sub(window),
         SupersededAt::Round(round) => {
@@ -991,10 +962,9 @@ mod tests {
         assert!(!reauthenticates(&[account, input], &executed, superseded));
     }
 
-    /// The window admits a supersession at its floor, inside it, and anywhere
-    /// in the epoch when unset; a prologue's round is measured against the
-    /// sequencing round, and a supersession known only by its epoch is always
-    /// admitted.
+    /// The window admits a supersession at its floor and inside it; a
+    /// prologue's round is measured against the sequencing round, and a
+    /// supersession known only by its epoch is always admitted.
     #[test]
     fn freshness_window_admits_recent_supersessions_only() {
         let sequenced_at = |sub_dag_index, last_committed_round| ExecutionIndices {
@@ -1005,47 +975,37 @@ mod tests {
         assert!(within_freshness_window(
             SupersededAt::Commit(10),
             sequenced_at(20, 25),
-            Some(10)
+            10
         ));
         assert!(within_freshness_window(
             SupersededAt::Commit(15),
             sequenced_at(20, 25),
-            Some(10)
+            10
         ));
         assert!(!within_freshness_window(
             SupersededAt::Commit(9),
             sequenced_at(20, 25),
-            Some(10)
+            10
         ));
         assert!(within_freshness_window(
             SupersededAt::Round(15),
             sequenced_at(20, 25),
-            Some(10)
+            10
         ));
         assert!(!within_freshness_window(
             SupersededAt::Round(14),
             sequenced_at(20, 25),
-            Some(10)
+            10
         ));
         assert!(within_freshness_window(
             SupersededAt::Commit(1),
             sequenced_at(5, 5),
-            Some(32)
-        ));
-        assert!(within_freshness_window(
-            SupersededAt::Commit(1),
-            sequenced_at(500, 500),
-            None
+            32
         ));
         assert!(within_freshness_window(
             SupersededAt::Epoch,
             sequenced_at(20, 25),
-            None
-        ));
-        assert!(within_freshness_window(
-            SupersededAt::Epoch,
-            sequenced_at(20, 25),
-            Some(10)
+            10
         ));
     }
 }

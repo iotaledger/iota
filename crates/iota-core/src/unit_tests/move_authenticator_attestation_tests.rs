@@ -194,6 +194,7 @@ async fn attested_object_version_state_follows_the_superseding_transaction() {
     let executable = VerifiedExecutableTransaction::new_from_checkpoint(verified_tx, epoch, 1);
     epoch_store.assign_to_a_new_commit_for_testing(&[executable.key()]);
     let commit = epoch_store
+        .handler_object_state_for_testing()
         .commit_index_of(&executable.key())
         .expect("the test assigned the transaction a commit");
     let (effects, _execution_error) = authority
@@ -223,7 +224,7 @@ async fn attested_object_version_state_follows_the_superseding_transaction() {
         transaction_cache: authority.get_transaction_cache_reader().as_ref(),
         epoch_store: &epoch_store,
         sequenced_at: ExecutionIndices::default(),
-        window: None,
+        window: Some(u64::MAX),
     };
 
     assert_eq!(
@@ -235,6 +236,15 @@ async fn attested_object_version_state_follows_the_superseding_transaction() {
         versions.superseded_within_window(&attested_id, attested_ref.version()),
         Some(SupersededAt::Commit(commit)),
         "a version this epoch superseded carries the superseding commit"
+    );
+    assert_eq!(
+        AttestedObjectVersions {
+            window: None,
+            ..versions
+        }
+        .superseded_within_window(&attested_id, attested_ref.version()),
+        Some(SupersededAt::Epoch),
+        "without a window, only the epoch is asked"
     );
     assert_eq!(
         versions.superseded_within_window(&ObjectId::random(), attested_ref.version()),
@@ -318,6 +328,7 @@ async fn attested_object_version_state_does_not_depend_on_flush_state() {
         epoch_store.assign_to_a_new_commit_for_testing(&[executable.key()]);
         commits.push(
             epoch_store
+                .handler_object_state_for_testing()
                 .commit_index_of(&executable.key())
                 .expect("the test assigned the transaction a commit"),
         );
@@ -334,7 +345,7 @@ async fn attested_object_version_state_does_not_depend_on_flush_state() {
         transaction_cache: authority.get_transaction_cache_reader().as_ref(),
         epoch_store: &epoch_store,
         sequenced_at: ExecutionIndices::default(),
-        window: None,
+        window: Some(u64::MAX),
     };
     let resolved = || {
         gas_versions
@@ -424,6 +435,7 @@ async fn attested_object_version_state_judges_a_deleted_object() {
     let executable = VerifiedExecutableTransaction::new_from_checkpoint(verified_tx, epoch, 1);
     epoch_store.assign_to_a_new_commit_for_testing(&[executable.key()]);
     let commit = epoch_store
+        .handler_object_state_for_testing()
         .commit_index_of(&executable.key())
         .expect("the test assigned the transaction a commit");
     let (effects, _execution_error) = authority
@@ -451,7 +463,7 @@ async fn attested_object_version_state_judges_a_deleted_object() {
         transaction_cache: authority.get_transaction_cache_reader().as_ref(),
         epoch_store: &epoch_store,
         sequenced_at: ExecutionIndices::default(),
-        window: None,
+        window: Some(u64::MAX),
     };
     assert_eq!(
         versions.superseded_within_window(&attested_id, attested_ref.version()),
@@ -556,6 +568,15 @@ impl TransactionCacheRead for EffectsHiddenOnce<'_> {
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<Arc<VerifiedTransaction>>>> {
         self.inner.try_multi_get_transaction_blocks(digests)
+    }
+
+    fn try_multi_get_transaction_blocks_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<Arc<VerifiedTransaction>>>> {
+        self.inner
+            .try_multi_get_transaction_blocks_in_epoch(epoch, digests)
     }
 
     fn try_multi_get_executed_effects_digests(
@@ -664,6 +685,7 @@ async fn attested_version_superseded_by_a_transaction_still_writing_waits_for_it
     let executable = VerifiedExecutableTransaction::new_from_checkpoint(verified_tx, epoch, 1);
     epoch_store.assign_to_a_new_commit_for_testing(&[executable.key()]);
     let commit = epoch_store
+        .handler_object_state_for_testing()
         .commit_index_of(&executable.key())
         .expect("the test assigned the transaction a commit");
     // Left uncommitted, as the outputs of a transaction still writing are.
@@ -682,7 +704,7 @@ async fn attested_version_superseded_by_a_transaction_still_writing_waits_for_it
         transaction_cache: &transaction_cache,
         epoch_store: &epoch_store,
         sequenced_at: ExecutionIndices::default(),
-        window: None,
+        window: Some(u64::MAX),
     };
 
     assert_eq!(

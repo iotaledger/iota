@@ -2254,12 +2254,6 @@ impl AuthorityPerEpochStore {
         fatal!("transaction {key:?} executed without its commit assigned by the consensus handler");
     }
 
-    /// The commit the consensus handler assigned to `key`, while that commit
-    /// is not completed; `None` without the P-COOL bookkeeping.
-    pub fn commit_index_of(&self, key: &TransactionKey) -> Option<CommitIndex> {
-        self.handler_object_state.as_ref()?.commit_index_of(key)
-    }
-
     /// Marks commit `index` fully executed, or does nothing once the quarantine
     /// flush has completed the commit; see
     /// [`HandlerObjectState::record_commit_fully_executed`].
