@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["StorageWriteBatch"],"fn":["drop_tolerant_write_options","wait_for_database_close"],"struct":["DBBatch","DBMap","Database","DatabaseClose","DbSnapshot","MetricConf","TaggedDBMap"]};

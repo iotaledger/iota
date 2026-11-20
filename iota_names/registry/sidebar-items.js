@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["NameRecord","Registry","RegistryEntry","ReverseRegistryEntry","Table"]};

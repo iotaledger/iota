@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Attestation","AttestationData","AttestationVerdict","SharedInputIndex"],"fn":["computation_units","list_move_authenticator_shared_objects"],"struct":["AttestationEntry","AttestationRecord","AttestationTotals","AttestedTransaction"]};
