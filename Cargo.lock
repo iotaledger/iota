@@ -7993,6 +7993,7 @@ dependencies = [
  "bytes",
  "fastcrypto",
  "futures",
+ "http 1.5.0",
  "indicatif",
  "integer-encoding",
  "iota-common",

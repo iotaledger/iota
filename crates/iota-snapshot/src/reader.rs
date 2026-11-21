@@ -19,7 +19,7 @@ use byteorder::{BigEndian, ByteOrder, ReadBytesExt};
 use bytes::{Buf, Bytes};
 use fastcrypto::hash::{HashFunction, MultisetHash, Sha3_256};
 use futures::{
-    StreamExt, TryStreamExt,
+    StreamExt,
     future::{AbortRegistration, Abortable},
 };
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
@@ -42,7 +42,7 @@ use iota_types::{digests::ChainIdentifier, global_state_hash::GlobalStateHash};
 use object_store::path::Path;
 use tokio::{
     sync::{Mutex, mpsc, oneshot},
-    task::JoinHandle,
+    task::{JoinHandle, JoinSet},
 };
 use tracing::info;
 
@@ -141,8 +141,28 @@ impl StateSnapshotReaderV1 {
         multi_progress_bar: MultiProgress,
         skip_reset_local_store: bool,
     ) -> Result<Self> {
-        let epoch_dir = format!("epoch_{epoch}");
         let remote_object_store = make_remote_store(remote_store_config)?;
+        Self::new_from_store(
+            epoch,
+            remote_object_store,
+            local_store_config,
+            download_concurrency,
+            multi_progress_bar,
+            skip_reset_local_store,
+        )
+        .await
+    }
+
+    /// [`Self::new`] with the remote store already built.
+    pub(crate) async fn new_from_store(
+        epoch: u64,
+        remote_object_store: Arc<dyn ObjectStoreGetExt>,
+        local_store_config: &ObjectStoreConfig,
+        download_concurrency: NonZeroUsize,
+        multi_progress_bar: MultiProgress,
+        skip_reset_local_store: bool,
+    ) -> Result<Self> {
+        let epoch_dir = format!("epoch_{epoch}");
         let local_object_store: Arc<dyn ObjectStorePutExt> =
             local_store_config.make().map(Arc::new)?;
         let local_object_store_list: Arc<dyn ObjectStoreListExt> =
@@ -651,7 +671,7 @@ impl StateSnapshotReaderV1 {
         // Continues the bar the reference files were downloaded on, whose
         // totals already include these object files.
         let obj_progress = download_progress;
-        let obj_progress_clone = obj_progress.clone();
+        let obj_progress_insert = obj_progress.clone();
         let obj_progress_download = obj_progress.clone();
 
         let ret = Abortable::new(
@@ -668,23 +688,30 @@ impl StateSnapshotReaderV1 {
                             file_metadata,
                         )
                     };
-                // Downloads all object files from remote store to local store in parallel
-                // and inserts the objects into the AuthorityPerpetualTables
-                futures::stream::iter(input_files)
-                    .map(download_input_file)
-                    .boxed()
-                    .buffer_unordered(concurrency.into())
-                    .try_for_each(|(bytes, file_metadata, sha3_digest)| {
-                        let obj_progress = &obj_progress_clone;
-                        async move {
-                            database
-                                .insert_partition(file_metadata, bytes, &sha3_digest)
-                                .await?;
-                            obj_progress.file_done();
-                            Ok(())
-                        }
-                    })
-                    .await
+                // Each download is its own task, so that it keeps running while a
+                // partition is inserted. The next download starts before the insert.
+                // Dropping the set aborts the downloads.
+                let mut files_to_download = input_files.into_iter();
+                let mut downloads = JoinSet::new();
+                for file in files_to_download.by_ref().take(concurrency.get()) {
+                    downloads.spawn(download_input_file(file));
+                }
+                while let Some(task_result) = downloads.join_next().await {
+                    let (bytes, file_metadata, sha3_digest) = match task_result {
+                        Ok(download_result) => download_result?,
+                        Err(e) if e.is_panic() => std::panic::resume_unwind(e.into_panic()),
+                        // Returning Ok here would skip a partition.
+                        Err(e) => return Err(anyhow::Error::new(e).context("download cancelled")),
+                    };
+                    if let Some(file) = files_to_download.next() {
+                        downloads.spawn(download_input_file(file));
+                    }
+                    database
+                        .insert_partition(file_metadata, bytes, &sha3_digest)
+                        .await?;
+                    obj_progress_insert.file_done();
+                }
+                Ok(())
             },
             abort_registration,
         )
