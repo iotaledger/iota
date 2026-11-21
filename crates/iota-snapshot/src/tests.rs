@@ -24,7 +24,10 @@ use futures::{StreamExt, future::AbortHandle, stream::BoxStream};
 use indicatif::MultiProgress;
 use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use iota_core::{
-    authority::authority_store_tables::AuthorityPerpetualTables,
+    authority::{
+        AuthorityStore,
+        authority_store_tables::{AuthorityPerpetualTables, LiveObject},
+    },
     checkpoints::CheckpointStore,
     epoch_end_db_snapshot::EpochEndDbSnapshotRequest,
     global_state_hasher::GlobalStateHasher,
@@ -36,8 +39,8 @@ use iota_core::{
 };
 use iota_sdk_types::{
     Address, CheckpointCommitment, CheckpointContents, CheckpointDigest, CheckpointSummary,
-    EndOfEpochData, GasCostSummary, ObjectId, TransactionDigest, TransactionEffects,
-    TransactionEvents,
+    EndOfEpochData, GasCostSummary, ObjectId, Owner, TransactionDigest, TransactionEffects,
+    TransactionEvents, Version,
 };
 use iota_storage::object_store::{ObjectStoreGetExt, util::SUCCESS_MARKER};
 use iota_types::{
@@ -1626,13 +1629,29 @@ fn object_file_paths(remote_dir: &std::path::Path) -> Result<Vec<PathBuf>, anyho
     Ok(paths)
 }
 
-/// Writes a snapshot of several partitions, none of them without objects.
+/// Writes a snapshot of 60 immutable objects in several partitions, none of
+/// them without objects.
 async fn write_several_partitions_snapshot(
     tmp_dir: &std::path::Path,
 ) -> Result<WrittenSnapshot, anyhow::Error> {
+    write_several_partitions_snapshot_of(tmp_dir, |db| insert_keys(db, 60)).await
+}
+
+/// Like [`write_several_partitions_snapshot`], with the objects put into the
+/// source tables by `populate`.
+async fn write_several_partitions_snapshot_of(
+    tmp_dir: &std::path::Path,
+    populate: impl FnOnce(&AuthorityPerpetualTables) -> Result<(), anyhow::Error>,
+) -> Result<WrittenSnapshot, anyhow::Error> {
     /// Small enough that a few dozen test objects span several object files.
     const SMALL_FILE_MAX_BYTES: usize = 1024;
-    let snapshot = write_snapshot(tmp_dir, 60, FileCompression::Zstd, SMALL_FILE_MAX_BYTES).await?;
+    let snapshot = write_snapshot_of(
+        tmp_dir,
+        FileCompression::Zstd,
+        SMALL_FILE_MAX_BYTES,
+        populate,
+    )
+    .await?;
     assert!(
         snapshot.num_partitions >= 6,
         "the fixture must span several partitions, got {}",
@@ -2568,4 +2587,90 @@ fn a_failed_restore_stops_the_state_hash_computation() -> Result<(), anyhow::Err
         );
         Ok(())
     })
+}
+
+/// A partition whose objects do not match the expected checksum is an error,
+/// and nothing of it is written: no object and no live owned object marker.
+#[tokio::test]
+async fn a_partition_with_a_wrong_checksum_is_an_error_and_writes_nothing()
+-> Result<(), anyhow::Error> {
+    let dir = iota_common::tempdir();
+    let db = AuthorityPerpetualTables::open(&dir.path().join("db"), None);
+    let live_objects: Vec<_> = (0..3)
+        .map(|_| LiveObject {
+            object: Object::with_owner_for_testing(Address::from_u16(7)),
+            previous_transaction_checkpoint: Some(0),
+        })
+        .collect();
+    let mut hasher = Sha3_256::default();
+    for live_object in &live_objects {
+        hasher.update(live_object.object_reference().digest.bytes());
+    }
+    let checksum = hasher.finalize().digest;
+    let mut wrong_checksum = checksum;
+    wrong_checksum[0] ^= 1;
+
+    AuthorityStore::bulk_insert_live_objects(
+        &db,
+        live_objects.clone().into_iter(),
+        &wrong_checksum,
+    )
+    .expect_err("a wrong checksum must be an error");
+    assert_eq!(db.iter_live_object_set().count(), 0);
+    assert!(db.live_owned_object_markers_test_only()?.is_empty());
+
+    // The same objects with their checksum are written, so the error above
+    // comes from the checksum.
+    AuthorityStore::bulk_insert_live_objects(&db, live_objects.into_iter(), &checksum)?;
+    assert_eq!(db.iter_live_object_set().count(), 3);
+    assert_eq!(db.live_owned_object_markers_test_only()?.len(), 3);
+    Ok(())
+}
+
+/// The restore must give every live object that is not a child object a live
+/// owned object marker, and no other object one. Compares with what the test
+/// put into the source.
+#[tokio::test]
+async fn restored_live_owned_object_markers_match_the_source_objects() -> Result<(), anyhow::Error>
+{
+    let dir = iota_common::tempdir();
+    let mut expected_markers = HashSet::new();
+    let snapshot = write_several_partitions_snapshot_of(dir.path(), |db| {
+        let mut id = ObjectId::ZERO;
+        for i in 0..60u16 {
+            let (owner, gets_marker) = match i % 3 {
+                0 => (Owner::Immutable, true),
+                1 => (Owner::Address(Address::from_u16(7)), true),
+                // Owned by an object, so it is a child object.
+                _ => (Owner::Object(ObjectId::ZERO), false),
+            };
+            // Each object has a version of its own, so that a marker with a
+            // wrong version does not match.
+            let version = Version::from_u64(u64::from(i) + 1);
+            let object = Object::with_id_owner_version_for_testing(id, version, owner);
+            db.insert_store_object_v2_test_only(object.clone(), Some(0))?;
+            if gets_marker {
+                expected_markers.insert(object.object_ref());
+            }
+            id = id.next_lexicographical();
+        }
+        // Shared objects get a marker too.
+        for _ in 0..3 {
+            let object = Object::shared_for_testing();
+            db.insert_store_object_v2_test_only(object.clone(), Some(0))?;
+            expected_markers.insert(object.object_ref());
+        }
+        Ok(())
+    })
+    .await?;
+    let mut reader = snapshot.reader(snapshot.store(), 2).await?;
+    let restored_db = AuthorityPerpetualTables::open(&dir.path().join("restored_db"), None);
+    read_with_partial_hashes(&mut reader, &restored_db).await?;
+
+    let markers: HashSet<_> = restored_db
+        .live_owned_object_markers_test_only()?
+        .into_iter()
+        .collect();
+    assert_eq!(markers, expected_markers);
+    Ok(())
 }
