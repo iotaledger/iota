@@ -22,7 +22,10 @@ use iota_json_rpc_types::{
 };
 use iota_metrics::spawn_monitored_blocking;
 use iota_names::{
-    IotaNamesNft, NameRegistration, config::IotaNamesConfig, error::IotaNamesError, name::Name,
+    IotaNamesNft, NameRegistration,
+    config::{IotaNamesConfig, IotaNamesConfigExt},
+    error::IotaNamesError,
+    name::Name,
     registry::NameRecord,
 };
 use iota_open_rpc::Module;
@@ -459,7 +462,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
             return Ok(None);
         };
 
-        let name_record = NameRecord::try_from(object).map_err(Error::from)?;
+        let name_record = NameRecord::try_from(object.into_inner()).map_err(Error::from)?;
 
         let current_timestamp_ms = self
             .get_latest_checkpoint_timestamp_ms()
@@ -483,7 +486,8 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
                 return Err(Error::from(IotaNamesError::NameExpired).into());
             };
 
-            let parent_name_record = NameRecord::try_from(parent_object).map_err(Error::from)?;
+            let parent_name_record =
+                NameRecord::try_from(parent_object.into_inner()).map_err(Error::from)?;
 
             // For a leaf record, we check that:
             // 1. The parent is a valid parent for that leaf record
@@ -537,9 +541,9 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<ObjectsPage> {
         let query = IotaObjectResponseQuery {
-            filter: Some(IotaObjectDataFilter::StructType(
-                NameRegistration::struct_tag(self.iota_names_config.package_address),
-            )),
+            filter: Some(IotaObjectDataFilter::StructType(NameRegistration::type_(
+                self.iota_names_config.package_address,
+            ))),
             options,
         };
 
