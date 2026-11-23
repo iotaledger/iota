@@ -2,12 +2,21 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use eyre::eyre;
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_crypto::simple::SimpleKeypair;
-use iota_sdk_types::{Address, Identifier, SignatureScheme, StructTag, crypto::MultisigCommittee};
+use iota_sdk_types::{
+    Address, Identifier, SignatureScheme, StructTag, Transaction, UserSignature,
+    crypto::{Intent, IntentMessage, MultisigCommittee, PersonalMessage},
+};
 use move_core_types::runtime_value::{MoveStructLayout, MoveTypeLayout};
 use serde::{Deserialize, Serialize};
 
-use crate::{crypto::PublicKey, signature_scheme::MoveSignatureScheme};
+use crate::{
+    crypto::PublicKey,
+    error::{IotaError, IotaResult},
+    signature::{AuthenticatorTrait, VerifyParams},
+    signature_scheme::MoveSignatureScheme,
+};
 
 pub const PUBLIC_KEY_MODULE_NAME: Identifier = Identifier::from_static("public_key");
 pub const PUBLIC_KEY_STRUCT_NAME: Identifier = Identifier::from_static("PublicKey");
@@ -112,6 +121,130 @@ impl From<&SimpleKeypair> for MovePublicKey {
         Self::new(public_key.scheme(), public_key.as_ref().to_vec())
             .expect("SimpleKeypair always yields valid MovePublicKey")
     }
+}
+
+/// Verifies a built-in authenticator signature.
+///
+/// `signature_bytes` is a `UserSignature` in wire format (`flag || payload`)
+/// whose scheme must be the scheme of `public_key`. This format is consistent
+/// for all schemes: Ed25519, Secp256k1, Secp256r1, MultiSig, and Passkey.
+///
+/// `tx_data_bytes` is the BCS-encoded `Transaction` used to reconstruct
+/// the signing message as `IntentMessage(Intent::iota_transaction(), tx_data)`.
+///
+/// The multisig and passkey verification rules are taken from
+/// `protocol_config`.
+pub fn verify_builtin_authenticator_signature(
+    protocol_config: &ProtocolConfig,
+    public_key: &MovePublicKey,
+    signature_bytes: &[u8],
+    tx_data_bytes: &[u8],
+) -> IotaResult<()> {
+    let (signature, address) = parse_signature_of_public_key(public_key, signature_bytes)?;
+
+    // TODO: it would be nice to avoid this deserialization.
+    let tx_data: Transaction =
+        bcs::from_bytes(tx_data_bytes).map_err(|e| IotaError::InvalidSignature {
+            error: format!("Failed to deserialize transaction data: {e}"),
+        })?;
+    let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data);
+
+    let verify_params = VerifyParams::from_protocol_config(protocol_config);
+
+    signature.verify_claims(&intent_msg, address, &verify_params)
+}
+
+/// Verifies a signature, by `public_key`, of a personal message.
+///
+/// `signature_bytes` is a `UserSignature` in wire format (`flag || payload`)
+/// whose scheme must be the scheme of `public_key`: Ed25519, Secp256k1,
+/// Secp256r1 or Passkey. A MultiSig `public_key` is refused.
+///
+/// `message` is the content of the personal message. The signing message is
+/// `IntentMessage(Intent::personal_message(), PersonalMessage(message))`.
+///
+/// The verification rules taken from `protocol_config` apply only to MultiSig
+/// signatures, so they have no effect here. The parameter lets a later
+/// protocol version change the check.
+pub fn verify_personal_message_signature(
+    protocol_config: &ProtocolConfig,
+    public_key: &MovePublicKey,
+    signature_bytes: &[u8],
+    message: &[u8],
+) -> IotaResult<()> {
+    if public_key.scheme() == SignatureScheme::Multisig {
+        return Err(IotaError::InvalidSignature {
+            error: "A MultiSig public key is not accepted for a personal message".into(),
+        });
+    }
+
+    let (signature, address) = parse_signature_of_public_key(public_key, signature_bytes)?;
+
+    let intent_msg =
+        IntentMessage::new(Intent::personal_message(), PersonalMessage(message.into()));
+
+    let verify_params = VerifyParams::from_protocol_config(protocol_config);
+
+    signature.verify_claims(&intent_msg, address, &verify_params)
+}
+
+/// Parses `signature_bytes` as a `UserSignature` whose scheme is the scheme of
+/// `public_key`, and returns it with the address of `public_key`.
+///
+/// A signature of another scheme is refused before it is decoded.
+fn parse_signature_of_public_key(
+    public_key: &MovePublicKey,
+    signature_bytes: &[u8],
+) -> IotaResult<(UserSignature, Address)> {
+    let expected_scheme = public_key.scheme();
+
+    // The scheme is read from the flag byte, because decoding the whole
+    // signature costs more: for a Passkey signature it parses
+    // `clientDataJSON` as JSON.
+    let flag = signature_bytes
+        .first()
+        .ok_or_else(|| IotaError::InvalidSignature {
+            error: "Invalid signature bytes: missing signature scheme flag".into(),
+        })?;
+    let actual_scheme = match SignatureScheme::from_byte(*flag) {
+        Ok(
+            scheme @ (SignatureScheme::Ed25519
+            | SignatureScheme::Secp256k1
+            | SignatureScheme::Secp256r1
+            | SignatureScheme::Multisig
+            | SignatureScheme::PasskeyAuthenticator),
+        ) => scheme,
+        Ok(_) => {
+            return Err(IotaError::InvalidSignature {
+                error: "Unsupported signature type".into(),
+            });
+        }
+        Err(e) => {
+            return Err(IotaError::InvalidSignature {
+                error: format!("Invalid signature bytes: {e}"),
+            });
+        }
+    };
+    if actual_scheme != expected_scheme {
+        return Err(IotaError::InvalidSignature {
+            error: format!(
+                "Signature scheme mismatch: expected {expected_scheme:?}, got {actual_scheme:?}"
+            ),
+        });
+    }
+
+    let signature =
+        UserSignature::from_bytes(signature_bytes).map_err(|e| IotaError::InvalidSignature {
+            error: format!("Invalid signature bytes: {e}"),
+        })?;
+
+    let address = public_key
+        .address()
+        .map_err(|e| IotaError::InvalidSignature {
+            error: format!("Invalid public key bytes: {e}"),
+        })?;
+
+    Ok((signature, address))
 }
 
 #[cfg(test)]

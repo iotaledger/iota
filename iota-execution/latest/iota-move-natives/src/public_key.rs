@@ -5,8 +5,10 @@ use std::collections::VecDeque;
 
 use iota_sdk_types::{Address as IotaAddress, SignatureScheme, crypto::MultisigCommittee};
 use iota_types::{
-    account_abstraction::builtin_authenticator_functions, crypto::PublicKey,
-    public_key::MovePublicKey,
+    crypto::PublicKey,
+    public_key::{
+        MovePublicKey, verify_builtin_authenticator_signature, verify_personal_message_signature,
+    },
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
@@ -158,7 +160,7 @@ pub fn verify_personal_message_signature_impl(
 
     let protocol_config = get_extension!(context, ObjectRuntime)?.protocol_config;
 
-    let is_valid = builtin_authenticator_functions::verify_personal_message_signature(
+    let is_valid = verify_personal_message_signature(
         protocol_config,
         &public_key,
         &signature_ref,
@@ -216,7 +218,7 @@ pub fn verify_builtin_authenticator_signature_impl(
         .auth_context
         .borrow();
 
-    let is_valid = builtin_authenticator_functions::verify_builtin_authenticator_signature(
+    let is_valid = verify_builtin_authenticator_signature(
         protocol_config,
         &public_key,
         &signature.as_bytes_ref(),
