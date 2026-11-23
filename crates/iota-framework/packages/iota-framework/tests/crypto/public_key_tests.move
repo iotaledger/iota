@@ -106,7 +106,7 @@ fun create_empty_bytes_aborts() {
 // === Failure: unknown scheme flag ===
 
 #[test]
-#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
+#[expected_failure(abort_code = iota::public_key::EUnknownPublicKeyScheme)]
 fun create_unknown_scheme_flag_aborts() {
     // 0x04 is not a recognized scheme
     let scheme = signature_scheme::from_flag_for_testing(0x04);
@@ -114,7 +114,7 @@ fun create_unknown_scheme_flag_aborts() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
+#[expected_failure(abort_code = iota::public_key::EUnknownPublicKeyScheme)]
 fun create_scheme_flag_0x05_aborts() {
     // 0x05 is not a recognized scheme
     let scheme = signature_scheme::from_flag_for_testing(0x05);

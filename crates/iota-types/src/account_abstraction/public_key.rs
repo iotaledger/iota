@@ -46,7 +46,7 @@ impl MovePublicKey {
             return Err(eyre!("Public key bytes are empty"));
         }
         // Rejects the schemes that are not valid for account public keys, as
-        // `signature_scheme::from_flag` does in Move.
+        // the Move function's `EUnknownPublicKeyScheme` branch does.
         let move_scheme: MoveSignatureScheme = scheme.try_into()?;
         if scheme == SignatureScheme::Multisig {
             // Mirrors the `iota::multisig::multisig_validate_pubkey` native: a
