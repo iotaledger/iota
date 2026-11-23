@@ -1324,6 +1324,12 @@ impl Core {
                 .commits_until_leader_schedule_update(self.dag_state.clone());
 
             if commits_until_update == 0 {
+                // While fast sync is ongoing the schedule is updated only from the
+                // scores carried in fetched commits; scoring locally would use a
+                // scorer that is not rebuilt until fast sync completes.
+                if self.dag_state.read().fast_sync_ongoing() {
+                    break;
+                }
                 let last_commit_index = self.dag_state.read().last_commit_index();
 
                 tracing::info!(
@@ -2054,7 +2060,7 @@ mod test {
             BlockHeaderDigest, TestBlockHeader, TestBlockHeaderVersion, TransactionsCommitment,
             genesis_block_headers, genesis_blocks,
         },
-        commit::{CommitAPI, CommitDigest, CommitRange, CommitRef},
+        commit::{CommitAPI, CommitDigest, CommitInfo, CommitRange, CommitRef},
         leader_scoring::ReputationScores,
         storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
@@ -3224,6 +3230,84 @@ mod test {
         assert_eq!(
             restarted_table.bad_nodes, live_table.bad_nodes,
             "recovered bad_nodes must match the live node"
+        );
+    }
+
+    /// A node restarting during fast sync with a full schedule interval of
+    /// commits past the last stored `CommitInfo` does not update the leader
+    /// schedule itself, so the scores the next fetched commit carries are
+    /// applied.
+    #[tokio::test]
+    async fn test_restart_during_fast_sync_at_schedule_boundary_applies_fetched_scores() {
+        telemetry_subscribers::init_for_testing();
+        // `CoreTestFixture` updates the schedule every 10 commits.
+        const COMMITS_PER_SCHEDULE: CommitIndex = 10;
+        let (context, _) = Context::new_for_test(4);
+
+        // Fast sync stored commits 1..=20 without their headers, and the
+        // CommitInfo of the schedule update at commit 10. The scores of the
+        // update at commit 20 come with commit 21, which is not fetched yet.
+        let mut dag_builder = DagBuilder::new(Arc::new(context.clone()));
+        dag_builder.layers(1..=21).build();
+        let commits = dag_builder
+            .get_sub_dag_and_commits(1..=2 * COMMITS_PER_SCHEDULE)
+            .into_iter()
+            .map(|(_, commit)| commit)
+            .collect::<Vec<_>>();
+        let commit_info = CommitInfo {
+            committed_rounds: vec![0; 4],
+            reputation_scores: ReputationScores::new((1..=COMMITS_PER_SCHEDULE).into(), vec![1; 4]),
+        };
+        let update_commit_ref = commits[COMMITS_PER_SCHEDULE as usize - 1].reference();
+        let store: Arc<dyn Store> = Arc::new(MemStore::new());
+        store
+            .write(
+                WriteBatch {
+                    fast_commit_sync_flag: Some(true),
+                    ..Default::default()
+                }
+                .commits(commits)
+                .commit_info(vec![(update_commit_ref, commit_info)]),
+            )
+            .unwrap();
+
+        let fixture = CoreTestFixture::new(
+            context,
+            vec![1; 4],
+            AuthorityIndex::new_for_test(0),
+            false,
+            false,
+            Some(store),
+        )
+        .await;
+        assert_eq!(
+            fixture.core.dag_state.read().last_schedule_update_index(),
+            COMMITS_PER_SCHEDULE
+        );
+
+        // Fast sync fetches commit 21 and applies the scores it carries.
+        let scores_desc = [(3, 8), (2, 6), (1, 4), (0, 2)]
+            .map(|(index, score)| (AuthorityIndex::new_for_test(index), score));
+        fixture
+            .core
+            .leader_schedule
+            .update_from_commit_scores(
+                &mut fixture.core.dag_state.write(),
+                2 * COMMITS_PER_SCHEDULE + 1,
+                &scores_desc,
+            )
+            .unwrap();
+        assert_eq!(
+            fixture
+                .core
+                .leader_schedule
+                .leader_swap_table
+                .read()
+                .reputation_scores,
+            ReputationScores::new(
+                (COMMITS_PER_SCHEDULE + 1..=2 * COMMITS_PER_SCHEDULE).into(),
+                vec![2, 4, 6, 8]
+            )
         );
     }
 
