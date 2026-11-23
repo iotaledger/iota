@@ -144,10 +144,10 @@ Headers: {
     "content-length": "157",
     "content-type": "application/graphql-response+json",
     "vary": "origin, access-control-request-method, access-control-request-headers",
-    "x-iota-rpc-version": "1.37.0-testing-no-sha",
+    "x-iota-rpc-version": "1.38.0-testing-no-sha",
     "x-iota-sdk-graphql-client-version-min": "1.0.0",
 }
-Service version: 1.37.0-testing-no-sha
+Service version: 1.38.0-testing-no-sha
 Response: {
   "data": {
     "checkpoint": {
@@ -478,7 +478,7 @@ Response: {
   "data": {
     "serviceConfig": {
       "availableVersions": [
-        "1.37"
+        "1.38"
       ]
     }
   }
