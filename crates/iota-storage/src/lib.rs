@@ -147,6 +147,17 @@ pub fn read<R: Read + Send + 'static>(
     }
 }
 
+/// Returns an iterator over the blobs of a blob file, each decoded as `T`. The
+/// iterator ends as described on [`BlobIter`].
+///
+/// Each call of `next` blocks the thread: it reads, decompresses and decodes
+/// one blob, and a blob can be several GiB. In async code, use the iterator on
+/// a blocking thread, for example with `tokio::task::spawn_blocking`.
+///
+/// # Errors
+///
+/// Returns an error when the file header cannot be read or is not valid, or
+/// when its magic number is not `expected_magic`.
 pub fn make_iterator<T: DeserializeOwned, R: Read + Send + 'static>(
     expected_magic: u32,
     reader: R,
