@@ -80,7 +80,7 @@ async fn get_normalized_move_modules_by_package() -> Result<(), anyhow::Error> {
             "random",
             "signature_scheme",
             "smart_account",
-            "smart_account_builtin_auth",
+            "smart_account_builtin_authenticator",
             "system_admin_cap",
             "table",
             "table_vec",

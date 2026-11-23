@@ -1519,9 +1519,6 @@
                 "buffer_stake_for_protocol_upgrade_bps": {
                   "u64": "5000"
                 },
-                "builtin_move_authenticator_cost_base": {
-                  "u64": "0"
-                },
                 "check_zklogin_id_cost_base": null,
                 "check_zklogin_issuer_cost_base": null,
                 "checkpoint_rate_window_size": {
@@ -2193,6 +2190,9 @@
                 "public_key_to_iota_address_impl_cost_base": {
                   "u64": "341"
                 },
+                "public_key_verify_builtin_authenticator_signature_impl_cost_base": {
+                  "u64": "0"
+                },
                 "public_key_verify_personal_message_signature_impl_cost_base": {
                   "u64": "4225"
                 },
@@ -2223,7 +2223,7 @@
                 "scorer_version": {
                   "u16": "2"
                 },
-                "smart_account_builtin_auth_key_proof_message_cost_base": {
+                "smart_account_builtin_authenticator_key_proof_message_cost_base": {
                   "u64": "52"
                 },
                 "storage_gas_price": {

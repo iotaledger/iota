@@ -5,8 +5,10 @@ use std::collections::VecDeque;
 
 use iota_sdk_types::{Address as IotaAddress, SignatureScheme, crypto::MultisigCommittee};
 use iota_types::{
-    account_abstraction::{builtin_authenticator_functions, public_key::MovePublicKey},
     crypto::PublicKey,
+    move_public_key::{
+        MovePublicKey, verify_builtin_authenticator_signature, verify_personal_message_signature,
+    },
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
@@ -21,7 +23,10 @@ use move_vm_types::{
 };
 use smallvec::smallvec;
 
-use crate::{NativesCostTable, get_extension, object_runtime::ObjectRuntime, utils};
+use crate::{
+    NativesCostTable, authentication_context::AuthenticationContext, get_extension,
+    object_runtime::ObjectRuntime, utils,
+};
 
 /// Raised when the `(flag, raw_bytes)` pair does not form a public key whose
 /// address can be derived. `public_key::create` validates keys before calling
@@ -155,11 +160,69 @@ pub fn verify_personal_message_signature_impl(
 
     let protocol_config = get_extension!(context, ObjectRuntime)?.protocol_config;
 
-    let is_valid = builtin_authenticator_functions::verify_personal_message_signature(
+    let is_valid = verify_personal_message_signature(
         protocol_config,
         &public_key,
         &signature_ref,
         &message_ref,
+    )
+    .is_ok();
+
+    Ok(NativeResult::ok(
+        context.gas_used(),
+        smallvec![Value::bool(is_valid)],
+    ))
+}
+
+#[derive(Clone)]
+pub struct PublicKeyVerifyBuiltinAuthenticatorSignatureImplCostParams {
+    pub public_key_verify_builtin_authenticator_signature_impl_cost_base: Option<InternalGas>,
+}
+/// Implementation of the Move native function
+/// `public_key::verify_builtin_authenticator_signature_impl(public_key: &PublicKey,
+/// signature: &vector<u8>): bool`
+///
+/// Returns `true` if `signature` is a valid signature, by the public key, of
+/// the transaction being authenticated, using the signature scheme of the
+/// public key. Only the built-in authenticator calls it, while it
+/// authenticates a transaction: the transaction comes from the
+/// `AuthenticationContext`.
+///
+/// gas cost: public_key_verify_builtin_authenticator_signature_impl_cost_base
+pub fn verify_builtin_authenticator_signature_impl(
+    context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    mut args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    debug_assert!(ty_args.is_empty());
+    debug_assert!(args.len() == 2);
+
+    let cost_base = get_extension!(context, NativesCostTable)?
+        .public_key_verify_builtin_authenticator_signature_impl_cost_params
+        .public_key_verify_builtin_authenticator_signature_impl_cost_base
+        .ok_or_else(|| {
+            PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+                .with_message("Gas cost for built-in authenticators not available".to_string())
+        })?;
+    native_charge_gas_early_exit!(context, cost_base);
+
+    let signature = pop_arg!(args, VectorRef);
+    let public_key: MovePublicKey = utils::from_value(
+        pop_arg!(args, StructRef).read_ref()?,
+        &MovePublicKey::layout(),
+    )?;
+
+    let protocol_config = get_extension!(context, ObjectRuntime)?.protocol_config;
+
+    let auth_context = get_extension!(context, AuthenticationContext)?
+        .auth_context
+        .borrow();
+
+    let is_valid = verify_builtin_authenticator_signature(
+        protocol_config,
+        &public_key,
+        &signature.as_bytes_ref(),
+        auth_context.tx_data_bytes(),
     )
     .is_ok();
 

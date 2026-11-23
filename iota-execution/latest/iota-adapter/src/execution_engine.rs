@@ -2611,7 +2611,7 @@ mod checked {
             );
             builder.programmable_move_call(
                 ObjectId::FRAMEWORK,
-                Identifier::from_static("smart_account_builtin_auth"),
+                Identifier::from_static("smart_account_builtin_authenticator"),
                 Identifier::from_static("claim_account_v1"),
                 vec![],
                 vec![public_key],

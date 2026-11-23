@@ -57,7 +57,7 @@ fun id_mut(self: &mut TestAccount): &mut UID { &mut self.id }
 // === Authenticator function ref construction ===
 
 #[test]
-fun builtin_auth_function_ref_has_correct_fields() {
+fun builtin_authenticator_function_ref_has_correct_fields() {
     let ref = builtin_authenticator_functions::builtin_authenticator_function_ref_v1<TestAccount>();
 
     assert_eq(ref.package(), object::id_from_address(@0x2));
@@ -171,14 +171,14 @@ fun rotate_without_attach_aborts() {
     });
 }
 
-// === ensure_builtin_auth_and_public_key_together ===
+// === ensure_builtin_authenticator_and_public_key_together ===
 
 #[test]
 fun ensure_together_accepts_the_builtin_ref_with_a_public_key() {
     account_test_mut!(|account| {
         builtin_authenticator_functions::attach_public_key(account.id_mut(), ed25519_public_key());
 
-        builtin_authenticator_functions::ensure_builtin_auth_and_public_key_together(
+        builtin_authenticator_functions::ensure_builtin_authenticator_and_public_key_together(
             account.id(),
             &builtin_authenticator(),
         );
@@ -188,7 +188,7 @@ fun ensure_together_accepts_the_builtin_ref_with_a_public_key() {
 #[test]
 fun ensure_together_accepts_a_custom_ref_without_a_public_key() {
     account_test!(|account| {
-        builtin_authenticator_functions::ensure_builtin_auth_and_public_key_together(
+        builtin_authenticator_functions::ensure_builtin_authenticator_and_public_key_together(
             account.id(),
             &custom_authenticator(),
         );
@@ -196,10 +196,14 @@ fun ensure_together_accepts_a_custom_ref_without_a_public_key() {
 }
 
 #[test]
-#[expected_failure(abort_code = builtin_authenticator_functions::EBuiltinAuthWithoutPublicKey)]
+#[
+    expected_failure(
+        abort_code = builtin_authenticator_functions::EBuiltinAuthenticatorWithoutPublicKey,
+    ),
+]
 fun ensure_together_aborts_for_the_builtin_ref_without_a_public_key() {
     account_test!(|account| {
-        builtin_authenticator_functions::ensure_builtin_auth_and_public_key_together(
+        builtin_authenticator_functions::ensure_builtin_authenticator_and_public_key_together(
             account.id(),
             &builtin_authenticator(),
         );
@@ -207,12 +211,16 @@ fun ensure_together_aborts_for_the_builtin_ref_without_a_public_key() {
 }
 
 #[test]
-#[expected_failure(abort_code = builtin_authenticator_functions::EPublicKeyWithoutBuiltinAuth)]
+#[
+    expected_failure(
+        abort_code = builtin_authenticator_functions::EPublicKeyWithoutBuiltinAuthenticator,
+    ),
+]
 fun ensure_together_aborts_for_a_custom_ref_with_a_public_key() {
     account_test_mut!(|account| {
         builtin_authenticator_functions::attach_public_key(account.id_mut(), ed25519_public_key());
 
-        builtin_authenticator_functions::ensure_builtin_auth_and_public_key_together(
+        builtin_authenticator_functions::ensure_builtin_authenticator_and_public_key_together(
             account.id(),
             &custom_authenticator(),
         );

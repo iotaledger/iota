@@ -87,23 +87,23 @@ use crate::{
         AuthContextReplaceCostParams, AuthContextTxCommandsCostParams,
         AuthContextTxDataBytesCostParams, AuthContextTxInputsCostParams,
     },
-    builtin_authenticator_functions::BuiltinAuthenticatorFunctionsCostParams,
     crypto::{
         group_ops::{self, GroupOpsCostParams},
         poseidon::PoseidonBN254CostParams,
         zklogin,
     },
     public_key::{
-        PublicKeyToIotaAddressImplCostParams, PublicKeyVerifyPersonalMessageSignatureImplCostParams,
+        PublicKeyToIotaAddressImplCostParams,
+        PublicKeyVerifyBuiltinAuthenticatorSignatureImplCostParams,
+        PublicKeyVerifyPersonalMessageSignatureImplCostParams,
     },
-    smart_account_builtin_auth::SmartAccountBuiltinAuthKeyProofMessageCostParams,
+    smart_account_builtin_authenticator::SmartAccountBuiltinAuthenticatorKeyProofMessageCostParams,
     tx_context::TxContextDigestCostParams,
 };
 
 mod address;
 mod auth_context;
 pub mod authentication_context;
-mod builtin_authenticator_functions;
 mod config;
 mod crypto;
 mod dynamic_field;
@@ -113,7 +113,7 @@ pub mod object_runtime;
 pub mod protocol_config;
 mod public_key;
 mod random;
-mod smart_account_builtin_auth;
+mod smart_account_builtin_authenticator;
 pub mod test_scenario;
 mod test_utils;
 pub mod transaction_context;
@@ -222,11 +222,10 @@ pub struct NativesCostTable {
     pub public_key_to_iota_address_impl_cost_params: PublicKeyToIotaAddressImplCostParams,
     pub public_key_verify_personal_message_signature_impl_cost_params:
         PublicKeyVerifyPersonalMessageSignatureImplCostParams,
-    pub smart_account_builtin_auth_key_proof_message_cost_params:
-        SmartAccountBuiltinAuthKeyProofMessageCostParams,
-
-    // builtin_authenticator_functions
-    pub builtin_authenticator_functions_cost_params: BuiltinAuthenticatorFunctionsCostParams,
+    pub public_key_verify_builtin_authenticator_signature_impl_cost_params:
+        PublicKeyVerifyBuiltinAuthenticatorSignatureImplCostParams,
+    pub smart_account_builtin_authenticator_key_proof_message_cost_params:
+        SmartAccountBuiltinAuthenticatorKeyProofMessageCostParams,
 
     // groth16
     pub groth16_prepare_verifying_key_cost_params: Groth16PrepareVerifyingKeyCostParams,
@@ -415,17 +414,18 @@ impl NativesCostTable {
                         .public_key_verify_personal_message_signature_impl_sig_cost_per_byte_as_option()
                         .map(Into::into),
                 },
-            smart_account_builtin_auth_key_proof_message_cost_params:
-                SmartAccountBuiltinAuthKeyProofMessageCostParams {
-                    smart_account_builtin_auth_key_proof_message_cost_base: protocol_config
-                        .smart_account_builtin_auth_key_proof_message_cost_base_as_option()
+            public_key_verify_builtin_authenticator_signature_impl_cost_params:
+                PublicKeyVerifyBuiltinAuthenticatorSignatureImplCostParams {
+                    public_key_verify_builtin_authenticator_signature_impl_cost_base: protocol_config
+                        .public_key_verify_builtin_authenticator_signature_impl_cost_base_as_option()
                         .map(Into::into),
                 },
-            builtin_authenticator_functions_cost_params: BuiltinAuthenticatorFunctionsCostParams {
-                builtin_move_authenticator_cost_base: protocol_config
-                    .builtin_move_authenticator_cost_base_as_option()
-                    .map(Into::into),
-            },
+            smart_account_builtin_authenticator_key_proof_message_cost_params:
+                SmartAccountBuiltinAuthenticatorKeyProofMessageCostParams {
+                    smart_account_builtin_authenticator_key_proof_message_cost_base: protocol_config
+                        .smart_account_builtin_authenticator_key_proof_message_cost_base_as_option()
+                        .map(Into::into),
+                },
             // hash
             hash_blake2b256_cost_params: HashBlake2b256CostParams {
                 hash_blake2b256_cost_base: protocol_config.hash_blake2b256_cost_base().into(),
@@ -1195,19 +1195,19 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             make_native!(public_key::verify_personal_message_signature_impl),
         ),
         (
-            "smart_account_builtin_auth",
+            "public_key",
+            "verify_builtin_authenticator_signature_impl",
+            make_native!(public_key::verify_builtin_authenticator_signature_impl),
+        ),
+        (
+            "smart_account_builtin_authenticator",
             "key_proof_message",
-            make_native!(smart_account_builtin_auth::key_proof_message),
+            make_native!(smart_account_builtin_authenticator::key_proof_message),
         ),
         (
             "builtin_authenticator_functions",
             "borrow_account_uid",
             make_native!(object::borrow_uid),
-        ),
-        (
-            "builtin_authenticator_functions",
-            "verify_builtin_signature",
-            make_native!(builtin_authenticator_functions::verify_builtin_signature),
         ),
         ("event", "emit", make_native!(event::emit)),
         (

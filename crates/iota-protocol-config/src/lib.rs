@@ -1489,9 +1489,10 @@ pub struct ProtocolConfig {
     // Cost param for the Move native function `tx_context::native_tx_nonce(): vector<u8>`
     tx_context_tx_nonce_cost_base: Option<u64>,
     // Cost param for the Move native function
-    // `smart_account_builtin_auth::key_proof_message(chain_identifier: vector<u8>, account:
-    // address, new_account: bool, nonce: vector<u8>, valid_until_epoch: u64): vector<u8>`
-    smart_account_builtin_auth_key_proof_message_cost_base: Option<u64>,
+    // `smart_account_builtin_authenticator::key_proof_message(chain_identifier: vector<u8>,
+    // account: address, new_account: bool, nonce: vector<u8>, valid_until_epoch: u64):
+    // vector<u8>`
+    smart_account_builtin_authenticator_key_proof_message_cost_base: Option<u64>,
 
     // Types
     // Cost params for the Move native function `is_one_time_witness<T: drop>(_: &T): bool`
@@ -1904,8 +1905,12 @@ pub struct ProtocolConfig {
     /// are bound by `max_move_package_size` like any other package.
     max_move_system_package_size: Option<u64>,
 
-    // Cost params for built-in Move authenticators
-    builtin_move_authenticator_cost_base: Option<u64>,
+    // Cost param for the Move native function
+    // `public_key::verify_builtin_authenticator_signature_impl(public_key: &PublicKey,
+    // signature: &vector<u8>): bool`, the signature check of the built-in Move
+    // authenticators. It runs only while a built-in authenticator authenticates a
+    // transaction.
+    public_key_verify_builtin_authenticator_signature_impl_cost_base: Option<u64>,
 
     // Cost param for the Move native function `ed25519::ed25519_validate_pubkey(public_key:
     // &vector<u8>): bool`
@@ -2511,8 +2516,9 @@ impl ProtocolConfig {
                 "enable_builtin_move_authenticators requires enable_move_authentication to be set"
             );
             assert!(
-                self.builtin_move_authenticator_cost_base.is_some(),
-                "enable_builtin_move_authenticators requires builtin_move_authenticator_cost_base to be set"
+                self.public_key_verify_builtin_authenticator_signature_impl_cost_base
+                    .is_some(),
+                "enable_builtin_move_authenticators requires public_key_verify_builtin_authenticator_signature_impl_cost_base to be set"
             );
         }
         enable_builtin_move_authenticators
@@ -3059,7 +3065,7 @@ impl ProtocolConfig {
             tx_context_ids_created_cost_base: None,
             tx_context_replace_cost_base: None,
             tx_context_tx_nonce_cost_base: None,
-            smart_account_builtin_auth_key_proof_message_cost_base: None,
+            smart_account_builtin_authenticator_key_proof_message_cost_base: None,
 
             // `types` module
             // Cost params for the Move native function `is_one_time_witness<T: drop>(_: &T): bool`
@@ -3345,7 +3351,7 @@ impl ProtocolConfig {
             max_move_system_package_size: None,
 
             // Built-in Move authenticators
-            builtin_move_authenticator_cost_base: None,
+            public_key_verify_builtin_authenticator_signature_impl_cost_base: None,
 
             ed25519_ed25519_validate_pubkey_cost_base: None,
             ecdsa_k1_secp256k1_validate_pubkey_cost_base: None,
@@ -4217,7 +4223,7 @@ impl ProtocolConfig {
                     }
 
                     // Set the cost for built-in Move authenticators to 0 for now.
-                    cfg.builtin_move_authenticator_cost_base = Some(0);
+                    cfg.public_key_verify_builtin_authenticator_signature_impl_cost_base = Some(0);
 
                     cfg.ed25519_ed25519_validate_pubkey_cost_base = Some(170);
                     cfg.ecdsa_k1_secp256k1_validate_pubkey_cost_base = Some(176);
@@ -4231,7 +4237,7 @@ impl ProtocolConfig {
                         Some(2);
                     cfg.tx_context_chain_identifier_cost_base = Some(30);
                     cfg.tx_context_tx_nonce_cost_base = Some(30);
-                    cfg.smart_account_builtin_auth_key_proof_message_cost_base = Some(52);
+                    cfg.smart_account_builtin_authenticator_key_proof_message_cost_base = Some(52);
                 }
                 // Use this template when making changes:
                 //
