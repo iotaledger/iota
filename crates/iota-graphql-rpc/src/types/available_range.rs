@@ -61,8 +61,8 @@ impl LedgerView {
         let latest_checkpoint = Self::latest_checkpoint(conn)?;
 
         match watermarks.as_slice() {
-            [(min_available_cp, history_cp), (_, checkpoints_cp)]
-                if history_cp == checkpoints_cp =>
+            [(min_available_cp, max_history_cp), (_, max_checkpoints_cp)]
+                if max_history_cp == max_checkpoints_cp =>
             {
                 let retention_window_start_cp =
                     latest_checkpoint.saturating_sub(max_available_range);
