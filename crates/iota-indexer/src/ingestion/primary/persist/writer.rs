@@ -279,7 +279,7 @@ impl PrimaryWriter {
 
         self.state
             .execute_in_blocking_worker(move |this| {
-                this.update_watermarks(
+                this.update_committer_watermarks(
                     committer_tables,
                     committer_upper_bound,
                     committer_lower_bound,

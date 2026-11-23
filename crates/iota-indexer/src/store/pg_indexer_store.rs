@@ -1526,7 +1526,7 @@ impl PgIndexerStore {
 
         transactional_blocking_with_retry!(
             &self.blocking_cp,
-            |conn| Self::upsert_watermarks(conn, &upper_bound_updates),
+            |conn| Self::upsert_watermarks_upper_bound(conn, &upper_bound_updates),
             PG_DB_COMMIT_SLEEP_DURATION
         )
         .tap_ok(|_| {
@@ -1551,7 +1551,7 @@ impl PgIndexerStore {
     /// # Errors
     ///
     /// Fails if the update on the database fails.
-    pub(crate) fn update_watermarks<Tables>(
+    pub(crate) fn update_committer_watermarks<Tables>(
         &self,
         tables: Tables,
         upper_bound: WatermarkUpperBounds,
@@ -1605,7 +1605,7 @@ impl PgIndexerStore {
                 .map_err(IndexerError::from)
                 .context("Failed to update watermarks lower bound after a gap")?;
 
-                Self::upsert_watermarks(conn, &updates)
+                Self::upsert_watermarks_upper_bound(conn, &updates)
             },
             PG_DB_COMMIT_SLEEP_DURATION
         )
@@ -1627,7 +1627,7 @@ impl PgIndexerStore {
     /// # Errors
     ///
     /// Fails if the upsert on the database fails.
-    fn upsert_watermarks(
+    fn upsert_watermarks_upper_bound(
         conn: &mut PgConnection,
         rows: &[StoredWatermark],
     ) -> Result<(), IndexerError> {
