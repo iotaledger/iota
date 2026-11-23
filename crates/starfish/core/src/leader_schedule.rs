@@ -139,13 +139,13 @@ impl LeaderSchedule {
         // the last commit stays within one window of the last `CommitInfo`.
         // A recovered backlog exceeding the window should therefore never
         // occur — but it is a recoverable state, so recovering is preferred
-        // over panicking: returning 0 forces an immediate schedule update,
+        // over panicking: returning 0 makes a schedule update due at once,
         // which rebuilds the schedule from the backlog's last full window.
         if commit_count > self.num_commits_per_schedule {
             tracing::warn!(
                 "Recovered scoring backlog ({commit_count} commits) exceeds the schedule \
                  window ({}): commits and CommitInfo are inconsistent on disk, which current \
-                 persistence never produces. Forcing an immediate schedule update.",
+                 persistence never produces. An immediate schedule update is due.",
                 self.num_commits_per_schedule,
             );
             return 0;
