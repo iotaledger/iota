@@ -1,5 +1,6 @@
 // TEMP benchmark: per-thread heap and CPU counters around one execution. The
-// test binary installs `CountingAlloc` as its global allocator. Not for commit.
+// PTB limits benchmark program (`ptb_limits_validator` in network-benchmark)
+// installs `CountingAlloc` as its global allocator. Not for commit.
 
 use std::{
     alloc::{GlobalAlloc, Layout, System},
@@ -7,7 +8,7 @@ use std::{
 };
 
 /// Whether the `LOAD_*` lines are printed: only when `STRESS_LOAD_PROBE` is
-/// set, as the stress kit sets it for its test. Nodes of a network benchmark
+/// set, as the PTB limits suite sets it for its program. Nodes of a network benchmark
 /// built from the same commit run without them.
 pub fn enabled() -> bool {
     static ENABLED: std::sync::LazyLock<bool> =

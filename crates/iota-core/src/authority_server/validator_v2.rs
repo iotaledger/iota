@@ -802,17 +802,6 @@ impl ValidatorService {
         // `check_consensus_transaction_size()` weighs one: the dry run has
         // already run, and with no soft lock kept, the in-flight check does
         // not stop a resend.
-        if let (true, iota_types::messages_consensus::ConsensusTransactionKind::UserTransactionV1(attested)) =
-            (crate::load_probe::enabled(), &consensus_tx.kind)
-        {
-            eprintln!(
-                "LOAD_SIZE digest={} tx_bytes={} consensus_bytes={} attested_objects={}",
-                attested.transaction.digest(),
-                bcs::serialized_size(&attested.transaction).unwrap_or(0),
-                bcs::serialized_size(&consensus_tx).unwrap_or(0),
-                attested.attestation.as_ref().map_or(0, |a| a.object_versions().len()),
-            );
-        }
         if let Err(error) =
             check_consensus_transaction_size(&consensus_tx, epoch_store.protocol_config())
         {
