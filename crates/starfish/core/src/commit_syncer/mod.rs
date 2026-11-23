@@ -55,7 +55,7 @@ use tracing::{info, warn};
 use crate::{
     BlockRef, CommitConsumerMonitor, CommitIndex, Transaction, VerifiedBlockHeader,
     block_header::{
-        BlockHeaderAPI, CommitmentVerifiedTransactions, GENESIS_ROUND, SignedBlockHeader, Slot,
+        BlockHeaderAPI, CommitmentVerifiedTransactions, GENESIS_ROUND, SignedBlockHeader,
         TransactionsCommitment,
     },
     block_verifier::{BlockVerifier, serialized_transactions_size_limit},
@@ -441,13 +441,9 @@ pub(crate) fn verify_commits(
     Ok((trusted_commits, verified_voting_headers))
 }
 
-/// Verifies each payload against the transactions commitment in its ref and
-/// returns the payloads keyed by transaction reference. Each ref must come
-/// from a verified header or a certified commit, so its commitment is signed
-/// by its author.
-///
-/// Records each rejection through the fault classifier; a payload that
-/// matches its commitment but fails to parse is also charged to its author.
+/// Verifies each payload of a committed block against the transactions
+/// commitment in its ref and returns the payloads keyed by transaction
+/// reference. Records each rejection against `peer`.
 pub(crate) fn verify_transactions_commitments(
     context: &Arc<Context>,
     misbehavior_store: &MisbehaviorStore,
@@ -466,13 +462,7 @@ pub(crate) fn verify_transactions_commitments(
             transaction_ref,
             inner_serialized_transactions,
         )
-        .inspect_err(|e| {
-            misbehavior_store.record_fault(
-                e,
-                Some(Slot::new(transaction_ref.round, transaction_ref.author)),
-                [peer],
-            )
-        })?;
+        .inspect_err(|e| misbehavior_store.record_fault(e, None, [peer]))?;
         verified_transactions_map.insert(transaction_ref, verified_transactions);
     }
 
@@ -524,14 +514,11 @@ fn verify_transactions_commitment(
         });
     }
 
-    // Step 2: Deserialize the actual transactions vector.
-    let transactions: Vec<Transaction> =
-        bcs::from_bytes(&inner_serialized_transactions).map_err(|error| {
-            ConsensusError::MalformedTransactionsMatchingCommitment {
-                transaction_ref,
-                error,
-            }
-        })?;
+    // Step 2: Deserialize the actual transactions vector. A quorum parsed this
+    // committed payload, so this fails only with Byzantine stake beyond the
+    // fault model.
+    let transactions: Vec<Transaction> = bcs::from_bytes(&inner_serialized_transactions)
+        .map_err(ConsensusError::MalformedTransactions)?;
 
     // Step 3: Create a CommitmentVerifiedTransactions instance.
     Ok(CommitmentVerifiedTransactions::new(
@@ -1393,7 +1380,7 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
-    async fn verify_transactions_commitments_charges_author_for_unparsable_payload() {
+    async fn verify_transactions_commitments_charges_peer_for_unparsable_payload() {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let misbehavior_store = MisbehaviorStore::new(&context);
@@ -1421,10 +1408,10 @@ pub(crate) mod tests {
         );
         assert!(matches!(
             result,
-            Err(ConsensusError::MalformedTransactionsMatchingCommitment { .. })
+            Err(ConsensusError::MalformedTransactions(_))
         ));
         let counts = misbehavior_store.snapshot_totals();
-        assert_eq!(counts[author.value()].as_v2().faulty_blocks_provable, 1);
+        assert_eq!(counts[author.value()].as_v2().faulty_blocks_provable, 0);
         assert_eq!(counts[peer.value()].as_v2().faulty_blocks_unprovable, 1);
     }
 

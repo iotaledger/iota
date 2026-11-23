@@ -456,14 +456,6 @@ pub(crate) enum ConsensusError {
 
     #[error("Peer {peer} sent a commit-sync response message with more than {limit} entries")]
     TooManyCommitSyncEntries { peer: AuthorityIndex, limit: usize },
-
-    #[error(
-        "Transactions matching the commitment in {transaction_ref} fail to deserialize: {error}"
-    )]
-    MalformedTransactionsMatchingCommitment {
-        transaction_ref: TransactionRef,
-        error: bcs::Error,
-    },
 }
 
 impl ConsensusError {
