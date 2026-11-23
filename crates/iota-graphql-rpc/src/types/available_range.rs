@@ -91,7 +91,7 @@ impl LedgerView {
         }
     }
 
-    /// Returns the sequence number of the latest checkpoint in the database,
+    /// Returns the sequence number of the latest fully indexed checkpoint in the database,
     /// or 0 if the database has no checkpoints.
     ///
     /// # Errors
