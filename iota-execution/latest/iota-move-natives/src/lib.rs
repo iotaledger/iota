@@ -97,6 +97,7 @@ use crate::{
         PublicKeyVerifyBuiltinAuthenticatorSignatureImplCostParams,
         PublicKeyVerifyPersonalMessageSignatureImplCostParams,
     },
+    smart_account_builtin_authenticator::SmartAccountBuiltinAuthenticatorKeyProofMessageCostParams,
     tx_context::TxContextDigestCostParams,
 };
 
@@ -112,6 +113,7 @@ pub mod object_runtime;
 pub mod protocol_config;
 mod public_key;
 mod random;
+mod smart_account_builtin_authenticator;
 pub mod test_scenario;
 mod test_utils;
 pub mod transaction_context;
@@ -222,6 +224,8 @@ pub struct NativesCostTable {
         PublicKeyVerifyPersonalMessageSignatureImplCostParams,
     pub public_key_verify_builtin_authenticator_signature_impl_cost_params:
         PublicKeyVerifyBuiltinAuthenticatorSignatureImplCostParams,
+    pub smart_account_builtin_authenticator_key_proof_message_cost_params:
+        SmartAccountBuiltinAuthenticatorKeyProofMessageCostParams,
 
     // groth16
     pub groth16_prepare_verifying_key_cost_params: Groth16PrepareVerifyingKeyCostParams,
@@ -414,6 +418,12 @@ impl NativesCostTable {
                 PublicKeyVerifyBuiltinAuthenticatorSignatureImplCostParams {
                     public_key_verify_builtin_authenticator_signature_impl_cost_base: protocol_config
                         .public_key_verify_builtin_authenticator_signature_impl_cost_base_as_option()
+                        .map(Into::into),
+                },
+            smart_account_builtin_authenticator_key_proof_message_cost_params:
+                SmartAccountBuiltinAuthenticatorKeyProofMessageCostParams {
+                    smart_account_builtin_authenticator_key_proof_message_cost_base: protocol_config
+                        .smart_account_builtin_authenticator_key_proof_message_cost_base_as_option()
                         .map(Into::into),
                 },
             // hash
@@ -1188,6 +1198,11 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             "public_key",
             "verify_builtin_authenticator_signature_impl",
             make_native!(public_key::verify_builtin_authenticator_signature_impl),
+        ),
+        (
+            "smart_account_builtin_authenticator",
+            "key_proof_message",
+            make_native!(smart_account_builtin_authenticator::key_proof_message),
         ),
         (
             "builtin_authenticator_functions",

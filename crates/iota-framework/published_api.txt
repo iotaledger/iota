@@ -2593,6 +2593,9 @@ check_builtin_authenticators_enabled
 borrow_account_uid
 	fun
 	0x2::builtin_authenticator_functions
+claim_address
+	public(package) fun
+	0x2::claim
 Clock
 	public struct
 	0x2::clock
@@ -3820,6 +3823,99 @@ generate_u8_in_range
 shuffle
 	public fun
 	0x2::random
+SmartAccount
+	public struct
+	0x2::smart_account
+SmartAccountBuilder
+	public struct
+	0x2::smart_account
+builder_v1
+	public fun
+	0x2::smart_account
+with_field
+	public fun
+	0x2::smart_account
+build_v1
+	public fun
+	0x2::smart_account
+account_address
+	public fun
+	0x2::smart_account
+has_field
+	public fun
+	0x2::smart_account
+borrow_field
+	public fun
+	0x2::smart_account
+borrow_auth_function_ref_v1
+	public fun
+	0x2::smart_account
+ensure_tx_sender_is_smart_account
+	public fun
+	0x2::smart_account
+add_field
+	public fun
+	0x2::smart_account
+remove_field
+	public fun
+	0x2::smart_account
+borrow_field_mut
+	public fun
+	0x2::smart_account
+rotate_field
+	public fun
+	0x2::smart_account
+rotate_auth_function_ref_v1
+	public fun
+	0x2::smart_account
+claim_builder_v1
+	public(package) fun
+	0x2::smart_account
+account_uid_mut
+	public(package) fun
+	0x2::smart_account
+uid
+	public(package) fun
+	0x2::smart_account
+uid_mut
+	public(package) fun
+	0x2::smart_account
+ensure_smart_accounts_enabled
+	fun
+	0x2::smart_account
+builder_v1
+	public fun
+	0x2::smart_account_builtin_authenticator
+has_builtin_authenticator
+	public fun
+	0x2::smart_account_builtin_authenticator
+has_public_key
+	public fun
+	0x2::smart_account_builtin_authenticator
+borrow_public_key
+	public fun
+	0x2::smart_account_builtin_authenticator
+rotate_to_builtin_authenticator_v1
+	public fun
+	0x2::smart_account_builtin_authenticator
+rotate_to_custom_authenticator_v1
+	public fun
+	0x2::smart_account_builtin_authenticator
+rotate_public_key
+	public fun
+	0x2::smart_account_builtin_authenticator
+claim_account_v1
+	fun
+	0x2::smart_account_builtin_authenticator
+with_public_key
+	fun
+	0x2::smart_account_builtin_authenticator
+verify_key_proof
+	fun
+	0x2::smart_account_builtin_authenticator
+key_proof_message
+	fun
+	0x2::smart_account_builtin_authenticator
 IotaSystemAdminCap
 	public struct
 	0x2::system_admin_cap
