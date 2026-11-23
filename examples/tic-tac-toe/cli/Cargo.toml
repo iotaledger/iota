@@ -19,11 +19,11 @@ time = "=0.3.47"
 tokio = { version = "1.49.0", features = ["time"] }
 
 # internal dependencies
-iota-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "7e5b62af7b49b02cd15cdfa2d0bccdc228091af4", package = "iota-sdk-grpc-client", features = ["unstable"] }
+iota-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "85b202416daf368f7c95f658ee104e75b4ace870", package = "iota-sdk-grpc-client", features = ["unstable"] }
 iota-keys = { path = "../../../crates/iota-keys" }
 iota-sdk = { path = "../../../crates/iota-sdk" }
-iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "7e5b62af7b49b02cd15cdfa2d0bccdc228091af4", default-features = false, features = ["unstable"] }
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "7e5b62af7b49b02cd15cdfa2d0bccdc228091af4", features = ["unstable"] }
+iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "85b202416daf368f7c95f658ee104e75b4ace870", default-features = false, features = ["unstable"] }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "85b202416daf368f7c95f658ee104e75b4ace870", features = ["unstable"] }
 iota-types = { path = "../../../crates/iota-types" }
 
 [package.metadata.cargo-machete]

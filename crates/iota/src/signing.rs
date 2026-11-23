@@ -3,18 +3,20 @@
 
 use std::fmt;
 
-use anyhow::{Result, bail};
-use iota_json_rpc_types::IotaObjectDataOptions;
+use anyhow::{Result, anyhow, bail, ensure};
+use iota_json_rpc_types::{
+    IotaGetPastObjectRequest, IotaObjectData, IotaObjectDataOptions, IotaRawData,
+};
 use iota_keys::keystore::{AccountKeystore, StoredKey};
-use iota_ledger::Ledger;
-use iota_ledger_signer::LedgerSigner;
-use iota_sdk::wallet_context::WalletContext;
+use iota_sdk::{IotaClient, wallet_context::WalletContext};
+use iota_sdk_ledger::{Ledger, LedgerSigner};
+use iota_sdk_transaction_builder::TransactionSigner;
 use iota_sdk_types::{
-    Address, MoveAuthenticatorV1, ObjectId, Owner, SharedObjectReference, Transaction, TypeTag,
-    UserSignature, Version,
+    Address, MoveAuthenticatorV1, MoveStruct, Object, ObjectData, ObjectId, Owner,
+    SharedObjectReference, Transaction, TypeTag, UserSignature, Version,
     crypto::{Intent, SimpleSignature},
 };
-use iota_types::transaction::CallArg;
+use iota_types::transaction::{CallArg, InputObjectKind, TransactionAPI};
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -129,15 +131,9 @@ pub(crate) async fn sign_transaction(
                         );
                     };
 
-                    let signer =
-                        LedgerSigner::new_with_default(derivation_path.clone(), Some(iota_client))?;
-                    // pass the transaction sender to the signer to ensure the correct
-                    // key is used
-                    Ok(signer
-                        .sign_transaction(tx, signer_address)
-                        .await
-                        .map(|s| s.signature)?
-                        .into())
+                    let signer = ledger_signer(derivation_path, signer_address).await?;
+                    let objects = load_clear_signing_objects(&iota_client, tx).await?;
+                    Ok(signer.sign_with_objects(tx, &objects).await?)
                 }
                 ExternalKeySource::Unknown(name) => {
                     bail!("External signing is not supported for source: {name}")
@@ -147,7 +143,7 @@ pub(crate) async fn sign_transaction(
     }
 }
 
-pub(crate) fn sign_secure<T>(
+pub(crate) async fn sign_secure<T>(
     keystore: &impl AccountKeystore,
     address: &Address,
     msg: &T,
@@ -168,28 +164,114 @@ where
             derivation_path,
             source,
             ..
-        } => {
-            match ExternalKeySource::from(source.as_str()) {
-                ExternalKeySource::Ledger => {
-                    let Some(derivation_path) = derivation_path else {
-                        bail!(
-                            "Derivation path is required for Ledger signing. Please specify it in the keystore."
-                        );
-                    };
+        } => match ExternalKeySource::from(source.as_str()) {
+            ExternalKeySource::Ledger => {
+                let Some(derivation_path) = derivation_path else {
+                    bail!(
+                        "Derivation path is required for Ledger signing. Please specify it in the keystore."
+                    );
+                };
 
-                    let ledger = Ledger::new_with_default()?;
-                    // Pass the expected address to the ledger to ensure the signature is for
-                    // the correct address.
-                    Ok(ledger
-                        .sign_intent(derivation_path, address, intent, &msg, vec![])?
-                        .signature)
-                }
-                ExternalKeySource::Unknown(name) => {
-                    bail!("External signing is not supported for source: {name}")
+                match ledger_signer(derivation_path, address)
+                    .await?
+                    .sign_intent(intent, msg)
+                    .await?
+                {
+                    UserSignature::Simple(signature) => Ok(signature),
+                    signature => {
+                        bail!(
+                            "expected a simple signature from the Ledger device, got {signature:?}"
+                        )
+                    }
                 }
             }
-        }
+            ExternalKeySource::Unknown(name) => {
+                bail!("External signing is not supported for source: {name}")
+            }
+        },
     }
+}
+
+/// Connect to the Speculos emulator at `127.0.0.1:9999` when `LEDGER_SIMULATOR`
+/// is set, and to the first Ledger device attached over USB otherwise.
+pub(crate) fn connect_ledger() -> Result<Ledger> {
+    Ok(if std::env::var("LEDGER_SIMULATOR").is_ok() {
+        Ledger::new_speculos("127.0.0.1", 9999)
+    } else {
+        Ledger::new_native_hid()?
+    })
+}
+
+/// Convert a keystore derivation path to the type the Ledger API takes.
+pub(crate) fn ledger_path(path: &bip32::DerivationPath) -> Result<iota_sdk_crypto::DerivationPath> {
+    Ok(path.to_string().parse()?)
+}
+
+/// Connect to the Ledger key at `derivation_path`, failing unless its address
+/// is `address`.
+async fn ledger_signer(
+    derivation_path: &bip32::DerivationPath,
+    address: &Address,
+) -> Result<LedgerSigner> {
+    let signer = LedgerSigner::new(connect_ledger()?, ledger_path(derivation_path)?).await?;
+    ensure!(
+        signer.address() == *address,
+        "the Ledger key at {derivation_path} has address {}, not {address}; connect the correct Ledger device or select the correct derivation path",
+        signer.address()
+    );
+    Ok(signer)
+}
+
+/// Load the gas coins and owned or immutable inputs of `transaction` at the
+/// versions it references, which the Ledger device needs to show what the
+/// transaction does.
+async fn load_clear_signing_objects(
+    client: &IotaClient,
+    transaction: &Transaction,
+) -> Result<Vec<Object>> {
+    let requests = transaction
+        .input_objects()?
+        .into_iter()
+        .filter_map(|input| match input {
+            InputObjectKind::ImmOrOwnedMoveObject(reference) => Some(IotaGetPastObjectRequest {
+                object_id: reference.object_id,
+                version: reference.version,
+            }),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if requests.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    client
+        .read_api()
+        .try_multi_get_parsed_past_object(requests, IotaObjectDataOptions::bcs_lossless())
+        .await?
+        .into_iter()
+        .map(|response| object_from_data(response.into_object()?))
+        .collect()
+}
+
+/// Rebuild a Move object from its JSON-RPC representation.
+fn object_from_data(data: IotaObjectData) -> Result<Object> {
+    let object_id = data.object_id;
+    let missing = |field: &str| anyhow!("the RPC response for object {object_id} has no {field}");
+    let IotaRawData::MoveObject(raw) = data.bcs.ok_or_else(|| missing("BCS"))? else {
+        bail!("object {object_id} is not a Move object");
+    };
+    Ok(Object::new(
+        ObjectData::Struct(MoveStruct::new(
+            raw.struct_tag.into(),
+            data.version,
+            raw.bcs_bytes,
+        )?),
+        data.owner.ok_or_else(|| missing("owner"))?,
+        data.previous_transaction
+            .ok_or_else(|| missing("previous transaction"))?,
+        data.storage_rebate
+            .ok_or_else(|| missing("storage rebate"))?,
+    ))
 }
 
 pub(crate) async fn get_shared_object_version(
@@ -215,5 +297,40 @@ pub(crate) async fn get_shared_object_version(
         Ok(initial_shared_version)
     } else {
         bail!("signer_address {signer_address} is not a shared object")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_json_rpc_types::{IotaObjectData, IotaObjectDataOptions};
+    use iota_sdk_types::{
+        Address, MoveStruct, Object, ObjectData, ObjectId, Owner, TransactionDigest, Version,
+    };
+    use iota_types::{gas_coin::GasCoin, object::MoveStructExt};
+
+    use super::object_from_data;
+
+    #[test]
+    fn rebuilds_an_object_with_its_digest() {
+        let object = Object::new(
+            ObjectData::Struct(MoveStruct::new_gas_coin(
+                Version::from_u64(5),
+                ObjectId::new([1; ObjectId::LENGTH]),
+                1_000,
+            )),
+            Owner::Address(Address::new([2; Address::LENGTH])),
+            TransactionDigest::new([3; TransactionDigest::LENGTH]),
+            42,
+        );
+        let data = IotaObjectData::new(
+            object.object_ref(),
+            object.clone().into(),
+            GasCoin::layout(),
+            &IotaObjectDataOptions::bcs_lossless(),
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(object_from_data(data).unwrap().digest(), object.digest());
     }
 }
