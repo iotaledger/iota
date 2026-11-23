@@ -30,10 +30,10 @@ use crate::{
             builtin_authenticator_function_ref_v1, is_builtin_authenticator_function_ref,
             verify_builtin_signature, verify_personal_message_signature,
         },
-        public_key::MovePublicKey,
     },
     crypto::PublicKey,
     error::IotaError,
+    public_key::MovePublicKey,
     transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
 };
 

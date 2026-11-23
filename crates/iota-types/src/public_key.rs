@@ -7,7 +7,7 @@ use iota_sdk_types::{Address, Identifier, SignatureScheme, StructTag, crypto::Mu
 use move_core_types::runtime_value::{MoveStructLayout, MoveTypeLayout};
 use serde::{Deserialize, Serialize};
 
-use crate::{account_abstraction::signature_scheme::MoveSignatureScheme, crypto::PublicKey};
+use crate::{crypto::PublicKey, signature_scheme::MoveSignatureScheme};
 
 pub const PUBLIC_KEY_MODULE_NAME: Identifier = Identifier::from_static("public_key");
 pub const PUBLIC_KEY_STRUCT_NAME: Identifier = Identifier::from_static("PublicKey");
@@ -115,5 +115,5 @@ impl From<&SimpleKeypair> for MovePublicKey {
 }
 
 #[cfg(test)]
-#[path = "../unit_tests/account_abstraction/public_key_tests.rs"]
+#[path = "unit_tests/public_key_tests.rs"]
 mod public_key_tests;

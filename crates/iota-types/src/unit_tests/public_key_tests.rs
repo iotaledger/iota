@@ -11,7 +11,7 @@ use iota_sdk_types::{
 };
 use rand::{SeedableRng, rngs::StdRng};
 
-use crate::{account_abstraction::public_key::MovePublicKey, crypto::PublicKey};
+use crate::{crypto::PublicKey, public_key::MovePublicKey};
 
 // === scheme() ===
 

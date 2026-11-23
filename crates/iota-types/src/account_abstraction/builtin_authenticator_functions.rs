@@ -10,10 +10,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     IOTA_FRAMEWORK_PACKAGE_ID,
-    account_abstraction::{
-        authenticator_function::AuthenticatorFunctionRefV1, public_key::MovePublicKey,
-    },
+    account_abstraction::authenticator_function::AuthenticatorFunctionRefV1,
     error::{IotaError, IotaResult},
+    public_key::MovePublicKey,
     signature::{AuthenticatorTrait, VerifyParams},
 };
 

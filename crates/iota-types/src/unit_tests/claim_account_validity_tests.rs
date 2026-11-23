@@ -12,9 +12,9 @@ use iota_sdk_types::{
 };
 
 use crate::{
-    account_abstraction::public_key::MovePublicKey,
     crypto::{AccountPrivateKey, get_key_pair},
     error::UserInputError,
+    public_key::MovePublicKey,
     transaction::{TransactionAPI, TransactionKind},
 };
 
