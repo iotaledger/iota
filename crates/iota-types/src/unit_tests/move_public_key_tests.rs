@@ -24,7 +24,7 @@ use rand::{SeedableRng, rngs::StdRng};
 use crate::{
     crypto::PublicKey,
     error::IotaError,
-    public_key::{
+    move_public_key::{
         MovePublicKey, verify_builtin_authenticator_signature, verify_personal_message_signature,
     },
     transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},

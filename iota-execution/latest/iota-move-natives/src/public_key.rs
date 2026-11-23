@@ -6,7 +6,7 @@ use std::collections::VecDeque;
 use iota_sdk_types::{Address as IotaAddress, SignatureScheme, crypto::MultisigCommittee};
 use iota_types::{
     crypto::PublicKey,
-    public_key::{
+    move_public_key::{
         MovePublicKey, verify_builtin_authenticator_signature, verify_personal_message_signature,
     },
 };

@@ -45,9 +45,9 @@ use crate::{
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     messages_checkpoint::CheckpointTimestamp,
     move_authenticator::MoveAuthenticatorExt,
+    move_public_key::MovePublicKey,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    public_key::MovePublicKey,
     signature::VerifyParams,
     signature_verification::verify_sender_signed_data_message_signatures,
 };

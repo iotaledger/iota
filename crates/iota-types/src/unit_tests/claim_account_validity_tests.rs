@@ -14,7 +14,7 @@ use iota_sdk_types::{
 use crate::{
     crypto::{AccountPrivateKey, get_key_pair},
     error::UserInputError,
-    public_key::MovePublicKey,
+    move_public_key::MovePublicKey,
     transaction::{TransactionAPI, TransactionKind},
 };
 

@@ -496,7 +496,7 @@ async fn test_claim_account_at_the_gas_floor_succeeds() {
         },
     };
     use iota_types::{
-        public_key::MovePublicKey,
+        move_public_key::MovePublicKey,
         transaction::{TransactionAPI, TransactionEnvelope, claim_account_min_gas_budget},
     };
     use rand::{SeedableRng, rngs::StdRng};

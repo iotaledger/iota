@@ -14,8 +14,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     crypto::PublicKey,
     error::{IotaError, IotaResult},
+    move_signature_scheme::MoveSignatureScheme,
     signature::{AuthenticatorTrait, VerifyParams},
-    signature_scheme::MoveSignatureScheme,
 };
 
 pub const PUBLIC_KEY_MODULE_NAME: Identifier = Identifier::from_static("public_key");
@@ -248,5 +248,5 @@ fn parse_signature_of_public_key(
 }
 
 #[cfg(test)]
-#[path = "unit_tests/public_key_tests.rs"]
-mod public_key_tests;
+#[path = "unit_tests/move_public_key_tests.rs"]
+mod move_public_key_tests;
