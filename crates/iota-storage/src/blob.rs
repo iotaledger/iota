@@ -119,12 +119,12 @@ impl Blob {
 /// An iterator over blobs in a blob file. It ends at the end of the input, or
 /// logs an error and ends at the first blob it cannot read.
 pub struct BlobIter<T> {
-    reader: Box<dyn Read>,
-    _phantom: PhantomData<T>,
+    reader: Box<dyn Read + Send>,
+    _phantom: PhantomData<fn() -> T>,
 }
 
 impl<T: DeserializeOwned> BlobIter<T> {
-    pub fn new(reader: Box<dyn Read>) -> Self {
+    pub fn new(reader: Box<dyn Read + Send>) -> Self {
         Self {
             reader,
             _phantom: PhantomData,
@@ -170,6 +170,32 @@ mod tests {
         bytes
     }
 
+    /// Encodes `values` as consecutive blobs.
+    fn encode_blobs(values: &[u64]) -> Vec<u8> {
+        let mut blobs = Vec::new();
+        for value in values {
+            Blob::encode(value, BlobEncoding::Bcs)
+                .unwrap()
+                .write(&mut blobs)
+                .unwrap();
+        }
+        blobs
+    }
+
+    /// Makes a blob file that holds `blobs`, compressed with `compression`.
+    fn blob_file(compression: FileCompression, blobs: Vec<u8>) -> Vec<u8> {
+        let mut file = MAGIC.to_be_bytes().to_vec();
+        file.push(StorageFormat::Blob.into());
+        file.push(compression.into());
+        match compression {
+            FileCompression::None => file.extend(blobs),
+            FileCompression::Zstd => {
+                FileCompression::zstd_compress(&mut Cursor::new(blobs), &mut file).unwrap()
+            }
+        }
+        file
+    }
+
     #[test]
     fn write_read() {
         // The second value is larger than the space reserved before reading.
@@ -206,15 +232,7 @@ mod tests {
             for len in [MAX_BLOB_LENGTH + 1, u64::MAX] {
                 let mut blob = header(len);
                 blob.extend_from_slice(&[0u8; 3]);
-                let mut file = MAGIC.to_be_bytes().to_vec();
-                file.push(StorageFormat::Blob.into());
-                file.push(compression.into());
-                match compression {
-                    FileCompression::None => file.extend(blob),
-                    FileCompression::Zstd => {
-                        FileCompression::zstd_compress(&mut Cursor::new(blob), &mut file).unwrap()
-                    }
-                }
+                let file = blob_file(compression, blob);
 
                 let (mut reader, _) = crate::read(MAGIC, Cursor::new(file)).unwrap();
                 let err = Blob::read(&mut reader).err().unwrap();
@@ -231,46 +249,44 @@ mod tests {
     #[test]
     fn blob_iter_reads_until_end_of_input() {
         for count in [0u64, 1, 3] {
-            let mut blobs = Vec::new();
-            for value in 0..count {
-                Blob::encode(&value, BlobEncoding::Bcs)
-                    .unwrap()
-                    .write(&mut blobs)
-                    .unwrap();
-            }
-            let mut file = MAGIC.to_be_bytes().to_vec();
-            file.push(StorageFormat::Blob.into());
-            file.push(FileCompression::None.into());
-            file.extend(blobs);
+            let expected: Vec<u64> = (0..count).collect();
+            let file = blob_file(FileCompression::None, encode_blobs(&expected));
 
             let values: Vec<u64> = make_iterator(MAGIC, Cursor::new(file)).unwrap().collect();
-            assert_eq!(values, (0..count).collect::<Vec<_>>());
+            assert_eq!(values, expected);
         }
     }
 
     #[test]
     fn blob_iter_stops_at_length_beyond_input() {
         for compression in [FileCompression::None, FileCompression::Zstd] {
-            let mut blobs = Vec::new();
-            Blob::encode(&7u64, BlobEncoding::Bcs)
-                .unwrap()
-                .write(&mut blobs)
-                .unwrap();
+            let mut blobs = encode_blobs(&[7]);
             blobs.extend(header(4));
             blobs.extend_from_slice(&[0u8; 3]);
-
-            let mut file = MAGIC.to_be_bytes().to_vec();
-            file.push(StorageFormat::Blob.into());
-            file.push(compression.into());
-            match compression {
-                FileCompression::None => file.extend(blobs),
-                FileCompression::Zstd => {
-                    FileCompression::zstd_compress(&mut Cursor::new(blobs), &mut file).unwrap()
-                }
-            }
+            let file = blob_file(compression, blobs);
 
             let values: Vec<u64> = make_iterator(MAGIC, Cursor::new(file)).unwrap().collect();
             assert_eq!(values, vec![7]);
         }
+    }
+
+    /// The iterator over a `Send` reader is `Send`, so a spawned task can keep
+    /// it across an `.await`. When the iterator is not `Send`, this test does
+    /// not compile.
+    #[tokio::test]
+    async fn blob_iter_can_be_held_across_await_in_spawned_task() {
+        let file = blob_file(FileCompression::None, encode_blobs(&[0, 1, 2]));
+        let iter = make_iterator::<u64, _>(MAGIC, Cursor::new(file)).unwrap();
+        let values = tokio::spawn(async move {
+            let mut values = Vec::new();
+            for value in iter {
+                tokio::task::yield_now().await;
+                values.push(value);
+            }
+            values
+        })
+        .await
+        .unwrap();
+        assert_eq!(values, vec![0, 1, 2]);
     }
 }
