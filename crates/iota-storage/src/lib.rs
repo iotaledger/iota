@@ -150,7 +150,7 @@ pub fn read<R: Read + Send + 'static>(
 pub fn make_iterator<T: DeserializeOwned, R: Read + Send + 'static>(
     expected_magic: u32,
     reader: R,
-) -> Result<impl Iterator<Item = T>> {
+) -> Result<impl Iterator<Item = T> + Send> {
     let (reader, storage_format) = read(expected_magic, reader)?;
     match storage_format {
         StorageFormat::Blob => Ok(BlobIter::new(reader)),
