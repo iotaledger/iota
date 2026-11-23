@@ -3935,11 +3935,19 @@ mod tests {
             last_of_epoch: false,
             checkpoint_height: 0,
         };
+        // A build attempt can fail after `create_checkpoints`, and the builder
+        // then retries the same pending checkpoint, so the user signatures
+        // must still be available to the retry.
+        let failed_attempt = builder
+            .create_checkpoints(vec![effects.clone()], &details, &HashSet::from([digest]))
+            .await
+            .unwrap();
         let new_checkpoints = builder
             .create_checkpoints(vec![effects], &details, &HashSet::from([digest]))
             .await
-            .unwrap();
+            .expect("the retry must find the user signatures");
         let summary = new_checkpoints.first().summary.clone();
+        assert_eq!(summary, failed_attempt.first().summary);
 
         assert!(
             checkpoint_store
@@ -3971,6 +3979,12 @@ mod tests {
         assert_eq!(
             cached.checkpoint_contents().digest(),
             summary.contents_digest
+        );
+        assert!(
+            epoch_store
+                .user_signatures_for_checkpoint(&[tx], &[digest])
+                .is_err(),
+            "user signatures must be dropped once the checkpoint is built"
         );
     }
 

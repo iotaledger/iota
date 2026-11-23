@@ -4043,6 +4043,10 @@ impl AuthorityPerEpochStore {
 
     /// Note: caller usually need to call consensus_message_processed_notify
     /// before this call
+    ///
+    /// The signatures stay cached, so a failed checkpoint build can read them
+    /// again when it is retried. `process_constructed_checkpoint` drops them
+    /// once the checkpoints that contain the transactions are built.
     pub fn user_signatures_for_checkpoint(
         &self,
         transactions: &[VerifiedTransaction],
@@ -4051,11 +4055,11 @@ impl AuthorityPerEpochStore {
         assert_eq!(transactions.len(), digests.len());
 
         let signatures: Vec<_> = {
-            let mut user_sigs = self
+            let user_sigs = self
                 .consensus_output_cache
                 .user_signatures_for_checkpoints
                 .lock();
-            digests.iter().map(|d| user_sigs.remove(d)).collect()
+            digests.iter().map(|d| user_sigs.get(d).cloned()).collect()
         };
 
         let mut result = Vec::with_capacity(digests.len());
@@ -7396,6 +7400,18 @@ impl AuthorityPerEpochStore {
         commit_height: CheckpointHeight,
         content_info: NonEmpty<(CheckpointSummary, CheckpointContents)>,
     ) {
+        {
+            let mut user_sigs = self
+                .consensus_output_cache
+                .user_signatures_for_checkpoints
+                .lock();
+            for (_, contents) in content_info.iter() {
+                for digests in contents.iter() {
+                    user_sigs.remove(&digests.transaction);
+                }
+            }
+        }
+
         let mut consensus_quarantine = self.consensus_quarantine.write();
         for (position_in_commit, (summary, transactions)) in content_info.into_iter().enumerate() {
             let sequence_number = summary.sequence_number;
