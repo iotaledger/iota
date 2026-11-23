@@ -144,20 +144,22 @@ Response: {
   }
 }
 
-task 17, lines 74-81:
+task 17, lines 74-83:
 //# run-graphql
 Response: {
   "data": {
-    "transactionBlocksByDigests": [
-      null,
-      {
-        "digest": "Dzp7aBcjmNpenbvokfi9uHwtcQXbseQ9guBKJrRvJWSG"
-      }
-    ]
+    "transactionsByDigests": {
+      "nodes": [
+        null,
+        {
+          "digest": "Dzp7aBcjmNpenbvokfi9uHwtcQXbseQ9guBKJrRvJWSG"
+        }
+      ]
+    }
   }
 }
 
-task 18, lines 83-91:
+task 18, lines 85-93:
 //# run-graphql
 Response: {
   "data": {
@@ -173,7 +175,7 @@ Response: {
   }
 }
 
-task 19, lines 93-102:
+task 19, lines 95-104:
 //# run-graphql
 Response: {
   "data": {
