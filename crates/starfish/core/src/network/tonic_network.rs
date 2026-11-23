@@ -1394,7 +1394,7 @@ const REQUEST_MESSAGE_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Time a response has to be fully written after its handler returned it. A
 /// peer that stops reading leaves the stream parked with the rest of the
-/// response, the encoder buffer and the admission permits in it; past this the
+/// response, the encoder buffer and the admission slots in it; past this the
 /// body gives them up, keeping only the peer's own slot until the stream ends.
 /// The block-subscription stream is exempt. It equals the longest any
 /// requester waits for one fetch attempt, so a read the peer still waits for
@@ -1484,8 +1484,8 @@ impl<S: NetworkService> TonicManager<S> {
                 }
             })
             // Innermost, so a rejected request is still counted and traced by
-            // the layers above, and a request stalled in decode has its permit
-            // released when the timeout above fires.
+            // the layers above, and a request stalled in decode has its slots
+            // given back when the timeout above fires.
             .layer(AdmissionLayer::new(self.context.clone(), self.send_timeout));
 
         let consensus_service_server = ConsensusServiceServer::new(service)
@@ -2989,7 +2989,7 @@ mod tests {
 
     /// A header fetch whose request message never arrives is charged to its
     /// peer's budget from the moment its headers land, so a peer cannot stack
-    /// pending decodes across connections. The permit is returned when the
+    /// pending decodes across connections. The slot is given back when the
     /// server-side request timeout cuts the stalled request.
     #[cfg(not(msim))]
     #[tokio::test]
