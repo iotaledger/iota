@@ -3,7 +3,7 @@
 
 use iota_sdk_types::SignatureScheme;
 
-use crate::account_abstraction::signature_scheme::MoveSignatureScheme;
+use crate::move_signature_scheme::MoveSignatureScheme;
 
 // === TryFrom<SignatureScheme> ===
 

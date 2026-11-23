@@ -7,16 +7,16 @@
 /// This module holds only what every `SmartAccount` needs: creating the account, managing its
 /// dynamic fields, and rotating its authenticator. It knows nothing about any particular
 /// authenticator, with one exception. Other modules extend an account by adding dynamic fields
-/// to it. `iota::smart_account_builtin_auth` is such a module: it adds the built-in authenticator
-/// for IOTA's standard signature schemes together with the public key it checks signatures
-/// against, in the `builtin_authenticator_functions::PublicKeyFieldName` field.
+/// to it. `iota::smart_account_builtin_authenticator` is such a module: it adds the built-in
+/// authenticator for IOTA's standard signature schemes together with the public key it checks
+/// signatures against, in the `builtin_authenticator_functions::PublicKeyFieldName` field.
 ///
 /// The exception: an account has the built-in authenticator and that public key together, or
 /// neither. `build_v1` and `rotate_auth_function_ref_v1` abort if the built-in authenticator
 /// would be set without the key, or a custom one while the key is attached; the check is
-/// `builtin_authenticator_functions::ensure_builtin_auth_and_public_key_together`. The key can
-/// only be attached and detached by `smart_account_builtin_auth`, so switching between the
-/// built-in authenticator and a custom one goes through it.
+/// `builtin_authenticator_functions::ensure_builtin_authenticator_and_public_key_together`. The
+/// key can only be attached and detached by `smart_account_builtin_authenticator`, so switching
+/// between the built-in authenticator and a custom one goes through it.
 ///
 /// `SmartAccount`s are created through the `SmartAccountBuilder` API: `builder_v1` allocates a new
 /// object ID for an account with the supplied authenticator. After optionally adding fields with
@@ -38,7 +38,7 @@ use iota::public_key::PublicKey;
 
 #[error(code = 0)]
 const ETransactionSenderIsNotTheSmartAccount: vector<u8> =
-    b"Transaction must be signed by the smart account.";
+    b"The transaction sender must be the smart account.";
 #[error(code = 1)]
 const ESmartAccountsNotEnabled: vector<u8> = b"Smart accounts not enabled.";
 
@@ -72,9 +72,9 @@ public struct SmartAccountBuilder {
 /// Creates a `SmartAccountBuilder` for a new account with the provided authenticator.
 ///
 /// The authenticator must be able to authenticate the account as built. For accounts backed by
-/// a public key and the built-in authenticator, use `smart_account_builtin_auth::builder_v1`:
-/// `build_v1` aborts for a builder made here with the built-in authenticator, since it has no
-/// key.
+/// a public key and the built-in authenticator, use
+/// `smart_account_builtin_authenticator::builder_v1`: `build_v1` aborts for a builder made here
+/// with the built-in authenticator, since it has no key.
 ///
 /// Aborts if `enable_smart_accounts` is not enabled in the protocol config.
 public fun builder_v1(
@@ -109,7 +109,7 @@ public fun with_field<Name: copy + drop + store, Value: store>(
 /// one and a public key is attached.
 public fun build_v1(self: SmartAccountBuilder): address {
     let SmartAccountBuilder { account, authenticator } = self;
-    builtin_authenticator_functions::ensure_builtin_auth_and_public_key_together(
+    builtin_authenticator_functions::ensure_builtin_authenticator_and_public_key_together(
         &account.id,
         &authenticator,
     );
@@ -222,9 +222,9 @@ public fun rotate_field<Name: copy + drop + store, Value: store>(
 /// Rotates the attached authenticator and returns the previous one.
 ///
 /// To switch to or from the built-in authenticator, use
-/// `smart_account_builtin_auth::rotate_to_builtin_auth_v1` and
-/// `smart_account_builtin_auth::rotate_to_custom_auth_v1`, which attach and detach the public key
-/// together with the rotation.
+/// `smart_account_builtin_authenticator::rotate_to_builtin_authenticator_v1` and
+/// `smart_account_builtin_authenticator::rotate_to_custom_authenticator_v1`, which attach and
+/// detach the public key together with the rotation.
 ///
 /// Emits an `account::AuthenticatorFunctionRefV1Rotated` event upon success.
 ///
@@ -237,7 +237,7 @@ public fun rotate_auth_function_ref_v1(
     ctx: &TxContext,
 ): AuthenticatorFunctionRefV1<SmartAccount> {
     ensure_tx_sender_is_smart_account(self, ctx);
-    builtin_authenticator_functions::ensure_builtin_auth_and_public_key_together(
+    builtin_authenticator_functions::ensure_builtin_authenticator_and_public_key_together(
         &self.id,
         &authenticator,
     );
@@ -251,7 +251,7 @@ public fun rotate_auth_function_ref_v1(
 ///
 /// Aborts if `enable_smart_accounts` is not enabled in the protocol config.
 /// Aborts if `public_key` does not derive the sender's address.
-public(package) fun claim_builder(
+public(package) fun claim_builder_v1(
     public_key: PublicKey,
     authenticator: AuthenticatorFunctionRefV1<SmartAccount>,
     ctx: &TxContext,

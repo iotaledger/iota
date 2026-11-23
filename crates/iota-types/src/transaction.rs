@@ -36,7 +36,6 @@ use tracing::{instrument, trace};
 use super::{base_types::*, error::*};
 use crate::{
     IOTA_CLOCK_OBJECT_SHARED_VERSION, IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
-    account_abstraction::public_key::MovePublicKey,
     committee::{Committee, EpochId},
     crypto::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature,
@@ -46,6 +45,7 @@ use crate::{
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     messages_checkpoint::CheckpointTimestamp,
     move_authenticator::MoveAuthenticatorExt,
+    move_public_key::MovePublicKey,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::VerifyParams,

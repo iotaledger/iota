@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! End-to-end tests of key proofs. Before `smart_account_builtin_auth`
+//! End-to-end tests of key proofs. Before `smart_account_builtin_authenticator`
 //! attaches a key to a `SmartAccount`, the key holder signs, as an IOTA
 //! personal message, the text that the SDK's `key_proof_message_v1` writes
 //! for the network, the account and the nonce of the transaction that attaches
@@ -72,11 +72,11 @@ const VALID_UNTIL_EPOCH: u64 = 10;
 /// The origin of the mock WebAuthn client that holds the passkeys.
 const PASSKEY_ORIGIN: &str = "https://www.iota.org";
 
-/// Abort code of `smart_account_builtin_auth::verify_key_proof` when the
+/// Abort code of `smart_account_builtin_authenticator::verify_key_proof` when the
 /// current epoch is later than the last epoch of the proof.
 const KEY_PROOF_EXPIRED_ABORT_CODE: u64 = 3;
 
-/// Abort code of `smart_account_builtin_auth::verify_key_proof` when the proof
+/// Abort code of `smart_account_builtin_authenticator::verify_key_proof` when the proof
 /// is not a signature by the key of the text for the transaction.
 const INVALID_KEY_PROOF_ABORT_CODE: u64 = 4;
 
@@ -198,10 +198,10 @@ async fn rotate_public_key_attaches_a_key_with_its_key_proof() {
 }
 
 /// An account whose authenticator is not the built-in one attaches a key and
-/// switches to the built-in authenticator with `rotate_to_builtin_auth_v1`, in
+/// switches to the built-in authenticator with `rotate_to_builtin_authenticator_v1`, in
 /// a transaction it sends, and then sends a transaction signed by the key.
 #[sim_test]
-async fn rotate_to_builtin_auth_attaches_a_key_with_its_key_proof() {
+async fn rotate_to_builtin_authenticator_attaches_a_key_with_its_key_proof() {
     let test_cluster = TestClusterBuilder::new().build().await;
     let account = create_account_with_custom_authenticator(&test_cluster).await;
     let key = KeyHolder::ed25519(9);
@@ -215,7 +215,7 @@ async fn rotate_to_builtin_auth_attaches_a_key_with_its_key_proof() {
         Transaction::new_programmable(
             sender,
             vec![gas],
-            attach_key_pt("rotate_to_builtin_auth_v1", account, &key, proof),
+            attach_key_pt("rotate_to_builtin_authenticator_v1", account, &key, proof),
             rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
             rgp,
         )
@@ -916,7 +916,7 @@ fn add_create_account(
     ];
     let account_builder = builder.programmable_move_call(
         IOTA_FRAMEWORK_PACKAGE_ID,
-        Identifier::from_static("smart_account_builtin_auth"),
+        Identifier::from_static("smart_account_builtin_authenticator"),
         Identifier::from_static("builder_v1"),
         vec![],
         arguments,
@@ -943,8 +943,8 @@ fn create_account_pt(
 }
 
 /// A programmable transaction that attaches `key` to `account` with
-/// `smart_account_builtin_auth::<function>`, where `function` is
-/// `rotate_public_key` or `rotate_to_builtin_auth_v1`, with `proof` as the key
+/// `smart_account_builtin_authenticator::<function>`, where `function` is
+/// `rotate_public_key` or `rotate_to_builtin_authenticator_v1`, with `proof` as the key
 /// proof, valid until `VALID_UNTIL_EPOCH`. `account` must send it.
 fn attach_key_pt(
     function: &'static str,
@@ -967,7 +967,7 @@ fn attach_key_pt(
     ];
     builder.programmable_move_call(
         IOTA_FRAMEWORK_PACKAGE_ID,
-        Identifier::from_static("smart_account_builtin_auth"),
+        Identifier::from_static("smart_account_builtin_authenticator"),
         Identifier::from_static(function),
         vec![],
         arguments,
@@ -1059,7 +1059,7 @@ fn assert_success(effects: &TransactionEffects) {
 }
 
 /// Asserts that the transaction aborted in
-/// `smart_account_builtin_auth::verify_key_proof` with `expected_code`.
+/// `smart_account_builtin_authenticator::verify_key_proof` with `expected_code`.
 fn assert_key_proof_abort(effects: &TransactionEffects, expected_code: u64) {
     let ExecutionStatus::Failure {
         error: ExecutionError::MoveAbort { location, code },
@@ -1068,7 +1068,10 @@ fn assert_key_proof_abort(effects: &TransactionEffects, expected_code: u64) {
     else {
         panic!("expected a Move abort, got {:?}", effects.status());
     };
-    assert_eq!(location.module.as_str(), "smart_account_builtin_auth");
+    assert_eq!(
+        location.module.as_str(),
+        "smart_account_builtin_authenticator"
+    );
     assert_eq!(
         location.function_name.as_ref().map(Identifier::as_str),
         Some("verify_key_proof")

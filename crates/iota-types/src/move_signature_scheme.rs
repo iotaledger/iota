@@ -64,5 +64,5 @@ impl From<MoveSignatureScheme> for SignatureScheme {
 }
 
 #[cfg(test)]
-#[path = "../unit_tests/account_abstraction/signature_scheme_tests.rs"]
-mod signature_scheme_tests;
+#[path = "unit_tests/move_signature_scheme_tests.rs"]
+mod move_signature_scheme_tests;

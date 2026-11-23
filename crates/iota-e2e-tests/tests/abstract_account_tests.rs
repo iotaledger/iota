@@ -5725,7 +5725,7 @@ async fn test_builtin_move_gate_blocks_account_creation() -> Result<(), anyhow::
 // --- SmartAccount tests ----------------------------
 // ---------------------------------------------------
 
-/// A `SmartAccount` created by `smart_account_builtin_auth::builder_v1` and
+/// A `SmartAccount` created by `smart_account_builtin_authenticator::builder_v1` and
 /// `smart_account::build_v1` sends a transaction authorized by its key under
 /// the P-COOL flow.
 #[sim_test]
@@ -5864,7 +5864,7 @@ async fn test_smart_account_sponsors_a_transaction() -> Result<(), anyhow::Error
         .await
 }
 
-/// After `smart_account_builtin_auth::rotate_public_key`, the new key
+/// After `smart_account_builtin_authenticator::rotate_public_key`, the new key
 /// authorizes the account's transactions and the old key is refused when a
 /// transaction is submitted.
 #[sim_test]
@@ -5897,7 +5897,7 @@ async fn test_smart_account_key_rotation() -> Result<(), anyhow::Error> {
         ];
         builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
-            Identifier::from_static("smart_account_builtin_auth"),
+            Identifier::from_static("smart_account_builtin_authenticator"),
             Identifier::from_static("rotate_public_key"),
             vec![],
             arguments,
@@ -5955,7 +5955,7 @@ async fn test_smart_account_with_custom_authenticator_refused_without_smart_acco
     let mut test_env = TestEnvironment::new().await;
     let package_id = test_env.publish_smart_account_free_access_package().await;
     let transaction = test_env
-        .craft_create_custom_auth_smart_account(package_id)
+        .craft_create_custom_authenticator_smart_account(package_id)
         .await?;
     let (effects, _) = test_env
         .test_cluster
@@ -6054,7 +6054,7 @@ async fn test_smart_account_created_after_the_protocol_upgrade() -> Result<(), a
 
     let package_id = test_env.publish_smart_account_free_access_package().await;
     let transaction = test_env
-        .craft_create_custom_auth_smart_account(package_id)
+        .craft_create_custom_authenticator_smart_account(package_id)
         .await?;
     let (effects, _) = test_env
         .test_cluster
@@ -7080,7 +7080,7 @@ impl TestEnvironment {
 
     /// Crafts a transaction, sent and signed by address 0 of the test
     /// cluster, that creates a `SmartAccount` through
-    /// `smart_account_builtin_auth::builder_v1` and `smart_account::build_v1`
+    /// `smart_account_builtin_authenticator::builder_v1` and `smart_account::build_v1`
     /// with `kp`'s public key and `kp`'s key proof.
     async fn craft_create_builtin_smart_account(
         &self,
@@ -7096,7 +7096,7 @@ impl TestEnvironment {
             ];
             let account_builder = builder.programmable_move_call(
                 IOTA_FRAMEWORK_PACKAGE_ID,
-                Identifier::from_static("smart_account_builtin_auth"),
+                Identifier::from_static("smart_account_builtin_authenticator"),
                 Identifier::from_static("builder_v1"),
                 vec![],
                 arguments,
@@ -7179,7 +7179,7 @@ impl TestEnvironment {
     /// Crafts a signed transaction that creates a `SmartAccount` through
     /// `smart_account::builder_v1` and `smart_account::build_v1`, with the
     /// free-access authenticator of the package `package_id`.
-    async fn craft_create_custom_auth_smart_account(
+    async fn craft_create_custom_authenticator_smart_account(
         &self,
         package_id: ObjectId,
     ) -> anyhow::Result<TransactionEnvelope> {
