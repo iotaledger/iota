@@ -221,20 +221,30 @@ Cursors also guarantee **consistent** pagination. If the first paginated query r
 
 This property requires that cursors that are used together (for example when supplying an `after` and `before` bound) are fixed on the same checkpoint, otherwise the query produces an error.
 
-#### Available range
+#### Ledger view
 
-The GraphQL service does not support consistent pagination for arbitrarily old cursors. A cursor can grow stale, if the checkpoint it is from is no longer in the **available range**. You can query the upper- and lower-bounds of that range as follows:
+Queries on objects (objects, coins, balances, dynamic fields and name registrations) read a **view on the ledger**. You can query the kind of the view and its limits as follows:
 
 ```graphql
 {
-  availableRange {
-    first { sequenceNumber }
-    last { sequenceNumber }
+  ledgerView {
+    kind
+    min { sequenceNumber }
+    max { sequenceNumber }
   }
 }
 ```
 
-The results are the first and last checkpoint for which pagination continues to work and produce a consistent result. At the time of writing the available range offers a 5- to 15-minute buffer period to finish pagination.
+The `kind` of the view is one of these values:
+
+- `CONSISTENT`: The GraphQL service does not support consistent pagination for arbitrarily old cursors. A cursor can grow stale, if the checkpoint it is from is no longer in the range from `min` to `max`. The results are the lowest and highest checkpoint for which pagination continues to work and produce a consistent result. At the time of writing the range offers a 5- to 15-minute buffer period to finish pagination.
+- `LIVE`: Queries on objects read the latest state of objects, at the latest fully indexed checkpoint (`max`). The value of `min` is `null`. Pagination continues to work, but each page reads the latest state of objects, so an object can change between two pages. The GraphQL service uses this view when the history of objects in the database is not up to date with the checkpoints.
+
+:::note
+
+The `availableRange` query is deprecated and will be removed in v1.50. Use `ledgerView` instead.
+
+:::
 
 ### Page limits
 
