@@ -2524,7 +2524,7 @@ to_iota_address
 verify_personal_message_signature
 	public(package) fun
 	0x2::public_key
-verify_builtin_signature
+verify_builtin_authenticator_signature
 	public(package) fun
 	0x2::public_key
 validate_public_key
@@ -2536,7 +2536,7 @@ to_iota_address_impl
 verify_personal_message_signature_impl
 	fun
 	0x2::public_key
-verify_builtin_signature_impl
+verify_builtin_authenticator_signature_impl
 	fun
 	0x2::public_key
 PublicKeyAttached

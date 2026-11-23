@@ -1905,8 +1905,12 @@ pub struct ProtocolConfig {
     /// are bound by `max_move_package_size` like any other package.
     max_move_system_package_size: Option<u64>,
 
-    // Cost params for built-in Move authenticators
-    builtin_move_authenticator_cost_base: Option<u64>,
+    // Cost param for the Move native function
+    // `public_key::verify_builtin_authenticator_signature_impl(public_key: &PublicKey,
+    // signature: &vector<u8>): bool`, the signature check of the built-in Move
+    // authenticators. It runs only while a built-in authenticator authenticates a
+    // transaction.
+    public_key_verify_builtin_authenticator_signature_impl_cost_base: Option<u64>,
 
     // Cost param for the Move native function `ed25519::ed25519_validate_pubkey(public_key:
     // &vector<u8>): bool`
@@ -2512,8 +2516,9 @@ impl ProtocolConfig {
                 "enable_builtin_move_authenticators requires enable_move_authentication to be set"
             );
             assert!(
-                self.builtin_move_authenticator_cost_base.is_some(),
-                "enable_builtin_move_authenticators requires builtin_move_authenticator_cost_base to be set"
+                self.public_key_verify_builtin_authenticator_signature_impl_cost_base
+                    .is_some(),
+                "enable_builtin_move_authenticators requires public_key_verify_builtin_authenticator_signature_impl_cost_base to be set"
             );
         }
         enable_builtin_move_authenticators
@@ -3346,7 +3351,7 @@ impl ProtocolConfig {
             max_move_system_package_size: None,
 
             // Built-in Move authenticators
-            builtin_move_authenticator_cost_base: None,
+            public_key_verify_builtin_authenticator_signature_impl_cost_base: None,
 
             ed25519_ed25519_validate_pubkey_cost_base: None,
             ecdsa_k1_secp256k1_validate_pubkey_cost_base: None,
@@ -4218,7 +4223,7 @@ impl ProtocolConfig {
                     }
 
                     // Set the cost for built-in Move authenticators to 0 for now.
-                    cfg.builtin_move_authenticator_cost_base = Some(0);
+                    cfg.public_key_verify_builtin_authenticator_signature_impl_cost_base = Some(0);
 
                     cfg.ed25519_ed25519_validate_pubkey_cost_base = Some(170);
                     cfg.ecdsa_k1_secp256k1_validate_pubkey_cost_base = Some(176);

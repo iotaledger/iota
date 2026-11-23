@@ -173,19 +173,21 @@ pub fn verify_personal_message_signature_impl(
 }
 
 #[derive(Clone)]
-pub struct PublicKeyVerifyBuiltinSignatureImplCostParams {
-    pub builtin_move_authenticator_cost_base: Option<InternalGas>,
+pub struct PublicKeyVerifyBuiltinAuthenticatorSignatureImplCostParams {
+    pub public_key_verify_builtin_authenticator_signature_impl_cost_base: Option<InternalGas>,
 }
 /// Implementation of the Move native function
-/// `public_key::verify_builtin_signature_impl(public_key: &PublicKey,
+/// `public_key::verify_builtin_authenticator_signature_impl(public_key: &PublicKey,
 /// signature: &vector<u8>): bool`
 ///
 /// Returns `true` if `signature` is a valid signature, by the public key, of
 /// the transaction being authenticated, using the signature scheme of the
-/// public key.
+/// public key. Only the built-in authenticator calls it, while it
+/// authenticates a transaction: the transaction comes from the
+/// `AuthenticationContext`.
 ///
-/// gas cost: builtin_move_authenticator_cost_base
-pub fn verify_builtin_signature_impl(
+/// gas cost: public_key_verify_builtin_authenticator_signature_impl_cost_base
+pub fn verify_builtin_authenticator_signature_impl(
     context: &mut NativeContext,
     ty_args: Vec<Type>,
     mut args: VecDeque<Value>,
@@ -194,8 +196,8 @@ pub fn verify_builtin_signature_impl(
     debug_assert!(args.len() == 2);
 
     let cost_base = get_extension!(context, NativesCostTable)?
-        .public_key_verify_builtin_signature_impl_cost_params
-        .builtin_move_authenticator_cost_base
+        .public_key_verify_builtin_authenticator_signature_impl_cost_params
+        .public_key_verify_builtin_authenticator_signature_impl_cost_base
         .ok_or_else(|| {
             PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
                 .with_message("Gas cost for built-in authenticators not available".to_string())
@@ -214,7 +216,7 @@ pub fn verify_builtin_signature_impl(
         .auth_context
         .borrow();
 
-    let is_valid = builtin_authenticator_functions::verify_builtin_signature(
+    let is_valid = builtin_authenticator_functions::verify_builtin_authenticator_signature(
         protocol_config,
         &public_key,
         &signature.as_bytes_ref(),

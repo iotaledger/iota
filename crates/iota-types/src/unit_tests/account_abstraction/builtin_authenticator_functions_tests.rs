@@ -28,7 +28,7 @@ use crate::{
         builtin_authenticator_functions::{
             BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME, BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME,
             builtin_authenticator_function_ref_v1, is_builtin_authenticator_function_ref,
-            verify_builtin_signature, verify_personal_message_signature,
+            verify_builtin_authenticator_signature, verify_personal_message_signature,
         },
     },
     crypto::PublicKey,
@@ -89,31 +89,31 @@ fn builtin_ref_has_correct_fields() {
     assert_eq!(reference.function, BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME);
 }
 
-// === verify_builtin_signature() happy path ===
+// === verify_builtin_authenticator_signature() happy path ===
 
 #[test]
-fn verify_builtin_signature_ok_ed25519() {
+fn verify_builtin_authenticator_signature_ok_ed25519() {
     let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(seeded_rng()));
     let verifier = builtin_signature_verifier(&key_pair);
     assert!(verifier.verify().is_ok());
 }
 
 #[test]
-fn verify_builtin_signature_ok_secp256k1() {
+fn verify_builtin_authenticator_signature_ok_secp256k1() {
     let key_pair = SimpleKeypair::from(Secp256k1PrivateKey::random_with(seeded_rng()));
     let verifier = builtin_signature_verifier(&key_pair);
     assert!(verifier.verify().is_ok());
 }
 
 #[test]
-fn verify_builtin_signature_ok_secp256r1() {
+fn verify_builtin_authenticator_signature_ok_secp256r1() {
     let key_pair = SimpleKeypair::from(Secp256r1PrivateKey::random_with(seeded_rng()));
     let verifier = builtin_signature_verifier(&key_pair);
     assert!(verifier.verify().is_ok());
 }
 
 #[test]
-fn verify_builtin_signature_ok_multisig() {
+fn verify_builtin_authenticator_signature_ok_multisig() {
     let mut rng = seeded_rng();
     let kp1 = Secp256k1PrivateKey::random_with(&mut rng);
     let kp2 = Secp256r1PrivateKey::random_with(&mut rng);
@@ -150,7 +150,7 @@ fn verify_builtin_signature_ok_multisig() {
 }
 
 #[test]
-fn verify_builtin_signature_ok_passkey() {
+fn verify_builtin_authenticator_signature_ok_passkey() {
     let mut rng = seeded_rng();
     let key_pair = SimpleKeypair::from(Secp256r1PrivateKey::random_with(&mut rng));
 
@@ -176,10 +176,10 @@ fn verify_builtin_signature_ok_passkey() {
     assert!(verifier.verify().is_ok());
 }
 
-// === verify_builtin_signature() errors ===
+// === verify_builtin_authenticator_signature() errors ===
 
 #[test]
-fn verify_builtin_signature_error_invalid_sig_bytes() {
+fn verify_builtin_authenticator_signature_error_invalid_sig_bytes() {
     let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(seeded_rng()));
     let mut verifier = builtin_signature_verifier(&key_pair);
     // An unrecognized scheme flag so UserSignature rejects it.
@@ -193,12 +193,12 @@ fn verify_builtin_signature_error_invalid_sig_bytes() {
 }
 
 #[test]
-fn verify_builtin_signature_error_unsupported_sig_type() {
+fn verify_builtin_authenticator_signature_error_unsupported_sig_type() {
     let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(seeded_rng()));
     let mut verifier = builtin_signature_verifier(&key_pair);
     // A MoveAuthenticator in wire format parses as
     // UserSignature::MoveAuthenticator, which hits the unsupported branch in
-    // verify_builtin_signature.
+    // verify_builtin_authenticator_signature.
     verifier.signature = make_authenticator(vec![], vec![]).to_bytes();
 
     assert!(matches!(
@@ -209,7 +209,7 @@ fn verify_builtin_signature_error_unsupported_sig_type() {
 }
 
 #[test]
-fn verify_builtin_signature_error_sig_scheme_mismatch() {
+fn verify_builtin_authenticator_signature_error_sig_scheme_mismatch() {
     let mut rng = seeded_rng();
     // Signature is ED25519 but the public key is Secp256k1.
     let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(&mut rng));
@@ -227,7 +227,7 @@ fn verify_builtin_signature_error_sig_scheme_mismatch() {
 }
 
 #[test]
-fn verify_builtin_signature_error_invalid_public_key_bytes() {
+fn verify_builtin_authenticator_signature_error_invalid_public_key_bytes() {
     let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(seeded_rng()));
     let mut verifier = builtin_signature_verifier(&key_pair);
     // Construct a MovePublicKey with 1 raw byte for ED25519 (requires 32) by
@@ -244,7 +244,7 @@ fn verify_builtin_signature_error_invalid_public_key_bytes() {
 }
 
 #[test]
-fn verify_builtin_signature_error_other_public_key() {
+fn verify_builtin_authenticator_signature_error_other_public_key() {
     let mut rng = seeded_rng();
     let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(&mut rng));
     let other_key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(&mut rng));
@@ -255,7 +255,7 @@ fn verify_builtin_signature_error_other_public_key() {
 }
 
 #[test]
-fn verify_builtin_signature_error_invalid_tx_data_bytes() {
+fn verify_builtin_authenticator_signature_error_invalid_tx_data_bytes() {
     let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(seeded_rng()));
     let mut verifier = builtin_signature_verifier(&key_pair);
     verifier.tx_data_bytes = vec![];
@@ -479,7 +479,7 @@ fn verify_personal_message_signature_error_multisig_public_key_malformed_signatu
 
 const PERSONAL_MESSAGE: &[u8] = b"a personal message";
 
-/// Calls `verify_builtin_signature` with the arguments for a signed
+/// Calls `verify_builtin_authenticator_signature` with the arguments for a signed
 /// transaction.
 struct BuiltinSignatureVerifier {
     public_key: MovePublicKey,
@@ -489,7 +489,7 @@ struct BuiltinSignatureVerifier {
 
 impl BuiltinSignatureVerifier {
     fn verify(&self) -> Result<(), IotaError> {
-        verify_builtin_signature(
+        verify_builtin_authenticator_signature(
             &ProtocolConfig::get_for_max_version_UNSAFE(),
             &self.public_key,
             &self.signature,

@@ -80,7 +80,7 @@ pub fn is_builtin_authenticator_function_ref(
 ///
 /// The multisig and passkey verification rules are taken from
 /// `protocol_config`.
-pub fn verify_builtin_signature(
+pub fn verify_builtin_authenticator_signature(
     protocol_config: &ProtocolConfig,
     public_key: &MovePublicKey,
     signature_bytes: &[u8],

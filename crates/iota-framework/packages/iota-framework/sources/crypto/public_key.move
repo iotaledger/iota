@@ -139,11 +139,16 @@ public(package) fun verify_personal_message_signature(
 /// Returns `true` if `signature` is a valid signature, by `self`, of the transaction being
 /// authenticated, using the signature scheme of `self`.
 ///
-/// Only the built-in authenticator calls it, while it authenticates a transaction. See
+/// Only the built-in authenticator calls it, while it authenticates a transaction: the native
+/// reads that transaction from the authentication context, which execution provides only
+/// during authentication, so a call anywhere else fails. See
 /// `builtin_authenticator_functions::builtin_authenticator_function_ref_v1` for the format of
 /// `signature`.
-public(package) fun verify_builtin_signature(self: &PublicKey, signature: &vector<u8>): bool {
-    verify_builtin_signature_impl(self, signature)
+public(package) fun verify_builtin_authenticator_signature(
+    self: &PublicKey,
+    signature: &vector<u8>,
+): bool {
+    verify_builtin_authenticator_signature_impl(self, signature)
 }
 
 // === Private Functions ===
@@ -187,8 +192,12 @@ native fun verify_personal_message_signature_impl(
 ): bool;
 
 /// Returns `true` if `signature` is a valid signature, by `public_key`, of the transaction being
-/// authenticated. See `verify_builtin_signature`.
-native fun verify_builtin_signature_impl(public_key: &PublicKey, signature: &vector<u8>): bool;
+/// authenticated. Only for the built-in authenticator; see
+/// `verify_builtin_authenticator_signature`.
+native fun verify_builtin_authenticator_signature_impl(
+    public_key: &PublicKey,
+    signature: &vector<u8>,
+): bool;
 
 // === Test Functions ===
 

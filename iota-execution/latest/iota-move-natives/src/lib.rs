@@ -93,7 +93,8 @@ use crate::{
         zklogin,
     },
     public_key::{
-        PublicKeyToIotaAddressImplCostParams, PublicKeyVerifyBuiltinSignatureImplCostParams,
+        PublicKeyToIotaAddressImplCostParams,
+        PublicKeyVerifyBuiltinAuthenticatorSignatureImplCostParams,
         PublicKeyVerifyPersonalMessageSignatureImplCostParams,
     },
     smart_account_builtin_authenticator::SmartAccountBuiltinAuthenticatorKeyProofMessageCostParams,
@@ -221,8 +222,8 @@ pub struct NativesCostTable {
     pub public_key_to_iota_address_impl_cost_params: PublicKeyToIotaAddressImplCostParams,
     pub public_key_verify_personal_message_signature_impl_cost_params:
         PublicKeyVerifyPersonalMessageSignatureImplCostParams,
-    pub public_key_verify_builtin_signature_impl_cost_params:
-        PublicKeyVerifyBuiltinSignatureImplCostParams,
+    pub public_key_verify_builtin_authenticator_signature_impl_cost_params:
+        PublicKeyVerifyBuiltinAuthenticatorSignatureImplCostParams,
     pub smart_account_builtin_authenticator_key_proof_message_cost_params:
         SmartAccountBuiltinAuthenticatorKeyProofMessageCostParams,
 
@@ -413,10 +414,10 @@ impl NativesCostTable {
                         .public_key_verify_personal_message_signature_impl_sig_cost_per_byte_as_option()
                         .map(Into::into),
                 },
-            public_key_verify_builtin_signature_impl_cost_params:
-                PublicKeyVerifyBuiltinSignatureImplCostParams {
-                    builtin_move_authenticator_cost_base: protocol_config
-                        .builtin_move_authenticator_cost_base_as_option()
+            public_key_verify_builtin_authenticator_signature_impl_cost_params:
+                PublicKeyVerifyBuiltinAuthenticatorSignatureImplCostParams {
+                    public_key_verify_builtin_authenticator_signature_impl_cost_base: protocol_config
+                        .public_key_verify_builtin_authenticator_signature_impl_cost_base_as_option()
                         .map(Into::into),
                 },
             smart_account_builtin_authenticator_key_proof_message_cost_params:
@@ -1195,8 +1196,8 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
         ),
         (
             "public_key",
-            "verify_builtin_signature_impl",
-            make_native!(public_key::verify_builtin_signature_impl),
+            "verify_builtin_authenticator_signature_impl",
+            make_native!(public_key::verify_builtin_authenticator_signature_impl),
         ),
         (
             "smart_account_builtin_authenticator",

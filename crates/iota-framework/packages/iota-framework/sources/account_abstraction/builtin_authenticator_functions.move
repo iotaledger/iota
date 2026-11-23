@@ -267,7 +267,7 @@ fun builtin_authenticator_v1<Account: key>(account: &Account, signature: vector<
     check_builtin_authenticators_enabled();
 
     let public_key = borrow_public_key(borrow_account_uid(account));
-    assert!(public_key.verify_builtin_signature(&signature), EInvalidSignature);
+    assert!(public_key.verify_builtin_authenticator_signature(&signature), EInvalidSignature);
 }
 
 /// A utility function to construct the dynamic field name for the public key field.
