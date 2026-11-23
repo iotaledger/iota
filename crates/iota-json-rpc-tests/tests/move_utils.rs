@@ -34,6 +34,7 @@ async fn get_normalized_move_modules_by_package() -> Result<(), anyhow::Error> {
             "bcs",
             "bls12381",
             "borrow",
+            "builtin_authenticator_functions",
             "clock",
             "coin",
             "coin_manager",
