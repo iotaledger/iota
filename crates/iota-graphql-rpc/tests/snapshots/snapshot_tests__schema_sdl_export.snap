@@ -1693,6 +1693,47 @@ type Lagged {
 }
 
 """
+View on the ledger that object queries read.
+
+This applies to objects, coins, balances, dynamic fields and name registrations.
+
+A `LIVE` view always reads the latest state of objects at `max`. This implies that
+two consecutive pages of results might not reflect the same state of the ledger.
+
+A `CONSISTENT` view reads a pinned snapshot of objects at any checkpoint
+from `min` to `max`.
+"""
+type LedgerView {
+	"""
+	Whether the view is live or consistent.
+	"""
+	kind: LedgerViewKind!
+	"""
+	The lowest checkpoint of a consistent view, or `null` for a live view.
+	"""
+	min: Checkpoint
+	"""
+	The latest checkpoint of a live view, or the highest checkpoint of a
+	consistent view.
+	"""
+	max: Checkpoint
+}
+
+"""
+The kind of a view on the ledger.
+"""
+enum LedgerViewKind {
+	"""
+	Rolling view over the latest state of objects.
+	"""
+	LIVE
+	"""
+	Consistent view at any checkpoint in a range.
+	"""
+	CONSISTENT
+}
+
+"""
 Information used by a package to link to a specific version of its
 dependency.
 """
@@ -3571,7 +3612,19 @@ type Query {
 	For live views, the ranges resolves into the latest checkpoint with available data on the
 	db.
 	"""
-	availableRange: AvailableRange!
+	availableRange: AvailableRange! @deprecated(reason: "Use `ledgerView` instead. Will be removed in v1.50.")
+	"""
+	View on the ledger that object queries read.
+	
+	This applies to objects, coins, balances, dynamic fields and name registrations.
+	
+	A `LIVE` view always reads the latest state of objects at `max`. This implies that
+	two consecutive pages of results might not reflect the same state of the ledger.
+	
+	A `CONSISTENT` view reads a pinned snapshot of objects at any checkpoint
+	from `min` to `max`.
+	"""
+	ledgerView: LedgerView!
 	"""
 	Configuration for this RPC service
 	"""

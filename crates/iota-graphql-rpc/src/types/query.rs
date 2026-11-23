@@ -25,7 +25,7 @@ use crate::{
     server::{builder::get_write_api, watermark_task::Watermark},
     types::{
         address::Address,
-        available_range::AvailableRange,
+        available_range::{AvailableRange, LedgerView},
         chain_identifier::ChainIdentifierCache,
         checkpoint::{self, Checkpoint, CheckpointId},
         coin::Coin,
@@ -78,9 +78,26 @@ impl Query {
     ///
     /// For live views, the ranges resolves into the latest checkpoint with available data on the
     /// db.
+    #[graphql(deprecation = "Use `ledgerView` instead. Will be removed in v1.50.")]
     async fn available_range(&self, ctx: &Context<'_>) -> Result<AvailableRange> {
         let Watermark { checkpoint, .. } = *ctx.data()?;
         AvailableRange::query(ctx.data_unchecked(), checkpoint)
+            .await
+            .extend()
+    }
+
+    /// View on the ledger that object queries read.
+    ///
+    /// This applies to objects, coins, balances, dynamic fields and name registrations.
+    ///
+    /// A `LIVE` view always reads the latest state of objects at `max`. This implies that
+    /// two consecutive pages of results might not reflect the same state of the ledger.
+    ///
+    /// A `CONSISTENT` view reads a pinned snapshot of objects at any checkpoint
+    /// from `min` to `max`.
+    async fn ledger_view(&self, ctx: &Context<'_>) -> Result<LedgerView> {
+        let Watermark { checkpoint, .. } = *ctx.data()?;
+        LedgerView::query(ctx.data_unchecked(), checkpoint)
             .await
             .extend()
     }

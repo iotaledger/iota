@@ -19,7 +19,7 @@ use crate::{
     filter,
     raw_query::RawQuery,
     types::{
-        available_range::LedgerView,
+        available_range::{LedgerView, LedgerViewKind},
         balance::{self, Balance},
         base64::Base64,
         big_int::BigInt,
@@ -368,7 +368,7 @@ impl Coin {
                     return Ok::<_, diesel::result::Error>(None);
                 };
 
-                if matches!(ledger_view, LedgerView::Live(_)) {
+                if ledger_view.kind == LedgerViewKind::Live {
                     page.set_live_view(checkpoint_viewed_at);
                 }
 

@@ -18,12 +18,14 @@ use crate::{
 
 /// Represents the view on the ledger while querying for objects.
 #[derive(Clone, Copy, Debug)]
-pub(crate) enum LedgerView {
-    /// Rolling view over the latest state of objects, at the given latest
-    /// checkpoint.
-    Live(u64),
-    /// Consistent view at any checkpoint in the given range.
-    Consistent(AvailableRange),
+pub(crate) struct LedgerView {
+    /// Whether the view is live or consistent.
+    pub kind: LedgerViewKind,
+    /// The lowest checkpoint of a consistent view, or `None` for a live view.
+    pub min: Option<u64>,
+    /// The latest checkpoint of a live view, or the highest checkpoint of a
+    /// consistent view.
+    pub max: u64,
 }
 
 impl LedgerView {
@@ -66,28 +68,66 @@ impl LedgerView {
             {
                 let retention_window_start_cp =
                     latest_checkpoint.saturating_sub(max_available_range);
-                Ok(Self::Consistent(AvailableRange {
-                    first: (*min_available_cp as u64).max(retention_window_start_cp),
-                    last: latest_checkpoint,
-                }))
+                Ok(Self {
+                    kind: LedgerViewKind::Consistent,
+                    min: Some((*min_available_cp as u64).max(retention_window_start_cp)),
+                    max: latest_checkpoint,
+                })
             }
-            _ => Ok(Self::Live(latest_checkpoint)),
+            _ => Ok(Self {
+                kind: LedgerViewKind::Live,
+                min: None,
+                max: latest_checkpoint,
+            }),
         }
     }
 
     /// Returns the checkpoint at which a query reads objects, or `None` if
     /// `checkpoint_viewed_at` is outside the available range.
     ///
-    /// In a [`LedgerView::Consistent`] view, the result is `checkpoint_viewed_at`.
+    /// In a consistent view, the result is `checkpoint_viewed_at`.
     ///
-    /// In a [`LedgerView::Live`] view, which can occur when the indexer operates
-    /// on the `Basic` operational level, the result is the latest checkpoint.
+    /// In a live view, which can occur when the indexer operates on the
+    /// `Basic` operational level, the result is the latest checkpoint.
     pub(crate) fn resolve_checkpoint(self, checkpoint_viewed_at: u64) -> Option<u64> {
-        match self {
-            Self::Live(latest_checkpoint) => Some(latest_checkpoint),
-            Self::Consistent(range) => range
+        match self.kind {
+            LedgerViewKind::Live => Some(self.max),
+            LedgerViewKind::Consistent => AvailableRange::from(self)
                 .contains(checkpoint_viewed_at)
                 .then_some(checkpoint_viewed_at),
+        }
+    }
+
+    /// Looks up the view on the ledger in the database.
+    ///
+    /// In a consistent view, the upper limit of the range becomes
+    /// `checkpoint_viewed_at`. A live view does not change.
+    ///
+    /// # Errors
+    ///
+    /// Fails if a query on the database fails, or if, in a consistent view,
+    /// `checkpoint_viewed_at` is outside the available range.
+    pub(crate) async fn query(db: &Db, checkpoint_viewed_at: u64) -> Result<Self, Error> {
+        let max_available_range = db.max_available_range;
+        let mut ledger_view = db
+            .execute(move |conn| Self::resolve(conn, max_available_range))
+            .await
+            .map_err(|e| Error::Internal(format!("Failed to fetch the ledger view: {e}")))?;
+
+        match ledger_view.kind {
+            LedgerViewKind::Live => Ok(ledger_view),
+            LedgerViewKind::Consistent => {
+                if !AvailableRange::from(ledger_view).contains(checkpoint_viewed_at) {
+                    return Err(Error::Client(format!(
+                        "Requesting data at checkpoint {checkpoint_viewed_at}, outside the \
+                         available range.",
+                    )));
+                }
+
+                // A single request must not report a range past its captured watermark.
+                ledger_view.max = checkpoint_viewed_at;
+                Ok(ledger_view)
+            }
         }
     }
 
@@ -113,6 +153,48 @@ impl LedgerView {
 
         Ok(last.unwrap_or(0) as u64)
     }
+}
+
+/// View on the ledger that object queries read.
+///
+/// This applies to objects, coins, balances, dynamic fields and name registrations.
+///
+/// A `LIVE` view always reads the latest state of objects at `max`. This implies that
+/// two consecutive pages of results might not reflect the same state of the ledger.
+///
+/// A `CONSISTENT` view reads a pinned snapshot of objects at any checkpoint
+/// from `min` to `max`.
+#[Object]
+impl LedgerView {
+    /// Whether the view is live or consistent.
+    async fn kind(&self) -> LedgerViewKind {
+        self.kind
+    }
+
+    /// The lowest checkpoint of a consistent view, or `null` for a live view.
+    async fn min(&self, ctx: &Context<'_>) -> Result<Option<Checkpoint>> {
+        let Some(min) = self.min else {
+            return Ok(None);
+        };
+        let id = CheckpointId::by_seq_num(min).extend()?;
+        Checkpoint::query(ctx, id, self.max).await.extend()
+    }
+
+    /// The latest checkpoint of a live view, or the highest checkpoint of a
+    /// consistent view.
+    async fn max(&self, ctx: &Context<'_>) -> Result<Option<Checkpoint>> {
+        let id = CheckpointId::by_seq_num(self.max).extend()?;
+        Checkpoint::query(ctx, id, self.max).await.extend()
+    }
+}
+
+/// The kind of a view on the ledger.
+#[derive(Enum, Copy, Clone, Debug, Eq, PartialEq)]
+pub(crate) enum LedgerViewKind {
+    /// Rolling view over the latest state of objects.
+    Live,
+    /// Consistent view at any checkpoint in a range.
+    Consistent,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
@@ -154,34 +236,25 @@ impl AvailableRange {
     /// Fails if a query on the database fails, or if, in a consistent view,
     /// `checkpoint_viewed_at` is outside the available range.
     pub(crate) async fn query(db: &Db, checkpoint_viewed_at: u64) -> Result<Self, Error> {
-        let max_available_range = db.max_available_range;
-        let ledger_view = db
-            .execute(move |conn| LedgerView::resolve(conn, max_available_range))
+        LedgerView::query(db, checkpoint_viewed_at)
             .await
-            .map_err(|e| Error::Internal(format!("Failed to fetch available range: {e}")))?;
-
-        match ledger_view {
-            LedgerView::Live(latest_checkpoint) => Ok(Self {
-                first: latest_checkpoint,
-                last: latest_checkpoint,
-            }),
-            LedgerView::Consistent(mut range) => {
-                if !range.contains(checkpoint_viewed_at) {
-                    return Err(Error::Client(format!(
-                        "Requesting data at checkpoint {checkpoint_viewed_at}, outside the \
-                         available range.",
-                    )));
-                }
-
-                // A single request must not report a range past its captured watermark.
-                range.last = checkpoint_viewed_at;
-                Ok(range)
-            }
-        }
+            .map(Self::from)
     }
 
     /// Checks whether the given `checkpoint` is within the range.
     pub(crate) fn contains(&self, checkpoint: u64) -> bool {
         checkpoint >= self.first && checkpoint <= self.last
+    }
+}
+
+impl From<LedgerView> for AvailableRange {
+    /// Converts a view on the ledger into a range of checkpoints.
+    ///
+    /// A live view becomes a range that contains only its latest checkpoint.
+    fn from(ledger_view: LedgerView) -> Self {
+        Self {
+            first: ledger_view.min.unwrap_or(ledger_view.max),
+            last: ledger_view.max,
+        }
     }
 }
