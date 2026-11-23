@@ -15,22 +15,24 @@ use std::path::PathBuf;
 
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
+#[cfg(msim)]
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_crypto::{
     Signer, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
     secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
 };
 use iota_sdk_types::{
-    Address, Argument, ClaimAccountTransaction, ExecutionError, ExecutionStatus, Identifier,
-    MoveAuthenticatorV1, ObjectReference, Owner, PersonalMessage, ProgrammableTransaction,
-    SharedObjectReference, SignatureScheme, SmartAccountClaim, Transaction, TransactionEffects,
-    TransactionKind, TypeTag, UserSignature,
+    Address, Argument, ExecutionError, ExecutionStatus, Identifier, MoveAuthenticatorV1,
+    ObjectReference, Owner, PersonalMessage, ProgrammableTransaction, SharedObjectReference,
+    SignatureScheme, Transaction, TransactionEffects, TypeTag, UserSignature,
     crypto::{
         Intent, MultisigAggregatedSignature, MultisigCommittee, MultisigMember,
         PasskeyAuthenticator, SimpleSignature,
     },
     key_proof::key_proof_message_v1,
 };
+#[cfg(msim)]
+use iota_sdk_types::{ClaimAccountTransaction, SmartAccountClaim, TransactionKind};
 use iota_test_transaction_builder::{TestTransactionBuilder, publish_package};
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
@@ -233,8 +235,9 @@ async fn rotate_to_builtin_authenticator_attaches_a_key_with_its_key_proof() {
 }
 
 /// One proof passes every check for its account in its transaction, so two
-/// accounts can be created with it in one transaction. A later transaction has
-/// another nonce, so the same proof fails there.
+/// accounts can be created with it in one transaction. A later transaction
+/// that pays with the same gas coin, at its next version, has another nonce,
+/// so the same proof fails there.
 #[sim_test]
 async fn same_key_proof_passes_twice_in_a_transaction_and_fails_in_a_later_one() {
     let test_cluster = TestClusterBuilder::new().build().await;
@@ -269,9 +272,7 @@ async fn same_key_proof_passes_twice_in_a_transaction_and_fails_in_a_later_one()
         .count();
     assert_eq!(accounts, 2);
 
-    let gas = test_cluster
-        .fund_address_and_return_gas(rgp, Some(20_000_000_000), sender)
-        .await;
+    let gas = test_cluster.get_latest_object_ref(&gas.object_id).await;
     let tx = Transaction::new_programmable(
         sender,
         vec![gas],
@@ -434,6 +435,11 @@ async fn simulation_without_gas_coins_reads_the_nonce_of_the_mock_gas_coin() {
 
 /// `ClaimAccount` creates an account without a key proof, and the account
 /// then sends a transaction with the built-in authenticator.
+///
+/// No protocol version enables `ClaimAccount` yet. The override that turns it
+/// on is thread-local, so it reaches the nodes only in the simulator, which
+/// runs them on the test's thread.
+#[cfg(msim)]
 #[sim_test]
 async fn claim_account_needs_no_key_proof() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
