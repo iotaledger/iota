@@ -23,10 +23,10 @@ use crate::{
     filter, query,
     raw_query::RawQuery,
     types::{
-        available_range::{LedgerView, LedgerViewKind},
         big_int::BigInt,
         cursor::{self, Page, RawPaginated, ScanLimited, Target},
         iota_address::IotaAddress,
+        ledger_view::{LedgerView, LedgerViewKind},
         move_type::MoveType,
         uint53::UInt53,
     },

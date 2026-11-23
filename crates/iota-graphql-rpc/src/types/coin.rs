@@ -19,7 +19,6 @@ use crate::{
     filter,
     raw_query::RawQuery,
     types::{
-        available_range::{LedgerView, LedgerViewKind},
         balance::{self, Balance},
         base64::Base64,
         big_int::BigInt,
@@ -28,6 +27,7 @@ use crate::{
         dynamic_field::{DynamicField, DynamicFieldName},
         iota_address::IotaAddress,
         iota_names_registration::{NameFormat, NameRegistration},
+        ledger_view::{LedgerView, LedgerViewKind},
         move_object::{MoveObject, MoveObjectImpl},
         move_value::MoveValue,
         object::{

@@ -22,10 +22,10 @@ use crate::{
     filter,
     raw_query::RawQuery,
     types::{
-        available_range::{LedgerView, LedgerViewKind},
         base64::Base64,
         cursor::{Page, Target},
         iota_address::IotaAddress,
+        ledger_view::{LedgerView, LedgerViewKind},
         move_object::MoveObject,
         move_value::MoveValue,
         object::{self, ActiveObject, Object, StoredBackwardObject},

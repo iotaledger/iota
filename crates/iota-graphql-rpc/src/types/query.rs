@@ -25,7 +25,6 @@ use crate::{
     server::{builder::get_write_api, watermark_task::Watermark},
     types::{
         address::Address,
-        available_range::{AvailableRange, LedgerView},
         chain_identifier::ChainIdentifierCache,
         checkpoint::{self, Checkpoint, CheckpointId},
         coin::Coin,
@@ -37,6 +36,7 @@ use crate::{
         event::{self, Event, EventFilter},
         iota_address::IotaAddress,
         iota_names_registration::{IotaNames, Name},
+        ledger_view::{AvailableRange, LedgerView},
         move_package::{self, MovePackage, MovePackageCheckpointFilter, MovePackageVersionFilter},
         move_type::MoveType,
         move_view_result::MoveViewResult,

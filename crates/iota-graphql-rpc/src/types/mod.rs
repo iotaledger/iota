@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub(crate) mod address;
-pub(crate) mod available_range;
 pub(crate) mod balance;
 pub(crate) mod balance_change;
 pub(crate) mod base64;
@@ -28,6 +27,7 @@ pub(crate) mod intersect;
 pub(crate) mod iota_address;
 pub(crate) mod iota_names_registration;
 pub(crate) mod json;
+pub(crate) mod ledger_view;
 pub(crate) mod move_enum;
 pub(crate) mod move_function;
 pub(crate) mod move_module;
