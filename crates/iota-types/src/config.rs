@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 
 use crate::base_types::EpochId;
@@ -19,10 +18,6 @@ pub struct SettingData<V> {
     pub newer_value_epoch: u64,
     pub newer_value: Option<V>,
     pub older_value_opt: Option<V>,
-}
-
-pub fn setting_type(value_tag: TypeTag) -> StructTag {
-    StructTag::new_config_setting(value_tag)
 }
 
 impl<V> Setting<V> {
