@@ -14,6 +14,7 @@ use iota_sdk_types::{Transaction, TransactionEffects};
 use iota_transaction_checks::VerifierLimitsSource;
 use iota_types::{
     committee::{Committee, EpochId},
+    digests::ChainIdentifier,
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult, UserInputError},
     gas::IotaGasStatus,
@@ -121,6 +122,7 @@ impl EpochState {
     pub fn execute_transaction(
         &self,
         store: &dyn SimulatorStore,
+        chain_identifier: ChainIdentifier,
         deny_config: &TransactionDenyConfig,
         verifier_signing_config: &VerifierSigningConfig,
         transaction: &VerifiedTransaction,
@@ -190,6 +192,7 @@ impl EpochState {
                 self.limits_metrics.clone(),
                 false,           // enable_expensive_checks
                 &HashSet::new(), // certificate_deny_set
+                chain_identifier,
                 &self.epoch_start_state.epoch(),
                 self.epoch_start_state.epoch_start_timestamp_ms(),
                 checked_input_objects,
@@ -212,6 +215,7 @@ impl EpochState {
     pub fn simulate_transaction(
         &self,
         store: &dyn SimulatorStore,
+        chain_identifier: ChainIdentifier,
         deny_config: &TransactionDenyConfig,
         verifier_signing_config: &VerifierSigningConfig,
         mut transaction: Transaction,
@@ -300,6 +304,7 @@ impl EpochState {
                 self.limits_metrics.clone(),
                 false,           // expensive_checks
                 &HashSet::new(), // certificate_deny_set
+                chain_identifier,
                 &self.epoch_start_state.epoch(),
                 self.epoch_start_state.epoch_start_timestamp_ms(),
                 checked_input_objects,
