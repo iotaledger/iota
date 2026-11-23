@@ -105,7 +105,7 @@ async fn test_claim_account_succeeds() {
 /// transaction input.
 ///
 /// `claim::claim_address` leaves double-claim prevention to its caller
-/// and `smart_account_builtin_auth::claim_account_v1` does not implement it, so
+/// and `smart_account_builtin_authenticator::claim_account_v1` does not implement it, so
 /// nothing rejects the second claim. Once prevention lands, both pins below
 /// have to flip: the second claim must fail, and the account object must keep
 /// the version the first claim gave it.

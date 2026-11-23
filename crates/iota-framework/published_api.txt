@@ -3885,37 +3885,37 @@ ensure_smart_accounts_enabled
 	0x2::smart_account
 builder_v1
 	public fun
-	0x2::smart_account_builtin_auth
+	0x2::smart_account_builtin_authenticator
 has_builtin_authenticator
 	public fun
-	0x2::smart_account_builtin_auth
+	0x2::smart_account_builtin_authenticator
 has_public_key
 	public fun
-	0x2::smart_account_builtin_auth
+	0x2::smart_account_builtin_authenticator
 borrow_public_key
 	public fun
-	0x2::smart_account_builtin_auth
+	0x2::smart_account_builtin_authenticator
 rotate_to_builtin_authenticator_v1
 	public fun
-	0x2::smart_account_builtin_auth
+	0x2::smart_account_builtin_authenticator
 rotate_to_custom_authenticator_v1
 	public fun
-	0x2::smart_account_builtin_auth
+	0x2::smart_account_builtin_authenticator
 rotate_public_key
 	public fun
-	0x2::smart_account_builtin_auth
+	0x2::smart_account_builtin_authenticator
 claim_account_v1
 	fun
-	0x2::smart_account_builtin_auth
+	0x2::smart_account_builtin_authenticator
 with_public_key
 	fun
-	0x2::smart_account_builtin_auth
+	0x2::smart_account_builtin_authenticator
 verify_key_proof
 	fun
-	0x2::smart_account_builtin_auth
+	0x2::smart_account_builtin_authenticator
 key_proof_message
 	fun
-	0x2::smart_account_builtin_auth
+	0x2::smart_account_builtin_authenticator
 IotaSystemAdminCap
 	public struct
 	0x2::system_admin_cap

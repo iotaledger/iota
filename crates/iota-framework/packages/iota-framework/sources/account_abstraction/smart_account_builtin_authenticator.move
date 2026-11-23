@@ -26,7 +26,7 @@
 /// transaction's nonce, and the last epoch in which the proof is valid. For example:
 ///
 /// ```
-/// check: 0x2::smart_account_builtin_auth::verify_key_proof
+/// check: 0x2::smart_account_builtin_authenticator::verify_key_proof
 /// network: 2304aa976b1765b020886e8b5c7369e169bc779154b9c3efb4dd15c6039c0679
 /// account: 0xf9e4f7f66304ca332d20636b5358b0b9297afbc7428bc107fc5dbc64fb204125
 /// new account: true
@@ -40,7 +40,7 @@
 ///
 /// Claiming an existing address through the `ClaimAccount` transaction kind drives the private
 /// `claim_account_v1` below. It needs no proof: the key signs that transaction.
-module iota::smart_account_builtin_auth;
+module iota::smart_account_builtin_authenticator;
 
 use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::builtin_authenticator_functions::{Self, builtin_authenticator_function_ref_v1};

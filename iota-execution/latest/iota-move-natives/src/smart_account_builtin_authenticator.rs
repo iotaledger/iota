@@ -20,11 +20,11 @@ use crate::NativesCostTable;
 const E_INVALID_KEY_PROOF_MESSAGE_VALUE: u64 = 5;
 
 #[derive(Clone)]
-pub struct SmartAccountBuiltinAuthKeyProofMessageCostParams {
-    pub smart_account_builtin_auth_key_proof_message_cost_base: Option<InternalGas>,
+pub struct SmartAccountBuiltinAuthenticatorKeyProofMessageCostParams {
+    pub smart_account_builtin_authenticator_key_proof_message_cost_base: Option<InternalGas>,
 }
 /// Implementation of the Move native function
-/// `smart_account_builtin_auth::key_proof_message(chain_identifier:
+/// `smart_account_builtin_authenticator::key_proof_message(chain_identifier:
 /// vector<u8>, account: address, new_account: bool, nonce: vector<u8>,
 /// valid_until_epoch: u64): vector<u8>`
 ///
@@ -36,7 +36,7 @@ pub struct SmartAccountBuiltinAuthKeyProofMessageCostParams {
 /// Aborts with `E_INVALID_KEY_PROOF_MESSAGE_VALUE` if `chain_identifier` or
 /// `nonce` is not 32 bytes.
 ///
-/// gas cost: smart_account_builtin_auth_key_proof_message_cost_base
+/// gas cost: smart_account_builtin_authenticator_key_proof_message_cost_base
 pub fn key_proof_message(
     context: &mut NativeContext,
     ty_args: Vec<Type>,
@@ -48,8 +48,8 @@ pub fn key_proof_message(
     let cost_base = context
         .extensions()
         .get::<NativesCostTable>()?
-        .smart_account_builtin_auth_key_proof_message_cost_params
-        .smart_account_builtin_auth_key_proof_message_cost_base
+        .smart_account_builtin_authenticator_key_proof_message_cost_params
+        .smart_account_builtin_authenticator_key_proof_message_cost_base
         .ok_or_else(|| {
             PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
                 .with_message("Gas cost for key_proof_message not available".to_string())

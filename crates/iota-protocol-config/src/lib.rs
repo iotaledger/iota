@@ -1489,9 +1489,10 @@ pub struct ProtocolConfig {
     // Cost param for the Move native function `tx_context::native_tx_nonce(): vector<u8>`
     tx_context_tx_nonce_cost_base: Option<u64>,
     // Cost param for the Move native function
-    // `smart_account_builtin_auth::key_proof_message(chain_identifier: vector<u8>, account:
-    // address, new_account: bool, nonce: vector<u8>, valid_until_epoch: u64): vector<u8>`
-    smart_account_builtin_auth_key_proof_message_cost_base: Option<u64>,
+    // `smart_account_builtin_authenticator::key_proof_message(chain_identifier: vector<u8>,
+    // account: address, new_account: bool, nonce: vector<u8>, valid_until_epoch: u64):
+    // vector<u8>`
+    smart_account_builtin_authenticator_key_proof_message_cost_base: Option<u64>,
 
     // Types
     // Cost params for the Move native function `is_one_time_witness<T: drop>(_: &T): bool`
@@ -3059,7 +3060,7 @@ impl ProtocolConfig {
             tx_context_ids_created_cost_base: None,
             tx_context_replace_cost_base: None,
             tx_context_tx_nonce_cost_base: None,
-            smart_account_builtin_auth_key_proof_message_cost_base: None,
+            smart_account_builtin_authenticator_key_proof_message_cost_base: None,
 
             // `types` module
             // Cost params for the Move native function `is_one_time_witness<T: drop>(_: &T): bool`
@@ -4231,7 +4232,7 @@ impl ProtocolConfig {
                         Some(2);
                     cfg.tx_context_chain_identifier_cost_base = Some(30);
                     cfg.tx_context_tx_nonce_cost_base = Some(30);
-                    cfg.smart_account_builtin_auth_key_proof_message_cost_base = Some(52);
+                    cfg.smart_account_builtin_authenticator_key_proof_message_cost_base = Some(52);
                 }
                 // Use this template when making changes:
                 //

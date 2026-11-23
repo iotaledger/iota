@@ -10,12 +10,12 @@
 ///
 /// `attach_public_key` and `rotate_public_key` don't check that the key's holder approved the
 /// attach: the module that owns the account type decides who may attach a key and checks any
-/// proof before calling them. For `SmartAccount`, `smart_account_builtin_auth` requires a
+/// proof before calling them. For `SmartAccount`, `smart_account_builtin_authenticator` requires a
 /// signature by the key.
 ///
-/// For a `SmartAccount`, use `smart_account_builtin_auth`, which does the steps below and checks
-/// the key holder's proof. The examples are for an account type `Account` defined in another
-/// module, which can reach the account's `UID`.
+/// For a `SmartAccount`, use `smart_account_builtin_authenticator`, which does the steps below and
+/// checks the key holder's proof. The examples are for an account type `Account` defined in
+/// another module, which can reach the account's `UID`.
 ///
 /// # Account creation
 /// To create a new account backed by the built-in authenticator, attach the public key and obtain

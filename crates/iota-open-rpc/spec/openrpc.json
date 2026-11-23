@@ -2223,7 +2223,7 @@
                 "scorer_version": {
                   "u16": "2"
                 },
-                "smart_account_builtin_auth_key_proof_message_cost_base": {
+                "smart_account_builtin_authenticator_key_proof_message_cost_base": {
                   "u64": "52"
                 },
                 "storage_gas_price": {
