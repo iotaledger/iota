@@ -221,15 +221,15 @@ pub struct FileMetadata {
 impl FileMetadata {
     pub fn file_path(&self, dir_path: &Path) -> Path {
         match self.file_type {
-            FileType::Object => {
-                dir_path.child(&*format!("{}_{}.obj", self.bucket_num, self.part_num))
-            }
-            FileType::Reference => {
-                dir_path.child(&*format!("{}_{}.ref", self.bucket_num, self.part_num))
-            }
+            FileType::Object => dir_path
+                .clone()
+                .join(&*format!("{}_{}.obj", self.bucket_num, self.part_num)),
+            FileType::Reference => dir_path
+                .clone()
+                .join(&*format!("{}_{}.ref", self.bucket_num, self.part_num)),
             // EPOCH_INFO is a singleton per snapshot, so bucket/part numbers
             // do not contribute to the filename.
-            FileType::EpochInfo => dir_path.child("EPOCH_INFO"),
+            FileType::EpochInfo => dir_path.clone().join("EPOCH_INFO"),
         }
     }
     pub fn local_file_path(&self, root_path: &std::path::Path, dir_path: &Path) -> Result<PathBuf> {

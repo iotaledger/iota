@@ -348,8 +348,8 @@ impl FileType {
         checkpoint_range: Range<u64>,
     ) -> Path {
         self.dir_prefix()
-            .child(format!("{EPOCH_DIR_PREFIX}{epoch_num}"))
-            .child(format!(
+            .join(format!("{EPOCH_DIR_PREFIX}{epoch_num}"))
+            .join(format!(
                 "{}_{}.{}",
                 checkpoint_range.start,
                 checkpoint_range.end,
@@ -551,7 +551,7 @@ pub async fn read_store_for_checkpoint(
     let prefix = join_paths(dir_prefix, &file_type_prefix);
     let epoch_dirs = find_all_dirs_with_epoch_prefix(&remote_object_store, Some(&prefix)).await?;
     let epoch = epoch_dirs.last_key_value().map(|(k, _v)| *k).unwrap_or(0);
-    let epoch_prefix = prefix.child(format!("epoch_{epoch}"));
+    let epoch_prefix = prefix.join(format!("epoch_{epoch}"));
     let checkpoints =
         find_all_files_with_epoch_prefix(&remote_object_store, Some(&epoch_prefix)).await?;
     let next_checkpoint_seq_num = checkpoints
@@ -917,7 +917,7 @@ pub fn join_paths(base: Option<Path>, child: &Path) -> Path {
     base.map(|p| {
         let mut out_path = p;
         for part in child.parts() {
-            out_path = out_path.child(part)
+            out_path = out_path.join(part)
         }
         out_path
     })

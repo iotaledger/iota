@@ -140,7 +140,7 @@ impl StateSnapshotReaderV1 {
         let epoch_dir_path = Path::from(epoch_dir);
         // Downloads MANIFEST from remote store
         println_or_log(&multi_progress_bar, "Reading the snapshot MANIFEST")?;
-        let manifest_file_path = epoch_dir_path.child("MANIFEST");
+        let manifest_file_path = epoch_dir_path.join("MANIFEST");
         copy_file(
             &manifest_file_path,
             &manifest_file_path,

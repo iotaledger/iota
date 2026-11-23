@@ -174,8 +174,8 @@ impl BlobWorker {
     /// sequence number.
     fn file_path(chk_seq_num: CheckpointSequenceNumber) -> Path {
         Path::from(INGESTION_DIR_NAME)
-            .child(LIVE_DIR_NAME)
-            .child(format!("{chk_seq_num}.{CHECKPOINT_FILE_SUFFIX}"))
+            .join(LIVE_DIR_NAME)
+            .join(format!("{chk_seq_num}.{CHECKPOINT_FILE_SUFFIX}"))
     }
 }
 

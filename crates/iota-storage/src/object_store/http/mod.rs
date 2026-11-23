@@ -98,6 +98,7 @@ async fn get(
         payload: GetResultPayload::Stream(stream),
         meta,
         attributes: object_store::Attributes::new(),
+        extensions: Default::default(),
     })
 }
 

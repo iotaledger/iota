@@ -68,10 +68,12 @@ ignore = [
   # we store have a `Drop` that can panic. Fixed in 0.18.2, which is blocked by
   # the msim determinism problem described above.
   "RUSTSEC-2026-0253",
-  # quick-xml DoS advisories, only reachable transitively via `object_store`
-  # (cloud-storage list XML parsing). Fixed in quick-xml >=0.41.0, but no
-  # released `object_store` pulls it yet (latest 0.14.0 requires ^0.40.1), so
-  # there is no upgrade path. Remove once `object_store` updates quick-xml.
+  # quick-xml DoS advisories in the cloud-storage list XML parsing of
+  # `object_store`. Fixed in quick-xml >=0.41.0, which our own `object_store`
+  # 0.14 uses, but `iota-analytics-indexer` still pulls quick-xml 0.37 through
+  # `snowflake-api` -> `object_store` 0.11. Every `snowflake-api` release
+  # requires `object_store` <=0.12, which never reaches quick-xml 0.41. Remove
+  # once a `snowflake-api` release moves to a fixed `object_store`.
   "RUSTSEC-2026-0194",
   # Same as above
   "RUSTSEC-2026-0195",

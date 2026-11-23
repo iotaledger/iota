@@ -293,6 +293,7 @@ mod tests {
                 version: None,
             },
             attributes: Attributes::new(),
+            extensions: Default::default(),
         };
 
         let received = AtomicU64::new(0);
