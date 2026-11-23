@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 41;
+pub const MAX_PROTOCOL_VERSION: u64 = 42;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -295,7 +295,7 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Raise `max_auth_gas` to 0.001 IOTA on devnet.
 //             Set the attestation freshness window on devnet.
 //             Set the penalty for refuted attestations on devnet.
-//             Enable built-in Move authenticators in devnet.
+// Version 42: Enable built-in Move authenticators in devnet.
 //             Accept the `ClaimAccount` transaction kind in devnet, which
 //             creates an account object at the sender's address.
 //             Introduce Move native functions for validating public keys for
@@ -4202,6 +4202,8 @@ impl ProtocolConfig {
                         // attestations per epoch at the current `max_auth_gas`.
                         cfg.attestation_max_refuted_units_squared = Some(100_000_000);
                     }
+                }
+                42 => {
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         // Enable built-in Move authenticators in devnet.
                         cfg.feature_flags.enable_builtin_move_authenticators = true;
