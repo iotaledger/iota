@@ -92,10 +92,17 @@ impl LedgerView {
     pub(crate) fn resolve_checkpoint(self, checkpoint_viewed_at: u64) -> Option<u64> {
         match self.kind {
             LedgerViewKind::Live => Some(self.max),
-            LedgerViewKind::Consistent => AvailableRange::from(self)
-                .contains(checkpoint_viewed_at)
+            LedgerViewKind::Consistent => self
+                .includes(checkpoint_viewed_at)
                 .then_some(checkpoint_viewed_at),
         }
+    }
+
+    /// Checks whether the given `checkpoint` is within the view.
+    ///
+    /// A live view includes only its latest checkpoint.
+    pub(crate) fn includes(&self, checkpoint: u64) -> bool {
+        checkpoint >= self.min.unwrap_or(self.max) && checkpoint <= self.max
     }
 
     /// Looks up the view on the ledger in the database.
@@ -117,7 +124,7 @@ impl LedgerView {
         match ledger_view.kind {
             LedgerViewKind::Live => Ok(ledger_view),
             LedgerViewKind::Consistent => {
-                if !AvailableRange::from(ledger_view).contains(checkpoint_viewed_at) {
+                if !ledger_view.includes(checkpoint_viewed_at) {
                     return Err(Error::Client(format!(
                         "Requesting data at checkpoint {checkpoint_viewed_at}, outside the \
                          available range.",
@@ -239,11 +246,6 @@ impl AvailableRange {
         LedgerView::query(db, checkpoint_viewed_at)
             .await
             .map(Self::from)
-    }
-
-    /// Checks whether the given `checkpoint` is within the range.
-    pub(crate) fn contains(&self, checkpoint: u64) -> bool {
-        checkpoint >= self.first && checkpoint <= self.last
     }
 }
 

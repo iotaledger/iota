@@ -296,8 +296,8 @@ async fn wait_for_graphql_checkpoint_catchup(
     );
     let query = r#"
     {
-        availableRange {
-            last {
+        ledgerView {
+            max {
                 sequenceNumber
             }
         }
@@ -319,7 +319,7 @@ async fn wait_for_graphql_checkpoint_catchup(
                 }
             };
 
-            let current_checkpoint = resp["data"]["availableRange"]["last"].get("sequenceNumber");
+            let current_checkpoint = resp["data"]["ledgerView"]["max"].get("sequenceNumber");
             info!("Current checkpoint: {:?}", current_checkpoint);
             // Indexer has not picked up any checkpoints yet
             let Some(current_checkpoint) = current_checkpoint else {
