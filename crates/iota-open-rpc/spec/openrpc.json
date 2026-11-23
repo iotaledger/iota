@@ -7647,6 +7647,42 @@
           }
         ]
       },
+      "IotaAccountClaimKind": {
+        "description": "The type of account created by an `IotaClaimAccountTransaction`.",
+        "oneOf": [
+          {
+            "description": "Parameters the claimed `SmartAccount` was created with.",
+            "type": "object",
+            "required": [
+              "public_key_raw_bytes",
+              "public_key_scheme",
+              "type"
+            ],
+            "properties": {
+              "public_key_raw_bytes": {
+                "description": "Raw public key bytes of the claimed address, without the scheme flag prefix. For MultiSig this is a BCS-encoded multisig public key.",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Base64"
+                  }
+                ]
+              },
+              "public_key_scheme": {
+                "description": "Signature scheme flag of the public key of the claimed address (0=Ed25519, 1=Secp256k1, 2=Secp256r1, 3=MultiSig, 6=Passkey).",
+                "type": "integer",
+                "format": "uint8",
+                "minimum": 0.0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "smartAccount"
+                ]
+              }
+            }
+          }
+        ]
+      },
       "IotaArgument": {
         "description": "An argument to a transaction in a programmable transaction block",
         "oneOf": [
@@ -9430,7 +9466,7 @@
         ]
       },
       "IotaTransactionKind": {
-        "description": "Represents the type of a transaction. All transactions except `ProgrammableTransaction` are considered system transactions.",
+        "description": "Represents the type of a transaction. All transactions except `ProgrammableTransaction` and `ClaimAccount` are considered system transactions.",
         "oneOf": [
           {
             "type": "string",
@@ -9440,7 +9476,8 @@
               "ConsensusCommitPrologueV1",
               "RandomnessStateUpdate",
               "EndOfEpochTransaction",
-              "TransactionDenyRulesUpdate"
+              "TransactionDenyRulesUpdate",
+              "ClaimAccount"
             ]
           },
           {
@@ -11919,6 +11956,30 @@
                 "items": {
                   "$ref": "#/components/schemas/IotaEndOfEpochTransactionKind"
                 }
+              }
+            }
+          },
+          {
+            "description": "A transaction that claims an on-chain account object",
+            "type": "object",
+            "required": [
+              "account_kind",
+              "kind"
+            ],
+            "properties": {
+              "account_kind": {
+                "description": "The type of account created by the claim.",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/IotaAccountClaimKind"
+                  }
+                ]
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "ClaimAccount"
+                ]
               }
             }
           }
