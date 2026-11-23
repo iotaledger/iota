@@ -14,9 +14,9 @@
 /// The exception: an account has the built-in authenticator and that public key together, or
 /// neither. `build_v1` and `rotate_auth_function_ref_v1` abort if the built-in authenticator
 /// would be set without the key, or a custom one while the key is attached; the check is
-/// `builtin_authenticator_functions::ensure_builtin_auth_and_public_key_together`. The key can
-/// only be attached and detached by `smart_account_builtin_auth`, so switching between the
-/// built-in authenticator and a custom one goes through it.
+/// `builtin_authenticator_functions::ensure_builtin_authenticator_and_public_key_together`. The
+/// key can only be attached and detached by `smart_account_builtin_auth`, so switching between
+/// the built-in authenticator and a custom one goes through it.
 ///
 /// `SmartAccount`s are created through the `SmartAccountBuilder` API: `builder_v1` allocates a new
 /// object ID for an account with the supplied authenticator. After optionally adding fields with
@@ -109,7 +109,7 @@ public fun with_field<Name: copy + drop + store, Value: store>(
 /// one and a public key is attached.
 public fun build_v1(self: SmartAccountBuilder): address {
     let SmartAccountBuilder { account, authenticator } = self;
-    builtin_authenticator_functions::ensure_builtin_auth_and_public_key_together(
+    builtin_authenticator_functions::ensure_builtin_authenticator_and_public_key_together(
         &account.id,
         &authenticator,
     );
@@ -222,9 +222,9 @@ public fun rotate_field<Name: copy + drop + store, Value: store>(
 /// Rotates the attached authenticator and returns the previous one.
 ///
 /// To switch to or from the built-in authenticator, use
-/// `smart_account_builtin_auth::rotate_to_builtin_auth_v1` and
-/// `smart_account_builtin_auth::rotate_to_custom_auth_v1`, which attach and detach the public key
-/// together with the rotation.
+/// `smart_account_builtin_auth::rotate_to_builtin_authenticator_v1` and
+/// `smart_account_builtin_auth::rotate_to_custom_authenticator_v1`, which attach and detach the
+/// public key together with the rotation.
 ///
 /// Emits an `account::AuthenticatorFunctionRefV1Rotated` event upon success.
 ///
@@ -237,7 +237,7 @@ public fun rotate_auth_function_ref_v1(
     ctx: &TxContext,
 ): AuthenticatorFunctionRefV1<SmartAccount> {
     ensure_tx_sender_is_smart_account(self, ctx);
-    builtin_authenticator_functions::ensure_builtin_auth_and_public_key_together(
+    builtin_authenticator_functions::ensure_builtin_authenticator_and_public_key_together(
         &self.id,
         &authenticator,
     );

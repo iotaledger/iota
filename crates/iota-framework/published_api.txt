@@ -2563,7 +2563,7 @@ detach_public_key
 rotate_public_key
 	public fun
 	0x2::builtin_authenticator_functions
-ensure_builtin_auth_and_public_key_together
+ensure_builtin_authenticator_and_public_key_together
 	public fun
 	0x2::builtin_authenticator_functions
 is_builtin_authenticator
@@ -3886,7 +3886,7 @@ ensure_smart_accounts_enabled
 builder_v1
 	public fun
 	0x2::smart_account_builtin_auth
-has_builtin_auth
+has_builtin_authenticator
 	public fun
 	0x2::smart_account_builtin_auth
 has_public_key
@@ -3895,10 +3895,10 @@ has_public_key
 borrow_public_key
 	public fun
 	0x2::smart_account_builtin_auth
-rotate_to_builtin_auth_v1
+rotate_to_builtin_authenticator_v1
 	public fun
 	0x2::smart_account_builtin_auth
-rotate_to_custom_auth_v1
+rotate_to_custom_authenticator_v1
 	public fun
 	0x2::smart_account_builtin_auth
 rotate_public_key

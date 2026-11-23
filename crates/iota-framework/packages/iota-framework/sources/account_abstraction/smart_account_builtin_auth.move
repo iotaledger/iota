@@ -9,9 +9,10 @@
 /// it keeps the key and the built-in authenticator together: an account has both or neither.
 ///
 /// - `builder_v1` and the `ClaimAccount` pipeline create an account with both;
-/// - `rotate_to_builtin_auth_v1` attaches a key and sets the built-in authenticator in one call;
-/// - `rotate_to_custom_auth_v1` replaces the built-in authenticator with a custom one and detaches
-///   the key in one call;
+/// - `rotate_to_builtin_authenticator_v1` attaches a key and sets the built-in authenticator in
+///   one call;
+/// - `rotate_to_custom_authenticator_v1` replaces the built-in authenticator with a custom one and
+///   detaches the key in one call;
 /// - `rotate_public_key` replaces the key while the built-in authenticator is set. The built-in
 ///   authenticator uses the scheme of the attached key, so it stays as it is.
 ///
@@ -19,10 +20,10 @@
 /// pairing, so no `SmartAccount` can have the built-in authenticator without the key, or the key
 /// without the built-in authenticator.
 ///
-/// `builder_v1`, `rotate_to_builtin_auth_v1` and `rotate_public_key` attach a key only with its
-/// holder's proof: a signature by the key, as an IOTA personal message, over a text that names
-/// the network, the account the key goes to, whether that account is new, the transaction's
-/// nonce, and the last epoch in which the proof is valid. For example:
+/// `builder_v1`, `rotate_to_builtin_authenticator_v1` and `rotate_public_key` attach a key only
+/// with its holder's proof: a signature by the key, as an IOTA personal message, over a text that
+/// names the network, the account the key goes to, whether that account is new, the
+/// transaction's nonce, and the last epoch in which the proof is valid. For example:
 ///
 /// ```
 /// check: 0x2::smart_account_builtin_auth::verify_key_proof
@@ -49,13 +50,13 @@ use iota::smart_account::{Self, SmartAccount, SmartAccountBuilder};
 // === Errors ===
 
 #[error(code = 0)]
-const EBuiltinAuthAlreadySet: vector<u8> =
+const EBuiltinAuthenticatorAlreadySet: vector<u8> =
     b"The built-in authenticator is already set; use `rotate_public_key` to replace its key.";
 #[error(code = 1)]
-const EBuiltinAuthNotSet: vector<u8> = b"The built-in authenticator is not set.";
+const EBuiltinAuthenticatorNotSet: vector<u8> = b"The built-in authenticator is not set.";
 #[error(code = 2)]
 const EAuthenticatorIsBuiltin: vector<u8> =
-    b"Rotate to the built-in authenticator with `rotate_to_builtin_auth_v1`.";
+    b"Rotate to the built-in authenticator with `rotate_to_builtin_authenticator_v1`.";
 #[error(code = 3)]
 const EKeyProofExpired: vector<u8> = b"The key proof has expired.";
 #[error(code = 4)]
@@ -92,7 +93,7 @@ public fun builder_v1(
 // === View Functions ===
 
 /// Returns `true` if and only if the account's authenticator is the built-in one.
-public fun has_builtin_auth(account: &SmartAccount): bool {
+public fun has_builtin_authenticator(account: &SmartAccount): bool {
     builtin_authenticator_functions::is_builtin_authenticator(
         account.borrow_auth_function_ref_v1(),
     )
@@ -127,7 +128,7 @@ public fun borrow_public_key(account: &SmartAccount): &PublicKey {
 /// Aborts if the current epoch is later than `valid_until_epoch`.
 /// Aborts if `key_proof` is not a valid proof by `public_key`.
 /// Aborts if `enable_builtin_move_authenticators` is not enabled in the protocol config.
-public fun rotate_to_builtin_auth_v1(
+public fun rotate_to_builtin_authenticator_v1(
     account: &mut SmartAccount,
     public_key: PublicKey,
     key_proof: vector<u8>,
@@ -135,7 +136,7 @@ public fun rotate_to_builtin_auth_v1(
     ctx: &TxContext,
 ): AuthenticatorFunctionRefV1<SmartAccount> {
     account.ensure_tx_sender_is_smart_account(ctx);
-    assert!(!has_builtin_auth(account), EBuiltinAuthAlreadySet);
+    assert!(!has_builtin_authenticator(account), EBuiltinAuthenticatorAlreadySet);
     verify_key_proof(
         &public_key,
         &key_proof,
@@ -159,10 +160,10 @@ public fun rotate_to_builtin_auth_v1(
 /// `account::AuthenticatorFunctionRefV1Rotated` event on success.
 ///
 /// Aborts if the transaction sender is not the account.
-/// Aborts if `authenticator` is the built-in one; use `rotate_to_builtin_auth_v1`.
+/// Aborts if `authenticator` is the built-in one; use `rotate_to_builtin_authenticator_v1`.
 /// Aborts if the built-in authenticator is not set; use
 /// `smart_account::rotate_auth_function_ref_v1`.
-public fun rotate_to_custom_auth_v1(
+public fun rotate_to_custom_authenticator_v1(
     account: &mut SmartAccount,
     authenticator: AuthenticatorFunctionRefV1<SmartAccount>,
     ctx: &TxContext,
@@ -172,7 +173,7 @@ public fun rotate_to_custom_auth_v1(
         !builtin_authenticator_functions::is_builtin_authenticator(&authenticator),
         EAuthenticatorIsBuiltin,
     );
-    assert!(has_builtin_auth(account), EBuiltinAuthNotSet);
+    assert!(has_builtin_authenticator(account), EBuiltinAuthenticatorNotSet);
 
     let public_key = builtin_authenticator_functions::detach_public_key(account.uid_mut());
     account.rotate_auth_function_ref_v1(authenticator, ctx);
@@ -188,7 +189,7 @@ public fun rotate_to_custom_auth_v1(
 /// Emits a `builtin_authenticator_functions::PublicKeyRotated` event on success.
 ///
 /// Aborts if the transaction sender is not the account.
-/// Aborts if the built-in authenticator is not set; use `rotate_to_builtin_auth_v1`.
+/// Aborts if the built-in authenticator is not set; use `rotate_to_builtin_authenticator_v1`.
 /// Aborts if the current epoch is later than `valid_until_epoch`.
 /// Aborts if `key_proof` is not a valid proof by `public_key`.
 public fun rotate_public_key(
@@ -199,7 +200,7 @@ public fun rotate_public_key(
     ctx: &TxContext,
 ): PublicKey {
     account.ensure_tx_sender_is_smart_account(ctx);
-    assert!(has_builtin_auth(account), EBuiltinAuthNotSet);
+    assert!(has_builtin_authenticator(account), EBuiltinAuthenticatorNotSet);
     verify_key_proof(
         &public_key,
         &key_proof,

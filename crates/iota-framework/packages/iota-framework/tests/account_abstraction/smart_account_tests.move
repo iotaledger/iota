@@ -44,7 +44,11 @@ fun builder_v1_aborts_without_smart_accounts() {
 }
 
 #[test]
-#[expected_failure(abort_code = builtin_authenticator_functions::EBuiltinAuthWithoutPublicKey)]
+#[
+    expected_failure(
+        abort_code = builtin_authenticator_functions::EBuiltinAuthenticatorWithoutPublicKey,
+    ),
+]
 fun build_v1_aborts_for_the_builtin_authenticator_without_a_key() {
     let mut scenario = test_scenario::begin(@0x0);
 
@@ -225,7 +229,11 @@ fun rotate_auth_function_ref_v1_aborts_if_sender_not_account() {
 }
 
 #[test]
-#[expected_failure(abort_code = builtin_authenticator_functions::EBuiltinAuthWithoutPublicKey)]
+#[
+    expected_failure(
+        abort_code = builtin_authenticator_functions::EBuiltinAuthenticatorWithoutPublicKey,
+    ),
+]
 fun rotate_auth_function_ref_v1_aborts_for_the_builtin_authenticator_without_a_key() {
     account_test_mut!(|account, scenario| {
         account.rotate_auth_function_ref_v1(builtin_test_authenticator(), scenario.ctx());

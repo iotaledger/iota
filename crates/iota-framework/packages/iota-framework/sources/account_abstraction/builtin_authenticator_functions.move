@@ -24,7 +24,7 @@
 /// ```move
 /// builtin_authenticator_functions::attach_public_key(&mut account.id, public_key::create(scheme, raw_pk_bytes));
 /// let authenticator_function_ref = builtin_authenticator_functions::builtin_authenticator_function_ref_v1<Account>();
-/// builtin_authenticator_functions::ensure_builtin_auth_and_public_key_together(&account.id, &authenticator_function_ref);
+/// builtin_authenticator_functions::ensure_builtin_authenticator_and_public_key_together(&account.id, &authenticator_function_ref);
 /// account::create_account_v1(account, authenticator_function_ref);
 /// ```
 ///
@@ -43,7 +43,7 @@
 /// ```move
 /// let old_public_key = builtin_authenticator_functions::detach_public_key(&mut account.id);
 /// let new_authenticator_function_ref = ...;
-/// builtin_authenticator_functions::ensure_builtin_auth_and_public_key_together(&account.id, &new_authenticator_function_ref);
+/// builtin_authenticator_functions::ensure_builtin_authenticator_and_public_key_together(&account.id, &new_authenticator_function_ref);
 /// account::rotate_auth_function_ref_v1(account, new_authenticator_function_ref);
 /// ```
 module iota::builtin_authenticator_functions;
@@ -69,10 +69,10 @@ const EPublicKeyAlreadyAttached: vector<u8> = b"Public key already attached.";
 const EInvalidSignature: vector<u8> = b"Invalid signature.";
 
 #[error(code = 30)]
-const EBuiltinAuthWithoutPublicKey: vector<u8> =
+const EBuiltinAuthenticatorWithoutPublicKey: vector<u8> =
     b"The built-in authenticator needs the account's public key.";
 #[error(code = 31)]
-const EPublicKeyWithoutBuiltinAuth: vector<u8> =
+const EPublicKeyWithoutBuiltinAuthenticator: vector<u8> =
     b"The account's public key is attached, so the authenticator must be the built-in one.";
 
 // === Constants ===
@@ -213,15 +213,15 @@ public fun rotate_public_key(account_uid: &mut UID, public_key: PublicKey): Publ
 ///
 /// Aborts if `authenticator` is the built-in one and no public key is attached.
 /// Aborts if `authenticator` is not the built-in one and a public key is attached.
-public fun ensure_builtin_auth_and_public_key_together<Account: key>(
+public fun ensure_builtin_authenticator_and_public_key_together<Account: key>(
     account_uid: &UID,
     authenticator: &AuthenticatorFunctionRefV1<Account>,
 ) {
     let public_key_attached = has_public_key(account_uid);
     if (is_builtin_authenticator(authenticator)) {
-        assert!(public_key_attached, EBuiltinAuthWithoutPublicKey);
+        assert!(public_key_attached, EBuiltinAuthenticatorWithoutPublicKey);
     } else {
-        assert!(!public_key_attached, EPublicKeyWithoutBuiltinAuth);
+        assert!(!public_key_attached, EPublicKeyWithoutBuiltinAuthenticator);
     }
 }
 

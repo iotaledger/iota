@@ -5955,7 +5955,7 @@ async fn test_smart_account_with_custom_authenticator_refused_without_smart_acco
     let mut test_env = TestEnvironment::new().await;
     let package_id = test_env.publish_smart_account_free_access_package().await;
     let transaction = test_env
-        .craft_create_custom_auth_smart_account(package_id)
+        .craft_create_custom_authenticator_smart_account(package_id)
         .await?;
     let (effects, _) = test_env
         .test_cluster
@@ -6054,7 +6054,7 @@ async fn test_smart_account_created_after_the_protocol_upgrade() -> Result<(), a
 
     let package_id = test_env.publish_smart_account_free_access_package().await;
     let transaction = test_env
-        .craft_create_custom_auth_smart_account(package_id)
+        .craft_create_custom_authenticator_smart_account(package_id)
         .await?;
     let (effects, _) = test_env
         .test_cluster
@@ -7179,7 +7179,7 @@ impl TestEnvironment {
     /// Crafts a signed transaction that creates a `SmartAccount` through
     /// `smart_account::builder_v1` and `smart_account::build_v1`, with the
     /// free-access authenticator of the package `package_id`.
-    async fn craft_create_custom_auth_smart_account(
+    async fn craft_create_custom_authenticator_smart_account(
         &self,
         package_id: ObjectId,
     ) -> anyhow::Result<TransactionEnvelope> {

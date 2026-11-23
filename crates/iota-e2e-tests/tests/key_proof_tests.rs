@@ -198,10 +198,10 @@ async fn rotate_public_key_attaches_a_key_with_its_key_proof() {
 }
 
 /// An account whose authenticator is not the built-in one attaches a key and
-/// switches to the built-in authenticator with `rotate_to_builtin_auth_v1`, in
+/// switches to the built-in authenticator with `rotate_to_builtin_authenticator_v1`, in
 /// a transaction it sends, and then sends a transaction signed by the key.
 #[sim_test]
-async fn rotate_to_builtin_auth_attaches_a_key_with_its_key_proof() {
+async fn rotate_to_builtin_authenticator_attaches_a_key_with_its_key_proof() {
     let test_cluster = TestClusterBuilder::new().build().await;
     let account = create_account_with_custom_authenticator(&test_cluster).await;
     let key = KeyHolder::ed25519(9);
@@ -215,7 +215,7 @@ async fn rotate_to_builtin_auth_attaches_a_key_with_its_key_proof() {
         Transaction::new_programmable(
             sender,
             vec![gas],
-            attach_key_pt("rotate_to_builtin_auth_v1", account, &key, proof),
+            attach_key_pt("rotate_to_builtin_authenticator_v1", account, &key, proof),
             rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
             rgp,
         )
@@ -944,7 +944,7 @@ fn create_account_pt(
 
 /// A programmable transaction that attaches `key` to `account` with
 /// `smart_account_builtin_auth::<function>`, where `function` is
-/// `rotate_public_key` or `rotate_to_builtin_auth_v1`, with `proof` as the key
+/// `rotate_public_key` or `rotate_to_builtin_authenticator_v1`, with `proof` as the key
 /// proof, valid until `VALID_UNTIL_EPOCH`. `account` must send it.
 fn attach_key_pt(
     function: &'static str,
