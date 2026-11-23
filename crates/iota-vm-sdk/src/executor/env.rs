@@ -11,7 +11,10 @@ use std::sync::Arc;
 
 use iota_execution::Executor;
 use iota_protocol_config::ProtocolConfig;
-use iota_types::metrics::{BytecodeVerifierMetrics, LimitsMetrics};
+use iota_types::{
+    digests::ChainIdentifier,
+    metrics::{BytecodeVerifierMetrics, LimitsMetrics},
+};
 
 #[cfg(not(target_arch = "wasm32"))]
 use crate::debug::{ProfileOutput, ProfileSink};
@@ -27,6 +30,7 @@ pub(super) struct ExecutionEnv {
     pub(super) reference_gas_price: u64,
     pub(super) epoch_id: u64,
     pub(super) epoch_timestamp_ms: u64,
+    pub(super) chain_identifier: ChainIdentifier,
     pub(super) executor: Arc<dyn Executor + Send + Sync>,
     pub(super) limits_metrics: Arc<LimitsMetrics>,
     pub(super) bytecode_verifier_metrics: Arc<BytecodeVerifierMetrics>,
@@ -70,6 +74,7 @@ impl ExecutionEnv {
             reference_gas_price: vm.reference_gas_price,
             epoch_id: vm.epoch_id,
             epoch_timestamp_ms: vm.epoch_timestamp_ms,
+            chain_identifier: vm.chain_identifier,
             executor,
             limits_metrics: vm.limits_metrics.clone(),
             bytecode_verifier_metrics: vm.bytecode_verifier_metrics.clone(),
