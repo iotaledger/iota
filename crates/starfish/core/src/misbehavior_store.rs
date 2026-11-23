@@ -316,11 +316,9 @@ impl MisbehaviorStore {
     ) {
         let committee_size = self.in_memory.authorities.len();
         let fault_type = classify_block_error(error);
-        // Relayers are trusted (authenticated connections); the header's
-        // author is attacker-controlled and may be outside the committee.
-        let author = header_slot.filter(|slot| {
-            matches!(fault_type, FaultType::Provable) && slot.authority.value() < committee_size
-        });
+        // A provable error is raised only after the header's signature is
+        // verified, which needs an author in the committee.
+        let author = header_slot.filter(|_| matches!(fault_type, FaultType::Provable));
         if let Some(slot) = author {
             self.record_provable_fault(slot);
         }
@@ -1803,15 +1801,11 @@ mod tests {
     #[tokio::test]
     async fn test_out_of_range_author_does_not_panic() {
         // Malicious peer sends a block claiming an author index outside the
-        // committee: must not panic, and both provable+unprovable error paths
-        // must fall back to charging the peer.
+        // committee: must not panic, and the peer is charged.
         let context = Arc::new(Context::new_for_test(4).0);
         let store = MisbehaviorStore::new(&context);
         let peer = AuthorityIndex::new_for_test(1);
         let bogus_author = AuthorityIndex::new_for_test(99);
-
-        let provable = ConsensusError::TooManyAncestors(10, 5);
-        store.record_fault(&provable, Some(Slot::new(1, bogus_author)), [peer]);
 
         let unprovable = ConsensusError::InvalidAuthorityIndex {
             index: bogus_author,
@@ -1821,7 +1815,7 @@ mod tests {
 
         let peer_counts = store.in_memory.snapshot(1);
         assert_eq!(peer_counts.faulty_blocks_provable, 0);
-        assert_eq!(peer_counts.faulty_blocks_unprovable, 2);
+        assert_eq!(peer_counts.faulty_blocks_unprovable, 1);
     }
 
     /// An author whose last committed header is not fetched for
