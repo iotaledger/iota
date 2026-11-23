@@ -5,7 +5,14 @@
 module iota::smart_account_builtin_authenticator_tests;
 
 use iota::authenticator_function::{Self, AuthenticatorFunctionRefV1};
-use iota::builtin_authenticator_functions;
+use iota::bcs;
+use iota::builtin_authenticator_functions::{
+    Self,
+    PublicKeyAttached,
+    PublicKeyDetached,
+    PublicKeyRotated
+};
+use iota::event;
 use iota::protocol_config;
 use iota::public_key::{Self, PublicKey};
 use iota::signature_scheme;
@@ -90,6 +97,26 @@ fun builder_v1_accepts_extra_fields() {
     assert_eq(smart_account_builtin_authenticator::has_public_key(&account), true);
 
     test_scenario::return_shared(account);
+    scenario.end();
+}
+
+#[test]
+fun builder_v1_emits_public_key_attached() {
+    let mut scenario = begin_with_nonce(@0x0);
+
+    let account = smart_account_builtin_authenticator::builder_v1(
+        key(),
+        NEW_ACCOUNT_SIGNATURE,
+        VALID_UNTIL_EPOCH,
+        scenario.ctx(),
+    ).build_v1();
+
+    assert_public_key_event_counts(1, 0, 0);
+    assert_eq(
+        bcs::to_bytes(&event::events_by_type<PublicKeyAttached>()[0]),
+        public_key_event_bytes(object::id_from_address(account), key()),
+    );
+
     scenario.end();
 }
 
@@ -193,6 +220,20 @@ fun builder_v1_aborts_for_a_changed_signature() {
 
     smart_account_builtin_authenticator::builder_v1(key(), signature, VALID_UNTIL_EPOCH, &mut ctx)
         .build_v1();
+}
+
+#[test]
+#[expected_failure(abort_code = builtin_authenticator_functions::EBuiltinAuthenticatorsNotEnabled)]
+fun builder_v1_aborts_without_builtin_authenticators() {
+    protocol_config::set_feature_enabled_for_testing(b"enable_builtin_move_authenticators", false);
+    let mut ctx = ctx_in_epoch(@0x0, 0);
+
+    smart_account_builtin_authenticator::builder_v1(
+        key(),
+        NEW_ACCOUNT_SIGNATURE,
+        VALID_UNTIL_EPOCH,
+        &mut ctx,
+    ).build_v1();
 }
 
 // === key_proof_message ===
@@ -339,6 +380,44 @@ fun rotate_to_builtin_authenticator_v1_attaches_key_and_sets_builtin_authenticat
 }
 
 #[test]
+fun rotate_to_builtin_authenticator_v1_emits_public_key_attached() {
+    custom_account_test!(|account, scenario| {
+        smart_account_builtin_authenticator::rotate_to_builtin_authenticator_v1(
+            account,
+            key(),
+            ACCOUNT_SIGNATURE,
+            VALID_UNTIL_EPOCH,
+            scenario.ctx(),
+        );
+
+        assert_public_key_event_counts(1, 0, 0);
+        assert_eq(
+            bcs::to_bytes(&event::events_by_type<PublicKeyAttached>()[0]),
+            public_key_event_bytes(object::id(account), key()),
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = builtin_authenticator_functions::EBuiltinAuthenticatorsNotEnabled)]
+fun rotate_to_builtin_authenticator_v1_aborts_without_builtin_authenticators() {
+    custom_account_test!(|account, scenario| {
+        protocol_config::set_feature_enabled_for_testing(
+            b"enable_builtin_move_authenticators",
+            false,
+        );
+
+        smart_account_builtin_authenticator::rotate_to_builtin_authenticator_v1(
+            account,
+            key(),
+            ACCOUNT_SIGNATURE,
+            VALID_UNTIL_EPOCH,
+            scenario.ctx(),
+        );
+    });
+}
+
+#[test]
 #[
     expected_failure(
         abort_code = iota::smart_account_builtin_authenticator::EBuiltinAuthenticatorAlreadySet,
@@ -431,6 +510,23 @@ fun rotate_to_custom_authenticator_v1_detaches_the_key() {
 }
 
 #[test]
+fun rotate_to_custom_authenticator_v1_emits_public_key_detached() {
+    builtin_account_test!(|account, scenario| {
+        smart_account_builtin_authenticator::rotate_to_custom_authenticator_v1(
+            account,
+            custom_authenticator(),
+            scenario.ctx(),
+        );
+
+        assert_public_key_event_counts(0, 1, 0);
+        assert_eq(
+            bcs::to_bytes(&event::events_by_type<PublicKeyDetached>()[0]),
+            public_key_event_bytes(object::id(account), key()),
+        );
+    });
+}
+
+#[test]
 #[
     expected_failure(
         abort_code = iota::smart_account_builtin_authenticator::EBuiltinAuthenticatorNotSet,
@@ -513,6 +609,25 @@ fun rotate_public_key_replaces_the_key() {
             &other_key(),
         );
         assert_eq(smart_account_builtin_authenticator::has_builtin_authenticator(account), true);
+    });
+}
+
+#[test]
+fun rotate_public_key_emits_public_key_rotated() {
+    builtin_account_test!(|account, scenario| {
+        smart_account_builtin_authenticator::rotate_public_key(
+            account,
+            other_key(),
+            OTHER_KEY_ACCOUNT_SIGNATURE,
+            VALID_UNTIL_EPOCH,
+            scenario.ctx(),
+        );
+
+        assert_public_key_event_counts(0, 0, 1);
+        assert_eq(
+            bcs::to_bytes(&event::events_by_type<PublicKeyRotated>()[0]),
+            public_key_rotated_event_bytes(object::id(account), key(), other_key()),
+        );
     });
 }
 
@@ -735,11 +850,32 @@ fun other_custom_authenticator(): AuthenticatorFunctionRefV1<SmartAccount> {
 /// The built-in authenticator ref, as `smart_account_builtin_authenticator::builder_v1` attaches
 /// it.
 fun builtin_authenticator(): AuthenticatorFunctionRefV1<SmartAccount> {
-    authenticator_function::create_auth_function_ref_v1_for_testing(
-        @0x2,
-        ascii::string(b"builtin_authenticator_functions"),
-        ascii::string(b"builtin_authenticator_v1"),
-    )
+    builtin_authenticator_functions::builtin_authenticator_function_ref_v1()
+}
+
+/// Asserts how many `PublicKeyAttached`, `PublicKeyDetached` and `PublicKeyRotated` events the
+/// current transaction has emitted.
+fun assert_public_key_event_counts(attached: u64, detached: u64, rotated: u64) {
+    assert_eq(event::events_by_type<PublicKeyAttached>().length(), attached);
+    assert_eq(event::events_by_type<PublicKeyDetached>().length(), detached);
+    assert_eq(event::events_by_type<PublicKeyRotated>().length(), rotated);
+}
+
+// The event fields are private to `builtin_authenticator_functions`, so the tests compare BCS
+// bytes: a struct's BCS bytes are those of its fields, in declaration order.
+
+/// Returns the BCS bytes of a `PublicKeyAttached` or `PublicKeyDetached` event.
+fun public_key_event_bytes(account_id: ID, public_key: PublicKey): vector<u8> {
+    let mut bytes = bcs::to_bytes(&account_id);
+    bytes.append(bcs::to_bytes(&public_key));
+    bytes
+}
+
+/// Returns the BCS bytes of a `PublicKeyRotated` event.
+fun public_key_rotated_event_bytes(account_id: ID, from: PublicKey, to: PublicKey): vector<u8> {
+    let mut bytes = public_key_event_bytes(account_id, from);
+    bytes.append(bcs::to_bytes(&to));
+    bytes
 }
 
 /// Runs `$f` on a shared `SmartAccount` at `ACCOUNT`, built by
