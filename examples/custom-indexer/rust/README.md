@@ -51,3 +51,13 @@ Finally, copy the checkpoint files to the `chk` directory and the program should
 ```sh
 cp $YOUR_CHECKPOINT_FILE chk/
 ```
+
+### Backfill example
+
+The backfill example ingests a fixed range of checkpoints from the testnet historical store and stops when the range is done. The arguments are the first and the last checkpoint of the range and the order, `asc` or `desc`.
+
+```sh
+cargo run --bin backfill -- 1000 1100 desc
+```
+
+Press Ctrl+C to stop the run gracefully.

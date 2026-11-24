@@ -8,7 +8,10 @@ license = "Apache-2.0"
 # external dependencies
 anyhow = "1.0"
 async-trait = "0.1"
-tokio = "1.49.0"
+tokio = { version = "1.49.0", features = ["signal"] }
+tokio-util = "0.7"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # internal dependencies
 iota-data-ingestion-core = { path = "../../../crates/iota-data-ingestion-core" }
@@ -30,3 +33,7 @@ path = "hybrid_reader.rs"
 [[bin]]
 name = "remote_reader_with_filters"
 path = "remote_reader_with_filters.rs"
+
+[[bin]]
+name = "backfill"
+path = "backfill.rs"
