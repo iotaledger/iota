@@ -514,9 +514,9 @@ fn verify_transactions_commitment(
         });
     }
 
-    // Step 2: Deserialize the actual transactions vector. A quorum parsed this
-    // committed payload, so this fails only with Byzantine stake beyond the
-    // fault model.
+    // Step 2: Deserialize the actual transactions vector. A quorum acknowledged
+    // this committed payload, so an honest authority parsed it; this fails only
+    // with Byzantine stake beyond the fault model.
     let transactions: Vec<Transaction> = bcs::from_bytes(&inner_serialized_transactions)
         .map_err(ConsensusError::MalformedTransactions)?;
 
