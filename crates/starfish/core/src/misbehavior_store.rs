@@ -316,8 +316,6 @@ impl MisbehaviorStore {
     ) {
         let committee_size = self.in_memory.authorities.len();
         let fault_type = classify_fault(error);
-        // A provable error is raised only after the header's signature is
-        // verified, which needs an author in the committee.
         let author = header_slot.filter(|_| matches!(fault_type, FaultType::Provable));
         if let Some(slot) = author {
             self.record_provable_fault(slot);
