@@ -19,7 +19,6 @@ use serde::{Deserialize, Serialize};
 use crate::{
     constants::validate_max_message_size,
     error::RpcError,
-    merge::Merge,
     metrics::{RequestMetrics, ResponseItemKind},
     types::{GrpcReader, OwnedObjectCursor},
     utils::shorten_parse_error,
@@ -42,6 +41,7 @@ struct PageToken {
 #[tracing::instrument(skip(reader, metrics))]
 pub(crate) fn list_owned_objects(
     reader: Arc<GrpcReader>,
+    max_json_move_value_size: usize,
     metrics: &RequestMetrics,
     ListOwnedObjectsRequest {
         owner,
@@ -108,8 +108,9 @@ pub(crate) fn list_owned_objects(
             Err(e) => Err(RpcError::from(e))?,
         };
 
-        let merged = Object::merge_from(object, &read_mask)
-            .map_err(|e| e.with_context("failed to merge object"))?;
+        let merged =
+            crate::merge::merge_object(object, &reader, max_json_move_value_size, &read_mask)
+                .map_err(|e| e.with_context("failed to merge object"))?;
 
         let item_size = merged.encoded_len();
         metrics.record_response_item(ResponseItemKind::OwnedObject, item_size);

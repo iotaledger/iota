@@ -51,6 +51,7 @@ fn should_load_field(mask: &FieldMaskTree) -> bool {
         DynamicField::CHILD_ID_FIELD.name,
         DynamicField::FIELD_OBJECT_FIELD.name,
         DynamicField::CHILD_OBJECT_FIELD.name,
+        DynamicField::JSON_NAME_FIELD.name,
     ]
     .into_iter()
     .any(|field| mask.contains(field))
@@ -62,9 +63,10 @@ fn should_load_field(mask: &FieldMaskTree) -> bool {
 /// (kind, name, value, child_id, etc.) are populated by loading the actual
 /// field object when the read mask requests them.
 fn get_dynamic_field(
-    reader: &GrpcReader,
+    reader: &Arc<GrpcReader>,
     parent: &ObjectId,
     field_id: &ObjectId,
+    max_json_move_value_size: usize,
     read_mask: &FieldMaskTree,
     load_field: bool,
 ) -> Result<Option<DynamicField>, RpcError> {
@@ -84,7 +86,13 @@ fn get_dynamic_field(
     // that clients see all items and can detect partial data via the
     // absence of the requested heavy fields.
     if load_field {
-        if let Err(e) = load_dynamic_field(reader, field_id, read_mask, &mut message) {
+        if let Err(e) = load_dynamic_field(
+            reader,
+            field_id,
+            max_json_move_value_size,
+            read_mask,
+            &mut message,
+        ) {
             tracing::warn!("error loading dynamic field object {field_id}: {e}");
             // Return the item with index-only fields rather than
             // silently dropping it.
@@ -99,8 +107,9 @@ fn get_dynamic_field(
 /// Populates: `kind`, `name`, `value`, `value_type`, `child_id`,
 /// `field_object`, `child_object`.
 fn load_dynamic_field(
-    reader: &GrpcReader,
+    reader: &Arc<GrpcReader>,
     field_id: &ObjectId,
+    max_json_move_value_size: usize,
     read_mask: &FieldMaskTree,
     message: &mut DynamicField,
 ) -> Result<(), RpcError> {
@@ -119,6 +128,36 @@ fn load_dynamic_field(
 
     // Only proceed if this is actually a `Field<Name, Value>` type.
     if !struct_tag.is_dynamic_field() {
+        return Ok(());
+    }
+
+    // `field_object` is the `Field<Name, Value>` wrapper object itself; it
+    // renders from the already-loaded object and needs neither the type layout
+    // nor the deserialized field decoded below.
+    if let Some(submask) = read_mask.subtree(DynamicField::FIELD_OBJECT_FIELD.name) {
+        let merged = crate::merge::merge_object(
+            field_object.clone(),
+            reader,
+            max_json_move_value_size,
+            &submask,
+        )
+        .map_err(|e: RpcError| e.with_context("failed to merge field object"))?;
+        message.field_object = Some(merged);
+    }
+
+    // Every field below is decoded from the `Field<Name, Value>` layout.
+    // Resolving that layout is the expensive step, so skip it (and the
+    // deserialization) when the mask requests none of those fields.
+    let needs_field = read_mask.contains(DynamicField::KIND_FIELD.name)
+        || read_mask.contains(DynamicField::NAME_FIELD.name)
+        || crate::utils::mask_names_field(read_mask, DynamicField::JSON_NAME_FIELD.name)
+        || read_mask.contains(DynamicField::VALUE_FIELD.name)
+        || read_mask.contains(DynamicField::VALUE_TYPE_FIELD.name)
+        || read_mask.contains(DynamicField::CHILD_ID_FIELD.name)
+        || read_mask
+            .subtree(DynamicField::CHILD_OBJECT_FIELD.name)
+            .is_some();
+    if !needs_field {
         return Ok(());
     }
 
@@ -156,14 +195,18 @@ fn load_dynamic_field(
         message.name = Some(BcsData::default().with_data(field.name_bytes.to_vec()));
     }
 
-    if read_mask.contains(DynamicField::VALUE_FIELD.name) {
-        message.value = Some(BcsData::default().with_data(field.value_bytes.to_vec()));
+    // The field's layout is already resolved above, so render the name's JSON
+    // directly from it rather than resolving the type again.
+    if crate::utils::mask_names_field(read_mask, DynamicField::JSON_NAME_FIELD.name) {
+        message.json_name = crate::utils::render_json_with_layout(
+            max_json_move_value_size,
+            field.name_layout,
+            field.name_bytes,
+        );
     }
 
-    if let Some(submask) = read_mask.subtree(DynamicField::FIELD_OBJECT_FIELD.name) {
-        let merged = crate::merge::Merge::merge_from(field_object.clone(), &submask)
-            .map_err(|e: RpcError| e.with_context("failed to merge field object"))?;
-        message.field_object = Some(merged);
+    if read_mask.contains(DynamicField::VALUE_FIELD.name) {
+        message.value = Some(BcsData::default().with_data(field.value_bytes.to_vec()));
     }
 
     match field
@@ -211,8 +254,13 @@ fn load_dynamic_field(
                 }
 
                 if let Some(submask) = read_mask.subtree(DynamicField::CHILD_OBJECT_FIELD.name) {
-                    let merged = crate::merge::Merge::merge_from(child_object, &submask)
-                        .map_err(|e: RpcError| e.with_context("failed to merge child object"))?;
+                    let merged = crate::merge::merge_object(
+                        child_object,
+                        reader,
+                        max_json_move_value_size,
+                        &submask,
+                    )
+                    .map_err(|e: RpcError| e.with_context("failed to merge child object"))?;
                     message.child_object = Some(merged);
                 }
             }
@@ -225,6 +273,7 @@ fn load_dynamic_field(
 #[tracing::instrument(skip(reader, metrics))]
 pub(crate) fn list_dynamic_fields(
     reader: Arc<GrpcReader>,
+    max_json_move_value_size: usize,
     metrics: &RequestMetrics,
     ListDynamicFieldsRequest {
         parent,
@@ -261,7 +310,14 @@ pub(crate) fn list_dynamic_fields(
         let key = result.map_err(RpcError::from)?;
         let field_id = key.field_id;
 
-        let Some(df) = get_dynamic_field(&reader, &parent_id, &field_id, &read_mask, load_field)?
+        let Some(df) = get_dynamic_field(
+            &reader,
+            &parent_id,
+            &field_id,
+            max_json_move_value_size,
+            &read_mask,
+            load_field,
+        )?
         else {
             continue;
         };
