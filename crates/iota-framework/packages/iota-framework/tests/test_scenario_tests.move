@@ -1204,6 +1204,73 @@ fun test_tx_context() {
 }
 
 #[test]
+fun test_tx_context_chain_identifier() {
+    use std::unit_test::assert_eq;
+
+    let chain_identifier = x"0101010101010101010101010101010101010101010101010101010101010101";
+    let ctx_builder = test_scenario::ctx_builder_from_sender(@0xA)
+        .set_chain_identifier(chain_identifier);
+    let mut scenario = test_scenario::begin_with_context(ctx_builder);
+    assert_eq!(scenario.ctx().chain_identifier(), chain_identifier);
+
+    // check that the chain identifier holds across transactions
+    scenario.next_tx(@0xB);
+    assert_eq!(scenario.ctx().chain_identifier(), chain_identifier);
+    let ctx_builder = scenario.ctx_builder().set_gas_price(800);
+    scenario.next_with_context(ctx_builder);
+    assert_eq!(scenario.ctx().chain_identifier(), chain_identifier);
+
+    // replace the chain identifier
+    let new_chain_identifier = x"0202020202020202020202020202020202020202020202020202020202020202";
+    let ctx_builder = scenario.ctx_builder().set_chain_identifier(new_chain_identifier);
+    scenario.next_with_context(ctx_builder);
+    assert_eq!(scenario.ctx().chain_identifier(), new_chain_identifier);
+
+    scenario.end();
+}
+
+#[test]
+fun test_ctx_builder_restores_chain_identifier_of_its_context() {
+    use std::unit_test::assert_eq;
+
+    let chain_identifier = x"0101010101010101010101010101010101010101010101010101010101010101";
+    let ctx_builder = test_scenario::ctx_builder_from_sender(@0xA)
+        .set_chain_identifier(chain_identifier);
+    let mut scenario = test_scenario::begin_with_context(ctx_builder);
+    let saved_ctx_builder = scenario.ctx_builder();
+
+    let new_chain_identifier = x"0202020202020202020202020202020202020202020202020202020202020202";
+    let ctx_builder = scenario.ctx_builder().set_chain_identifier(new_chain_identifier);
+    scenario.next_with_context(ctx_builder);
+    assert_eq!(scenario.ctx().chain_identifier(), new_chain_identifier);
+
+    scenario.next_with_context(saved_ctx_builder);
+    assert_eq!(scenario.ctx().chain_identifier(), chain_identifier);
+
+    scenario.end();
+}
+
+#[test]
+fun test_new_scenario_keeps_chain_identifier_of_the_test() {
+    use std::unit_test::assert_eq;
+
+    let chain_identifier = x"0101010101010101010101010101010101010101010101010101010101010101";
+    let ctx_builder = test_scenario::ctx_builder_from_sender(@0xA)
+        .set_chain_identifier(chain_identifier);
+    test_scenario::begin_with_context(ctx_builder).end();
+
+    let mut scenario = test_scenario::begin_with_context(
+        test_scenario::ctx_builder_from_sender(@0xB),
+    );
+    assert_eq!(scenario.ctx().chain_identifier(), chain_identifier);
+    scenario.end();
+
+    let mut scenario = test_scenario::begin(@0xC);
+    assert_eq!(scenario.ctx().chain_identifier(), chain_identifier);
+    scenario.end();
+}
+
+#[test]
 fun test_tx_context_with_builder() {
     use std::unit_test::assert_eq;
 
@@ -1317,6 +1384,33 @@ fun test_tx_context_bad_epoch_timestamp() {
         ctx.epoch_timestamp_ms() - 1,
     );
     scenario.next_with_context(ctx_builder);
+
+    scenario.end();
+}
+
+#[test]
+fun tx_nonce_set_through_the_builder() {
+    use std::unit_test::assert_eq;
+
+    let nonce = x"39d2ed96b7a160ff74b50a57de17a67b61053a9cead0ec25191d7231bcf08cbd";
+    let ctx_builder = test_scenario::ctx_builder_from_sender(@0xB).set_tx_nonce(nonce);
+    let mut scenario = test_scenario::begin_with_context(ctx_builder);
+
+    assert_eq!(scenario.ctx().tx_nonce(), nonce);
+
+    scenario.end();
+}
+
+#[test]
+#[expected_failure(abort_code = 3, location = iota::tx_context)]
+fun tx_nonce_is_not_kept_for_the_next_transaction() {
+    let nonce = x"39d2ed96b7a160ff74b50a57de17a67b61053a9cead0ec25191d7231bcf08cbd";
+    let ctx_builder = test_scenario::ctx_builder_from_sender(@0xB).set_tx_nonce(nonce);
+    let mut scenario = test_scenario::begin_with_context(ctx_builder);
+
+    let ctx_builder = scenario.ctx_builder();
+    scenario.next_with_context(ctx_builder);
+    scenario.ctx().tx_nonce();
 
     scenario.end();
 }
