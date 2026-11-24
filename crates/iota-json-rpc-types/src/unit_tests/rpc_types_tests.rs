@@ -18,7 +18,7 @@ use move_core_types::{
 };
 use serde_json::json;
 
-use crate::{IotaMoveStruct, IotaMoveValue, ObjectChange};
+use crate::{IotaMoveStruct, IotaMoveValue, IotaTransactionKind, ObjectChange};
 
 #[test]
 fn test_move_value_to_iota_coin() {
@@ -195,5 +195,28 @@ fn test_type_tag_struct_tag_devnet_inc_222() {
         let serde_json = serde_json::to_string(&oc).unwrap();
         let deser: ObjectChange = serde_json::from_str(&serde_json).unwrap();
         assert_eq!(oc, deser);
+    }
+}
+
+#[test]
+fn only_the_non_system_kinds_are_not_system_transactions() {
+    use IotaTransactionKind::*;
+
+    assert_eq!(
+        IotaTransactionKind::NON_SYSTEM_KINDS,
+        [ProgrammableTransaction, ClaimAccount]
+    );
+    for kind in IotaTransactionKind::NON_SYSTEM_KINDS {
+        assert!(!kind.is_system_transaction(), "{kind}");
+    }
+    for kind in [
+        SystemTransaction,
+        Genesis,
+        ConsensusCommitPrologueV1,
+        RandomnessStateUpdate,
+        EndOfEpochTransaction,
+        TransactionDenyRulesUpdate,
+    ] {
+        assert!(kind.is_system_transaction(), "{kind}");
     }
 }
