@@ -313,7 +313,7 @@ pub fn chain_identifier(
         })?;
     native_charge_gas_early_exit!(context, cost_base);
 
-    let transaction_context: &mut TransactionContext = context.extensions_mut().get_mut()?;
+    let transaction_context: &TransactionContext = context.extensions().get()?;
     let chain_identifier = transaction_context.chain_identifier();
 
     Ok(NativeResult::ok(
