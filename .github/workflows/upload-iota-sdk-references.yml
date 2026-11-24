@@ -31,11 +31,16 @@ env:
 jobs:
   generate-and-upload:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
       matrix:
         language: [python, go, kotlin, csharp, swift, wasm]
+        include:
+          # ubuntu-latest moved to Ubuntu 26.04, which swift-actions/setup-swift
+          # rejects. Drop the pin once setup-swift supports it.
+          - language: swift
+            os: ubuntu-24.04
     steps:
       # Only the pin file is needed from this repository.
       - name: Checkout repository
