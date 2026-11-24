@@ -372,7 +372,7 @@ impl LeaderSchedule {
             last_commit_index,
             commits_per_schedule,
         )
-        .expect("the backlog spans more than one interval");
+        .expect("the backlog should span more than one interval");
         let window_start = window_end - (commits_per_schedule - 1);
 
         tracing::info!(
