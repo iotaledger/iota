@@ -8,7 +8,7 @@ use std::{
 };
 
 use fastcrypto::{encoding::Base64, hash::HashFunction};
-use iota_sdk_move_types::iota_framework::dynamic_field::Field;
+use iota_sdk_move_types::{MoveType, iota_framework::dynamic_field::Field};
 use iota_sdk_types::{Address, ObjectDigest, StructTag, TypeTag, crypto::HashingIntentScope};
 use move_core_types::annotated_value::{MoveStruct, MoveValue};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
@@ -16,7 +16,7 @@ use serde_json::Value;
 use serde_with::{DisplayFromStr, serde_as};
 
 use crate::{
-    MoveTypeTagTrait, ObjectId, Version,
+    ObjectId, Version,
     crypto::DefaultHash,
     error::{IotaError, IotaResult},
     iota_sdk_types_conversions::type_tag_core_to_sdk,
@@ -254,10 +254,8 @@ where
 }
 
 /// Given a parent object ID (e.g. a table), and a `key`, retrieve the
-/// corresponding dynamic field object from the `object_store`. The key type `K`
-/// must implement `MoveTypeTagTrait` which has an associated function that
-/// returns the Move type tag. Note that this function returns the Field object
-/// itself, not the value in the field.
+/// corresponding dynamic field object from the `object_store`. Note that this
+/// function returns the Field object itself, not the value in the field.
 ///
 /// Returns [`IotaError::DynamicFieldNotExists`] if no such field exists on the
 /// parent, so callers can tell a missing field apart from a failed read.
@@ -267,9 +265,9 @@ pub fn get_dynamic_field_object_from_store<K>(
     key: &K,
 ) -> Result<Object, IotaError>
 where
-    K: MoveTypeTagTrait + Serialize + DeserializeOwned + fmt::Debug,
+    K: MoveType + Serialize + DeserializeOwned + fmt::Debug,
 {
-    let id = derive_dynamic_field_id(parent_id, &K::get_type_tag(), &bcs::to_bytes(key).unwrap())
+    let id = derive_dynamic_field_id(parent_id, &K::type_tag(), &bcs::to_bytes(key).unwrap())
         .map_err(|err| IotaError::DynamicFieldRead(err.to_string()))?;
     let object = object_store.try_get_object(&id)?.ok_or_else(|| {
         let key = format!("{key:?}");
@@ -286,7 +284,7 @@ pub fn get_dynamic_field_from_store<K, V>(
     key: &K,
 ) -> Result<V, IotaError>
 where
-    K: MoveTypeTagTrait + Serialize + DeserializeOwned + fmt::Debug,
+    K: MoveType + Serialize + DeserializeOwned + fmt::Debug,
     V: Serialize + DeserializeOwned,
 {
     let object = get_dynamic_field_object_from_store(object_store, parent_id, key)?;
