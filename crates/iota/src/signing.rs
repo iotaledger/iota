@@ -129,7 +129,7 @@ pub(crate) async fn sign_transaction(
                         );
                     };
 
-                    let signer = ledger_signer(&derivation_path, signer_address).await?;
+                    let signer = ledger_signer(derivation_path, signer_address).await?;
                     let objects = load_clear_signing_objects(&iota_client, tx).await?;
                     Ok(signer.sign_with_objects(tx, &objects).await?)
                 }
