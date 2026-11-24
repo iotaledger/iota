@@ -291,7 +291,6 @@ impl<W: Worker + 'static> WorkerPool<W> {
     ///
     /// Checkpoint 100 is tracked as index 0, 99 as index 1, and 98 as index 2. A progress
     /// report of 3 means checkpoints 100, 99, and 98 are done.
-    #[expect(dead_code, reason = "used by the backfill executor in the next PR")]
     pub(crate) fn with_backfill_starting_checkpoint(
         mut self,
         starting_checkpoint: CheckpointSequenceNumber,
