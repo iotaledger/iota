@@ -3239,10 +3239,9 @@ mod tests {
         .await;
         // The peer's third fetch needs the shared budget, which the second
         // unread response holds.
-        assert_eq!(
-            fetch().await.unwrap_err().code(),
-            tonic::Code::ResourceExhausted
-        );
+        let refused = fetch().await.unwrap_err();
+        assert_eq!(refused.code(), tonic::Code::ResourceExhausted);
+        assert_eq!(refused.message(), "all-peers commit_fetch limit reached");
 
         // At the deadline the shared budget is free again; the peer's own slots
         // are not.
@@ -3253,6 +3252,8 @@ mod tests {
         assert_eq!(in_use.get(), 2);
         let admitted = fetch().await.expect("the shared budget is free again");
         assert_eq!(in_use.get(), 3);
+        // Dropped before its own deadline, so it is not reclaimed.
+        drop(admitted);
 
         // Reading an abandoned response fails with the deadline before its
         // payload arrives, and only that ends the stream and releases the
@@ -3276,7 +3277,6 @@ mod tests {
                 tonic::Code::DeadlineExceeded
             );
         }
-        drop(admitted);
         settles("the ended streams keep their slots", &|| in_use.get() == 0).await;
         // The deadline fired once for each response that was never read.
         tokio::time::sleep(SEND_TIMEOUT).await;

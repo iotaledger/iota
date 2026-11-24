@@ -110,8 +110,8 @@ pub(crate) struct AdmissionSlots {
     /// The peer's own slot, held until the response stream has ended.
     peer_slot: PeerSlot,
     /// The node-wide slot, given back once the response has been sent or its
-    /// send deadline has passed; `None` for a peer's only fetch of the group,
-    /// or when the group has no node-wide cap.
+    /// send deadline has passed; `None` when the peer held no slot of the
+    /// group at admission, or when the group has no node-wide cap.
     total_slot: Option<TotalSlot>,
 }
 
@@ -552,6 +552,49 @@ mod tests {
         // ...but peer 1 has its own cap.
         let _other = expect_admitted(admission.try_admit(RpcGroup::HeaderFetch, peer(1)));
         drop(held);
+    }
+
+    #[tokio::test]
+    async fn only_commit_fetches_share_a_node_wide_cap() {
+        let (mut context, _keys) = Context::new_for_test(4);
+        let limits = &mut context.parameters.tonic.admission;
+        limits.max_subscriptions_per_peer = 2;
+        limits.max_header_fetches_per_peer = 2;
+        limits.max_transaction_fetches_per_peer = 2;
+        limits.max_commit_fetches_per_peer = 2;
+        limits.max_commit_fetches_total = 1;
+        let admission = AdmissionControl::new(&context);
+        for group in [
+            RpcGroup::Subscribe,
+            RpcGroup::HeaderFetch,
+            RpcGroup::TransactionFetch,
+        ] {
+            // Two peers fill their own caps; nothing is shared between them.
+            let mut held: Vec<_> = [peer(0), peer(0), peer(1), peer(1)]
+                .into_iter()
+                .map(|p| expect_admitted(admission.try_admit(group, p)))
+                .collect();
+            assert!(held.iter().all(|slots| slots.total_slot.is_none()));
+            assert!(matches!(
+                admission.try_admit(group, peer(0)),
+                Admission::Rejected(AdmissionLimit::Peer)
+            ));
+            // A released slot admits exactly one more request from its peer.
+            held.remove(0);
+            held.push(expect_admitted(admission.try_admit(group, peer(0))));
+            assert!(matches!(
+                admission.try_admit(group, peer(0)),
+                Admission::Rejected(AdmissionLimit::Peer)
+            ));
+        }
+        // Commit fetches share one slot beyond each peer's first.
+        let _first = [peer(0), peer(1)]
+            .map(|p| expect_admitted(admission.try_admit(RpcGroup::CommitFetch, p)));
+        let _shared = expect_admitted(admission.try_admit(RpcGroup::CommitFetch, peer(0)));
+        assert!(matches!(
+            admission.try_admit(RpcGroup::CommitFetch, peer(1)),
+            Admission::Rejected(AdmissionLimit::AllPeers)
+        ));
     }
 
     #[tokio::test]

@@ -814,9 +814,10 @@ impl Default for TonicParameters {
 
 /// Per-peer, per-RPC concurrency caps for the inbound consensus gRPC server.
 ///
-/// Each cap bounds how many concurrent requests of one RPC group a single
-/// committee peer (keyed on its authenticated authority index) may have in
-/// flight; a peer cannot consume another peer's budget. These are local,
+/// Each per-peer cap bounds how many concurrent requests of one RPC group a
+/// single committee peer (keyed on its authenticated authority index) may have
+/// in flight; a peer cannot consume another peer's budget. Commit fetches also
+/// have a node-wide cap, `max_commit_fetches_total`. These are local,
 /// non-protocol parameters — heterogeneous values across authorities are safe,
 /// so they can be rolled out and tuned per node.
 ///
