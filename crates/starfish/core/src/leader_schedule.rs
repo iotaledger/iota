@@ -54,6 +54,22 @@ fn recover_leader_swap_table(
     )
 }
 
+/// End of the last full rotation interval among the commits after
+/// `last_schedule_update_index` up to `last_commit_index`, when they span
+/// more than one interval: the commit a recovered backlog rebuilds the
+/// schedule at (see `LeaderSchedule::update_leader_schedule_from_backlog`).
+/// `None` when they span at most one interval.
+pub(crate) fn backlog_last_interval_end(
+    last_schedule_update_index: CommitIndex,
+    last_commit_index: CommitIndex,
+    commits_per_schedule: u32,
+) -> Option<CommitIndex> {
+    let commit_count = last_commit_index.saturating_sub(last_schedule_update_index);
+    (commit_count > commits_per_schedule).then(|| {
+        last_schedule_update_index + commit_count / commits_per_schedule * commits_per_schedule
+    })
+}
+
 /// The `LeaderSchedule` is responsible for producing the leader schedule across
 /// an epoch. The leader schedule is subject to change periodically based on
 /// calculated `ReputationScores` of the authorities.
@@ -346,16 +362,19 @@ impl LeaderSchedule {
     /// rotations stay on the same commit boundaries. The trailing partial
     /// window counts toward the next update.
     fn update_leader_schedule_from_backlog(&self, dag_state_write_lock: &mut DagState) {
-        let backlog_range = CommitRange::new(
-            dag_state_write_lock.last_schedule_update_index() + 1
-                ..=dag_state_write_lock.last_commit_index(),
-        );
+        let last_schedule_update_index = dag_state_write_lock.last_schedule_update_index();
+        let last_commit_index = dag_state_write_lock.last_commit_index();
+        let backlog_range = CommitRange::new(last_schedule_update_index + 1..=last_commit_index);
         let commits_per_schedule = self.num_commits_per_schedule;
         // The caller only routes here when the backlog exceeds
         // `commits_per_schedule`, so there is at least one full window.
-        let full_windows = backlog_range.size() as u32 / commits_per_schedule;
-        let window_start = backlog_range.start() + (full_windows - 1) * commits_per_schedule;
-        let window_end = window_start + (commits_per_schedule - 1);
+        let window_end = backlog_last_interval_end(
+            last_schedule_update_index,
+            last_commit_index,
+            commits_per_schedule,
+        )
+        .expect("the backlog spans more than one interval");
+        let window_start = window_end - (commits_per_schedule - 1);
 
         tracing::info!(
             "Rebuilding leader schedule from the last full window \

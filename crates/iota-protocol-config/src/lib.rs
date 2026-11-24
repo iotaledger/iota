@@ -2367,7 +2367,7 @@ impl ProtocolConfig {
     }
 
     pub fn leader_schedule_window_size(&self) -> u32 {
-        if cfg!(msim) {
+        let window_size = if cfg!(msim) {
             // Keep the scoring window commensurate with the msim-scaled
             // commit sync parameters.
             min(
@@ -2376,7 +2376,12 @@ impl ProtocolConfig {
             )
         } else {
             self.consensus_leader_schedule_window_size.unwrap_or(600)
-        }
+        };
+        assert!(
+            window_size >= self.commits_per_schedule(),
+            "consensus_leader_schedule_window_size must be at least consensus_commits_per_schedule"
+        );
+        window_size
     }
 
     pub fn consensus_enable_sliding_window_leader_schedule(&self) -> bool {

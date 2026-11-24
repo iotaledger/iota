@@ -43,6 +43,7 @@ use crate::{
     dag_state::{DagState, DataSource},
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
+    leader_schedule::backlog_last_interval_end,
     misbehavior_store::MisbehaviorStore,
     network::{FetchedCommitsAndTransactions, NetworkClient, SerializedTransactionsV2},
     sliding_window_schedule::SlidingWindowSchedule,
@@ -834,33 +835,37 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
     /// Fetches block headers needed for component reinitialization from the
     /// network. This is called when close_to_quorum mode is active and all
     /// pending fetches complete. Fetches headers for the maximum of
-    /// cached_rounds, gc_depth * 2, leader_schedule_window, and the commits
-    /// the leader-schedule scorer replays to satisfy DagState cache,
-    /// linearizer, and leader schedule recovery requirements.
+    /// cached_rounds, gc_depth * 2, and the commits the leader-schedule scorer
+    /// replays to satisfy DagState cache, linearizer, and leader schedule
+    /// recovery requirements.
     async fn fetch_headers_for_reinitialization(
         inner: Arc<Inner<C>>,
     ) -> ConsensusResult<Vec<VerifiedBlockHeader>> {
         // We need headers for three purposes:
         // 1. DagState cache: at least cached_rounds commits back
         // 2. Linearizer recovery: at least gc_depth * 2 commits back
-        // 3. Leader schedule recovery: at least leader_schedule_window commits back, and the
-        //    commits the scorer replays
+        // 3. Leader schedule recovery: the commits the scorer replays
         // Fetch the maximum to satisfy all requirements
         let cached_rounds = inner.context.parameters.dag_state_cached_rounds;
         let gc_depth = inner.context.protocol_config.gc_depth();
-        let leader_schedule_window = inner.context.protocol_config.commits_per_schedule();
         // Get block refs from recent commits stored during fast sync
         let (last_commit_index, block_refs) = {
             let dag_state = inner.dag_state.read();
             let last_commit_index = dag_state.last_commit_index();
-            let num_commits = max(leader_schedule_window, max(cached_rounds, gc_depth * 2));
-            // Recovery replays the leader-schedule scorer over
-            // `replay_start..=last`; fetch enough commits to cover that range so
+            // Recovery replays the leader-schedule scorer up to the last commit,
+            // and a recovered backlog replays it up to the end of its last full
+            // interval as well; fetch enough commits to cover both replays so
             // the replayed window matches a fully-synced node
+            let replay_end = backlog_last_interval_end(
+                dag_state.last_schedule_update_index(),
+                last_commit_index,
+                inner.context.protocol_config.commits_per_schedule(),
+            )
+            .unwrap_or(last_commit_index);
             let window = inner.context.protocol_config.leader_schedule_window_size();
-            let replay_start = SlidingWindowSchedule::replay_start(last_commit_index, window);
+            let replay_start = SlidingWindowSchedule::replay_start(replay_end, window);
             let num_commits = max(
-                num_commits,
+                max(cached_rounds, gc_depth * 2),
                 last_commit_index
                     .saturating_sub(replay_start)
                     .saturating_add(1),
@@ -872,12 +877,11 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         let max_headers_per_fetch = inner.context.parameters.max_headers_per_commit_sync_fetch;
 
         info!(
-            "[{}] Fetching {} block headers for reinitialization (cached_rounds={}, gc_depth*2={}, leader_schedule_window={})",
+            "[{}] Fetching {} block headers for reinitialization (cached_rounds={}, gc_depth*2={})",
             inner.sync_type.as_str(),
             block_refs.len(),
             cached_rounds,
             gc_depth * 2,
-            leader_schedule_window,
         );
 
         let mut target_authorities: Vec<_> = inner
