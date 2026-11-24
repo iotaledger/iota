@@ -241,15 +241,7 @@ impl NetworkClient for TonicClient {
         let stream = client
             .fetch_block_headers(request)
             .await
-            .map_err(|e| match e.code() {
-                tonic::Code::DeadlineExceeded => {
-                    ConsensusError::NetworkRequestTimeout(format!("fetch_blocks failed: {e:?}"))
-                }
-                tonic::Code::ResourceExhausted => {
-                    ConsensusError::AdmissionLimitReached(format!("fetch_blocks failed: {e:?}"))
-                }
-                _ => ConsensusError::NetworkRequest(format!("fetch_blocks failed: {e:?}")),
-            })?
+            .map_err(|e| fetch_error("fetch_blocks", e))?
             .into_inner();
 
         collect_block_headers(
@@ -281,7 +273,7 @@ impl NetworkClient for TonicClient {
                     limit: FetchCommitsResponse::MAX_ENTRIES,
                 }
             } else {
-                ConsensusError::NetworkRequest(format!("fetch_commits failed: {e:?}"))
+                fetch_error("fetch_commits", e)
             }
         })?;
         let response = response.into_inner();
@@ -305,17 +297,7 @@ impl NetworkClient for TonicClient {
         let mut stream = client
             .fetch_latest_block_headers(request)
             .await
-            .map_err(|e| {
-                if e.code() == tonic::Code::DeadlineExceeded {
-                    ConsensusError::NetworkRequestTimeout(format!(
-                        "fetch_latest_block_headers failed: {e:?}"
-                    ))
-                } else {
-                    ConsensusError::NetworkRequest(format!(
-                        "fetch_latest_block_headers failed: {e:?}"
-                    ))
-                }
-            })?
+            .map_err(|e| fetch_error("fetch_latest_block_headers", e))?
             .into_inner();
         let mut headers = vec![];
         let mut total_fetched_bytes = 0;
@@ -406,15 +388,7 @@ impl NetworkClient for TonicClient {
         let stream = client
             .fetch_transactions(request)
             .await
-            .map_err(|e| match e.code() {
-                tonic::Code::DeadlineExceeded => ConsensusError::NetworkRequestTimeout(format!(
-                    "fetch_transactions failed: {e:?}"
-                )),
-                tonic::Code::ResourceExhausted => ConsensusError::AdmissionLimitReached(format!(
-                    "fetch_transactions failed: {e:?}"
-                )),
-                _ => ConsensusError::NetworkRequest(format!("fetch_transactions failed: {e:?}")),
-            })?
+            .map_err(|e| fetch_error("fetch_transactions", e))?
             .into_inner();
 
         collect_transactions(&self.context, peer, stream, requested_transactions).await
@@ -435,17 +409,7 @@ impl NetworkClient for TonicClient {
         let stream = client
             .fetch_commits_and_transactions(request)
             .await
-            .map_err(|e| {
-                if e.code() == tonic::Code::DeadlineExceeded {
-                    ConsensusError::NetworkRequestTimeout(format!(
-                        "fetch_commits_and_transactions failed: {e:?}"
-                    ))
-                } else {
-                    ConsensusError::NetworkRequest(format!(
-                        "fetch_commits_and_transactions failed: {e:?}"
-                    ))
-                }
-            })?
+            .map_err(|e| fetch_error("fetch_commits_and_transactions", e))?
             .into_inner();
 
         collect_commits_and_transactions(&self.context, peer, &commit_range, stream).await
@@ -658,6 +622,17 @@ where
             }
         }
         Ok(response.transactions)
+    }
+}
+
+/// Maps the error a fetch failed with before its response started. A peer
+/// refuses a request over its admission caps with `ResourceExhausted`.
+fn fetch_error(rpc: &str, e: tonic::Status) -> ConsensusError {
+    let message = format!("{rpc} failed: {e:?}");
+    match e.code() {
+        tonic::Code::DeadlineExceeded => ConsensusError::NetworkRequestTimeout(message),
+        tonic::Code::ResourceExhausted => ConsensusError::AdmissionLimitReached(message),
+        _ => ConsensusError::NetworkRequest(message),
     }
 }
 

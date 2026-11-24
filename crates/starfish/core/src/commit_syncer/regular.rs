@@ -4,6 +4,7 @@
 
 use std::{
     collections::{BTreeMap, BTreeSet},
+    future::Future,
     sync::{Arc, atomic::AtomicBool},
     time::Duration,
 };
@@ -578,34 +579,21 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                     //    authority.
                     let individual_delay = (timeout / num_chunks).min(MAX_PIPELINE_DELAY);
                     sleep(individual_delay * i as u32).await;
-                    // TODO: add some retries.
-                    // A peer at its admission limit still grants this node one
-                    // header fetch at a time, so a refused chunk waits for it
-                    // rather than failing the whole batch. The fetch loop's
-                    // timeout bounds the wait.
-                    let serialized_block_headers = loop {
-                        match inner
-                            .network_client
-                            .fetch_block_headers(
-                                target_authority,
-                                request_block_refs.to_vec(),
-                                vec![],
-                                timeout,
-                            )
-                            .await
-                        {
-                            Err(ConsensusError::AdmissionLimitReached(_)) => {
-                                sleep(individual_delay).await
-                            }
-                            result => {
-                                break result.inspect_err(|e| {
-                                    inner
-                                        .misbehavior_store
-                                        .record_fetch_fault(target_authority, e);
-                                })?;
-                            }
-                        }
-                    };
+                    // TODO: retry failures other than a refusal at the admission limit.
+                    let serialized_block_headers = retry_while_refused(MAX_PIPELINE_DELAY, || {
+                        inner.network_client.fetch_block_headers(
+                            target_authority,
+                            request_block_refs.to_vec(),
+                            vec![],
+                            timeout,
+                        )
+                    })
+                    .await
+                    .inspect_err(|e| {
+                        inner
+                            .misbehavior_store
+                            .record_fetch_fault(target_authority, e);
+                    })?;
                     // 5. Verify the returned headers are the requested ones.
                     verify_fetched_headers(
                         target_authority,
@@ -645,30 +633,20 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                         let individual_delay =
                             (timeout / num_tx_chunks.max(1)).min(MAX_PIPELINE_DELAY);
                         sleep(individual_delay * i as u32 + individual_delay / 2).await;
-                        // As for header chunks, a chunk refused at the peer's
-                        // admission limit waits for its one transaction fetch.
-                        let serialized_transactions = loop {
-                            match inner
-                                .network_client
-                                .fetch_transactions(
+                        let serialized_transactions =
+                            retry_while_refused(MAX_PIPELINE_DELAY, || {
+                                inner.network_client.fetch_transactions(
                                     target_authority,
                                     request_tx_refs.to_vec(),
                                     timeout,
                                 )
-                                .await
-                            {
-                                Err(ConsensusError::AdmissionLimitReached(_)) => {
-                                    sleep(individual_delay).await
-                                }
-                                result => {
-                                    break result.inspect_err(|e| {
-                                        inner
-                                            .misbehavior_store
-                                            .record_fetch_fault(target_authority, e);
-                                    })?;
-                                }
-                            }
-                        };
+                            })
+                            .await
+                            .inspect_err(|e| {
+                                inner
+                                    .misbehavior_store
+                                    .record_fetch_fault(target_authority, e);
+                            })?;
 
                         // 10. Verify that the number of returned transactions is not greater than
                         //     the number of requested transactions. It's OK if not all requested
@@ -825,6 +803,23 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
     #[cfg(test)]
     fn synced_commit_index(&self) -> CommitIndex {
         self.synced_commit_index
+    }
+}
+
+/// Sends `fetch` again after `delay` for as long as the peer refuses it at its
+/// admission limit. Such a peer still serves this node one fetch of each group
+/// at a time, so a refused chunk waits for it rather than failing the whole
+/// batch. The fetch loop's timeout bounds the wait.
+async fn retry_while_refused<T, F, Fut>(delay: Duration, mut fetch: F) -> ConsensusResult<T>
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = ConsensusResult<T>>,
+{
+    loop {
+        match fetch().await {
+            Err(ConsensusError::AdmissionLimitReached(_)) => sleep(delay).await,
+            result => return result,
+        }
     }
 }
 
