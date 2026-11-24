@@ -21,7 +21,8 @@ pub(crate) struct NetworkMetrics {
     /// cap that was reached.
     pub(crate) admission_rejected: IntCounterVec,
     /// Inbound requests currently in flight under admission control, by RPC
-    /// group (summed across peers).
+    /// group (summed across peers). Shows live concurrency vs the per-peer
+    /// caps.
     pub(crate) admission_in_use: IntGaugeVec,
     /// Responses given up at the send deadline because the peer stopped
     /// reading them, by RPC group.

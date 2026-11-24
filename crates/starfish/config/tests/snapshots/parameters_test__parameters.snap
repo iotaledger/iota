@@ -44,9 +44,7 @@ tonic:
   admission:
     max_subscriptions_per_peer: 2
     max_header_fetches_per_peer: 32
-    max_header_fetches_total: 64
     max_transaction_fetches_per_peer: 16
-    max_transaction_fetches_total: 32
     max_commit_fetches_per_peer: 8
     max_commit_fetches_total: 16
   subscribe_request_timeout:

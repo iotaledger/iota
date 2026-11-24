@@ -5,12 +5,12 @@
 //!
 //! Each RPC group caps the requests served at once per committee peer, keyed
 //! on the peer's authenticated authority index, so a misbehaving peer uses up
-//! only its own slots. Fetch groups also have a node-wide cap, since their
+//! only its own slots. Commit fetches also have a node-wide cap, since their
 //! responses hold memory and read the store until they have been sent. A peer
-//! holding no fetch of a group is granted one whatever the others hold, and
-//! that fetch is not counted node-wide: the cap bounds only the further fetches
-//! all peers share, so it limits how much a peer can be crowded out, never
-//! whether it is served at all. Caps are local parameters; `0` turns a cap off.
+//! holding no commit fetch is granted one whatever the others hold, and that
+//! fetch is not counted node-wide: the cap bounds only the further fetches all
+//! peers share, so it limits how much a peer can be crowded out, never whether
+//! it is served at all. Caps are local parameters; `0` turns a cap off.
 
 use std::{
     future::Future,
@@ -219,16 +219,8 @@ impl AdmissionControl {
         let size = context.committee.size();
         Self {
             subscribe: GroupSlots::new(size, admission.max_subscriptions_per_peer, 0),
-            header: GroupSlots::new(
-                size,
-                admission.max_header_fetches_per_peer,
-                admission.max_header_fetches_total,
-            ),
-            transaction: GroupSlots::new(
-                size,
-                admission.max_transaction_fetches_per_peer,
-                admission.max_transaction_fetches_total,
-            ),
+            header: GroupSlots::new(size, admission.max_header_fetches_per_peer, 0),
+            transaction: GroupSlots::new(size, admission.max_transaction_fetches_per_peer, 0),
             commit_fetch: GroupSlots::new(
                 size,
                 admission.max_commit_fetches_per_peer,
@@ -583,39 +575,6 @@ mod tests {
         drop(p1);
         let p3 = expect_admitted(admission.try_admit(RpcGroup::CommitFetch, peer(1)));
         drop((p0, p2, p3));
-    }
-
-    #[tokio::test]
-    async fn each_fetch_group_has_its_own_node_wide_cap() {
-        let (mut context, _keys) = Context::new_for_test(4);
-        let limits = &mut context.parameters.tonic.admission;
-        limits.max_header_fetches_total = 2;
-        limits.max_transaction_fetches_total = 3;
-        limits.max_commit_fetches_total = 4;
-        let admission = AdmissionControl::new(&context);
-        let mut held = Vec::new();
-        // Each group's node-wide cap is reached while the earlier groups still
-        // hold their slots. Peer 0's first fetch is not counted, so it holds one
-        // more than the cap.
-        for (group, total) in [
-            (RpcGroup::HeaderFetch, 2),
-            (RpcGroup::TransactionFetch, 3),
-            (RpcGroup::CommitFetch, 4),
-        ] {
-            for _ in 0..=total {
-                held.push(expect_admitted(admission.try_admit(group, peer(0))));
-            }
-            assert!(matches!(
-                admission.try_admit(group, peer(0)),
-                Admission::Rejected(AdmissionLimit::AllPeers)
-            ));
-            // Peer 1 gets its first slot, but not a second one.
-            held.push(expect_admitted(admission.try_admit(group, peer(1))));
-            assert!(matches!(
-                admission.try_admit(group, peer(1)),
-                Admission::Rejected(AdmissionLimit::AllPeers)
-            ));
-        }
     }
 
     #[tokio::test]

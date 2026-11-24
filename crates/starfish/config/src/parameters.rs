@@ -737,8 +737,7 @@ pub struct TonicParameters {
     )]
     pub max_request_message_size: usize,
 
-    /// Per-peer and node-wide admission caps, per RPC group, for the inbound
-    /// consensus server.
+    /// Per-peer, per-RPC admission caps for the inbound consensus server.
     #[serde(default)]
     pub admission: AdmissionParameters,
 
@@ -813,17 +812,13 @@ impl Default for TonicParameters {
     }
 }
 
-/// Per-peer and node-wide concurrency caps for the inbound consensus gRPC
-/// server, one set per RPC group.
+/// Per-peer, per-RPC concurrency caps for the inbound consensus gRPC server.
 ///
-/// Each per-peer cap bounds how many concurrent requests of one RPC group a
-/// single committee peer (keyed on its authenticated authority index) may have
-/// in flight; a peer cannot consume another peer's budget. Each node-wide cap
-/// bounds the fetches of a group held across all peers, since a response holds
-/// memory until it has been sent. A peer's first fetch of a group is never
-/// refused and is not counted against the node-wide cap.
-/// These are local, non-protocol parameters — heterogeneous values across
-/// authorities are safe, so they can be rolled out and tuned per node.
+/// Each cap bounds how many concurrent requests of one RPC group a single
+/// committee peer (keyed on its authenticated authority index) may have in
+/// flight; a peer cannot consume another peer's budget. These are local,
+/// non-protocol parameters — heterogeneous values across authorities are safe,
+/// so they can be rolled out and tuned per node.
 ///
 /// The defaults are sized for ~100-validator committees and the local
 /// synchronizer fan-out toward one server. `0` turns a cap off; each cap is
@@ -843,25 +838,11 @@ pub struct AdmissionParameters {
     #[serde(default = "AdmissionParameters::default_max_header_fetches_per_peer")]
     pub max_header_fetches_per_peer: u32,
 
-    /// Max concurrent header fetches across all peers, not counting each
-    /// peer's first one.
-    ///
-    /// If unspecified, this will default to 64.
-    #[serde(default = "AdmissionParameters::default_max_header_fetches_total")]
-    pub max_header_fetches_total: u32,
-
     /// Max concurrent transaction fetches per peer (`fetch_transactions`).
     ///
     /// If unspecified, this will default to 16.
     #[serde(default = "AdmissionParameters::default_max_transaction_fetches_per_peer")]
     pub max_transaction_fetches_per_peer: u32,
-
-    /// Max concurrent transaction fetches across all peers, not counting each
-    /// peer's first one.
-    ///
-    /// If unspecified, this will default to 32.
-    #[serde(default = "AdmissionParameters::default_max_transaction_fetches_total")]
-    pub max_transaction_fetches_total: u32,
 
     /// Max concurrent commit fetches per peer
     /// (`fetch_commits` + `fetch_commits_and_transactions`).
@@ -871,10 +852,11 @@ pub struct AdmissionParameters {
     pub max_commit_fetches_per_peer: u32,
 
     /// Max concurrent commit fetches across all peers, not counting each
-    /// peer's first one. A fast commit-sync response holds its commits and
-    /// certifier headers until it has been sent, and reads its transactions
-    /// from the store while it is being sent, so this caps what serving them
-    /// can cost the node at once, beyond one response per peer.
+    /// peer's first one, which is always granted. A fast commit-sync response
+    /// holds its commits and certifier headers until it has been sent, and
+    /// reads its transactions from the store while it is being sent, so this
+    /// caps what serving them can cost the node at once, beyond one response
+    /// per peer.
     ///
     /// If unspecified, this will default to 16.
     #[serde(default = "AdmissionParameters::default_max_commit_fetches_total")]
@@ -890,16 +872,8 @@ impl AdmissionParameters {
         32
     }
 
-    fn default_max_header_fetches_total() -> u32 {
-        2 * AdmissionParameters::default_max_header_fetches_per_peer()
-    }
-
     fn default_max_transaction_fetches_per_peer() -> u32 {
         16
-    }
-
-    fn default_max_transaction_fetches_total() -> u32 {
-        2 * AdmissionParameters::default_max_transaction_fetches_per_peer()
     }
 
     fn default_max_commit_fetches_per_peer() -> u32 {
@@ -916,11 +890,8 @@ impl Default for AdmissionParameters {
         Self {
             max_subscriptions_per_peer: AdmissionParameters::default_max_subscriptions_per_peer(),
             max_header_fetches_per_peer: AdmissionParameters::default_max_header_fetches_per_peer(),
-            max_header_fetches_total: AdmissionParameters::default_max_header_fetches_total(),
             max_transaction_fetches_per_peer:
                 AdmissionParameters::default_max_transaction_fetches_per_peer(),
-            max_transaction_fetches_total:
-                AdmissionParameters::default_max_transaction_fetches_total(),
             max_commit_fetches_per_peer: AdmissionParameters::default_max_commit_fetches_per_peer(),
             max_commit_fetches_total: AdmissionParameters::default_max_commit_fetches_total(),
         }
