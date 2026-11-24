@@ -431,7 +431,6 @@ iota-replay = { path = "crates/iota-replay" }
 iota-sdk = { path = "crates/iota-sdk" }
 iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "c6384c77f6375b71dbe99c654b87c3effc0ab4c4", default-features = false, features = ["unstable"] }
 iota-sdk-graphql-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "c6384c77f6375b71dbe99c654b87c3effc0ab4c4", default-features = false, features = ["unstable", "tls-ring"] }
-iota-sdk-ledger = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "c6384c77f6375b71dbe99c654b87c3effc0ab4c4", default-features = false }
 iota-sdk-move-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "c6384c77f6375b71dbe99c654b87c3effc0ab4c4", default-features = false, features = ["unstable"] }
 iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "c6384c77f6375b71dbe99c654b87c3effc0ab4c4", default-features = false, features = ["unstable"] }
 iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "c6384c77f6375b71dbe99c654b87c3effc0ab4c4", default-features = false, features = ["unstable"] }
