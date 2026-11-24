@@ -2578,8 +2578,11 @@ mod checked {
         metrics: Arc<LimitsMetrics>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<(), ExecutionError> {
-        let AccountClaimKind::SmartAccount(claim) = &claim_tx.kind else {
-            unimplemented!("a new AccountClaimKind enum variant was added and needs to be handled")
+        let claim = match &claim_tx.kind {
+            AccountClaimKind::SmartAccount(claim) => claim,
+            _ => unimplemented!(
+                "a new AccountClaimKind enum variant was added and needs to be handled"
+            ),
         };
 
         let pt = {
