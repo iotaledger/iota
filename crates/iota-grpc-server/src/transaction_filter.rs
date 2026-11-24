@@ -413,7 +413,13 @@ impl TransactionFilter {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{Argument, Command, Identifier};
+    use iota_sdk_types::{
+        Argument, ClaimAccountTransaction, Command, Identifier, SmartAccountClaim,
+    };
+    use iota_types::{
+        base_types::random_object_ref, effects::TestEffectsBuilder,
+        transaction::TransactionEnvelope,
+    };
     use proto_filter::transaction_filter::Filter as ProtoFilter;
 
     use super::*;
@@ -818,5 +824,40 @@ mod tests {
             &TransactionKind::RandomnessStateUpdate
         ));
         assert!(!is_system_transaction(&TransactionKind::Programmable));
+        assert!(!is_system_transaction(&TransactionKind::ClaimAccount));
+    }
+
+    #[test]
+    fn test_claim_account_matches_negated_system_but_not_system_or_programmable() {
+        let kind = iota_sdk_types::TransactionKind::new_claim_account(
+            ClaimAccountTransaction::new_smart_account(SmartAccountClaim {
+                public_key_scheme: 0,
+                public_key_raw_bytes: vec![7; 32],
+            }),
+        );
+        let data = iota_sdk_types::Transaction::new(
+            kind,
+            Address::new([1; 32]),
+            random_object_ref(),
+            1_000_000,
+            1_000,
+        );
+        let transaction = TransactionEnvelope::from_data(data, vec![]);
+        let effects = TestEffectsBuilder::new(transaction.data()).build();
+        let claim = CheckpointTransaction {
+            transaction,
+            effects,
+            events: None,
+            input_objects: vec![],
+            output_objects: vec![],
+        };
+
+        let of_kind = |kind| TransactionFilter::TransactionKind(vec![kind]);
+        assert!(!of_kind(TransactionKind::System).matches_transaction(&claim));
+        assert!(!of_kind(TransactionKind::Programmable).matches_transaction(&claim));
+        assert!(
+            TransactionFilter::Not(Box::new(of_kind(TransactionKind::System)))
+                .matches_transaction(&claim)
+        );
     }
 }
