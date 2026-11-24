@@ -3053,9 +3053,12 @@ pub enum IotaTransactionKind {
 }
 
 impl IotaTransactionKind {
+    /// The kinds that are not system transactions.
+    pub const NON_SYSTEM_KINDS: [Self; 2] = [Self::ProgrammableTransaction, Self::ClaimAccount];
+
     /// Returns true if the transaction is a system transaction.
     pub fn is_system_transaction(&self) -> bool {
-        !matches!(self, Self::ProgrammableTransaction | Self::ClaimAccount)
+        !Self::NON_SYSTEM_KINDS.contains(self)
     }
 }
 

@@ -62,6 +62,7 @@ use std::{
 
 use diesel::{ExpressionMethods, QueryDsl};
 use iota_indexer::{ingestion::common::CommitterTables, schema::pruner_cp_watermark};
+use iota_json_rpc_types::IotaTransactionKind;
 
 use crate::{
     data::{Conn, DbConnection, pg::bytea_literal},
@@ -547,12 +548,15 @@ fn select_kind(
         _ => filter!(
             select_tx(None, bound, "tx_kinds"),
             if TransactionBlockKindInput::SystemTx == kind {
-                // `ClaimAccount` is a user transaction as well, so a system kind is
-                // neither programmable nor claim-account.
+                // `tx_kinds` stores `IotaTransactionKind` numbers, and every kind
+                // outside its `NON_SYSTEM_KINDS` is a system kind.
                 format!(
-                    "tx_kind NOT IN ({}, {})",
-                    TransactionBlockKindInput::ProgrammableTx as i16,
-                    TransactionBlockKindInput::ClaimAccount as i16,
+                    "tx_kind NOT IN ({})",
+                    IotaTransactionKind::NON_SYSTEM_KINDS
+                        .iter()
+                        .map(|kind| (*kind as i16).to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
                 )
             } else {
                 format!("tx_kind = {}", kind as i16)
