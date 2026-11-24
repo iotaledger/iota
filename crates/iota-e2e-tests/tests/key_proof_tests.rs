@@ -443,6 +443,8 @@ async fn simulation_without_gas_coins_reads_the_nonce_of_the_mock_gas_coin() {
 #[sim_test]
 async fn claim_account_needs_no_key_proof() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_claim_account_max_computation_units_for_testing(5_000);
+        config.set_claim_account_storage_bytes_bound_for_testing(2_000);
         config.set_enable_claim_account_transaction_for_testing(true);
         config
     });
