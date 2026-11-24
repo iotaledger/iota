@@ -519,8 +519,18 @@ impl Display for IotaTransactionBlockKind {
             Self::EndOfEpochTransaction(_) => {
                 writeln!(writer, "Transaction Kind: End of Epoch Transaction")?;
             }
-            Self::ClaimAccount(_) => {
+            Self::ClaimAccount(claim) => {
                 writeln!(writer, "Transaction Kind: Claim Account")?;
+                match &claim.account_kind {
+                    IotaAccountClaimKind::SmartAccount(smart) => {
+                        writeln!(
+                            writer,
+                            "Account Kind: Smart Account, Public Key Scheme Flag: {}, Public Key: {}",
+                            smart.public_key_scheme,
+                            Base64::encode(&smart.public_key_raw_bytes)
+                        )?;
+                    }
+                }
             }
         }
         write!(f, "{writer}")
