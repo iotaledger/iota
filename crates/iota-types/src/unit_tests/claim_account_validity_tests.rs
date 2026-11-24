@@ -19,9 +19,12 @@ use crate::{
 };
 
 /// The latest version on a chain other than testnet and mainnet, which enables
-/// the built-in authenticators, with the claim kind turned on.
+/// the built-in authenticators, with the claim kind turned on together with the
+/// bounds on a claim's cost that it needs.
 fn config() -> ProtocolConfig {
     let mut config = ProtocolConfig::get_for_version(ProtocolVersion::MAX, Chain::Unknown);
+    config.set_claim_account_max_computation_units_for_testing(5_000);
+    config.set_claim_account_storage_bytes_bound_for_testing(2_000);
     config.set_enable_claim_account_transaction_for_testing(true);
     config
 }
