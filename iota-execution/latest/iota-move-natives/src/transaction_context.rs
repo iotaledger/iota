@@ -188,7 +188,7 @@ impl TransactionContext {
                 ),
             );
         }
-        self.tx_context.borrow_mut().set_nonce(nonce);
+        self.tx_context.borrow_mut().replace_nonce(nonce);
         Ok(())
     }
 }

@@ -432,8 +432,8 @@ pub struct TxContext {
     /// Identifier of the chain: the digest of its genesis checkpoint
     chain_identifier: ChainIdentifier,
     /// Nonce of the transaction, which a key proof names. At most one
-    /// executed transaction has a given nonce. `None` while authenticators
-    /// run, and for transactions without a gas coin.
+    /// executed transaction has a given nonce. `None` for transactions
+    /// without a gas coin.
     nonce: Option<[u8; 32]>,
     /// Whether the `TxContext` is native or not (i.e., Move reads values via
     /// native functions instead of struct fields).
@@ -460,6 +460,7 @@ impl TxContext {
         gas_budget: u64,
         sponsor: Option<Address>,
         chain_identifier: ChainIdentifier,
+        nonce: Option<[u8; 32]>,
         protocol_config: &ProtocolConfig,
     ) -> Self {
         Self::new_from_components(
@@ -472,6 +473,7 @@ impl TxContext {
             gas_budget,
             sponsor,
             chain_identifier,
+            nonce,
             protocol_config,
         )
     }
@@ -486,6 +488,7 @@ impl TxContext {
         gas_budget: u64,
         sponsor: Option<Address>,
         chain_identifier: ChainIdentifier,
+        nonce: Option<[u8; 32]>,
         protocol_config: &ProtocolConfig,
     ) -> Self {
         Self {
@@ -499,7 +502,7 @@ impl TxContext {
             gas_budget,
             sponsor: sponsor.map(|s| AccountAddress::new(s.into_bytes())),
             chain_identifier,
-            nonce: None,
+            nonce,
             is_native: protocol_config.move_native_tx_context(),
         }
     }
@@ -584,12 +587,6 @@ impl TxContext {
         self.nonce
     }
 
-    /// Sets the nonce of the transaction. Execution sets it only for the
-    /// transaction body, never while authenticators run.
-    pub fn set_nonce(&mut self, nonce: Option<[u8; 32]>) {
-        self.nonce = nonce;
-    }
-
     pub fn to_vec(&self) -> Vec<u8> {
         bcs::to_bytes(&self).unwrap()
     }
@@ -641,7 +638,7 @@ impl TxContext {
     }
 
     /// Replace every field except the chain identifier and the nonce, which
-    /// [`Self::set_chain_identifier`] and [`Self::set_nonce`] replace, and
+    /// [`Self::set_chain_identifier`] and [`Self::replace_nonce`] replace, and
     /// whether the context is native. Used by Move test-only native functions.
     pub fn replace(
         &mut self,
@@ -671,6 +668,11 @@ impl TxContext {
         self.chain_identifier = chain_identifier;
     }
 
+    /// Replace the nonce. Used by Move test-only native functions.
+    pub fn replace_nonce(&mut self, nonce: Option<[u8; 32]>) {
+        self.nonce = nonce;
+    }
+
     // Generate a random TxContext for testing.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn random_for_testing_only() -> Self {
@@ -683,6 +685,7 @@ impl TxContext {
             0,
             None,
             ChainIdentifier::default(),
+            None,
             &ProtocolConfig::get_for_max_version_UNSAFE(),
         )
     }

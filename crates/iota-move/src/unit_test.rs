@@ -157,6 +157,7 @@ fn new_testing_object_and_natives_cost_runtime(ext: &mut NativeContextExtensions
             0,
             None,
             ChainIdentifier::default(),
+            None,
             &protocol_config,
         ),
     ))));
