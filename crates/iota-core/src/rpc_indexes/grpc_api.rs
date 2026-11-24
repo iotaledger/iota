@@ -14,7 +14,9 @@ use typed_store::{TypedStoreError, traits::Map};
 
 use super::{
     RpcIndexesStore,
-    schema::{CoinIndexInfo, CoinIndexKey, IndexGroup, OwnerIndexKey, OwnerTypeFilter},
+    schema::{
+        CoinIndexInfo, CoinIndexKey, DisplayIndexKey, IndexGroup, OwnerIndexKey, OwnerTypeFilter,
+    },
 };
 
 impl From<CoinIndexInfo> for iota_types::storage::CoinInfo {
@@ -64,6 +66,19 @@ impl RpcIndexesStore {
             coin_type: coin_type.to_owned(),
         };
         Ok(self.tables.coin.get(&key)?)
+    }
+
+    /// The published Display template of `object_type` as `(field, template)`
+    /// pairs in publication order, `None` if the type has no Display.
+    pub(crate) fn get_display_fields(
+        &self,
+        object_type: &StructTag,
+    ) -> Result<Option<Vec<(String, String)>>, StorageError> {
+        self.require_grpc()?;
+        let key = DisplayIndexKey {
+            object_type: object_type.to_owned(),
+        };
+        Ok(self.tables.display.get(&key)?.map(|info| info.fields))
     }
 
     /// Every storage id of `original_package_id`'s versions, from `cursor`
@@ -139,5 +154,12 @@ impl iota_node_storage::GrpcIndexes for RpcIndexesStore {
     {
         let iter = RpcIndexesStore::package_versions_iter(self, original_package_id, cursor)?;
         Ok(Box::new(iter))
+    }
+
+    fn get_display_fields(
+        &self,
+        object_type: &StructTag,
+    ) -> iota_types::storage::error::Result<Option<Vec<(String, String)>>> {
+        RpcIndexesStore::get_display_fields(self, object_type)
     }
 }

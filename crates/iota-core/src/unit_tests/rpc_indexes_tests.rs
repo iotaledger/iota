@@ -187,6 +187,47 @@ fn typed_object_for_testing(object_type: StructTag, owner: Owner) -> Object {
     )
 }
 
+/// A live `0x2::display::Display<T>` object publishing `fields` at `version`,
+/// the on-chain template the live-object scan seeds the display index from.
+fn display_object(displayed_type: &StructTag, fields: &[(&str, &str)], version: u16) -> Object {
+    use iota_sdk_move_types::{
+        iota_framework::{
+            display::Display,
+            object::UID,
+            vec_map::{Entry, VecMap},
+        },
+        move_stdlib::string::String as MoveString,
+    };
+
+    let object_id = ObjectId::random();
+    let fields_map = VecMap::new(
+        fields
+            .iter()
+            .map(|(key, value)| {
+                Entry::new(
+                    MoveString::new(key.as_bytes().to_vec()),
+                    MoveString::new(value.as_bytes().to_vec()),
+                )
+            })
+            .collect(),
+    );
+    let display = Display::<()>::new(UID::new(object_id), fields_map, version);
+    let display_type: StructTag = format!("0x2::display::Display<{displayed_type}>")
+        .parse()
+        .unwrap();
+    Object::new_move(
+        MoveStruct::new_from_execution_with_limit(
+            display_type,
+            Version::MIN_VALID_INCL,
+            bcs::to_bytes(&display).unwrap(),
+            256,
+        )
+        .unwrap(),
+        Owner::Address(iota_types::base_types::dbg_addr(2)),
+        TransactionDigest::ZERO,
+    )
+}
+
 /// A Move package object, the only kind of object the package-version index
 /// stores.
 fn package_object_for_testing() -> Object {
@@ -789,6 +830,107 @@ fn index_checkpoint_for_testing(store: &RpcIndexesStore, checkpoint: &Checkpoint
     store
         .commit_update_for_checkpoint(checkpoint.checkpoint_summary.sequence_number)
         .unwrap();
+}
+
+/// A `DisplayVersionUpdatedEvent<object_type>` carrying `fields` as its
+/// template.
+fn display_version_updated_event(object_type: &StructTag, fields: &[(&str, &str)]) -> Event {
+    use iota_sdk_move_types::{
+        iota_framework::{
+            display::VersionUpdated,
+            object::ID,
+            vec_map::{Entry, VecMap},
+        },
+        move_stdlib::string::String as MoveString,
+    };
+
+    let contents_map = VecMap::new(
+        fields
+            .iter()
+            .map(|(key, value)| {
+                Entry::new(
+                    MoveString::new(key.as_bytes().to_vec()),
+                    MoveString::new(value.as_bytes().to_vec()),
+                )
+            })
+            .collect(),
+    );
+    let version_updated = VersionUpdated::<()>::new(
+        ID::new(TestCheckpointDataBuilder::derive_object_id(0)),
+        1,
+        contents_map,
+    );
+
+    Event {
+        package_id: TestCheckpointDataBuilder::derive_object_id(1),
+        module: Identifier::new("display").unwrap(),
+        sender: TestCheckpointDataBuilder::derive_address(0),
+        struct_tag: StructTag::new_display_version_updated(object_type.clone()),
+        contents: bcs::to_bytes(&version_updated).unwrap(),
+    }
+}
+
+#[tokio::test]
+async fn test_display_index_round_trip() {
+    let dir = iota_common::tempdir();
+    let index_store = open_index_store(dir.path().to_path_buf());
+
+    let object_type: StructTag = "0x2::hero::Hero".parse().unwrap();
+    let event = display_version_updated_event(
+        &object_type,
+        &[("name", "{name}"), ("url", "https://example.com/{id}")],
+    );
+
+    let checkpoint = TestCheckpointDataBuilder::new(0)
+        .start_transaction(0)
+        .create_owned_object(0)
+        .with_events(vec![event])
+        .finish_transaction()
+        .build_checkpoint();
+    index_checkpoint_for_testing(&index_store, &checkpoint);
+
+    // The published template is retrievable by the displayed type, in order.
+    assert_eq!(
+        index_store.get_display_fields(&object_type).unwrap(),
+        Some(vec![
+            ("name".to_string(), "{name}".to_string()),
+            ("url".to_string(), "https://example.com/{id}".to_string()),
+        ])
+    );
+
+    // A type without a published Display has no row.
+    let other: StructTag = "0x2::hero::Sword".parse().unwrap();
+    assert_eq!(index_store.get_display_fields(&other).unwrap(), None);
+}
+
+#[tokio::test]
+async fn test_display_index_keeps_latest_version() {
+    let dir = iota_common::tempdir();
+    let index_store = open_index_store(dir.path().to_path_buf());
+    let object_type: StructTag = "0x2::hero::Hero".parse().unwrap();
+
+    // Two checkpoints publish the type's Display; the later one supersedes.
+    for (seq, fields) in [
+        (0u64, &[("name", "v1")][..]),
+        (1, &[("name", "v2"), ("extra", "x")][..]),
+    ] {
+        let event = display_version_updated_event(&object_type, fields);
+        let checkpoint = TestCheckpointDataBuilder::new(seq)
+            .start_transaction(0)
+            .create_owned_object(seq)
+            .with_events(vec![event])
+            .finish_transaction()
+            .build_checkpoint();
+        index_checkpoint_for_testing(&index_store, &checkpoint);
+    }
+
+    assert_eq!(
+        index_store.get_display_fields(&object_type).unwrap(),
+        Some(vec![
+            ("name".to_string(), "v2".to_string()),
+            ("extra".to_string(), "x".to_string()),
+        ])
+    );
 }
 
 #[tokio::test]
@@ -2614,12 +2756,15 @@ async fn test_restore_builds_the_same_live_state_as_the_rebuild() {
         Owner::Address(owner),
     );
     let package_object = package_object_for_testing();
+    let displayed_type: StructTag = "0x2::hero::Hero".parse().unwrap();
+    let display = display_object(&displayed_type, &[("name", "{name}")], 1);
     let objects = [
         gas_object.clone(),
         field_object.clone(),
         coin_metadata.clone(),
         treasury_cap.clone(),
         package_object.clone(),
+        display.clone(),
     ];
     let groups = BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]);
 
@@ -2702,7 +2847,150 @@ async fn test_restore_builds_the_same_live_state_as_the_rebuild() {
             )],
             "the package version must be indexed"
         );
+        assert_eq!(
+            store.get_display_fields(&displayed_type).unwrap(),
+            Some(vec![("name".to_string(), "{name}".to_string())]),
+            "the live Display<T> object must seed the display index"
+        );
     }
+}
+
+/// A gRPC store that predates the display table seeds it once from the live
+/// `Display<T>` objects, without a full re-index, and records that it has.
+#[tokio::test]
+async fn test_display_backfill_seeds_an_existing_store_from_the_live_set() {
+    let dir = iota_common::tempdir();
+    let owner = iota_types::base_types::dbg_addr(1);
+    let gas_object = Object::new_gas_with_balance_and_owner_for_testing(100, owner);
+    let displayed_type: StructTag = "0x2::hero::Hero".parse().unwrap();
+    let display = display_object(&displayed_type, &[("name", "{name}")], 1);
+    let objects = [gas_object, display];
+
+    let authority_state = crate::authority::test_authority_builder::TestAuthorityBuilder::new()
+        .insert_genesis_checkpoint()
+        .build()
+        .await;
+    authority_state.insert_genesis_objects(&objects);
+    let checkpoint_store = &authority_state.checkpoint_store;
+    let genesis_checkpoint = checkpoint_store
+        .get_checkpoint_by_sequence_number(0)
+        .unwrap()
+        .unwrap();
+    checkpoint_store
+        .update_highest_executed_checkpoint(&genesis_checkpoint)
+        .unwrap();
+    let store = RpcIndexesStore::new(
+        dir.path().join("index"),
+        None,
+        &Registry::default(),
+        BTreeSet::from([IndexGroup::Grpc]),
+        Some(128),
+        None,
+        &authority_state.database_for_testing(),
+        checkpoint_store,
+        Default::default(),
+    )
+    .await
+    .unwrap();
+    store.wait_for_history_backfill_for_testing().await;
+
+    // Put the store back to how one built before the display table looked: the
+    // table empty and unmarked, but everything else already indexed.
+    let display_key = super::schema::DisplayIndexKey {
+        object_type: displayed_type.clone(),
+    };
+    store.tables.display.remove(&display_key).unwrap();
+    store.tables.display_backfilled.remove(&()).unwrap();
+    assert_eq!(store.get_display_fields(&displayed_type).unwrap(), None);
+
+    store
+        .backfill_display_from_live_set(
+            &authority_state.database_for_testing(),
+            &std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        store.get_display_fields(&displayed_type).unwrap(),
+        Some(vec![("name".to_string(), "{name}".to_string())]),
+        "the catch-up scan must seed the display index from the live set"
+    );
+    assert_eq!(
+        store.tables.display_backfilled.get(&()).unwrap(),
+        Some(0),
+        "the catch-up must mark the store as seeded, so it does not run again"
+    );
+}
+
+/// A store that has not indexed anything yet — no watermark — needs no catch-up
+/// scan: the event path fills `display` from its first checkpoint onward, with
+/// no gap. The backfill marks it seeded without scanning, so a later open does
+/// not rebuild the live object set for a table that is already complete.
+#[tokio::test]
+async fn test_display_backfill_marks_an_empty_store_without_scanning() {
+    let dir = iota_common::tempdir();
+    let owner = iota_types::base_types::dbg_addr(1);
+    let gas_object = Object::new_gas_with_balance_and_owner_for_testing(100, owner);
+    let displayed_type: StructTag = "0x2::hero::Hero".parse().unwrap();
+    let display = display_object(&displayed_type, &[("name", "{name}")], 1);
+    let objects = [gas_object, display];
+
+    let authority_state = crate::authority::test_authority_builder::TestAuthorityBuilder::new()
+        .insert_genesis_checkpoint()
+        .build()
+        .await;
+    authority_state.insert_genesis_objects(&objects);
+    let checkpoint_store = &authority_state.checkpoint_store;
+    let genesis_checkpoint = checkpoint_store
+        .get_checkpoint_by_sequence_number(0)
+        .unwrap()
+        .unwrap();
+    checkpoint_store
+        .update_highest_executed_checkpoint(&genesis_checkpoint)
+        .unwrap();
+    let store = RpcIndexesStore::new(
+        dir.path().join("index"),
+        None,
+        &Registry::default(),
+        BTreeSet::from([IndexGroup::Grpc]),
+        Some(128),
+        None,
+        &authority_state.database_for_testing(),
+        checkpoint_store,
+        Default::default(),
+    )
+    .await
+    .unwrap();
+    store.wait_for_history_backfill_for_testing().await;
+
+    // Put the store into the state of one that has not indexed anything yet: no
+    // watermark, no marker, and an empty display table.
+    let display_key = super::schema::DisplayIndexKey {
+        object_type: displayed_type.clone(),
+    };
+    store.tables.display.remove(&display_key).unwrap();
+    store.tables.display_backfilled.remove(&()).unwrap();
+    store.tables.watermark.remove(&()).unwrap();
+
+    store
+        .backfill_display_from_live_set(
+            &authority_state.database_for_testing(),
+            &std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        store.tables.display_backfilled.get(&()).unwrap(),
+        Some(0),
+        "an empty store must be marked seeded so a later open does not scan"
+    );
+    assert_eq!(
+        store.get_display_fields(&displayed_type).unwrap(),
+        None,
+        "the backfill must not scan the live object set for an empty store"
+    );
 }
 
 /// The partitions of a restore keep filling the same buffers instead of each

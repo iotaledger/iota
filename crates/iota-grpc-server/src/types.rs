@@ -722,6 +722,18 @@ impl GrpcReader {
             .map_err(Into::into)
     }
 
+    /// The published Display template of `object_type` as `(field, template)`
+    /// pairs in publication order, `None` if the type has no Display.
+    pub fn get_display_fields(
+        &self,
+        object_type: &iota_sdk_types::StructTag,
+    ) -> Result<Option<Vec<(String, String)>>, crate::error::RpcError> {
+        let indexes = self.require_indexes()?;
+        indexes
+            .get_display_fields(object_type)
+            .map_err(|e| crate::error::RpcError::internal().with_context(e))
+    }
+
     /// Iterate over objects owned by an account address.
     ///
     /// The cursor is exclusive: items *after* the cursor position are returned.

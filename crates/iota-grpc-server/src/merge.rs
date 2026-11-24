@@ -11,7 +11,7 @@ use iota_grpc_types::{
         checkpoint::{Checkpoint, CheckpointContents, CheckpointSummary},
         epoch::{EpochCloseProof, ProtocolAttributes, ProtocolConfig, ProtocolFeatureFlags},
         event::{Event, Events},
-        object::{Object, Objects},
+        object::{Display, DisplayField, Object, Objects},
         signatures::{UserSignature, UserSignatures},
         transaction::{ExecutedTransaction, Transaction, TransactionEffects, TransactionEvents},
         types::{Address, ObjectReference},
@@ -24,7 +24,7 @@ use iota_types::iota_sdk_types_conversions::SdkTypeConversionError;
 use crate::{
     GrpcReader,
     error::RpcError,
-    utils::{mask_names_field, render_json},
+    utils::{mask_names_field, render_json_with_layout},
     validation::object_id_proto,
 };
 
@@ -330,12 +330,14 @@ impl Merge<&Object> for Object {
     }
 }
 
-/// Builds an [`Object`] proto and, when the read mask names `json` explicitly,
-/// renders it from the object's Move contents.
+/// Builds an [`Object`] proto and, when the read mask names them explicitly,
+/// renders `json` from the object's Move contents and `display` from its type's
+/// on-chain Display template.
 ///
-/// Rendering `json` needs Move type-layout resolution via the reader, so it is
-/// gated with [`mask_names_field`]: a bare parent or `*` wildcard does not pull
-/// it in. Packages have no Move contents and never get a `json`.
+/// Both need Move type-layout resolution via the reader (and `display` a
+/// display-index lookup), so they are gated with [`mask_names_field`]: a bare
+/// parent or `*` wildcard does not pull them in. Packages have no Move contents
+/// and never get a `json` or `display`.
 pub(crate) fn merge_object(
     source: iota_types::object::Object,
     reader: &Arc<GrpcReader>,
@@ -350,18 +352,124 @@ pub(crate) fn merge_object(
     let mut object = Object::default();
     object.merge(&sdk_object, mask)?;
 
-    if mask_names_field(mask, Object::JSON_FIELD.name) {
+    let wants_json = mask_names_field(mask, Object::JSON_FIELD.name);
+    let wants_display = mask_names_field(mask, Object::DISPLAY_FIELD.name);
+
+    // `json` and `display` both render from the object's Move type layout;
+    // resolve it once (best-effort, as `json` is) and share it between them so a
+    // read of both does not resolve the same layout twice.
+    let type_layout = match (wants_json || wants_display, sdk_object.data()) {
+        (true, iota_sdk_types::ObjectData::Struct(move_struct)) => reader
+            .get_type_layout(&move_struct.type_tag())
+            .ok()
+            .flatten(),
+        _ => None,
+    };
+
+    if wants_json {
         if let iota_sdk_types::ObjectData::Struct(move_struct) = sdk_object.data() {
-            object.json = render_json(
-                reader.clone(),
-                max_json_move_value_size,
-                &move_struct.type_tag(),
-                move_struct.contents(),
-            );
+            object.json = type_layout.as_ref().and_then(|layout| {
+                render_json_with_layout(max_json_move_value_size, layout, move_struct.contents())
+            });
         }
     }
 
+    if wants_display {
+        object.display = render_object_display(&sdk_object, reader, type_layout.as_ref())?;
+    }
+
     Ok(object)
+}
+
+/// Renders an object's on-chain Display template, or `None` when its type has
+/// no Display (or it is not a Move object).
+///
+/// A failure that applies to the whole template — the type's layout cannot be
+/// resolved — yields a [`Display`] carrying only its top-level `error`. A
+/// single field that fails to render yields a [`DisplayField`] carrying that
+/// field's `error`, leaving the rest intact.
+fn render_object_display(
+    sdk_object: &iota_sdk_types::Object,
+    reader: &Arc<GrpcReader>,
+    cached_layout: Option<&move_core_types::annotated_value::MoveTypeLayout>,
+) -> Result<Option<Display>, RpcError> {
+    use iota_types::object::MoveStructExt;
+
+    let iota_sdk_types::ObjectData::Struct(move_struct) = sdk_object.data() else {
+        return Ok(None);
+    };
+    let type_tag = move_struct.type_tag();
+    let iota_sdk_types::TypeTag::Struct(struct_tag) = &type_tag else {
+        return Ok(None);
+    };
+
+    let template_fields = match reader.get_display_fields(struct_tag) {
+        Ok(Some(template_fields)) => template_fields,
+        Ok(None) => return Ok(None),
+        // Best-effort, like `json`: a display-index read error surfaces as a
+        // Display carrying the error rather than failing the object — so one
+        // object's failure does not abort a whole `list_owned_objects` page.
+        Err(e) => {
+            return Ok(Some(Display::default().with_error(display_error_status(e))));
+        }
+    };
+
+    // Interpolate the templates against the object's annotated Move value,
+    // reusing the layout `json` already resolved when both were requested, and
+    // resolving it here (the only path for a display-only read) otherwise.
+    use move_core_types::annotated_value::MoveTypeLayout;
+    let resolved;
+    let layout = match cached_layout {
+        Some(MoveTypeLayout::Struct(layout)) => layout,
+        Some(_) => {
+            return Ok(Some(
+                Display::default().with_error(display_error_status("unresolved type layout")),
+            ));
+        }
+        None => match reader.get_type_layout(&type_tag) {
+            Ok(Some(MoveTypeLayout::Struct(layout))) => {
+                resolved = layout;
+                &resolved
+            }
+            Ok(_) => {
+                return Ok(Some(
+                    Display::default().with_error(display_error_status("unresolved type layout")),
+                ));
+            }
+            Err(e) => {
+                return Ok(Some(Display::default().with_error(display_error_status(e))));
+            }
+        },
+    };
+    let move_value = match move_struct.to_move_struct(layout) {
+        Ok(move_value) => move_value,
+        Err(e) => {
+            return Ok(Some(Display::default().with_error(display_error_status(e))));
+        }
+    };
+
+    let mut output_budget = iota_json_rpc_types::MAX_DISPLAY_OUTPUT_SIZE;
+    let fields = template_fields
+        .iter()
+        .map(|(name, template)| {
+            let field = DisplayField::default().with_name(name.clone());
+            match iota_json_rpc_types::render_display_template(
+                template,
+                &move_value,
+                &mut output_budget,
+            ) {
+                Ok(value) => field.with_value(value),
+                Err(e) => field.with_error(display_error_status(e)),
+            }
+        })
+        .collect();
+
+    Ok(Some(Display::default().with_fields(fields)))
+}
+
+/// A `google.rpc.Status` for a Display rendering failure.
+fn display_error_status(error: impl std::fmt::Display) -> iota_grpc_types::google::rpc::Status {
+    RpcError::internal().with_context(error).into_status_proto()
 }
 
 impl Merge<Option<Vec<iota_types::object::Object>>> for Objects {

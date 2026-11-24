@@ -6573,6 +6573,7 @@ dependencies = [
  "iota-config",
  "iota-http",
  "iota-json",
+ "iota-json-rpc-types",
  "iota-metrics",
  "iota-network-stack",
  "iota-node-storage",

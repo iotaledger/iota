@@ -64,12 +64,13 @@ use self::{
         BalanceCaches, CoinBalanceChanges, JsonRpcMetrics,
         invalidate_balance_caches_instead_of_updating,
     },
-    live_scan::{LiveObjectSetIndexer, SstFiles},
+    live_scan::{DisplayBackfill, LiveObjectSetIndexer, SstFiles},
     schema::{
-        CURRENT_DB_VERSION, CoinIndexInfo, CoinIndexKey, HISTORY_BUCKET_DIR, HISTORY_CF_PREFIX,
-        HistoryBucket, IndexStoreTables, IndexStoreTablesReadOnly, MetadataInfo, OwnerIndexKey,
-        history_cf_epoch, history_cf_name, is_dynamic_field, merge_coin_into,
-        transaction_index_data, try_create_coin_index_info, try_create_package_version_info,
+        CURRENT_DB_VERSION, CoinIndexInfo, CoinIndexKey, DisplayIndexInfo, DisplayIndexKey,
+        HISTORY_BUCKET_DIR, HISTORY_CF_PREFIX, HistoryBucket, IndexStoreTables,
+        IndexStoreTablesReadOnly, MetadataInfo, OwnerIndexKey, history_cf_epoch, history_cf_name,
+        is_dynamic_field, merge_coin_into, merge_display_into, transaction_index_data,
+        try_create_coin_index_info, try_create_display_index_info, try_create_package_version_info,
         try_create_regulated_coin_info,
     },
 };
@@ -459,6 +460,9 @@ impl IndexStoreTables {
             .insert(&(), &highest_executed.map_or(0, |c| c.saturating_add(1)))?;
         if let Some(highest_executed) = highest_executed {
             self.watermark.insert(&(), &highest_executed)?;
+            // The live object scan of this build seeded `display`, so the
+            // one-time catch-up scan at startup has nothing left to do.
+            self.display_backfilled.insert(&(), &highest_executed)?;
         }
         Ok(())
     }
@@ -849,11 +853,99 @@ impl RpcIndexesStore {
             groups,
             max_type_length,
             anchor,
-            cancelled,
+            cancelled.clone(),
             epochs_to_retain,
         )?);
+        // Blocking, before the store is wired into checkpoint execution, so
+        // the live object set it scans is not mutated under it.
+        store
+            .backfill_display_from_live_set(authority_store, &cancelled)
+            .await?;
         store.spawn_history_backfill(authority_store.clone(), checkpoint_store.clone());
         Ok(store)
+    }
+
+    /// Seeds the gRPC `display` table from the live `Display<T>` objects when a
+    /// store predates the table, so the templates a node can no longer rebuild
+    /// from pruned checkpoint events are recovered without a full re-index.
+    ///
+    /// A no-op unless the store serves gRPC and has not been seeded yet. Runs
+    /// once: [`adopt_bulk_ingestion`](IndexStoreTables::adopt_bulk_ingestion)
+    /// marks a freshly built store, and this marks an existing one when it
+    /// finishes, both with the checkpoint the scan reflects. The scan is
+    /// idempotent, so an interrupted run re-runs in full on the next open.
+    async fn backfill_display_from_live_set(
+        self: &Arc<Self>,
+        authority_store: &Arc<AuthorityStore>,
+        cancelled: &Arc<AtomicBool>,
+    ) -> Result<(), StorageError> {
+        if !self.serves(IndexGroup::Grpc) {
+            return Ok(());
+        }
+        if self
+            .tables
+            .display_backfilled
+            .get(&())
+            .map_err(StorageError::custom)?
+            .is_some()
+        {
+            return Ok(());
+        }
+        let Some(watermark) = self
+            .tables
+            .watermark
+            .get(&())
+            .map_err(StorageError::custom)?
+        else {
+            // Nothing indexed yet, so there is no history to recover: the event
+            // path fills `display` from the first checkpoint this store indexes
+            // onward, with no gap. Mark it seeded now, or a store that only ever
+            // fills `display` incrementally — never through a live-set rebuild
+            // or bulk ingestion, which seed the marker themselves — would scan
+            // the whole live object set on a later open to rebuild a table that
+            // is already complete.
+            self.tables
+                .display_backfilled
+                .insert(&(), &0)
+                .map_err(StorageError::custom)?;
+            return Ok(());
+        };
+
+        info!("Seeding the gRPC display index from the live object set");
+        let store = self.clone();
+        let authority_store = authority_store.clone();
+        let cancelled = cancelled.clone();
+        match tokio::task::spawn_blocking(move || -> Result<(), StorageError> {
+            let backfill = DisplayBackfill::new();
+            par_index_live_object_set(&authority_store, &backfill, &cancelled)?;
+            // The rows go in before the marker, and a write is durable before
+            // the next, so an interrupted run leaves the marker absent and
+            // re-runs rather than reporting a half-filled table as seeded.
+            backfill.finish(&store.tables)?;
+            store
+                .tables
+                .display_backfilled
+                .insert(&(), &watermark)
+                .map_err(StorageError::custom)?;
+            Ok(())
+        })
+        .await
+        .expect("display index backfill task failed")
+        {
+            Ok(()) => {}
+            // Keyed on the error, not the flag: a real failure racing the
+            // shutdown must stay a failure. Mirrors the rebuild path so a
+            // mid-scan shutdown is reported as a clean cancellation rather than
+            // an index-initialization failure.
+            Err(e) if is_cancelled(&e) => {
+                return Err(RebuildCancelled::error(format!(
+                    "the gRPC display index backfill was cancelled by shutdown: {e}"
+                )));
+            }
+            Err(e) => return Err(e),
+        }
+        info!("Seeded the gRPC display index from the live object set");
+        Ok(())
     }
 
     /// Indexes the executed checkpoints `lost` again, through a store opened
@@ -1164,6 +1256,8 @@ impl RpcIndexesStore {
             dynamic_field: map(&db, "dynamic_field", &db_options.rw_options)?,
             coin: map(&db, "coin", &db_options.rw_options)?,
             package_version: map(&db, "package_version", &db_options.rw_options)?,
+            display: map(&db, "display", &db_options.rw_options)?,
+            display_backfilled: map(&db, "display_backfilled", &db_options.rw_options)?,
         };
 
         let mut history = BTreeMap::new();
@@ -1345,6 +1439,9 @@ impl RpcIndexesStore {
             &mut coin_rows,
         )?;
         self.stage_coin_rows(checkpoint_seq, coin_rows, &mut batch)?;
+        if self.serves(IndexGroup::Grpc) {
+            self.index_displays(&indexed, &mut batch)?;
+        }
         batch.insert_batch(&self.tables.watermark, [((), checkpoint_seq)])?;
 
         self.stage_update(
@@ -1377,6 +1474,34 @@ impl RpcIndexesStore {
             row.merge(info);
             batch.insert_batch(&self.tables.coin, [(key.clone(), row.clone())])?;
             staged.insert(key, (checkpoint_seq, row));
+        }
+        Ok(())
+    }
+
+    /// Writes the Display templates published by `transactions`' events, keyed
+    /// by the displayed type. Within a checkpoint the highest version of each
+    /// type wins; later checkpoints supersede earlier ones. A row is written
+    /// unconditionally (rather than read-modify-written), since checkpoints are
+    /// ingested in order and a type's version only increases.
+    fn index_displays(
+        &self,
+        transactions: &[&CheckpointTransaction],
+        batch: &mut DBBatch,
+    ) -> IotaResult {
+        let mut latest: HashMap<DisplayIndexKey, DisplayIndexInfo> = HashMap::new();
+        for tx in transactions {
+            let Some(events) = tx.events.as_ref() else {
+                continue;
+            };
+            for event in &events.0 {
+                let Some((key, info)) = try_create_display_index_info(event) else {
+                    continue;
+                };
+                merge_display_into(&mut latest, key, info);
+            }
+        }
+        if !latest.is_empty() {
+            batch.insert_batch(&self.tables.display, latest)?;
         }
         Ok(())
     }
