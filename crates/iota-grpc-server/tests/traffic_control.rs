@@ -26,7 +26,7 @@ use iota_grpc_server::{
     constants::{IOTA_SDK_GRPC_CLIENT_VERSION_MIN, X_IOTA_SDK_GRPC_CLIENT_VERSION_MIN},
 };
 use iota_grpc_types::{
-    field::FieldMaskUtil,
+    field::{FieldMask, FieldMaskUtil},
     v1::{
         ledger_service::{
             GetObjectsRequest, ObjectRequest, ObjectRequests,
@@ -42,7 +42,7 @@ use iota_grpc_types::{
 };
 use iota_traffic_controller::TrafficController;
 use iota_types::{
-    traffic_control::{ClientIdSource, PolicyConfig, PolicyType, Weight},
+    traffic_control::{ClientIdSource, FreqThresholdConfig, PolicyConfig, PolicyType, Weight},
     transaction_executor::TransactionExecutor,
 };
 use tonic::{Code, transport::Channel};
@@ -51,6 +51,16 @@ use tonic::{Code, transport::Channel};
 /// many client errors have been tallied, so the block is expected within this
 /// many requests.
 const ERROR_BLOCK_ATTEMPTS: u64 = 5;
+
+/// A batch of items read under a heavy mask (`json`, one rendered field each),
+/// large enough that its rendered-field count exceeds
+/// [`RENDERED_FIELDS_THRESHOLD`] while its request count stays far under the
+/// spam `client_threshold`.
+const HEAVY_MASK_BATCH_SIZE: usize = 8;
+
+/// Rendered-field dimension threshold for the heavy-mask test, set below
+/// [`HEAVY_MASK_BATCH_SIZE`] so one such batch trips it.
+const RENDERED_FIELDS_THRESHOLD: u64 = 3;
 
 /// Spam policy threshold for the batch tests.
 const SPAM_THRESHOLD: u64 = 15;
@@ -479,6 +489,59 @@ async fn batched_reads_accrue_spam_per_item() {
     assert_client_blocked(SPAM_PROBE_ATTEMPTS, || {
         let mut client = client.clone();
         async move { client.get_objects(get_objects_batch(1)).await }
+    })
+    .await;
+}
+
+/// A read whose mask names a layout-resolved field (`json`) charges the
+/// rendered-field dimension one field per item, so a batch of
+/// [`HEAVY_MASK_BATCH_SIZE`] such items trips a rendered-field threshold set
+/// below it. The request count stays far under the spam `client_threshold`, so
+/// the block is attributable to the rendered-field dimension alone, not the
+/// request rate.
+#[tokio::test]
+async fn heavy_read_mask_accrues_rendered_fields() {
+    let handle = server_with_policy(
+        PolicyConfig {
+            connection_blocklist_ttl_sec: 120,
+            spam_policy_type: PolicyType::FreqThreshold(FreqThresholdConfig {
+                // Far above the batch's request count, so the spam policy cannot
+                // be the cause of a block.
+                client_threshold: 10_000,
+                rendered_fields_threshold: Some(RENDERED_FIELDS_THRESHOLD),
+                burst_secs: 1,
+                ..FreqThresholdConfig::default()
+            }),
+            // Error policy off, so any block is attributable to the spam policy.
+            error_policy_type: PolicyType::NoOp,
+            // Count every tally deterministically.
+            spam_sample_rate: Weight::one(),
+            dry_run: false,
+            ..Default::default()
+        },
+        None,
+    )
+    .await;
+    let mut client = LedgerServiceClient::new(connect(&handle).await);
+
+    let request =
+        get_objects_batch(HEAVY_MASK_BATCH_SIZE).with_read_mask(FieldMask::from_paths(["json"]));
+    let mut stream = client
+        .get_objects(request)
+        .await
+        .expect("batch request itself should succeed")
+        .into_inner();
+    while let Some(item) = stream.next().await {
+        item.expect("stream item should be Ok");
+    }
+
+    assert_client_blocked(SPAM_PROBE_ATTEMPTS, || {
+        let mut client = client.clone();
+        async move {
+            client
+                .get_objects(get_objects_batch(1).with_read_mask(FieldMask::from_paths(["json"])))
+                .await
+        }
     })
     .await;
 }

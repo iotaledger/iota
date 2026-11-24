@@ -135,7 +135,7 @@ where
             if !tally_handle.per_item_accounted() {
                 let code =
                     Status::from_header_map(response.headers()).map_or(Code::Ok, |s| s.code());
-                tally_handle.tally(code);
+                tally_handle.tally(code, 0, 0);
             }
             Ok(response)
         })
@@ -168,7 +168,7 @@ struct TallyState {
 impl Drop for TallyState {
     fn drop(&mut self) {
         if !*self.tallied.get_mut() {
-            tally(&self.traffic_controller, self.client, Code::Ok);
+            tally(&self.traffic_controller, self.client, Code::Ok, 0, 0);
         }
     }
 }
@@ -207,7 +207,7 @@ impl TallyHandle {
     /// is charged per item rather than once.
     pub fn tally_item(&self, code: Code) {
         self.mark_accounted();
-        self.tally(code);
+        self.tally(code, 0, 0);
     }
 
     /// Account for each item of a batch response by its status code (see
@@ -218,13 +218,38 @@ impl TallyHandle {
         }
     }
 
-    fn tally(&self, code: Code) {
+    /// Account for `count` successful response items of a read: each counts as
+    /// one request for the spam policy and one response item for the
+    /// response-item dimension, and contributes `rendered_fields_per_item`
+    /// server-rendered fields (as its read mask selects) to the rendered-field
+    /// dimension. Also marks the request accounted, so the layer skips its
+    /// default per-request tally.
+    pub fn tally_response_items(&self, count: usize, rendered_fields_per_item: u32) {
+        self.mark_accounted();
+        for _ in 0..count {
+            self.tally(Code::Ok, 1, rendered_fields_per_item);
+        }
+    }
+
+    fn tally(&self, code: Code, response_items: u32, rendered_fields: u32) {
         self.0.tallied.store(true, Ordering::Relaxed);
-        tally(&self.0.traffic_controller, self.0.client, code);
+        tally(
+            &self.0.traffic_controller,
+            self.0.client,
+            code,
+            response_items,
+            rendered_fields,
+        );
     }
 }
 
-fn tally(traffic_controller: &TrafficController, client: Option<IpAddr>, code: Code) {
+fn tally(
+    traffic_controller: &TrafficController,
+    client: Option<IpAddr>,
+    code: Code,
+    response_items: u32,
+    rendered_fields: u32,
+) {
     let error_info = if matches!(code, Code::Ok) {
         None
     } else {
@@ -235,8 +260,8 @@ fn tally(traffic_controller: &TrafficController, client: Option<IpAddr>, code: C
         through_fullnode: None,
         error_info,
         spam_weight: Weight::one(),
-        response_items: 0,
-        rendered_fields: 0,
+        response_items,
+        rendered_fields,
     });
 }
 
