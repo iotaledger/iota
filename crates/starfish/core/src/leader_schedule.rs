@@ -143,19 +143,18 @@ impl LeaderSchedule {
     ) -> usize {
         let commit_count = dag_state.read().commits_since_schedule_update();
 
-        // In the normal online flow, the schedule is updated as soon as
-        // `num_commits_per_schedule` commits have passed, so the count stays
-        // within it.
+        // In normal operation the schedule is updated as soon as
+        // `num_commits_per_schedule` commits have passed since the last update, so
+        // `commit_count` never exceeds `num_commits_per_schedule`.
         //
-        // The same bound holds for recovered state: every writer persists
-        // `CommitInfo` in the same write batch as the commits it covers (the
-        // online path buffers both at rotation, fast sync applies the scores
-        // embedded in fetched commits before flushing the batch), so on disk
-        // the last commit stays within one window of the last `CommitInfo`.
-        // A recovered backlog exceeding the window should therefore never
-        // occur — but it is a recoverable state, so recovering is preferred
-        // over panicking: returning 0 makes a schedule update due at once,
-        // which rebuilds the schedule from the backlog's last full window.
+        // After a restart, `commit_count` is recomputed from the store, as the last
+        // stored commit minus the end of the last stored `CommitInfo`. It still never
+        // exceeds `num_commits_per_schedule`, because an update's `CommitInfo` is
+        // flushed no later than the commit after it.
+        //
+        // A larger count means an inconsistent store. Instead of panicking, an update
+        // is then due at once, and it rebuilds the schedule from the last full
+        // interval.
         if commit_count > self.num_commits_per_schedule {
             tracing::warn!(
                 "Recovered scoring backlog ({commit_count} commits) exceeds the schedule \
@@ -163,17 +162,8 @@ impl LeaderSchedule {
                  persistence never produces. An immediate schedule update is due.",
                 self.num_commits_per_schedule,
             );
-            return 0;
         }
-
-        // If the window is full, an update is due now.
-        if commit_count == self.num_commits_per_schedule {
-            return 0;
-        }
-
-        self.num_commits_per_schedule
-            .checked_sub(commit_count)
-            .unwrap() as usize
+        self.num_commits_per_schedule.saturating_sub(commit_count) as usize
     }
 
     /// Checks whether no commit happened since the last schedule update. That
