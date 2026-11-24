@@ -1,0 +1,10 @@
+[package]
+name = "abstract_account_tx_nonce"
+edition = "2024"
+
+[dependencies]
+Iota = { local = "../../../../iota-framework/packages/iota-framework" }
+abstract_account = { local = "../abstract_account" }
+
+[addresses]
+abstract_account_tx_nonce = "0x0"
