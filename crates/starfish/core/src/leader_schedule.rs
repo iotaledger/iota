@@ -1066,40 +1066,29 @@ mod tests {
             .into_iter()
             .collect::<Vec<_>>();
 
-        // Feed the first 6 commits, then rebuild: scores come from the sliding
-        // window (commits 1..=3 are scored, given the 3-commit lookback).
-        // commit_range is the committed interval ending at the boundary — with
-        // num_commits_per_schedule = 3 and last committed index 6, that is 4..=6.
-        leader_schedule.feed_committed_subdags(commits[..6].iter().map(|(s, _)| s.base.clone()));
-        {
-            let mut ds = dag_state.write();
-            ds.set_last_commit(commits[5].1.clone());
-            leader_schedule.update_leader_schedule(&mut ds);
+        // Feed 3 commits at a time and update the schedule at the end of each
+        // interval. The scores come from the sliding window, which scores a
+        // commit once 3 more follow it; in a fully connected DAG each scored
+        // commit credits every authority the full committee stake (4), doubled
+        // for strong votes. commit_range is the interval ending at the update,
+        // and consecutive ranges pass range_validation.
+        for (interval_end, expected_score) in [(3, 0), (6, 24), (9, 48)] {
+            let interval = &commits[interval_end - 3..interval_end];
+            leader_schedule.feed_committed_subdags(interval.iter().map(|(s, _)| s.base.clone()));
+            {
+                let mut ds = dag_state.write();
+                ds.set_last_commit(interval.last().unwrap().1.clone());
+                leader_schedule.update_leader_schedule(&mut ds);
+            }
+            let interval_end = interval_end as CommitIndex;
+            assert_eq!(
+                leader_schedule.leader_swap_table.read().reputation_scores,
+                ReputationScores::new(
+                    (interval_end - 2..=interval_end).into(),
+                    vec![expected_score; 4]
+                )
+            );
         }
-        let range = leader_schedule
-            .leader_swap_table
-            .read()
-            .reputation_scores
-            .commit_range
-            .clone();
-        assert_eq!(range, (4..=6).into());
-
-        // Feed 3 more and rebuild again. The committed-interval ranges are
-        // contiguous and equal-size (4..=6 then 7..=9), so range_validation
-        // accepts them.
-        leader_schedule.feed_committed_subdags(commits[6..].iter().map(|(s, _)| s.base.clone()));
-        {
-            let mut ds = dag_state.write();
-            ds.set_last_commit(commits[8].1.clone());
-            leader_schedule.update_leader_schedule(&mut ds);
-        }
-        let range = leader_schedule
-            .leader_swap_table
-            .read()
-            .reputation_scores
-            .commit_range
-            .clone();
-        assert_eq!(range, (7..=9).into());
     }
 
     #[tokio::test]
