@@ -579,20 +579,33 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                     let individual_delay = (timeout / num_chunks).min(MAX_PIPELINE_DELAY);
                     sleep(individual_delay * i as u32).await;
                     // TODO: add some retries.
-                    let serialized_block_headers = inner
-                        .network_client
-                        .fetch_block_headers(
-                            target_authority,
-                            request_block_refs.to_vec(),
-                            vec![],
-                            timeout,
-                        )
-                        .await
-                        .inspect_err(|e| {
-                            inner
-                                .misbehavior_store
-                                .record_fetch_fault(target_authority, e);
-                        })?;
+                    // A peer at its admission limit still grants this node one
+                    // header fetch at a time, so a refused chunk waits for it
+                    // rather than failing the whole batch. The fetch loop's
+                    // timeout bounds the wait.
+                    let serialized_block_headers = loop {
+                        match inner
+                            .network_client
+                            .fetch_block_headers(
+                                target_authority,
+                                request_block_refs.to_vec(),
+                                vec![],
+                                timeout,
+                            )
+                            .await
+                        {
+                            Err(ConsensusError::AdmissionLimitReached(_)) => {
+                                sleep(individual_delay).await
+                            }
+                            result => {
+                                break result.inspect_err(|e| {
+                                    inner
+                                        .misbehavior_store
+                                        .record_fetch_fault(target_authority, e);
+                                })?;
+                            }
+                        }
+                    };
                     // 5. Verify the returned headers are the requested ones.
                     verify_fetched_headers(
                         target_authority,
@@ -632,15 +645,30 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                         let individual_delay =
                             (timeout / num_tx_chunks.max(1)).min(MAX_PIPELINE_DELAY);
                         sleep(individual_delay * i as u32 + individual_delay / 2).await;
-                        let serialized_transactions = inner
-                            .network_client
-                            .fetch_transactions(target_authority, request_tx_refs.to_vec(), timeout)
-                            .await
-                            .inspect_err(|e| {
-                                inner
-                                    .misbehavior_store
-                                    .record_fetch_fault(target_authority, e);
-                            })?;
+                        // As for header chunks, a chunk refused at the peer's
+                        // admission limit waits for its one transaction fetch.
+                        let serialized_transactions = loop {
+                            match inner
+                                .network_client
+                                .fetch_transactions(
+                                    target_authority,
+                                    request_tx_refs.to_vec(),
+                                    timeout,
+                                )
+                                .await
+                            {
+                                Err(ConsensusError::AdmissionLimitReached(_)) => {
+                                    sleep(individual_delay).await
+                                }
+                                result => {
+                                    break result.inspect_err(|e| {
+                                        inner
+                                            .misbehavior_store
+                                            .record_fetch_fault(target_authority, e);
+                                    })?;
+                                }
+                            }
+                        };
 
                         // 10. Verify that the number of returned transactions is not greater than
                         //     the number of requested transactions. It's OK if not all requested
@@ -1046,7 +1074,13 @@ mod tests {
     }
 
     mod fetch_once {
-        use std::{sync::Arc, time::Duration};
+        use std::{
+            sync::{
+                Arc,
+                atomic::{AtomicUsize, Ordering},
+            },
+            time::Duration,
+        };
 
         use bytes::Bytes;
         use parking_lot::RwLock;
@@ -1335,6 +1369,47 @@ mod tests {
             assert!(
                 matches!(err, ConsensusError::NotEnoughHeadersFetched { .. }),
                 "unexpected error: {err:?}"
+            );
+            assert_unprovable_faults(&inner, vec![0; 4]);
+        }
+
+        /// A header or transaction fetch refused at the peer's admission limit
+        /// is asked again from the same peer, so the batch still succeeds, and
+        /// the refusal records no misbehavior.
+        #[tokio::test]
+        async fn retries_fetches_refused_at_the_admission_limit() {
+            let context = Arc::new(Context::new_for_test(4).0);
+            let (commits, block_headers, transactions) = two_commit_response(&context);
+            let network_client = Arc::new(FakeNetworkClient {
+                commits: Some(commits),
+                block_headers: Some(block_headers),
+                transactions: Some(transactions),
+                refused_header_fetches: AtomicUsize::new(1),
+                refused_transaction_fetches: AtomicUsize::new(1),
+                ..Default::default()
+            });
+            let inner = make_inner(context, network_client.clone());
+            let peer = AuthorityIndex::new_for_test(1);
+
+            let certified = RegularCommitSyncer::fetch_once(
+                inner.clone(),
+                peer,
+                (1..=2).into(),
+                Duration::from_millis(100),
+            )
+            .await
+            .unwrap();
+
+            assert_eq!(certified.commits().len(), 2);
+            assert_eq!(
+                *network_client.requested_header_peers.lock(),
+                vec![peer, peer]
+            );
+            assert_eq!(
+                network_client
+                    .refused_transaction_fetches
+                    .load(Ordering::Relaxed),
+                0
             );
             assert_unprovable_faults(&inner, vec![0; 4]);
         }

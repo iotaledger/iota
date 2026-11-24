@@ -528,6 +528,7 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::NetworkClientConnection(_)
         | ConsensusError::NetworkRequest(_)
         | ConsensusError::NetworkRequestTimeout(_)
+        | ConsensusError::AdmissionLimitReached(_)
         | ConsensusError::AccumulatorSenderClosed
         | ConsensusError::Shutdown
         | ConsensusError::EncoderResetFailed(_)

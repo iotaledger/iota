@@ -318,6 +318,9 @@ pub(crate) enum ConsensusError {
     #[error("Request timeout: {0:?}")]
     NetworkRequestTimeout(String),
 
+    #[error("Peer refused the request at its admission limit: {0:?}")]
+    AdmissionLimitReached(String),
+
     #[error("Accumulator sender has shut down!")]
     AccumulatorSenderClosed,
 

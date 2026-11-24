@@ -241,12 +241,14 @@ impl NetworkClient for TonicClient {
         let stream = client
             .fetch_block_headers(request)
             .await
-            .map_err(|e| {
-                if e.code() == tonic::Code::DeadlineExceeded {
+            .map_err(|e| match e.code() {
+                tonic::Code::DeadlineExceeded => {
                     ConsensusError::NetworkRequestTimeout(format!("fetch_blocks failed: {e:?}"))
-                } else {
-                    ConsensusError::NetworkRequest(format!("fetch_blocks failed: {e:?}"))
                 }
+                tonic::Code::ResourceExhausted => {
+                    ConsensusError::AdmissionLimitReached(format!("fetch_blocks failed: {e:?}"))
+                }
+                _ => ConsensusError::NetworkRequest(format!("fetch_blocks failed: {e:?}")),
             })?
             .into_inner();
 
@@ -404,14 +406,14 @@ impl NetworkClient for TonicClient {
         let stream = client
             .fetch_transactions(request)
             .await
-            .map_err(|e| {
-                if e.code() == tonic::Code::DeadlineExceeded {
-                    ConsensusError::NetworkRequestTimeout(format!(
-                        "fetch_transactions failed: {e:?}"
-                    ))
-                } else {
-                    ConsensusError::NetworkRequest(format!("fetch_transactions failed: {e:?}"))
-                }
+            .map_err(|e| match e.code() {
+                tonic::Code::DeadlineExceeded => ConsensusError::NetworkRequestTimeout(format!(
+                    "fetch_transactions failed: {e:?}"
+                )),
+                tonic::Code::ResourceExhausted => ConsensusError::AdmissionLimitReached(format!(
+                    "fetch_transactions failed: {e:?}"
+                )),
+                _ => ConsensusError::NetworkRequest(format!("fetch_transactions failed: {e:?}")),
             })?
             .into_inner();
 

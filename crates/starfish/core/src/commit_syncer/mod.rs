@@ -1026,6 +1026,24 @@ pub(crate) mod tests {
         pub(crate) stored_block_headers: BTreeMap<BlockRef, Bytes>,
         /// Peers whose `fetch_block_headers` fails as a connection error.
         pub(crate) unreachable_header_peers: Vec<AuthorityIndex>,
+        /// Header fetches refused at the admission limit before any is served.
+        pub(crate) refused_header_fetches: AtomicUsize,
+        /// Transaction fetches refused at the admission limit before any is
+        /// served.
+        pub(crate) refused_transaction_fetches: AtomicUsize,
+    }
+
+    /// Takes one refusal off `refused`, failing as a peer at its admission
+    /// limit while any is left.
+    fn refuse_at_admission_limit(refused: &AtomicUsize) -> ConsensusResult<()> {
+        match refused.try_update(Ordering::Relaxed, Ordering::Relaxed, |left| {
+            left.checked_sub(1)
+        }) {
+            Ok(_) => Err(ConsensusError::AdmissionLimitReached(
+                "refused by the fake client".to_string(),
+            )),
+            Err(_) => Ok(()),
+        }
     }
 
     #[async_trait::async_trait]
@@ -1045,6 +1063,7 @@ pub(crate) mod tests {
             _transaction_refs: Vec<TransactionRef>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
+            refuse_at_admission_limit(&self.refused_transaction_fetches)?;
             match &self.transactions {
                 Some(response) => Ok(response.clone()),
                 None => unimplemented!("Unimplemented"),
@@ -1059,6 +1078,7 @@ pub(crate) mod tests {
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
             self.requested_header_peers.lock().push(peer);
+            refuse_at_admission_limit(&self.refused_header_fetches)?;
             if self.unreachable_header_peers.contains(&peer) {
                 return Err(ConsensusError::NetworkClientConnection(format!(
                     "{peer} is unreachable"
