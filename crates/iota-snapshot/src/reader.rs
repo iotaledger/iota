@@ -5,12 +5,13 @@
 use std::{
     collections::BTreeMap,
     fs::{self, File},
+    future::Future,
     io::Read,
     num::NonZeroUsize,
     path::PathBuf,
     sync::{
         Arc,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
 };
 
@@ -21,6 +22,7 @@ use fastcrypto::hash::{HashFunction, MultisetHash, Sha3_256};
 use futures::{
     StreamExt,
     future::{AbortRegistration, Abortable},
+    stream::FuturesUnordered,
 };
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use integer_encoding::VarIntReader;
@@ -42,7 +44,7 @@ use iota_types::{digests::ChainIdentifier, global_state_hash::GlobalStateHash};
 use object_store::path::Path;
 use tokio::{
     sync::{Mutex, mpsc, oneshot},
-    task::JoinSet,
+    task::{JoinError, JoinSet},
 };
 use tracing::info;
 
@@ -117,6 +119,62 @@ async fn compute_state_hash_of_ref_file(
         // release build aborts the process.
         Err(e) => panic!("hashing a .ref file was cancelled: {e}"),
     }
+}
+
+/// Returns the object file that a download task produced, or the error of the
+/// download.
+///
+/// # Panics
+///
+/// Panics if the download task panicked.
+fn object_file_from_download_task(
+    task_result: Result<Result<(Bytes, FileMetadata, [u8; 32])>, JoinError>,
+) -> Result<(Bytes, FileMetadata, [u8; 32])> {
+    match task_result {
+        Ok(download_result) => download_result,
+        Err(e) if e.is_panic() => std::panic::resume_unwind(e.into_panic()),
+        // A cancelled download is an error: its partition would be missing.
+        Err(e) => Err(anyhow::Error::new(e).context("download cancelled")),
+    }
+}
+
+/// Inserts one partition.
+///
+/// An insert that has not started when `stop` is set does not start; it
+/// returns `Ok(())` without inserting.
+async fn insert_partition_unless_stopped(
+    database: &impl Restore,
+    file_metadata: FileMetadata,
+    bytes: Bytes,
+    sha3_digest: [u8; 32],
+    stop: &AtomicBool,
+) -> Result<()> {
+    // The check is here, not where the reader takes the insert: the insert
+    // starts at its first poll, and a failure can come before that poll.
+    if stop.load(Ordering::SeqCst) {
+        return Ok(());
+    }
+    let (bucket, part) = (file_metadata.bucket_num, file_metadata.part_num);
+    database
+        .insert_partition(file_metadata, bytes, &sha3_digest)
+        .await
+        .with_context(|| format!("failed to insert object file {bucket}_{part}"))
+}
+
+/// Stops `downloads` and the inserts of `inserts` that have not started.
+/// Returns when no insert runs any more.
+///
+/// The inserts must check `stop_inserts` before they start.
+async fn stop_downloads_and_inserts<T>(
+    downloads: JoinSet<T>,
+    mut inserts: FuturesUnordered<impl Future<Output = Result<()>>>,
+    stop_inserts: &AtomicBool,
+) {
+    stop_inserts.store(true, Ordering::SeqCst);
+    drop(downloads);
+    // The errors of these inserts are not reported: the caller already has
+    // the first error, which is almost always enough.
+    while inserts.next().await.is_some() {}
 }
 
 pub type SnapshotChecksums = (DigestByBucketAndPartition, GlobalStateHash);
@@ -457,6 +515,12 @@ impl StateSnapshotReaderV1 {
     ///    and verify the root hash of the live objects encoded in the snapshot. See
     ///    [`GlobalStateHash`].
     /// 4. Reading, inserting, and verifying all encoded live objects to the given `database`.
+    ///
+    /// # Errors
+    ///
+    /// When a download or an insert of an object file fails, the read returns the first such
+    /// error, after the inserts that still run have ended. A dropped or aborted read does not
+    /// wait for them.
     pub async fn read_to_db(
         &mut self,
         database: &impl Restore,
@@ -695,20 +759,57 @@ impl StateSnapshotReaderV1 {
                 for file in files_to_download.by_ref().take(concurrency.get()) {
                     downloads.spawn(download_input_file(file));
                 }
-                while let Some(task_result) = downloads.join_next().await {
-                    let (bytes, file_metadata, sha3_digest) = match task_result {
-                        Ok(download_result) => download_result?,
-                        Err(e) if e.is_panic() => std::panic::resume_unwind(e.into_panic()),
-                        // Returning Ok here would skip a partition.
-                        Err(e) => return Err(anyhow::Error::new(e).context("download cancelled")),
-                    };
-                    if let Some(file) = files_to_download.next() {
-                        downloads.spawn(download_input_file(file));
+                // A finished download stays in the set until an insert slot is free,
+                // so it still counts against `concurrency`.
+                let max_inserts = database.max_concurrent_inserts().get();
+                let stop_inserts = AtomicBool::new(false);
+                let mut inserts = FuturesUnordered::new();
+                // This loop runs in one task, and nothing else touches `downloads` and `inserts`.
+                let download_and_insert_all = async {
+                    loop {
+                        let insert_slot_is_free = inserts.len() < max_inserts;
+                        tokio::select! {
+                            // A download is ready and an insert slot is free: start the next
+                            // download, then the insert.
+                            Some(task_result) = downloads.join_next(), if insert_slot_is_free => {
+                                let (bytes, file_metadata, sha3_digest) =
+                                    object_file_from_download_task(task_result)?;
+                                if let Some(file) = files_to_download.next() {
+                                    downloads.spawn(download_input_file(file));
+                                }
+                                inserts.push(insert_partition_unless_stopped(
+                                    database,
+                                    file_metadata,
+                                    bytes,
+                                    sha3_digest,
+                                    &stop_inserts,
+                                ));
+                            }
+                            // An insert ended.
+                            Some(insert_result) = inserts.next() => {
+                                insert_result?;
+                                obj_progress_insert.file_done();
+                            }
+                            // No download and no insert is left.
+                            else => return Ok(()),
+                        }
                     }
-                    database
-                        .insert_partition(file_metadata, bytes, &sha3_digest)
-                        .await?;
-                    obj_progress_insert.file_done();
+                };
+                let result = download_and_insert_all.await;
+                if let Err(error) = result {
+                    if !inserts.is_empty() {
+                        // A panic of a running insert would end the restore before this
+                        // error is returned.
+                        println_or_log(
+                            &self.multi_progress_bar,
+                            format!("Restore failed, waiting for the running inserts: {error:#}"),
+                        )
+                        .ok();
+                    }
+                    // An abort, a drop of the read future or a panic does not wait for the running
+                    // inserts.
+                    stop_downloads_and_inserts(downloads, inserts, &stop_inserts).await;
+                    return Err(error);
                 }
                 Ok(())
             },
