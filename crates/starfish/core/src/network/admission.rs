@@ -7,9 +7,10 @@
 //! on the peer's authenticated authority index, so a misbehaving peer uses up
 //! only its own slots. Fetch groups also have a node-wide cap, since their
 //! responses hold memory and read the store until they have been sent. A peer
-//! holding no fetch of a group is granted one whatever the others hold, so the
-//! node-wide cap bounds how much a peer can be crowded out, never whether it is
-//! served at all. Caps are local parameters; `0` turns a cap off.
+//! holding no fetch of a group is granted one whatever the others hold, and
+//! that fetch is not counted node-wide: the cap bounds only the further fetches
+//! all peers share, so it limits how much a peer can be crowded out, never
+//! whether it is served at all. Caps are local parameters; `0` turns a cap off.
 
 use std::{
     future::Future,
@@ -90,7 +91,8 @@ pub(crate) enum Admission {
 pub(crate) enum AdmissionLimit {
     /// The cap on requests served at once to the peer that sent it.
     Peer,
-    /// The cap on requests of the group served at once to all peers together.
+    /// The cap on requests of the group served at once to all peers together,
+    /// beyond the one each peer is always granted.
     AllPeers,
 }
 
@@ -108,14 +110,15 @@ pub(crate) struct AdmissionSlots {
     /// The peer's own slot, held until the response stream has ended.
     peer_slot: PeerSlot,
     /// The node-wide slot, given back once the response has been sent or its
-    /// send deadline has passed; `None` when the group has no node-wide cap.
+    /// send deadline has passed; `None` for a peer's only fetch of the group,
+    /// or when the group has no node-wide cap.
     total_slot: Option<TotalSlot>,
 }
 
-/// Slots of one RPC group held per peer and node-wide. A peer's first slot is
-/// always granted; its further slots only while the node-wide count is below
-/// `total_cap`, so `total_cap` is exceeded by at most one slot per peer. A cap
-/// of `0` is off.
+/// Slots of one RPC group held per peer and node-wide. A peer holding no slot
+/// is always granted one, which is not counted node-wide. Its further slots are
+/// counted, and granted only while fewer than `total_cap` are held. A cap of
+/// `0` is off.
 struct GroupSlots {
     per_peer_cap: u32,
     total_cap: u32,
@@ -137,7 +140,8 @@ impl GroupSlots {
     }
 
     /// Tries to admit one request from the peer at `peer_index`, taking its
-    /// slot and, if the group has a node-wide cap, a node-wide slot.
+    /// slot and, if the peer already holds one and the group has a node-wide
+    /// cap, a node-wide slot.
     fn try_take(self: &Arc<Self>, peer_index: usize) -> Admission {
         let Some(held_by_peer) = self.held_by_peer.get(peer_index) else {
             return Admission::UnknownPeer;
@@ -155,7 +159,7 @@ impl GroupSlots {
             slots: self.clone(),
             peer_index,
         };
-        if self.total_cap == 0 {
+        if self.total_cap == 0 || held_before == 0 {
             return Admission::Admitted(AdmissionSlots {
                 peer_slot,
                 total_slot: None,
@@ -164,7 +168,7 @@ impl GroupSlots {
         let taken = self
             .held_total
             .try_update(Ordering::Relaxed, Ordering::Relaxed, |held| {
-                (held_before == 0 || held < self.total_cap).then_some(held + 1)
+                (held < self.total_cap).then_some(held + 1)
             });
         if taken.is_err() {
             return Admission::Rejected(AdmissionLimit::AllPeers);
@@ -564,20 +568,21 @@ mod tests {
             subscribe: None,
             header: None,
             transaction: None,
-            commit_fetch: GroupSlots::new(4, 2, 3),
+            commit_fetch: GroupSlots::new(4, 2, 1),
         };
         let p0 = expect_admitted(admission.try_admit(RpcGroup::CommitFetch, peer(0)));
         let p1 = expect_admitted(admission.try_admit(RpcGroup::CommitFetch, peer(0)));
         let p2 = expect_admitted(admission.try_admit(RpcGroup::CommitFetch, peer(1)));
-        // Peer 1 is within its own cap, but the node-wide cap is reached.
+        // Peer 1 is within its own cap, but peer 0's second fetch holds the
+        // only node-wide slot.
         assert!(matches!(
             admission.try_admit(RpcGroup::CommitFetch, peer(1)),
             Admission::Rejected(AdmissionLimit::AllPeers)
         ));
         // A rejection by the node-wide cap leaves the peer's own slot free.
-        drop(p0);
+        drop(p1);
         let p3 = expect_admitted(admission.try_admit(RpcGroup::CommitFetch, peer(1)));
-        drop((p1, p2, p3));
+        drop((p0, p2, p3));
     }
 
     #[tokio::test]
@@ -590,13 +595,14 @@ mod tests {
         let admission = AdmissionControl::new(&context);
         let mut held = Vec::new();
         // Each group's node-wide cap is reached while the earlier groups still
-        // hold their slots.
+        // hold their slots. Peer 0's first fetch is not counted, so it holds one
+        // more than the cap.
         for (group, total) in [
             (RpcGroup::HeaderFetch, 2),
             (RpcGroup::TransactionFetch, 3),
             (RpcGroup::CommitFetch, 4),
         ] {
-            for _ in 0..total {
+            for _ in 0..=total {
                 held.push(expect_admitted(admission.try_admit(group, peer(0))));
             }
             assert!(matches!(
@@ -620,66 +626,73 @@ mod tests {
             transaction: None,
             commit_fetch: GroupSlots::new(4, 0, 2),
         };
+        // The first fetch is not counted, the next two reach the cap.
         let p0 = expect_admitted(admission.try_admit(RpcGroup::CommitFetch, peer(0)));
         let p1 = expect_admitted(admission.try_admit(RpcGroup::CommitFetch, peer(0)));
+        let p2 = expect_admitted(admission.try_admit(RpcGroup::CommitFetch, peer(0)));
         assert!(matches!(
             admission.try_admit(RpcGroup::CommitFetch, peer(0)),
             Admission::Rejected(AdmissionLimit::AllPeers)
         ));
-        drop(p0);
-        let p2 = expect_admitted(admission.try_admit(RpcGroup::CommitFetch, peer(0)));
-        drop((p1, p2));
+        drop(p1);
+        let p3 = expect_admitted(admission.try_admit(RpcGroup::CommitFetch, peer(0)));
+        drop((p0, p2, p3));
     }
 
     #[tokio::test]
-    async fn a_peer_holding_no_commit_fetch_is_granted_one_past_the_node_wide_cap() {
+    async fn a_peers_first_commit_fetch_is_outside_the_node_wide_cap() {
         let admission = AdmissionControl {
             subscribe: None,
             header: None,
             transaction: None,
             commit_fetch: GroupSlots::new(4, 8, 2),
         };
-        // Peer 0 reaches the node-wide cap alone.
+        // Peer 0 reaches the node-wide cap alone, with its second and third
+        // fetch.
         let p0 = expect_admitted(admission.try_admit(RpcGroup::CommitFetch, peer(0)));
         let p1 = expect_admitted(admission.try_admit(RpcGroup::CommitFetch, peer(0)));
+        let p2 = expect_admitted(admission.try_admit(RpcGroup::CommitFetch, peer(0)));
         assert!(matches!(
             admission.try_admit(RpcGroup::CommitFetch, peer(0)),
             Admission::Rejected(AdmissionLimit::AllPeers)
         ));
         // Every other peer still gets its first slot, and only that one.
-        let p2 = expect_admitted(admission.try_admit(RpcGroup::CommitFetch, peer(1)));
-        let p3 = expect_admitted(admission.try_admit(RpcGroup::CommitFetch, peer(2)));
+        let p3 = expect_admitted(admission.try_admit(RpcGroup::CommitFetch, peer(1)));
+        let p4 = expect_admitted(admission.try_admit(RpcGroup::CommitFetch, peer(2)));
         assert!(matches!(
             admission.try_admit(RpcGroup::CommitFetch, peer(1)),
             Admission::Rejected(AdmissionLimit::AllPeers)
         ));
+        // The first slots take nothing from the node-wide count.
+        let held_total = &admission.commit_fetch.as_ref().unwrap().held_total;
+        assert_eq!(held_total.load(Ordering::Relaxed), 2);
         // A released first slot is granted again.
-        drop(p2);
-        let p4 = expect_admitted(admission.try_admit(RpcGroup::CommitFetch, peer(1)));
-        drop((p0, p1, p3, p4));
+        drop(p3);
+        let p5 = expect_admitted(admission.try_admit(RpcGroup::CommitFetch, peer(1)));
+        drop((p0, p1, p2, p4, p5));
+        assert_eq!(held_total.load(Ordering::Relaxed), 0);
     }
 
     #[tokio::test]
-    async fn an_extra_commit_fetch_is_not_regranted_while_the_total_is_at_the_cap() {
+    async fn ending_a_peers_first_fetch_frees_no_node_wide_slot() {
         let admission = AdmissionControl {
             subscribe: None,
             header: None,
             transaction: None,
-            commit_fetch: GroupSlots::new(4, 8, 2),
+            commit_fetch: GroupSlots::new(4, 8, 1),
         };
         let p0 = expect_admitted(admission.try_admit(RpcGroup::CommitFetch, peer(0)));
         let p1 = expect_admitted(admission.try_admit(RpcGroup::CommitFetch, peer(0)));
-        let p2 = expect_admitted(admission.try_admit(RpcGroup::CommitFetch, peer(1)));
-        // Peer 0 gives one of its two back, but peer 1's first slot keeps the
-        // total at the cap, so peer 0 cannot take a second one again.
-        drop(p1);
+        // Peer 0 still holds a counted fetch, so another one is a further fetch
+        // and the node-wide cap is still reached.
+        drop(p0);
         assert!(matches!(
             admission.try_admit(RpcGroup::CommitFetch, peer(0)),
             Admission::Rejected(AdmissionLimit::AllPeers)
         ));
+        drop(p1);
+        let p2 = expect_admitted(admission.try_admit(RpcGroup::CommitFetch, peer(0)));
         drop(p2);
-        let p3 = expect_admitted(admission.try_admit(RpcGroup::CommitFetch, peer(0)));
-        drop((p0, p3));
     }
 
     #[tokio::test]
@@ -690,22 +703,23 @@ mod tests {
             transaction: None,
             commit_fetch: GroupSlots::new(4, 8, 1),
         };
-        let mut p0 = expect_admitted(admission.try_admit(RpcGroup::CommitFetch, peer(0)));
+        let p0 = expect_admitted(admission.try_admit(RpcGroup::CommitFetch, peer(0)));
+        let mut p1 = expect_admitted(admission.try_admit(RpcGroup::CommitFetch, peer(0)));
         assert!(matches!(
             admission.try_admit(RpcGroup::CommitFetch, peer(0)),
             Admission::Rejected(AdmissionLimit::AllPeers)
         ));
         // The send deadline gives back the node-wide slot and keeps the peer's
-        // own, so the peer may fetch again but stays charged for both.
-        drop(p0.total_slot.take());
-        let p1 = expect_admitted(admission.try_admit(RpcGroup::CommitFetch, peer(0)));
+        // own, so the peer may fetch again but stays charged for all of them.
+        drop(p1.total_slot.take());
+        let p2 = expect_admitted(admission.try_admit(RpcGroup::CommitFetch, peer(0)));
         let held_by_peer = &admission.commit_fetch.as_ref().unwrap().held_by_peer;
-        assert_eq!(held_by_peer[0].load(Ordering::Relaxed), 2);
+        assert_eq!(held_by_peer[0].load(Ordering::Relaxed), 3);
         assert!(matches!(
             admission.try_admit(RpcGroup::CommitFetch, peer(0)),
             Admission::Rejected(AdmissionLimit::AllPeers)
         ));
-        drop((p0, p1));
+        drop((p0, p1, p2));
         assert_eq!(held_by_peer[0].load(Ordering::Relaxed), 0);
     }
 

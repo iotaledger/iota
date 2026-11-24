@@ -819,8 +819,9 @@ impl Default for TonicParameters {
 /// Each per-peer cap bounds how many concurrent requests of one RPC group a
 /// single committee peer (keyed on its authenticated authority index) may have
 /// in flight; a peer cannot consume another peer's budget. Each node-wide cap
-/// bounds a fetch group across all peers, since a response holds memory until
-/// it has been sent, but never refuses a peer its first fetch of that group.
+/// bounds the fetches of a group held across all peers, since a response holds
+/// memory until it has been sent. A peer's first fetch of a group is never
+/// refused and is not counted against the node-wide cap.
 /// These are local, non-protocol parameters — heterogeneous values across
 /// authorities are safe, so they can be rolled out and tuned per node.
 ///
@@ -842,7 +843,8 @@ pub struct AdmissionParameters {
     #[serde(default = "AdmissionParameters::default_max_header_fetches_per_peer")]
     pub max_header_fetches_per_peer: u32,
 
-    /// Max concurrent header fetches across all peers.
+    /// Max concurrent header fetches across all peers, not counting each
+    /// peer's first one.
     ///
     /// If unspecified, this will default to 64.
     #[serde(default = "AdmissionParameters::default_max_header_fetches_total")]
@@ -854,7 +856,8 @@ pub struct AdmissionParameters {
     #[serde(default = "AdmissionParameters::default_max_transaction_fetches_per_peer")]
     pub max_transaction_fetches_per_peer: u32,
 
-    /// Max concurrent transaction fetches across all peers.
+    /// Max concurrent transaction fetches across all peers, not counting each
+    /// peer's first one.
     ///
     /// If unspecified, this will default to 32.
     #[serde(default = "AdmissionParameters::default_max_transaction_fetches_total")]
@@ -867,11 +870,11 @@ pub struct AdmissionParameters {
     #[serde(default = "AdmissionParameters::default_max_commit_fetches_per_peer")]
     pub max_commit_fetches_per_peer: u32,
 
-    /// Max concurrent commit fetches across all peers, beyond which a peer is
-    /// still granted its first. A fast commit-sync response holds its commits
-    /// and certifier headers until it has been sent, and reads its transactions
+    /// Max concurrent commit fetches across all peers, not counting each
+    /// peer's first one. A fast commit-sync response holds its commits and
+    /// certifier headers until it has been sent, and reads its transactions
     /// from the store while it is being sent, so this caps what serving them
-    /// can cost the node at once, short of one response per peer.
+    /// can cost the node at once, beyond one response per peer.
     ///
     /// If unspecified, this will default to 16.
     #[serde(default = "AdmissionParameters::default_max_commit_fetches_total")]
