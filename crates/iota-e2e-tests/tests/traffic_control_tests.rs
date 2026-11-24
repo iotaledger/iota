@@ -23,7 +23,7 @@ use iota_macros::sim_test;
 use iota_network::default_iota_network_config;
 use iota_sdk_types::{TransactionDigest, UserSignature};
 use iota_swarm_config::network_config_builder::ConfigBuilder;
-use iota_test_transaction_builder::batch_make_transfer_transactions;
+use iota_test_transaction_builder::{TestTransactionBuilder, batch_make_transfer_transactions};
 use iota_traffic_controller::sim::TrafficSim;
 use iota_types::{
     error::IotaError,
@@ -31,7 +31,7 @@ use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType,
     traffic_control::{
         AccessRules, DefaultAction, FreqThresholdConfig, PolicyConfig, PolicyType,
-        TrafficControlReconfigParams, Weight,
+        SimulationGasLimitConfig, TrafficControlReconfigParams, Weight,
     },
     transaction::{SenderSignedTransactionAPI, TransactionEnvelope},
 };
@@ -350,6 +350,7 @@ async fn test_validator_traffic_control_error_blocked_with_policy_reconfig(
                 dry_run: Some(false),
                 connection_blocklist_ttl_sec: None,
                 proxy_blocklist_ttl_sec: None,
+                ..Default::default()
             })
             .await
             .unwrap();
@@ -364,6 +365,47 @@ async fn test_validator_traffic_control_error_blocked_with_policy_reconfig(
         }
     }
     panic!("Expected error policy to trigger on next requests after reconfiguration");
+}
+
+/// A fullnode refuses a client's simulation once the client's gas balance is
+/// below the computation cap of one transaction.
+#[tokio::test]
+async fn test_fullnode_simulation_gas_limit() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+    let policy_config = PolicyConfig {
+        // One simulation at the computation cap uses all of it, and it
+        // refills too slowly to matter here.
+        simulation_gas_limit: Some(SimulationGasLimitConfig {
+            gas_per_sec: 1,
+            burst_gas: 5_000_000,
+        }),
+        dry_run: false,
+        ..Default::default()
+    };
+    let test_cluster = TestClusterBuilder::new()
+        .with_fullnode_policy_config(Some(policy_config))
+        .build()
+        .await;
+    let client = test_cluster.grpc_client();
+    let (sender, gas) = test_cluster.wallet.get_one_gas_object().await?.unwrap();
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let transaction = TestTransactionBuilder::new(sender, gas, rgp)
+        .transfer_iota(None, sender)
+        .build();
+
+    client
+        .simulate_transaction(transaction.clone())
+        .await
+        .expect("the first simulation is within the limit");
+    let error = client
+        .simulate_transaction(transaction)
+        .await
+        .expect_err("the second simulation is over the limit");
+    assert!(
+        error.to_string().contains("simulation gas limit reached"),
+        "{error}"
+    );
+    Ok(())
 }
 
 #[tokio::test]

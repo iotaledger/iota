@@ -77,6 +77,10 @@ use crate::IotaNode;
 //
 //  $ curl 'http://127.0.0.1:1337/traffic-control?error_threshold=100&spam_threshold=100&dry_run=true&connection_blocklist_ttl_sec=60&proxy_blocklist_ttl_sec=60'
 //
+// Set the simulation gas limit; turning it on takes both values
+//
+//  $ curl -X POST 'http://127.0.0.1:1337/traffic-control?simulation_gas_per_sec=1000000&simulation_burst_gas=20000000'
+//
 // View the Prometheus metrics filter: the directives currently in effect and
 // the startup directives (config with the METRICS_FILTER env var merged over
 // it) that a reset restores.
@@ -606,12 +610,16 @@ async fn traffic_control(
                  Spam threshold: {:?}\n\
                  Dry run: {:?}\n\
                  Connection blocklist TTL sec: {:?}\n\
-                 Proxy blocklist TTL sec: {:?}\n",
+                 Proxy blocklist TTL sec: {:?}\n\
+                 Simulation gas per sec: {:?}\n\
+                 Simulation burst gas: {:?}\n",
                 updated_state.error_threshold,
                 updated_state.spam_threshold,
                 updated_state.dry_run,
                 updated_state.connection_blocklist_ttl_sec,
                 updated_state.proxy_blocklist_ttl_sec,
+                updated_state.simulation_gas_per_sec,
+                updated_state.simulation_burst_gas,
             ),
         ),
         Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
