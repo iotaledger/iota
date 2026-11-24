@@ -57,6 +57,37 @@ use crate::{
     restore::Restore,
 };
 
+/// Downloads one object file. Returns its bytes and metadata, and the sha3
+/// digest of its partition from `sha3_digests`.
+///
+/// # Panics
+///
+/// Panics if `sha3_digests` holds no digest for the partition.
+async fn download_object_file(
+    remote_object_store: Arc<dyn ObjectStoreGetExt>,
+    file_path: Path,
+    obj_progress: Arc<DownloadProgressBar>,
+    sha3_digests: Arc<Mutex<DigestByBucketAndPartition>>,
+    bucket: u32,
+    part_num: u32,
+    file_metadata: FileMetadata,
+) -> Result<(Bytes, FileMetadata, [u8; 32])> {
+    // Downloads object file with retries
+    let bytes = get_with_progress(&remote_object_store, &file_path, &obj_progress)
+        .await
+        .with_context(|| format!("Failed to download object file {file_path}"))?;
+
+    // Gets the sha3 digest of the partition
+    let sha3_digest = *sha3_digests
+        .lock()
+        .await
+        .get(&bucket)
+        .expect("Bucket not in digest map")
+        .get(&part_num)
+        .expect("sha3 digest not in bucket map");
+    Ok((bytes, file_metadata, sha3_digest))
+}
+
 pub type SnapshotChecksums = (DigestByBucketAndPartition, GlobalStateHash);
 pub type DigestByBucketAndPartition = BTreeMap<u32, BTreeMap<u32, [u8; 32]>>;
 
@@ -613,7 +644,7 @@ impl StateSnapshotReaderV1 {
                 parts
                     .clone()
                     .into_iter()
-                    .map(|entry| (bucket, entry))
+                    .map(|entry| (*bucket, entry))
                     .collect::<Vec<_>>()
             })
             .collect();
@@ -625,40 +656,22 @@ impl StateSnapshotReaderV1 {
 
         let ret = Abortable::new(
             async move {
+                let download_input_file =
+                    |(bucket, (part_num, file_metadata)): (u32, (u32, FileMetadata))| {
+                        download_object_file(
+                            remote_object_store.clone(),
+                            file_metadata.file_path(&epoch_dir),
+                            obj_progress_download.clone(),
+                            sha3_digests.clone(),
+                            bucket,
+                            part_num,
+                            file_metadata,
+                        )
+                    };
                 // Downloads all object files from remote store to local store in parallel
                 // and inserts the objects into the AuthorityPerpetualTables
-                futures::stream::iter(input_files.iter())
-                    .map(|(bucket, (part_num, file_metadata))| {
-                        let epoch_dir = epoch_dir.clone();
-                        let file_path = file_metadata.file_path(&epoch_dir);
-                        let remote_object_store = remote_object_store.clone();
-                        let sha3_digests_cloned = sha3_digests.clone();
-                        let obj_progress = obj_progress_download.clone();
-                        async move {
-                            // Downloads object file with retries
-                            let bytes =
-                                get_with_progress(&remote_object_store, &file_path, &obj_progress)
-                                    .await
-                                    .with_context(|| {
-                                        format!("Failed to download object file {file_path}")
-                                    })?;
-
-                            // Gets the sha3 digest of the partition
-                            let sha3_digest = sha3_digests_cloned.lock().await;
-                            let bucket_map = sha3_digest
-                                .get(bucket)
-                                .expect("Bucket not in digest map")
-                                .clone();
-                            let sha3_digest = *bucket_map
-                                .get(part_num)
-                                .expect("sha3 digest not in bucket map");
-                            Ok::<(Bytes, FileMetadata, [u8; 32]), anyhow::Error>((
-                                bytes,
-                                (*file_metadata).clone(),
-                                sha3_digest,
-                            ))
-                        }
-                    })
+                futures::stream::iter(input_files)
+                    .map(download_input_file)
                     .boxed()
                     .buffer_unordered(concurrency.into())
                     .try_for_each(|(bytes, file_metadata, sha3_digest)| {
