@@ -326,6 +326,8 @@ async fn test_claim_account_rejected_without_builtin_authenticators() {
     telemetry_subscribers::init_for_testing();
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_claim_account_max_computation_units_for_testing(5_000);
+        config.set_claim_account_storage_bytes_bound_for_testing(2_000);
         config.set_enable_claim_account_transaction_for_testing(true);
         config.set_enable_builtin_move_authenticators_for_testing(false);
         config
@@ -656,10 +658,13 @@ async fn test_claim_account_rejected_when_key_does_not_derive_sender() {
 // ---------------------------------------------------------------------------
 
 /// Turn on `enable_claim_account_transaction`, which no protocol version
-/// enables yet, until the returned guard is dropped.
+/// enables yet, with the bounds on a claim's cost that it needs, until the
+/// returned guard is dropped.
 #[cfg(msim)]
 fn enable_claim_account() -> iota_protocol_config::OverrideGuard {
     iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_claim_account_max_computation_units_for_testing(5_000);
+        config.set_claim_account_storage_bytes_bound_for_testing(2_000);
         config.set_enable_claim_account_transaction_for_testing(true);
         config
     })
