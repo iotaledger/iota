@@ -302,12 +302,12 @@ impl MisbehaviorStore {
     }
 
     /// Records a fault found in data received from `relayers`. `header_slot` is
-    /// the slot of the signed header the error is about, or of the header that
-    /// commits to the rejected payload. A provable error is charged to that
-    /// header's author once per round, and to each relayer other than the author
-    /// as unprovable; without a header, only the relayers are charged.
-    /// Unprovable and bundle-part errors are charged to each relayer, and
-    /// untracked errors to nobody.
+    /// the slot of the header the error is about. For a payload error, pass it
+    /// only when a verified header commits to the payload. A provable error is
+    /// charged to that header's author once per round, and to each relayer other
+    /// than the author as unprovable; without a header, only the relayers are
+    /// charged. Unprovable and bundle-part errors are charged to each relayer,
+    /// and untracked errors to nobody.
     pub(crate) fn record_fault(
         &self,
         error: &ConsensusError,
