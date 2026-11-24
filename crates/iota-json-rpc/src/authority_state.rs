@@ -42,7 +42,7 @@ use iota_types::{
 use mockall::automock;
 use move_core_types::annotated_value::MoveStructLayout;
 use thiserror::Error;
-use tokio::task::JoinError;
+use tokio::{sync::OwnedSemaphorePermit, task::JoinError};
 use typed_store::TypedStoreError;
 
 use crate::ObjectProvider;
@@ -107,6 +107,8 @@ pub trait StateRead: Send + Sync {
     ) -> StateReadResult<Vec<IotaEvent>>;
 
     // transaction_execution_api
+    fn try_acquire_simulation_permit(&self) -> Option<OwnedSemaphorePermit>;
+
     fn simulate_transaction_in_epoch(
         &self,
         epoch_store: &AuthorityPerEpochStore,
@@ -319,6 +321,10 @@ impl StateRead for AuthorityState {
         Ok(self
             .query_events(kv_store, query, cursor, limit, descending)
             .await?)
+    }
+
+    fn try_acquire_simulation_permit(&self) -> Option<OwnedSemaphorePermit> {
+        self.try_acquire_simulation_permit()
     }
 
     fn simulate_transaction_in_epoch(
