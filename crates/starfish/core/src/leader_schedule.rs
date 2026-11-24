@@ -215,14 +215,6 @@ impl LeaderSchedule {
         );
     }
 
-    fn persist_scores(
-        &self,
-        dag_state_write_lock: &mut DagState,
-        reputation_scores: ReputationScores,
-    ) {
-        // Buffer score and last commit rounds in dag state to be persisted later
-        dag_state_write_lock.add_commit_info(reputation_scores);
-    }
     fn apply_reputation_scores_inner(
         &self,
         the_leader_swap_table: &mut LeaderSwapTable,
@@ -268,7 +260,7 @@ impl LeaderSchedule {
             .saturating_add(1);
         let reputation_scores = ReputationScores::new(CommitRange::new(start..=boundary), scores);
         let table = LeaderSwapTable::new(self.context.clone(), boundary, reputation_scores.clone());
-        self.persist_scores(dag_state_write_lock, reputation_scores);
+        dag_state_write_lock.add_commit_info(reputation_scores);
         self.range_validation(&table, &self.leader_swap_table.read());
         self.apply_reputation_scores_inner(&mut self.leader_swap_table.write(), table);
     }
@@ -336,7 +328,7 @@ impl LeaderSchedule {
                 .collect::<Vec<_>>(),
             table.bad_nodes.keys().collect::<Vec<_>>()
         );
-        self.persist_scores(dag_state_write_lock, reputation_scores);
+        dag_state_write_lock.add_commit_info(reputation_scores);
         self.apply_reputation_scores_inner(&mut self.leader_swap_table.write(), table);
         Ok(())
     }
