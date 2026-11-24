@@ -619,9 +619,12 @@ impl ScorerV3 {
                 weight: SCALE_FACTOR * 10 / 100,
             },
         };
+        // A crash can make an honest authority sign a second header for a
+        // round, since its own header is written without fsync, so two
+        // equivocations are free and the third scores 0.
         let equivocations = MetricParams {
-            allowance: 0,
-            maximum: 1,
+            allowance: 2,
+            maximum: 3,
             kind: MetricKind::Major,
         };
 
@@ -776,9 +779,9 @@ fn validate_params_and_baseline(metrics: &[&MetricParams]) -> u64 {
         );
         if let MetricKind::Major = p.kind {
             assert!(
-                p.allowance == 0 && p.maximum == 1,
-                "major metric must have allowance=0 and maximum=1 so any occurrence \
-                 collapses the score to zero"
+                p.maximum == p.allowance + 1,
+                "major metric must have maximum=allowance+1 so the first count past \
+                 the allowance collapses the score to zero"
             );
         }
     }
@@ -879,7 +882,7 @@ fn score_from_counts(
 /// How a misbehavior category affects the score: graded categories (minor)
 /// each erode their own share of a bounded weight budget, so they can never
 /// take the score to zero on their own; disqualifying offenses (major) zero
-/// the score outright on any occurrence.
+/// the score outright once their count passes the allowance.
 #[derive(Copy, Clone)]
 enum MetricKind {
     /// Linear penalty between `allowance` and `maximum`, weighted into the
@@ -1615,14 +1618,18 @@ mod tests {
     }
 
     #[test]
-    fn v3_equivocation_reached_by_a_quorum_scores_zero() {
+    fn v3_a_third_equivocation_reached_by_a_quorum_scores_zero() {
         let stats = v3_present_stats();
-        let mut reports = [
-            None,
-            v3_report_about_0(0, 0, 1, 0),
-            v3_report_about_0(0, 0, 1, 0),
-            v3_report_about_0(0, 0, 1, 0),
-        ];
+        let quorum_reporting = |equivocations| {
+            [
+                None,
+                v3_report_about_0(0, 0, equivocations, 0),
+                v3_report_about_0(0, 0, equivocations, 0),
+                v3_report_about_0(0, 0, equivocations, 0),
+            ]
+        };
+        assert_eq!(v3_scores(&quorum_reporting(2), &stats)[0], MAX_SCORE);
+        let mut reports = quorum_reporting(3);
         assert_eq!(v3_scores(&reports, &stats)[0], 0);
         reports[3] = None;
         assert_eq!(v3_scores(&reports, &stats)[0], MAX_SCORE);
@@ -1637,7 +1644,7 @@ mod tests {
         let report = VersionedMisbehaviorReport::new_v2(
             iota_types::base_types::AuthorityName::default(),
             0,
-            v3_report_about_0(0, 0, 1, 0).unwrap(),
+            v3_report_about_0(0, 0, 3, 0).unwrap(),
         );
         set_reports(
             &aggregator,

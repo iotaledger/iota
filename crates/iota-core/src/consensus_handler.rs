@@ -1867,13 +1867,13 @@ mod tests {
                 .authority_by_index(index.into())
                 .unwrap()
         };
-        // A report from `reporter` that `offender` equivocated, or an empty
-        // one.
+        // A report from `reporter` that `offender` equivocated three times,
+        // which is past the allowance, or an empty one.
         let report =
             |reporter: u8, offender: Option<usize>| {
                 let mut equivocations = vec![0; 4];
                 if let Some(offender) = offender {
-                    equivocations[offender] = 1;
+                    equivocations[offender] = 3;
                 }
                 let observations = MisbehaviorObservationsV2 {
                     faulty_blocks_provable: vec![0; 4],
