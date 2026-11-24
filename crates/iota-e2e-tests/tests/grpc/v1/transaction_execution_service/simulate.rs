@@ -519,14 +519,16 @@ async fn simulate_transaction_readmask_scenarios() {
             transaction: create_transaction(),
             mask: None,
             expected_response: comma_separated_field_mask_to_paths(SIMULATE_TRANSACTIONS_READ_MASK),
+            // `json` is a server-rendered field: the default mask reaches
+            // `command_results` only through a bare parent, which no longer
+            // renders it. It appears only when named explicitly (see the
+            // "command_results: json requested explicitly" case below).
             expected_command_results: vec![
                 "mutated_by_ref.argument.kind",
                 "mutated_by_ref.type_tag",
                 "mutated_by_ref.bcs",
-                "mutated_by_ref.json",
                 "return_values.type_tag",
                 "return_values.bcs",
-                "return_values.json",
             ],
             ..Default::default()
         },
@@ -602,6 +604,28 @@ async fn simulate_transaction_readmask_scenarios() {
             transaction: create_transaction(),
             mask: Some(FieldMask::from_paths(["execution_result.command_results"])),
             expected_response: vec!["execution_result"],
+            // A bare `command_results` parent does not pull in the server-rendered
+            // `json`.
+            expected_command_results: vec![
+                "mutated_by_ref.argument.kind",
+                "mutated_by_ref.type_tag",
+                "mutated_by_ref.bcs",
+                "return_values.type_tag",
+                "return_values.bcs",
+            ],
+            ..Default::default()
+        },
+        SimulateTestCase {
+            // Naming `json` explicitly under each parent renders it alongside the
+            // parent's ordinary fields.
+            scenario: "command_results: json requested explicitly",
+            transaction: create_transaction(),
+            mask: Some(FieldMask::from_paths([
+                "execution_result.command_results",
+                "execution_result.command_results.mutated_by_ref.json",
+                "execution_result.command_results.return_values.json",
+            ])),
+            expected_response: vec!["execution_result"],
             expected_command_results: vec![
                 "mutated_by_ref.argument.kind",
                 "mutated_by_ref.type_tag",
@@ -621,11 +645,9 @@ async fn simulate_transaction_readmask_scenarios() {
                 "execution_result.command_results.return_values",
             ])),
             expected_response: vec!["execution_result"],
-            expected_command_results: vec![
-                "return_values.type_tag",
-                "return_values.bcs",
-                "return_values.json",
-            ],
+            // A bare `return_values` parent does not pull in the server-rendered
+            // `json`.
+            expected_command_results: vec!["return_values.type_tag", "return_values.bcs"],
             ..Default::default()
         },
         SimulateTestCase {
@@ -636,11 +658,12 @@ async fn simulate_transaction_readmask_scenarios() {
                 "execution_result.command_results.mutated_by_ref",
             ])),
             expected_response: vec!["execution_result"],
+            // A bare `mutated_by_ref` parent does not pull in the server-rendered
+            // `json`.
             expected_command_results: vec![
                 "mutated_by_ref.argument.kind",
                 "mutated_by_ref.type_tag",
                 "mutated_by_ref.bcs",
-                "mutated_by_ref.json",
             ],
             ..Default::default()
         },

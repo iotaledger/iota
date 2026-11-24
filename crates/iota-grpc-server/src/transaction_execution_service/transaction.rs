@@ -15,7 +15,12 @@ use iota_grpc_types::{
 };
 use iota_sdk_types::{Transaction, TransactionEffects, TransactionEvents, TypeTag, UserSignature};
 
-use crate::{GrpcReader, error::RpcError, merge::Merge, utils::render_json};
+use crate::{
+    GrpcReader,
+    error::RpcError,
+    merge::Merge,
+    utils::{mask_names_field, render_json},
+};
 
 /// Source for building ExecutedTransaction using the Merge trait
 pub struct TransactionReadSource<'a> {
@@ -244,7 +249,7 @@ impl Merge<&TransactionReadSource<'_>> for grpc_tx::TransactionEvents {
         if mask
             .subtree(Self::EVENTS_FIELD.name)
             .is_some_and(|event_mask| {
-                event_mask.contains(grpc_event::Event::JSON_CONTENTS_FIELD.name)
+                mask_names_field(&event_mask, grpc_event::Event::JSON_CONTENTS_FIELD.name)
             })
         {
             match self.events.as_mut() {
@@ -441,7 +446,7 @@ impl Merge<&CommandOutputReadSource<'_>> for CommandOutput {
             self.bcs = Some(BcsData::default().with_data(source.bcs_bytes.to_vec()));
         }
 
-        if mask.contains(Self::JSON_FIELD.name) {
+        if mask_names_field(mask, Self::JSON_FIELD.name) {
             self.json = render_json(
                 source.reader.clone(),
                 source.config.max_json_move_value_size,

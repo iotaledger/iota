@@ -16,7 +16,7 @@ use iota_move_build::BuildConfig;
 use iota_sdk_types::{ObjectId, Owner, SharedObjectReference};
 use iota_test_transaction_builder::PublishData;
 use iota_types::{effects::TransactionEffectsAPI, transaction::CallArg};
-use prost_types::{Value, value::Kind};
+use prost_types::{FieldMask, Value, value::Kind};
 use test_cluster::TestCluster;
 
 use crate::utils::{first_sender, setup_grpc_test, wait_for_executed_transactions_checkpointed};
@@ -111,6 +111,10 @@ fn json_arg(value: impl Into<String>) -> InputArgument {
 }
 
 /// Build a single-call `ViewFunctionCallsRequest` with no type arguments.
+///
+/// The read mask keeps the default response fields and additionally names the
+/// server-rendered `json`, which a bare parent no longer renders on its own —
+/// these tests assert the rendered json values.
 fn single_call_request(
     fq_function_name: String,
     arguments: Vec<InputArgument>,
@@ -119,7 +123,14 @@ fn single_call_request(
         .with_fq_function_name(fq_function_name)
         .with_type_args(vec![])
         .with_inputs(arguments);
-    ViewFunctionCallsRequest::default().with_view_function_calls(vec![item])
+    ViewFunctionCallsRequest::default()
+        .with_view_function_calls(vec![item])
+        .with_read_mask(FieldMask {
+            paths: vec![
+                "execution_result".to_string(),
+                "execution_result.return_values.json".to_string(),
+            ],
+        })
 }
 
 /// Call `{package_id}::counter::value(counter)` and return the response.

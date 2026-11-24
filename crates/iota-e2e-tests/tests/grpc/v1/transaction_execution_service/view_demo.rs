@@ -17,7 +17,7 @@ use iota_move_build::BuildConfig;
 use iota_sdk_types::{Address, ObjectId, Owner, SharedObjectReference, TypeTag};
 use iota_test_transaction_builder::PublishData;
 use iota_types::effects::TransactionEffectsAPI;
-use prost_types::{ListValue, Struct, Value, value::Kind};
+use prost_types::{FieldMask, ListValue, Struct, Value, value::Kind};
 use test_cluster::TestCluster;
 
 use crate::utils::{first_sender, setup_grpc_test, wait_for_executed_transactions_checkpointed};
@@ -137,6 +137,18 @@ fn type_tag(tag: &str) -> ProtoTypeTag {
     (&tag).into()
 }
 
+/// A view read mask that keeps the default response fields and additionally
+/// names the server-rendered `json`, which a bare parent no longer renders on
+/// its own — these tests assert the rendered json values.
+fn read_mask_with_json() -> FieldMask {
+    FieldMask {
+        paths: vec![
+            "execution_result".to_string(),
+            "execution_result.return_values.json".to_string(),
+        ],
+    }
+}
+
 /// Build a single-call `ViewFunctionCallsRequest`.
 fn single_call_request(
     fq_function_name: String,
@@ -147,7 +159,9 @@ fn single_call_request(
         .with_fq_function_name(fq_function_name)
         .with_type_args(type_args)
         .with_inputs(arguments);
-    ViewFunctionCallsRequest::default().with_view_function_calls(vec![item])
+    ViewFunctionCallsRequest::default()
+        .with_view_function_calls(vec![item])
+        .with_read_mask(read_mask_with_json())
 }
 
 /// Call the `view_demo` endpoint for one `fq_function_name`/`type_args`/
@@ -584,7 +598,9 @@ async fn batch_request_multiple_calls() {
             .with_type_args(vec![])
             .with_inputs(vec![json_arg(pkg.shop.object_id.to_string())]),
     ];
-    let request = ViewFunctionCallsRequest::default().with_view_function_calls(items);
+    let request = ViewFunctionCallsRequest::default()
+        .with_view_function_calls(items)
+        .with_read_mask(read_mask_with_json());
 
     let response = exec_client
         .view_function_calls(request)
