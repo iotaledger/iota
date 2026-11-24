@@ -24,6 +24,12 @@ use crate::{
 };
 
 /// Represents optional available filters for transaction blocks.
+///
+/// The complex filters (`function`, `kind`, `recvAddress`, `affectedAddress`,
+/// `inputObject`, `changedObject` and `wrappedOrDeletedObject`) cannot be
+/// combined with each other: setting two or more of them is rejected with an
+/// error. `sentAddress`, `transactionIds` and the checkpoint bounds can be
+/// combined with each other and with any one of the complex filters.
 #[derive(InputObject, Debug, Default, Clone)]
 pub(crate) struct TransactionBlockFilter {
     /// Filter transactions by move function called.
