@@ -18,7 +18,10 @@ use move_core_types::{
 };
 use serde_json::json;
 
-use crate::{IotaMoveStruct, IotaMoveValue, IotaTransactionKind, ObjectChange};
+use crate::{
+    IotaAccountClaimKind, IotaClaimAccountTransaction, IotaMoveStruct, IotaMoveValue,
+    IotaSmartAccountClaim, IotaTransactionBlockKind, IotaTransactionKind, ObjectChange,
+};
 
 #[test]
 fn test_move_value_to_iota_coin() {
@@ -196,6 +199,23 @@ fn test_type_tag_struct_tag_devnet_inc_222() {
         let deser: ObjectChange = serde_json::from_str(&serde_json).unwrap();
         assert_eq!(oc, deser);
     }
+}
+
+#[test]
+fn claim_account_kind_display_shows_the_claimed_key() {
+    let kind = IotaTransactionBlockKind::ClaimAccount(IotaClaimAccountTransaction {
+        account_kind: IotaAccountClaimKind::SmartAccount(IotaSmartAccountClaim {
+            public_key_scheme: 0,
+            public_key_raw_bytes: vec![7; 32],
+        }),
+    });
+
+    assert_eq!(
+        kind.to_string(),
+        "Transaction Kind: Claim Account\n\
+         Account Kind: Smart Account, Public Key Scheme Flag: 0, \
+         Public Key: BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\n"
+    );
 }
 
 #[test]
