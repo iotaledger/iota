@@ -315,7 +315,7 @@ impl MisbehaviorStore {
         relayers: impl IntoIterator<Item = AuthorityIndex>,
     ) {
         let committee_size = self.in_memory.authorities.len();
-        let fault_type = classify_block_error(error);
+        let fault_type = classify_fault(error);
         // A provable error is raised only after the header's signature is
         // verified, which needs an author in the committee.
         let author = header_slot.filter(|_| matches!(fault_type, FaultType::Provable));
@@ -341,10 +341,12 @@ impl MisbehaviorStore {
     }
 }
 
-/// Whether a block fault can be cryptographically proven.
+/// Whether a fault can be cryptographically proven.
 enum FaultType {
-    /// Block has a valid author signature but violates protocol rules.
-    /// The signed block header itself is proof of misbehavior.
+    /// A header with a valid author signature that violates protocol rules, or
+    /// a payload that a verified header commits to and that fails the validity
+    /// checks. The signed header proves it, together with the payload bytes for
+    /// a payload fault.
     Provable,
     /// Can't prove the fault from the signed data — either because the
     /// signature is bad or missing, or because the header is rejected by a
@@ -362,7 +364,7 @@ enum FaultType {
     Untracked,
 }
 
-fn classify_block_error(error: &ConsensusError) -> FaultType {
+fn classify_fault(error: &ConsensusError) -> FaultType {
     // Exhaustive on purpose: a new `ConsensusError` variant must be assigned a
     // fault type here rather than silently falling through to `Untracked`.
     match error {
@@ -426,8 +428,9 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::SecondShardForSlot { .. } => FaultType::BundlePart,
 
         // Checks that run only after the author's signature is verified, so the
-        // signed header itself proves the author produced a block that violates
-        // protocol rules.
+        // signed header proves the author produced a block that violates
+        // protocol rules. For the transaction checks, the proof is the signed
+        // commitment together with the payload bytes.
         ConsensusError::TooManyAncestors(..)
         | ConsensusError::InsufficientParentStakes { .. }
         | ConsensusError::InvalidAncestorPosition { .. }
