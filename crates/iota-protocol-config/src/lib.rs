@@ -1894,8 +1894,8 @@ pub struct ProtocolConfig {
     validator_low_stake_grace_period: Option<u64>,
 
     /// Number of committed subdags the sliding-window leader scorer aggregates
-    /// over (the scoring depth). When unset, defaults to 600. Consulted only
-    /// when `consensus_enable_sliding_window_leader_schedule` is set.
+    /// over (the scoring depth). When unset, defaults to 600. Must be at least
+    /// `consensus_commits_per_schedule`.
     consensus_leader_schedule_window_size: Option<u32>,
 
     /// Maximum size of a system Move package object, in bytes. System packages
