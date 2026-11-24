@@ -3,17 +3,15 @@
 
 use std::fmt;
 
-use anyhow::{Result, anyhow, bail, ensure};
-use iota_json_rpc_types::{
-    IotaGetPastObjectRequest, IotaObjectData, IotaObjectDataOptions, IotaRawData,
-};
+use anyhow::{Result, bail, ensure};
+use iota_json_rpc_types::{IotaGetPastObjectRequest, IotaObjectDataOptions};
 use iota_keys::keystore::{AccountKeystore, StoredKey};
 use iota_sdk::{IotaClient, wallet_context::WalletContext};
 use iota_sdk_ledger::{Ledger, LedgerSigner};
 use iota_sdk_transaction_builder::TransactionSigner;
 use iota_sdk_types::{
-    Address, MoveAuthenticatorV1, MoveStruct, Object, ObjectData, ObjectId, Owner,
-    SharedObjectReference, Transaction, TypeTag, UserSignature, Version,
+    Address, MoveAuthenticatorV1, Object, ObjectId, Owner, SharedObjectReference, Transaction,
+    TypeTag, UserSignature, Version,
     crypto::{Intent, SimpleSignature},
 };
 use iota_types::transaction::{CallArg, InputObjectKind, TransactionAPI};
@@ -131,7 +129,7 @@ pub(crate) async fn sign_transaction(
                         );
                     };
 
-                    let signer = ledger_signer(derivation_path, signer_address).await?;
+                    let signer = ledger_signer(&derivation_path, signer_address).await?;
                     let objects = load_clear_signing_objects(&iota_client, tx).await?;
                     Ok(signer.sign_with_objects(tx, &objects).await?)
                 }
@@ -249,29 +247,11 @@ async fn load_clear_signing_objects(
         .try_multi_get_parsed_past_object(requests, IotaObjectDataOptions::bcs_lossless())
         .await?
         .into_iter()
-        .map(|response| object_from_data(response.into_object()?))
+        .map(|response| {
+            let obj: iota_types::object::Object = response.into_object()?.try_into()?;
+            Ok(obj.into_inner())
+        })
         .collect()
-}
-
-/// Rebuild a Move object from its JSON-RPC representation.
-fn object_from_data(data: IotaObjectData) -> Result<Object> {
-    let object_id = data.object_id;
-    let missing = |field: &str| anyhow!("the RPC response for object {object_id} has no {field}");
-    let IotaRawData::MoveObject(raw) = data.bcs.ok_or_else(|| missing("BCS"))? else {
-        bail!("object {object_id} is not a Move object");
-    };
-    Ok(Object::new(
-        ObjectData::Struct(MoveStruct::new(
-            raw.struct_tag.into(),
-            data.version,
-            raw.bcs_bytes,
-        )?),
-        data.owner.ok_or_else(|| missing("owner"))?,
-        data.previous_transaction
-            .ok_or_else(|| missing("previous transaction"))?,
-        data.storage_rebate
-            .ok_or_else(|| missing("storage rebate"))?,
-    ))
 }
 
 pub(crate) async fn get_shared_object_version(
@@ -297,40 +277,5 @@ pub(crate) async fn get_shared_object_version(
         Ok(initial_shared_version)
     } else {
         bail!("signer_address {signer_address} is not a shared object")
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use iota_json_rpc_types::{IotaObjectData, IotaObjectDataOptions};
-    use iota_sdk_types::{
-        Address, MoveStruct, Object, ObjectData, ObjectId, Owner, TransactionDigest, Version,
-    };
-    use iota_types::{gas_coin::GasCoin, object::MoveStructExt};
-
-    use super::object_from_data;
-
-    #[test]
-    fn rebuilds_an_object_with_its_digest() {
-        let object = Object::new(
-            ObjectData::Struct(MoveStruct::new_gas_coin(
-                Version::from_u64(5),
-                ObjectId::new([1; ObjectId::LENGTH]),
-                1_000,
-            )),
-            Owner::Address(Address::new([2; Address::LENGTH])),
-            TransactionDigest::new([3; TransactionDigest::LENGTH]),
-            42,
-        );
-        let data = IotaObjectData::new(
-            object.object_ref(),
-            object.clone().into(),
-            GasCoin::layout(),
-            &IotaObjectDataOptions::bcs_lossless(),
-            None,
-        )
-        .unwrap();
-
-        assert_eq!(object_from_data(data).unwrap().digest(), object.digest());
     }
 }
