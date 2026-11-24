@@ -17,7 +17,8 @@ use iota_json_rpc_api::{
     TRANSACTION_NOT_FOUND_ERROR_CODE,
 };
 use iota_traffic_controller::{
-    ClientAccess, ClientIpStatus, TrafficController, get_client_ip, policies::TrafficTally,
+    ClientAccess, ClientIpStatus, SimulationGasRefusal, SimulationGasReservation,
+    TrafficController, get_client_ip, policies::TrafficTally,
 };
 use iota_types::traffic_control::{ClientIdSource, PolicyConfig, Weight};
 use jsonrpsee::{
@@ -68,13 +69,43 @@ impl<L> JsonRpcService<L> {
     }
 }
 
+/// Request extension through which a simulation method reserves gas from its
+/// client's simulation gas balance. It carries the client of the request and
+/// what the traffic controller decided for it.
+#[derive(Clone)]
+pub(crate) struct SimulationGasHandle {
+    traffic_controller: Arc<TrafficController>,
+    client: Option<IpAddr>,
+    access: ClientAccess,
+}
+
+impl SimulationGasHandle {
+    /// Reserves gas for one simulation, as
+    /// [`TrafficController::reserve_simulation_gas`] does.
+    pub(crate) fn reserve(&self) -> Result<Option<SimulationGasReservation>, SimulationGasRefusal> {
+        self.traffic_controller
+            .reserve_simulation_gas(self.client, self.access)
+    }
+}
+
 impl<L: Logger> JsonRpcService<L> {
-    fn call_data(&self) -> CallData<'_, L> {
+    /// The call data of one request. Its extensions are the service's, with a
+    /// [`SimulationGasHandle`] for the request added when traffic control is
+    /// on.
+    fn call_data(&self, client: Option<IpAddr>, access: ClientAccess) -> CallData<'_, L> {
+        let mut extensions = self.extensions.clone();
+        if let Some(traffic_controller) = &self.traffic_controller {
+            extensions.insert(SimulationGasHandle {
+                traffic_controller: traffic_controller.clone(),
+                client,
+                access,
+            });
+        }
         CallData {
             logger: &self.logger,
             methods: &self.methods,
             rpc_router: &self.rpc_router,
-            extensions: &self.extensions,
+            extensions,
             max_response_body_size: MAX_RESPONSE_SIZE,
             request_start: self.logger.on_request(),
         }
@@ -183,7 +214,7 @@ async fn process_raw_request<L: Logger>(
     access: ClientAccess,
 ) -> MethodResponse {
     let response = if let Ok(request) = serde_json::from_str::<Request>(raw_request) {
-        process_request(request, api_version, service.call_data()).await
+        process_request(request, api_version, service.call_data(client, access)).await
     } else if let Ok(_batch) = serde_json::from_str::<Vec<&RawValue>>(raw_request) {
         MethodResponse::error(
             Id::Null,
@@ -273,9 +304,10 @@ mod tests {
     use iota_json_rpc_api::{
         TRANSACTION_EXECUTION_CLIENT_ERROR_CODE, TRANSACTION_NOT_FOUND_ERROR_CODE,
     };
-    use iota_traffic_controller::TrafficController;
+    use iota_traffic_controller::{ClientAccess, TrafficController};
     use iota_types::traffic_control::{
-        AccessRuleList, AccessRules, ClientIdSource, PolicyConfig, PolicyType, Weight,
+        AccessRuleList, AccessRules, ClientIdSource, PolicyConfig, PolicyType,
+        SimulationGasLimitConfig, Weight,
     };
     use jsonrpsee::{Extensions, core::server::Methods, types::ErrorCode};
     use tower::ServiceExt;
@@ -300,19 +332,34 @@ mod tests {
         error_policy_type: PolicyType,
         access_rules: AccessRules,
     ) -> (axum::Router, Arc<TrafficController>) {
+        router_with(
+            PolicyConfig {
+                spam_policy_type,
+                error_policy_type,
+                access_rules,
+                ..Default::default()
+            },
+            Methods::new(),
+        )
+    }
+
+    /// A JSON-RPC router serving `methods`, whose traffic controller runs
+    /// `policy_config` without dry run, reading the client from the socket.
+    fn router_with(
+        policy_config: PolicyConfig,
+        methods: Methods,
+    ) -> (axum::Router, Arc<TrafficController>) {
         let policy_config = PolicyConfig {
             client_id_source: ClientIdSource::SocketAddr,
             connection_blocklist_ttl_sec: 120,
-            spam_policy_type,
-            error_policy_type,
             spam_sample_rate: Weight::one(),
             dry_run: false,
-            access_rules,
-            ..Default::default()
+            ..policy_config
         };
         let traffic_controller = Arc::new(TrafficController::init_for_test(policy_config.clone()));
+        traffic_controller.set_max_simulation_computation(100);
         let service = JsonRpcService::new(
-            Methods::new(),
+            methods,
             RpcRouter::new(HashMap::new(), false),
             (),
             Some(traffic_controller.clone()),
@@ -393,6 +440,83 @@ mod tests {
                 .check(&Some(CLIENT.ip()), &None)
                 .is_served()
         );
+    }
+
+    /// A module with one method, `test_simulate`, that reserves simulation gas
+    /// as the simulation methods do, and answers whether it reserved any.
+    fn simulating_methods() -> Methods {
+        let mut module = jsonrpsee::RpcModule::new(());
+        module
+            .register_method("test_simulate", |_, _, ext| {
+                crate::transaction_execution_api::reserve_simulation_gas(ext)
+                    .map(|reservation| reservation.is_some())
+                    .map_err(jsonrpsee::core::ClientError::from)
+                    .map_err(iota_json_rpc_api::error_object_from_rpc)
+            })
+            .unwrap();
+        module.into()
+    }
+
+    /// A gas limit of 100 with the computation cap of [`router_with`], so that
+    /// one held reservation takes the whole balance, and an error policy that
+    /// blocks a client on its first error.
+    fn gas_limited(access_rules: AccessRules) -> PolicyConfig {
+        PolicyConfig {
+            error_policy_type: PolicyType::TestNConnIP(1),
+            simulation_gas_limit: Some(SimulationGasLimitConfig {
+                gas_per_sec: 1,
+                burst_gas: 100,
+            }),
+            access_rules,
+            ..Default::default()
+        }
+    }
+
+    /// A method that reserves simulation gas, as the simulation methods do,
+    /// is refused with `ServerIsBusy` once its client is over the limit, and
+    /// the refusal does not feed the error policy, so the client is not
+    /// blocked.
+    #[tokio::test]
+    async fn a_simulation_over_the_gas_limit_is_refused_as_busy() {
+        let (router, traffic_controller) =
+            router_with(gas_limited(AccessRules::default()), simulating_methods());
+        let request = r#"{"jsonrpc":"2.0","id":1,"method":"test_simulate"}"#;
+
+        // Hold the whole balance, so that the request finds none left.
+        let _held = traffic_controller
+            .reserve_simulation_gas(Some(CLIENT.ip()), ClientAccess::Limited)
+            .unwrap();
+        let (_, body) = send(&router, Some("application/json"), request).await;
+        assert!(
+            body.contains(&ErrorCode::ServerIsBusy.code().to_string())
+                && body.contains("simulation gas limit reached"),
+            "{body}"
+        );
+        assert!(
+            traffic_controller
+                .check(&Some(CLIENT.ip()), &None)
+                .is_served()
+        );
+    }
+
+    /// The decision of the traffic controller reaches the simulation methods,
+    /// so a client that an allow rule serves has no gas limit.
+    #[tokio::test]
+    async fn an_allowed_client_reserves_no_simulation_gas() {
+        let (router, traffic_controller) = router_with(
+            gas_limited(AccessRules {
+                allow: vec![CLIENT.ip().to_string()],
+                ..Default::default()
+            }),
+            simulating_methods(),
+        );
+        // Hold the whole balance of the client's address.
+        let _held = traffic_controller
+            .reserve_simulation_gas(Some(CLIENT.ip()), ClientAccess::Limited)
+            .unwrap();
+        let request = r#"{"jsonrpc":"2.0","id":1,"method":"test_simulate"}"#;
+        let (_, body) = send(&router, Some("application/json"), request).await;
+        assert!(body.contains(r#""result":false"#), "{body}");
     }
 
     /// A body the `Json` extractor rejects keeps its status and is tallied, and
@@ -503,12 +627,7 @@ async fn process_request<L: Logger>(
         Some((name, method)) => match method {
             MethodCallback::Sync(callback) => {
                 logger.on_call(name, params.clone(), MethodKind::MethodCall);
-                (callback)(
-                    id,
-                    params,
-                    max_response_body_size as usize,
-                    extensions.clone(),
-                )
+                (callback)(id, params, max_response_body_size as usize, extensions)
             }
             MethodCallback::Async(callback) => {
                 logger.on_call(name, params.clone(), MethodKind::MethodCall);
@@ -521,7 +640,7 @@ async fn process_request<L: Logger>(
                     params,
                     conn_id,
                     max_response_body_size as usize,
-                    extensions.clone(),
+                    extensions,
                 )
                 .await
             }
@@ -556,7 +675,7 @@ pub(crate) struct CallData<'a, L: Logger> {
     logger: &'a L,
     methods: &'a Methods,
     rpc_router: &'a RpcRouter,
-    extensions: &'a Extensions,
+    extensions: Extensions,
     max_response_body_size: u32,
     request_start: L::Instant,
 }

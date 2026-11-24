@@ -198,10 +198,11 @@ pub enum PolicyType {
     TestPanicOnInvocation,
 }
 
-/// The gas each client may spend on simulations, the gRPC
-/// `SimulateTransactions` and `ViewFunctionCalls`, which run transactions for
-/// free. Each client has a gas balance that refills by `gas-per-sec` up to
-/// `burst-gas`. A simulation is refused while the balance of its client is
+/// The gas each client may spend on simulations, which run transactions for
+/// free: gRPC `SimulateTransactions` and `ViewFunctionCalls`, and JSON-RPC
+/// `iota_dryRunTransactionBlock`, `iota_devInspectTransactionBlock` and
+/// `iota_view`. Each client has a gas balance that refills by `gas-per-sec` up
+/// to `burst-gas`. A simulation is refused while the balance of its client is
 /// below the computation cap of one transaction (`max_gas_computation_bucket`
 /// of the protocol), and the client's other requests are still served. Both
 /// values are in gas units and must be above 0.
