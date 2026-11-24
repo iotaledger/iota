@@ -1187,17 +1187,6 @@ impl TransactionKindExt for TransactionKind {
                 );
                 match &claim.kind {
                     AccountClaimKind::SmartAccount(smart) => {
-                        // A smart account is authenticated by the built-in authenticator
-                        // for its key's scheme, so without them the claim would create an
-                        // account that can never authenticate a transaction — and an
-                        // address can only be claimed once.
-                        fp_ensure!(
-                            config.enable_builtin_move_authenticators(),
-                            UserInputError::Unsupported(
-                                "smart account claims require built-in Move authenticators"
-                                    .to_string()
-                            )
-                        );
                         // Apply `public_key::create`'s validation here, so that a
                         // claim with an invalid key is rejected before execution
                         // rather than aborting in it.
