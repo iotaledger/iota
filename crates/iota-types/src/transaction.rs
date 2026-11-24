@@ -2934,8 +2934,11 @@ fn check_claimed_key_derives_sender(data: &Transaction) -> UserInputResult {
     let TransactionKind::ClaimAccount(claim) = data.kind() else {
         return Ok(());
     };
-    let AccountClaimKind::SmartAccount(smart) = &claim.kind else {
-        unimplemented!("a new AccountClaimKind enum variant was added and needs to be handled")
+    let smart = match &claim.kind {
+        AccountClaimKind::SmartAccount(smart) => smart,
+        _ => {
+            unimplemented!("a new AccountClaimKind enum variant was added and needs to be handled")
+        }
     };
 
     // Infallible here: the kind-level check has already validated both.
@@ -3001,8 +3004,11 @@ fn check_claim_account_gas_budget(data: &Transaction, config: &ProtocolConfig) -
     let TransactionKind::ClaimAccount(claim) = data.kind() else {
         return Ok(());
     };
-    let AccountClaimKind::SmartAccount(smart) = &claim.kind else {
-        unimplemented!("a new AccountClaimKind enum variant was added and needs to be handled")
+    let smart = match &claim.kind {
+        AccountClaimKind::SmartAccount(smart) => smart,
+        _ => {
+            unimplemented!("a new AccountClaimKind enum variant was added and needs to be handled")
+        }
     };
     // The cost scales with the declared gas price and the key bytes the claim
     // stores, so the floor does too.
