@@ -3,12 +3,12 @@ source: crates/iota-swarm-config/tests/snapshot_tests.rs
 expression: genesis.iota_system_object().into_genesis_version_for_tooling()
 ---
 epoch: 0
-protocol_version: 41
+protocol_version: 42
 system_state_version: 1
 iota_treasury_cap:
   inner:
     id:
-      id: "0x470c008da46da4e5c8cbc4106e36b7df6bde7e0638af002e76b716fb1627b8d8"
+      id: "0x63e70b72f6946eac24767a60c600ed98380916e178f6fd125aa4d7f8c3c172d6"
     total_supply:
       value: "755500000000000000"
 validators:
@@ -244,13 +244,13 @@ validators:
         next_epoch_primary_address: ~
         extra_fields:
           id:
-            id: "0xbe142e637c52241f3b0d504aa8b7540a30d0b6451074aae037c641143ee949b7"
+            id: "0x4e2c0698b56faff67a4328da767e27a07438269125c97ac8d7334cc42af0db4a"
           size: "0"
       voting_power: 10000
-      operation_cap_id: "0xf800bbf2cf4eb4fad8686e8ba6efa58d07e0870c278f9fbab817a996301670f8"
+      operation_cap_id: "0xdb9e55975541397e5b9076141abdec568651ecf60f5ebf8581a0137d90be9548"
       gas_price: 1000
       staking_pool:
-        id: "0xd495c189549af773eebb3dd4d62cc3f36f250968efb68454318a9909862a8642"
+        id: "0xf89201d8ecd97ae44e8366d73b8f52469721bf8a7d983d21c2bec32086f73657"
         activation_epoch: 0
         deactivation_epoch: ~
         iota_balance: 5500000000000000
@@ -259,14 +259,14 @@ validators:
         pool_token_balance: 5500000000000000
         exchange_rates:
           id:
-            id: "0xf230e72d950fed2b0e01f27fbb7d3f0de8de2211fb5cf84587267d617fde3207"
+            id: "0x29a55574553f137ef1bbc4d3da561ae9db2115f6816984f631f9bed5772cb70e"
           size: "1"
         pending_stake: 0
         pending_total_iota_withdraw: 0
         pending_pool_token_withdraw: 0
         extra_fields:
           id:
-            id: "0x0735113dda768bb4444837557a4373634084f9dc52e0e82887f7b04ee4f62ca7"
+            id: "0x5e82effa371fb899e11ddeb4557c461eb3a09caf342379fd457af84a64d3fb01"
           size: "0"
       commission_rate: 200
       next_epoch_stake: 5500000000000000
@@ -274,31 +274,31 @@ validators:
       next_epoch_commission_rate: 200
       extra_fields:
         id:
-          id: "0xf89909a5adadc99164a6ba7284036cddcd826d7edbcb963643e28f4d410e7bb6"
+          id: "0x773a96a856298d6d52a557b9b7d4913024f8122123638b066cd21f1aab535eb1"
         size: "0"
   pending_active_validators:
     contents:
       id:
-        id: "0x7f8bbb334832e59d75e95b41a1fb2bb3dd68b3b45891915f17791416ddf23be5"
+        id: "0x73925e508b073a979db0b019c6b25e68dfa8a6fc51c5c6d2e8998b5f8fcba9c4"
       size: "0"
   pending_removals: []
   staking_pool_mappings:
     id:
-      id: "0xbc1d3edc2a272585d41ea6d1d7133af26790e91ca2d4add23002d0514225de58"
+      id: "0xa609a38a588a8cf3f7c36c493988b74eea5855a396b830eff602f8a691802d3e"
     size: "1"
   inactive_validators:
     id:
-      id: "0xa943fc308da5c18a369a88111ed73099deabde558252b55ae2fdec345758df5c"
+      id: "0xad0d4bb3347ebb4c1c47fc2ec517d7f0ad5f7ac4612d2510bd19994721f36507"
     size: "0"
   validator_candidates:
     id:
-      id: "0xed8fcde19e7a02631969d278bbc58c25653217e64df2c0bdaf5c7211303705df"
+      id: "0x5f5f07d04cde2e0c7a615a0b25ed3ec4046a746329366acb25602d681e5325ce"
     size: "0"
   at_risk_validators:
     contents: []
   extra_fields:
     id:
-      id: "0xa1c87a98c072a6027918078baada7ca7b0b526c7288c90a911a25744dc927418"
+      id: "0xc0dc7f617c3022ecdb2a120c573058cc1ef36e2c6da7fe6db6b478d9290832c9"
     size: "0"
 storage_fund:
   total_object_storage_rebates:
@@ -315,7 +315,7 @@ parameters:
   validator_low_stake_grace_period: "0"
   extra_fields:
     id:
-      id: "0xa367d5ad1098e450e392bd8f080b4f1a75ffc880f42f3f91e28fbfee66d3bc59"
+      id: "0x653cce50c06c4eb9d93cd449eb93ebb334b16bac7ea9a24867dd0dcd9d0d77ff"
     size: "0"
 iota_system_admin_cap:
   dummy_field: false
@@ -332,5 +332,5 @@ safe_mode_non_refundable_storage_fee: 0
 epoch_start_timestamp_ms: 10
 extra_fields:
   id:
-    id: "0x50a6720cb90a50e40453c4c5b87ac6dd6e781d051a896ec104d73b4cabb176b1"
+    id: "0x9fd41928ff5b1fb129ff210a0098d22571e696d65d014f5f7a321f3ef79d9678"
   size: "0"
