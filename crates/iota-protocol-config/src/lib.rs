@@ -296,8 +296,7 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Set the attestation freshness window on devnet.
 //             Set the penalty for refuted attestations on devnet.
 // Version 42: Enable built-in Move authenticators in devnet.
-//             Accept the `ClaimAccount` transaction kind in devnet, which
-//             creates an account object at the sender's address.
+//             Enable creating SmartAccounts in devnet.
 //             Introduce Move native functions for validating public keys for
 //             Ed25519, Secp256k1, Secp256r1, and MultiSig signature schemes,
 //             deriving IOTA addresses from public keys, and verifying a
@@ -305,8 +304,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Introduce the Move native functions that return the nonce of the
 //             transaction and the text a key holder signs to approve attaching
 //             their key to a SmartAccount.
-//             Set the gas costs of those natives and of the built-in Move
-//             authenticators on all networks.
+//             Set the gas costs of those natives on all networks, and of the
+//             built-in Move authenticators in devnet.
 //             Add `tx_context::chain_identifier`, which returns the digest of
 //             the genesis checkpoint, and set the gas cost of its native on
 //             all networks.
@@ -812,21 +811,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     allow_dkg_completion_after_timeout: bool,
 
-    // If true, enables the authentication with built-in Move authenticators.
-    #[serde(skip_serializing_if = "is_false")]
-    enable_builtin_move_authenticators: bool,
-
-    // If true, the `ClaimAccount` user transaction kind is accepted. It creates an
-    // account object whose id is the sender's address, so a usable account also
-    // requires `enable_builtin_move_authenticators`.
-    #[serde(skip_serializing_if = "is_false")]
-    enable_claim_account_transaction: bool,
-
-    // If true, `smart_account::builder_v1` and a smart account `ClaimAccount` create a
-    // `SmartAccount`; otherwise they abort.
-    #[serde(skip_serializing_if = "is_false")]
-    enable_smart_accounts: bool,
-
     // If true, a consensus message is skipped as a duplicate of an earlier message with the same
     // key that was recorded as processed or passed verification in the same commit:
     // - The consensus handler adds a message to its processed-transaction cache only after the
@@ -904,6 +888,21 @@ struct FeatureFlags {
     // its commands if that transaction failed.
     #[serde(skip_serializing_if = "is_false")]
     enable_transaction_dependencies: bool,
+
+    // If true, enables the authentication with built-in Move authenticators.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_builtin_move_authenticators: bool,
+
+    // If true, the `ClaimAccount` user transaction kind is accepted. It creates an
+    // account object whose id is the sender's address, so a usable account also
+    // requires `enable_builtin_move_authenticators`.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_claim_account_transaction: bool,
+
+    // If true, `smart_account::builder_v1` and a smart account `ClaimAccount` create a
+    // `SmartAccount`; otherwise they abort.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_smart_accounts: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2507,42 +2506,6 @@ impl ProtocolConfig {
         self.feature_flags.allow_dkg_completion_after_timeout
     }
 
-    pub fn enable_builtin_move_authenticators(&self) -> bool {
-        let enable_builtin_move_authenticators =
-            self.feature_flags.enable_builtin_move_authenticators;
-        if enable_builtin_move_authenticators {
-            assert!(
-                self.enable_move_authentication(),
-                "enable_builtin_move_authenticators requires enable_move_authentication to be set"
-            );
-            assert!(
-                self.public_key_verify_builtin_authenticator_signature_impl_cost_base
-                    .is_some(),
-                "enable_builtin_move_authenticators requires public_key_verify_builtin_authenticator_signature_impl_cost_base to be set"
-            );
-        }
-        enable_builtin_move_authenticators
-    }
-
-    pub fn enable_claim_account_transaction(&self) -> bool {
-        let enable_claim_account_transaction = self.feature_flags.enable_claim_account_transaction;
-        if enable_claim_account_transaction {
-            // The validity check rejects a claim whose budget cannot cover the
-            // pipeline, so the bounds that define that floor must be set.
-            assert!(
-                self.claim_account_max_computation_units.is_some()
-                    && self.claim_account_storage_bytes_bound.is_some(),
-                "enable_claim_account_transaction requires claim_account_max_computation_units \
-                 and claim_account_storage_bytes_bound to be set"
-            );
-        }
-        enable_claim_account_transaction
-    }
-
-    pub fn enable_smart_accounts(&self) -> bool {
-        self.feature_flags.enable_smart_accounts
-    }
-
     pub fn disallow_self_identifier_in_transactions(&self) -> bool {
         self.feature_flags.disallow_self_identifier_in_transactions
     }
@@ -2589,6 +2552,42 @@ impl ProtocolConfig {
     /// Its prerequisites are checked once, in [`Self::get_for_version`].
     pub fn enable_transaction_dependencies(&self) -> bool {
         self.feature_flags.enable_transaction_dependencies
+    }
+
+    pub fn enable_builtin_move_authenticators(&self) -> bool {
+        let enable_builtin_move_authenticators =
+            self.feature_flags.enable_builtin_move_authenticators;
+        if enable_builtin_move_authenticators {
+            assert!(
+                self.enable_move_authentication(),
+                "enable_builtin_move_authenticators requires enable_move_authentication to be set"
+            );
+            assert!(
+                self.public_key_verify_builtin_authenticator_signature_impl_cost_base
+                    .is_some(),
+                "enable_builtin_move_authenticators requires public_key_verify_builtin_authenticator_signature_impl_cost_base to be set"
+            );
+        }
+        enable_builtin_move_authenticators
+    }
+
+    pub fn enable_claim_account_transaction(&self) -> bool {
+        let enable_claim_account_transaction = self.feature_flags.enable_claim_account_transaction;
+        if enable_claim_account_transaction {
+            // The validity check rejects a claim whose budget cannot cover the
+            // pipeline, so the bounds that define that floor must be set.
+            assert!(
+                self.claim_account_max_computation_units.is_some()
+                    && self.claim_account_storage_bytes_bound.is_some(),
+                "enable_claim_account_transaction requires claim_account_max_computation_units \
+                 and claim_account_storage_bytes_bound to be set"
+            );
+        }
+        enable_claim_account_transaction
+    }
+
+    pub fn enable_smart_accounts(&self) -> bool {
+        self.feature_flags.enable_smart_accounts
     }
 }
 
@@ -4216,14 +4215,10 @@ impl ProtocolConfig {
                         // Enable creating smart accounts in devnet only.
                         cfg.feature_flags.enable_smart_accounts = true;
 
-                        // Bounds on a ClaimAccount's cost, so a claim cannot run
-                        // out of gas at any admissible gas price or key size.
-                        cfg.claim_account_max_computation_units = Some(5_000);
-                        cfg.claim_account_storage_bytes_bound = Some(2_000);
+                        // Set the cost for built-in Move authenticators to 0 for now.
+                        cfg.public_key_verify_builtin_authenticator_signature_impl_cost_base =
+                            Some(0);
                     }
-
-                    // Set the cost for built-in Move authenticators to 0 for now.
-                    cfg.public_key_verify_builtin_authenticator_signature_impl_cost_base = Some(0);
 
                     cfg.ed25519_ed25519_validate_pubkey_cost_base = Some(170);
                     cfg.ecdsa_k1_secp256k1_validate_pubkey_cost_base = Some(176);
@@ -4436,10 +4431,6 @@ impl ProtocolConfig {
 
     pub fn set_passkey_auth_for_testing(&mut self, val: bool) {
         self.feature_flags.passkey_auth = val
-    }
-
-    pub fn set_enable_claim_account_transaction_for_testing(&mut self, val: bool) {
-        self.feature_flags.enable_claim_account_transaction = val;
     }
 
     pub fn set_disallow_new_modules_in_deps_only_packages_for_testing(&mut self, val: bool) {
@@ -4703,14 +4694,6 @@ impl ProtocolConfig {
         self.feature_flags.allow_dkg_completion_after_timeout = val;
     }
 
-    pub fn set_enable_builtin_move_authenticators_for_testing(&mut self, val: bool) {
-        self.feature_flags.enable_builtin_move_authenticators = val;
-    }
-
-    pub fn set_enable_smart_accounts_for_testing(&mut self, val: bool) {
-        self.feature_flags.enable_smart_accounts = val;
-    }
-
     /// Turning the flag off also turns off `enable_pcool_flow`, which requires
     /// it.
     pub fn set_consensus_dedup_only_recorded_messages_for_testing(&mut self, val: bool) {
@@ -4726,6 +4709,18 @@ impl ProtocolConfig {
         if !val {
             self.unset_attestation_parameters();
         }
+    }
+
+    pub fn set_enable_builtin_move_authenticators_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_builtin_move_authenticators = val;
+    }
+
+    pub fn set_enable_claim_account_transaction_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_claim_account_transaction = val;
+    }
+
+    pub fn set_enable_smart_accounts_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_smart_accounts = val;
     }
 }
 

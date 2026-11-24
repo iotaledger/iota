@@ -1527,12 +1527,8 @@
                 "checkpoint_summary_version_specific_data": {
                   "u64": "2"
                 },
-                "claim_account_max_computation_units": {
-                  "u64": "5000"
-                },
-                "claim_account_storage_bytes_bound": {
-                  "u64": "2000"
-                },
+                "claim_account_max_computation_units": null,
+                "claim_account_storage_bytes_bound": null,
                 "config_read_setting_impl_cost_base": {
                   "u64": "100"
                 },
