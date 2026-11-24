@@ -54,11 +54,10 @@ fn recover_leader_swap_table(
     )
 }
 
-/// End of the last full rotation interval among the commits after
-/// `last_schedule_update_index` up to `last_commit_index`, when they span
-/// more than one interval: the commit a recovered backlog rebuilds the
-/// schedule at (see `LeaderSchedule::update_leader_schedule_from_backlog`).
-/// `None` when they span at most one interval.
+/// Returns the end of the last full interval of `commits_per_schedule`
+/// commits after `last_schedule_update_index`. Returns `None` if
+/// `last_commit_index - last_schedule_update_index` is at most
+/// `commits_per_schedule`.
 pub(crate) fn backlog_last_interval_end(
     last_schedule_update_index: CommitIndex,
     last_commit_index: CommitIndex,
