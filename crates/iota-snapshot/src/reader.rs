@@ -42,7 +42,7 @@ use iota_types::{digests::ChainIdentifier, global_state_hash::GlobalStateHash};
 use object_store::path::Path;
 use tokio::{
     sync::{Mutex, mpsc, oneshot},
-    task::{JoinHandle, JoinSet},
+    task::JoinSet,
 };
 use tracing::info;
 
@@ -86,6 +86,37 @@ async fn download_object_file(
         .get(&part_num)
         .expect("sha3 digest not in bucket map");
     Ok((bytes, file_metadata, sha3_digest))
+}
+
+/// Computes the state hash of the objects that one reference file lists.
+/// Returns it with the number of these objects.
+///
+/// # Panics
+///
+/// Panics if the reference file cannot be opened or has a wrong magic header,
+/// or if the computation is cancelled.
+async fn compute_state_hash_of_ref_file(
+    file_metadata: FileMetadata,
+    local_staging_dir_root: PathBuf,
+    epoch_dir: Path,
+) -> (GlobalStateHash, u64) {
+    let hashed = tokio::task::spawn_blocking(move || {
+        let obj_digests = ObjectRefIter::new(&file_metadata, local_staging_dir_root, epoch_dir)
+            .expect("Failed to create object ref iter")
+            .map(|obj_ref| obj_ref.digest);
+        let mut num_objects = 0u64;
+        let mut state_hash = GlobalStateHash::default();
+        state_hash.insert_all(obj_digests.inspect(|_| num_objects += 1));
+        (state_hash, num_objects)
+    })
+    .await;
+    match hashed {
+        Ok(hashed) => hashed,
+        Err(e) if e.is_panic() => std::panic::resume_unwind(e.into_panic()),
+        // No completion is sent after this panic, so the restore fails. A
+        // release build aborts the process.
+        Err(e) => panic!("hashing a .ref file was cancelled: {e}"),
+    }
 }
 
 pub type SnapshotChecksums = (DigestByBucketAndPartition, GlobalStateHash);
@@ -523,8 +554,13 @@ impl StateSnapshotReaderV1 {
 
         checksum_ticker.finish_with_message("Checksumming complete");
 
-        let accum_handle = accumulator
-            .map(|accumulator| self.spawn_accumulation_tasks(accumulator, num_part_files));
+        let accum_handle = accumulator.map(|accumulator| {
+            let this = self.clone();
+            tokio::spawn(async move {
+                this.compute_and_send_state_hashes(accumulator, num_part_files)
+                    .await
+            })
+        });
 
         // Downloads all object files from remote in parallel and inserts the objects
         // into the database of choice
@@ -550,19 +586,19 @@ impl StateSnapshotReaderV1 {
         sync_result
     }
 
-    /// Spawns accumulation tasks to accumulate the sha3 digests of all objects
-    /// then sends the accumulator to the sender.
-    fn spawn_accumulation_tasks(
+    /// Computes the state hash of each reference file and sends each one
+    /// through `accumulator`, then the completion.
+    async fn compute_and_send_state_hashes(
         &self,
         accumulator: StateAccumulatorSender,
         num_part_files: usize,
-    ) -> JoinHandle<()> {
+    ) {
         let StateAccumulatorSender {
             partials: sender,
             completion,
         } = accumulator;
         // Spawns accumulation progress bar, whose position the ticker takes
-        // from the counter the accumulation task below advances
+        // from the counter the loop below advances
         let concurrency = self.concurrency;
         let accum_counter = Arc::new(AtomicU64::new(0));
         let accum_ticker = ProgressTicker::spawn(
@@ -580,67 +616,30 @@ impl StateSnapshotReaderV1 {
             Some(accum_counter.clone()),
         );
 
-        // spawns accumualation task
-        let ref_files = self.ref_files.clone();
         let epoch_dir = self.epoch_dir();
-        let local_staging_dir_root = self.local_staging_dir_root.clone();
-        tokio::task::spawn(async move {
-            let local_staging_dir_root_clone = local_staging_dir_root.clone();
-            let epoch_dir_clone = epoch_dir.clone();
-            for (bucket, part_files) in ref_files.clone().iter() {
-                futures::stream::iter(part_files.iter())
-                    .map(|(part, _part_files)| {
-                        // TODO depending on concurrency limit here, we may be
-                        // materializing too many refs into memory at once.
-
-                        // Takes the sha3 digests of every object in the partition
-                        // This is only done because ObjectRefIter is not Send
-                        let obj_digests = {
-                            // TODO: Make sure that we can remove this getter, just take _part_files
-                            // here
-                            let file_metadata = ref_files
-                                .get(bucket)
-                                .expect("No ref files found for bucket: {bucket_num}")
-                                .get(part)
-                                .expect(
-                                    "No ref files found for bucket: {bucket_num}, part: {part_num}",
-                                );
-                            ObjectRefIter::new(
-                                file_metadata,
-                                local_staging_dir_root_clone.clone(),
-                                epoch_dir_clone.clone(),
-                            )
-                            .expect("Failed to create object ref iter")
-                        }
-                        .map(|obj_ref| obj_ref.digest)
-                        .collect::<Vec<ObjectDigest>>();
-
-                        // Spawns a task to accumulate the sha3 digests and send the accumulator
-                        // to the sender.
-                        let sender_clone = sender.clone();
-                        tokio::spawn(async move {
-                            let mut partial_acc = GlobalStateHash::default();
-                            let num_objects = obj_digests.len();
-                            partial_acc.insert_all(obj_digests);
-                            // The receiver is only dropped once the caller
-                            // has given up on the restore, so a failed send
-                            // has nothing left to report to.
-                            let _ = sender_clone.send((partial_acc, num_objects as u64)).await;
-                        })
-                    })
-                    .boxed()
-                    .buffer_unordered(concurrency.into())
-                    .for_each(|result| {
-                        // Update the progress bar
-                        result.expect("Failed to generate partial accumulator");
-                        accum_counter.fetch_add(1, Ordering::Relaxed);
-                        futures::future::ready(())
-                    })
-                    .await;
-            }
-            accum_ticker.finish_with_message("Accumulation complete");
-            let _ = completion.send(());
-        })
+        for part_files in self.ref_files.values() {
+            futures::stream::iter(part_files.values())
+                .map(|file_metadata| {
+                    compute_state_hash_of_ref_file(
+                        file_metadata.clone(),
+                        self.local_staging_dir_root.clone(),
+                        epoch_dir.clone(),
+                    )
+                })
+                .boxed()
+                .buffer_unordered(concurrency.into())
+                .for_each(|state_hash_and_num_objects| async {
+                    // The receiver is only dropped once the caller
+                    // has given up on the restore, so a failed send
+                    // has nothing left to report to.
+                    let _ = sender.send(state_hash_and_num_objects).await;
+                    // Update the progress bar
+                    accum_counter.fetch_add(1, Ordering::Relaxed);
+                })
+                .await;
+        }
+        accum_ticker.finish_with_message("Accumulation complete");
+        let _ = completion.send(());
     }
 
     /// Downloads all object files from remote in parallel and inserts the
