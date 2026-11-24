@@ -15,25 +15,13 @@ use starfish_config::{AuthorityIndex, Stake};
 
 use crate::{
     CommitIndex, Round,
-    commit::{CommitInfo, CommitRange, CommitRef, GENESIS_COMMIT_INDEX, SubDagBase},
+    commit::{CommitRange, GENESIS_COMMIT_INDEX, SubDagBase},
     context::Context,
     dag_state::DagState,
     error::ConsensusResult,
     leader_scoring::ReputationScores,
     sliding_window_schedule::SlidingWindowSchedule,
 };
-
-/// Calculates the seed index for leader swap table initialization.
-/// Uses the commit range end as seed, falling back to the commit ref index
-/// for genesis commits where the range end equals GENESIS_COMMIT_INDEX.
-fn calculate_seed_index(last_commit_ref: &CommitRef, last_commit_info: &CommitInfo) -> CommitIndex {
-    let range_end = last_commit_info.reputation_scores.commit_range.end();
-    if range_end == GENESIS_COMMIT_INDEX {
-        last_commit_ref.index
-    } else {
-        range_end
-    }
-}
 
 /// Recovers a `LeaderSwapTable` from stored commit info.
 /// Returns default table if no commit info exists.
@@ -43,8 +31,8 @@ fn recover_leader_swap_table(
 ) -> LeaderSwapTable {
     dag_state.read().recover_last_commit_info().map_or(
         LeaderSwapTable::default(),
-        |(last_commit_ref, last_commit_info)| {
-            let seed_index = calculate_seed_index(&last_commit_ref, &last_commit_info);
+        |(_, last_commit_info)| {
+            let seed_index = last_commit_info.reputation_scores.commit_range.end();
             LeaderSwapTable::new(
                 context.clone(),
                 seed_index,
