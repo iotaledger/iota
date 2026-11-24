@@ -21,28 +21,48 @@ use std::{
 
 use iota_types::{
     error::IotaError,
-    traffic_control::{ClientIdSource, PolicyConfig, PolicyType, TrafficControlReconfigParams},
+    traffic_control::{
+        AccessRuleList, ClientIdSource, PolicyConfig, PolicyType, TrafficControlReconfigParams,
+    },
 };
 use tracing::error;
 
 use self::{
     block_log::BlockReason,
-    client_access::{ClientAccessManager, client_prefix},
+    client_access::{ClientAccessManager, client_prefix, parse_access_rule},
     metrics::TrafficControllerMetrics,
 };
 use crate::policies::{MAX_CLIENT_THRESHOLD, TrafficControlPolicy, TrafficTally};
 
-/// The spam and error policies. Absent in allowlist mode, which does no
-/// tallying.
+/// The spam and error policies.
 struct Policies {
     spam: TrafficControlPolicy,
     error: TrafficControlPolicy,
 }
 
+/// What [`TrafficController::check`] decided for a request.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ClientAccess {
+    /// An allow rule matches the client: serve the request, and do not tally
+    /// it, so that no policy counts or blocks the client.
+    Allowed,
+    /// Serve the request, and tally it.
+    Limited,
+    /// Refuse the request.
+    Refused,
+}
+
+impl ClientAccess {
+    /// Whether the node serves the request.
+    pub fn is_served(self) -> bool {
+        self != Self::Refused
+    }
+}
+
 #[derive(Clone)]
 pub struct TrafficController {
     client_access: Arc<ClientAccessManager>,
-    policies: Option<Arc<Policies>>,
+    policies: Arc<Policies>,
     policy_config: Arc<PolicyConfig>,
     metrics: Arc<TrafficControllerMetrics>,
 }
@@ -68,27 +88,30 @@ impl Debug for TrafficController {
 }
 
 impl TrafficController {
-    /// Must be called from within a tokio runtime unless `policy_config` has
-    /// an allowlist, since blocklist mode spawns the task that drops expired
-    /// blocks.
+    /// Must be called from within a tokio runtime, since it spawns the task
+    /// that drops expired blocks.
+    ///
+    /// # Panics
+    ///
+    /// If an access rule is neither an IP address nor a CIDR network, if a
+    /// blocklist TTL exceeds the maximum, or if `ipv6-prefix-len` is out of
+    /// range.
     pub fn init(policy_config: PolicyConfig, metrics: Arc<TrafficControllerMetrics>) -> Self {
         let client_access = Arc::new(ClientAccessManager::new(&policy_config, metrics.clone()));
-        let policies = policy_config.allow_list.is_none().then(|| {
-            let policies = Policies {
-                spam: TrafficControlPolicy::from_policy_type(
-                    &policy_config.spam_policy_type,
-                    policy_config.connection_blocklist_ttl_sec,
-                    metrics.rate_limiter_evictions.clone(),
-                ),
-                error: TrafficControlPolicy::from_policy_type(
-                    &policy_config.error_policy_type,
-                    policy_config.connection_blocklist_ttl_sec,
-                    metrics.rate_limiter_evictions.clone(),
-                ),
-            };
-            set_policy_config_metrics(&policies, &policy_config, &metrics);
-            Arc::new(policies)
-        });
+        let policies = Policies {
+            spam: TrafficControlPolicy::from_policy_type(
+                &policy_config.spam_policy_type,
+                policy_config.connection_blocklist_ttl_sec,
+                metrics.rate_limiter_evictions.clone(),
+            ),
+            error: TrafficControlPolicy::from_policy_type(
+                &policy_config.error_policy_type,
+                policy_config.connection_blocklist_ttl_sec,
+                metrics.rate_limiter_evictions.clone(),
+            ),
+        };
+        set_policy_config_metrics(&policies, &policy_config, &metrics);
+        let policies = Arc::new(policies);
         Self {
             client_access,
             policies,
@@ -104,23 +127,36 @@ impl TrafficController {
         )
     }
 
-    /// The settings in force. The thresholds and the blocklist TTLs are
-    /// `None` in allowlist mode, which neither tallies nor blocks.
+    /// The settings in force. A threshold is `None` for a policy that does
+    /// not rate limit.
     pub fn get_current_state(&self) -> TrafficControlReconfigParams {
-        let ttls = self.client_access.blocklist_ttls_sec();
+        let (connection_blocklist_ttl_sec, proxy_blocklist_ttl_sec) =
+            self.client_access.blocklist_ttls_sec();
         TrafficControlReconfigParams {
-            error_threshold: self
-                .policies
-                .as_ref()
-                .and_then(|policies| policies.error.client_threshold()),
-            spam_threshold: self
-                .policies
-                .as_ref()
-                .and_then(|policies| policies.spam.client_threshold()),
+            error_threshold: self.policies.error.client_threshold(),
+            spam_threshold: self.policies.spam.client_threshold(),
             dry_run: Some(self.client_access.dry_run()),
-            connection_blocklist_ttl_sec: ttls.map(|(connection, _)| connection),
-            proxy_blocklist_ttl_sec: ttls.map(|(_, proxy)| proxy),
+            connection_blocklist_ttl_sec: Some(connection_blocklist_ttl_sec),
+            proxy_blocklist_ttl_sec: Some(proxy_blocklist_ttl_sec),
         }
+    }
+
+    /// Adds an access rule, an IP address or a CIDR network, to `list`, and
+    /// returns whether the list did not hold it already. The next check
+    /// applies it. The rule lasts until the node restarts.
+    pub fn add_access_rule(&self, list: AccessRuleList, rule: &str) -> Result<bool, IotaError> {
+        let rule = parse_access_rule(rule)
+            .map_err(|err| IotaError::InvalidAdminRequest(format!("{rule:?}: {err}")))?;
+        Ok(self.client_access.add_rule(list, rule))
+    }
+
+    /// Removes an access rule from `list`, and returns whether the list held
+    /// it. The rule is compared in its canonical form, so `198.51.100.7/24`
+    /// removes `198.51.100.0/24`.
+    pub fn remove_access_rule(&self, list: AccessRuleList, rule: &str) -> Result<bool, IotaError> {
+        let rule = parse_access_rule(rule)
+            .map_err(|err| IotaError::InvalidAdminRequest(format!("{rule:?}: {err}")))?;
+        Ok(self.client_access.remove_rule(list, rule))
     }
 
     /// Applies an operator initiated policy change. Changing a threshold
@@ -139,28 +175,26 @@ impl TrafficController {
         let updates = [
             (
                 error_threshold,
-                self.policies.as_ref().map(|policies| &policies.error),
+                &self.policies.error,
                 &self.metrics.error_client_threshold,
-                "error",
             ),
             (
                 spam_threshold,
-                self.policies.as_ref().map(|policies| &policies.spam),
+                &self.policies.spam,
                 &self.metrics.spam_client_threshold,
-                "spam",
             ),
         ];
         // Validate the whole request first, so a rejected one applies nothing.
-        for (threshold, policy, _, kind) in updates {
+        for (threshold, policy, _) in updates {
             if let Some(threshold) = threshold {
-                validate_threshold(policy, threshold, kind)?;
+                validate_threshold(policy, threshold)?;
             }
         }
         self.client_access
             .validate_reconfigure(connection_blocklist_ttl_sec, proxy_blocklist_ttl_sec)
             .map_err(IotaError::InvalidAdminRequest)?;
-        for (threshold, policy, gauge, _) in updates {
-            if let (Some(threshold), Some(policy)) = (threshold, policy) {
+        for (threshold, policy, gauge) in updates {
+            if let Some(threshold) = threshold {
                 policy.set_client_threshold(threshold);
                 gauge.set(threshold as i64);
             }
@@ -177,11 +211,10 @@ impl TrafficController {
     /// Charges the tally against the spam and error policies, and has the
     /// client access manager refuse each client that breaches one, before
     /// returning. An IPv6 client is charged for the first `ipv6-prefix-len`
-    /// bits of its address. No-op in allowlist mode.
+    /// bits of its address. Do not tally a request that [`Self::check`]
+    /// decided as [`ClientAccess::Allowed`].
     pub fn tally(&self, mut tally: TrafficTally) {
-        let Some(policies) = &self.policies else {
-            return;
-        };
+        let policies = &self.policies;
         let ipv6_prefix_len = self.policy_config.ipv6_prefix_len;
         tally.direct = tally
             .direct
@@ -208,24 +241,16 @@ impl TrafficController {
         }
     }
 
-    /// Whether to serve a request from `client`, with dry run considered. A
-    /// request whose client IP the node could not resolve is refused in
-    /// allowlist mode, and served in blocklist mode.
-    pub fn check(&self, client: &Option<IpAddr>, proxied_client: &Option<IpAddr>) -> bool {
+    /// Whether to serve a request from `client`, and whether to tally it, with
+    /// dry run considered. The access rules match the full address of
+    /// `client`. A request whose client IP the node could not resolve matches
+    /// no rule, so the default action decides it.
+    pub fn check(&self, client: &Option<IpAddr>, proxied_client: &Option<IpAddr>) -> ClientAccess {
         self.client_access.check(client, proxied_client)
     }
 }
 
-fn validate_threshold(
-    policy: Option<&TrafficControlPolicy>,
-    threshold: u64,
-    kind: &str,
-) -> Result<(), IotaError> {
-    let Some(policy) = policy else {
-        return Err(IotaError::InvalidAdminRequest(format!(
-            "Cannot reconfigure {kind} policy threshold in allowlist mode"
-        )));
-    };
+fn validate_threshold(policy: &TrafficControlPolicy, threshold: u64) -> Result<(), IotaError> {
     if threshold > MAX_CLIENT_THRESHOLD {
         return Err(IotaError::InvalidAdminRequest(format!(
             "Threshold {threshold} exceeds the maximum of {MAX_CLIENT_THRESHOLD}"
@@ -427,7 +452,9 @@ mod tests {
     use std::net::Ipv4Addr;
 
     use iota_macros::sim_test;
-    use iota_types::traffic_control::{FreqThresholdConfig, Weight, default_blocklist_ttl_sec};
+    use iota_types::traffic_control::{
+        AccessRules, DefaultAction, FreqThresholdConfig, Weight, default_blocklist_ttl_sec,
+    };
 
     use super::*;
     use crate::{block_log::tests::capture_plain, client_access::MAX_BLOCKLIST_TTL_SEC};
@@ -478,7 +505,7 @@ mod tests {
 
         // Dry run lets the request through, but it counts the client that the
         // node would block.
-        assert!(controller.check(&Some(CLIENT), &None));
+        assert!(controller.check(&Some(CLIENT), &None).is_served());
         assert_eq!(controller.metrics.num_dry_run_blocked_requests.get(), 1);
     }
 
@@ -486,7 +513,7 @@ mod tests {
     async fn test_the_admin_api_turns_dry_run_off_at_once() {
         let controller = TrafficController::init_for_test(policy_config(true, PolicyKind::Spam));
         controller.tally(breach(PolicyKind::Spam));
-        assert!(controller.check(&Some(CLIENT), &None));
+        assert!(controller.check(&Some(CLIENT), &None).is_served());
 
         controller
             .admin_reconfigure(TrafficControlReconfigParams {
@@ -499,7 +526,7 @@ mod tests {
             .expect("the request changes only the dry-run flag");
 
         // The next check must read the new value, not the value at startup.
-        assert!(!controller.check(&Some(CLIENT), &None));
+        assert!(!controller.check(&Some(CLIENT), &None).is_served());
     }
 
     #[tokio::test]
@@ -507,7 +534,7 @@ mod tests {
         let controller = TrafficController::init_for_test(policy_config(true, PolicyKind::Error));
         controller.tally(breach(PolicyKind::Error));
         assert_eq!(controller.metrics.connection_ip_blocklist_len.get(), 1);
-        assert!(controller.check(&Some(CLIENT), &None));
+        assert!(controller.check(&Some(CLIENT), &None).is_served());
     }
 
     #[tokio::test]
@@ -599,7 +626,7 @@ mod tests {
             line.ends_with("client_blocked client=2001:db8:1:2::/64 reason=spam ttl_secs=120"),
             "{line}"
         );
-        assert!(!controller.check(&Some(address(3)), &None));
+        assert!(!controller.check(&Some(address(3)), &None).is_served());
     }
 
     #[tokio::test]
@@ -613,7 +640,7 @@ mod tests {
         let log = capture_plain(|| {
             controller.tally(TrafficTally::new(None, Some(CLIENT), None, Weight::one()))
         });
-        assert!(!controller.check(&None, &Some(CLIENT)));
+        assert!(!controller.check(&None, &Some(CLIENT)).is_served());
         assert_eq!(log.block_lines(), Vec::<String>::new());
     }
 
@@ -638,7 +665,7 @@ mod tests {
         let log = capture_plain(|| controller.tally(breach(PolicyKind::Spam)));
         let [line] = log.block_lines().try_into().unwrap();
         assert!(line.ends_with(" ttl_secs=120"), "{line}");
-        assert!(!controller.check(&Some(CLIENT), &None));
+        assert!(!controller.check(&Some(CLIENT), &None).is_served());
         assert_eq!(controller.metrics.connection_blocklist_ttl_sec.get(), 120);
     }
 
@@ -684,7 +711,7 @@ mod tests {
 
         let log = capture_plain(|| controller.tally(breach(PolicyKind::Spam)));
         assert_eq!(log.block_lines(), Vec::<String>::new());
-        assert!(controller.check(&Some(CLIENT), &None));
+        assert!(controller.check(&Some(CLIENT), &None).is_served());
     }
 
     /// The tallies the shipped default policy tolerates from one client before
@@ -710,14 +737,14 @@ mod tests {
         for _ in 0..budget {
             controller.tally(breach(PolicyKind::Error));
         }
-        assert!(controller.check(&Some(CLIENT), &None));
+        assert!(controller.check(&Some(CLIENT), &None).is_served());
 
         // Over the budget the shipped blocklist TTL keeps the block in place,
         // thus a later check rejects the client. The bound leaves room for the
         // cells the limiter replenishes while the test runs.
         for _ in 0..budget {
             controller.tally(breach(PolicyKind::Error));
-            if !controller.check(&Some(CLIENT), &None) {
+            if !controller.check(&Some(CLIENT), &None).is_served() {
                 return;
             }
         }
@@ -901,95 +928,54 @@ mod tests {
         assert!(entries.ends_with(r#"["1.2.3.4", "10.0.0.1""#), "{message}");
     }
 
-    #[test]
-    fn an_allowlist_refuses_a_request_with_an_unresolved_client_ip() {
-        let allow_list = Some(vec![CLIENT.to_string()]);
-        let controller = TrafficController::init_for_test(PolicyConfig {
-            allow_list: allow_list.clone(),
-            dry_run: false,
-            ..Default::default()
-        });
-        assert!(!controller.check(&None, &None));
-        assert_eq!(controller.metrics.requests_blocked_at_protocol.get(), 1);
-        assert_eq!(controller.metrics.unresolved_client_requests.get(), 1);
-
-        // Dry run reports the refusal without applying it.
-        let controller = TrafficController::init_for_test(PolicyConfig {
-            allow_list,
-            dry_run: true,
-            ..Default::default()
-        });
-        assert!(controller.check(&None, &None));
-        assert_eq!(controller.metrics.num_dry_run_blocked_requests.get(), 1);
-    }
-
     #[tokio::test]
     async fn rate_limiting_admits_a_request_with_an_unresolved_client_ip() {
         let controller = TrafficController::init_for_test(policy_config(false, PolicyKind::Spam));
         // The policy blocks every client it is charged, and a request with no
         // resolved client IP is charged to none of them.
         controller.tally(breach(PolicyKind::Spam));
-        assert!(!controller.check(&Some(CLIENT), &None));
-        assert!(controller.check(&None, &None));
+        assert!(!controller.check(&Some(CLIENT), &None).is_served());
+        assert!(controller.check(&None, &None).is_served());
         // Only the request with no resolved client IP is counted.
         assert_eq!(controller.metrics.unresolved_client_requests.get(), 1);
     }
 
-    #[test]
-    fn an_unsorted_allowlist_still_admits_its_clients() {
-        let controller = TrafficController::init_for_test(PolicyConfig {
-            allow_list: Some(vec!["10.0.0.9".to_string(), "10.0.0.1".to_string()]),
-            dry_run: false,
-            ..Default::default()
-        });
-
-        for client in ["10.0.0.9", "10.0.0.1"] {
-            let client: IpAddr = client.parse().unwrap();
-            assert!(controller.check(&Some(client), &None));
-        }
-        let stranger = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 5));
-        assert!(!controller.check(&Some(stranger), &None));
-    }
-
-    fn allowlist_mode() -> TrafficController {
+    fn denying_by_default() -> TrafficController {
         TrafficController::init_for_test(PolicyConfig {
-            allow_list: Some(vec![CLIENT.to_string()]),
+            access_rules: AccessRules {
+                allow: vec![CLIENT.to_string()],
+                default: DefaultAction::Deny,
+                ..Default::default()
+            },
             dry_run: false,
             ..Default::default()
         })
     }
 
-    #[test]
-    fn allowlist_mode_reports_no_blocklist_ttls() {
-        let state = allowlist_mode().get_current_state();
-        assert_eq!(state.connection_blocklist_ttl_sec, None);
-        assert_eq!(state.proxy_blocklist_ttl_sec, None);
+    #[tokio::test]
+    async fn a_block_does_not_refuse_an_allowed_client() {
+        let controller = TrafficController::init_for_test(policy_config(false, PolicyKind::Spam));
+        controller.tally(breach(PolicyKind::Spam));
+        assert_eq!(
+            controller.check(&Some(CLIENT), &None),
+            ClientAccess::Refused
+        );
+
+        // A block the client got before its rule was added does not refuse it.
+        controller
+            .add_access_rule(AccessRuleList::Allow, &CLIENT.to_string())
+            .unwrap();
+        assert_eq!(
+            controller.check(&Some(CLIENT), &None),
+            ClientAccess::Allowed
+        );
     }
 
-    #[test]
-    fn the_admin_api_rejects_a_blocklist_ttl_in_allowlist_mode() {
-        let controller = allowlist_mode();
-        for (connection_blocklist_ttl_sec, proxy_blocklist_ttl_sec) in
-            [(Some(60), None), (None, Some(60))]
-        {
-            let result = controller.admin_reconfigure(TrafficControlReconfigParams {
-                error_threshold: None,
-                spam_threshold: None,
-                dry_run: Some(true),
-                connection_blocklist_ttl_sec,
-                proxy_blocklist_ttl_sec,
-            });
-            assert!(matches!(result, Err(IotaError::InvalidAdminRequest(_))));
-        }
-        // A rejected request applies nothing, not even its valid settings.
-        assert_eq!(controller.get_current_state().dry_run, Some(false));
-    }
-
-    #[test]
-    fn the_admin_api_turns_dry_run_on_in_allowlist_mode() {
-        let controller = allowlist_mode();
+    #[tokio::test]
+    async fn the_admin_api_turns_dry_run_on_for_the_default_deny() {
+        let controller = denying_by_default();
         let stranger = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 5));
-        assert!(!controller.check(&Some(stranger), &None));
+        assert!(!controller.check(&Some(stranger), &None).is_served());
 
         controller
             .admin_reconfigure(TrafficControlReconfigParams {
@@ -999,7 +985,40 @@ mod tests {
                 connection_blocklist_ttl_sec: None,
                 proxy_blocklist_ttl_sec: None,
             })
-            .expect("allowlist mode has a dry-run flag");
-        assert!(controller.check(&Some(stranger), &None));
+            .expect("the request changes only the dry-run flag");
+        assert!(controller.check(&Some(stranger), &None).is_served());
+    }
+
+    #[tokio::test]
+    async fn an_access_rule_added_at_runtime_applies_to_the_next_check() {
+        let controller = denying_by_default();
+        let stranger = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 5));
+        assert!(
+            controller
+                .add_access_rule(AccessRuleList::Allow, "10.0.0.0/24")
+                .unwrap()
+        );
+        assert_eq!(
+            controller.check(&Some(stranger), &None),
+            ClientAccess::Allowed
+        );
+        assert!(
+            controller
+                .remove_access_rule(AccessRuleList::Allow, "10.0.0.7/24")
+                .unwrap()
+        );
+        assert_eq!(
+            controller.check(&Some(stranger), &None),
+            ClientAccess::Refused
+        );
+    }
+
+    #[tokio::test]
+    async fn the_admin_api_rejects_an_invalid_access_rule() {
+        let controller = denying_by_default();
+        assert!(matches!(
+            controller.add_access_rule(AccessRuleList::Deny, "10.0.0.0/40"),
+            Err(IotaError::InvalidAdminRequest(_))
+        ));
     }
 }
