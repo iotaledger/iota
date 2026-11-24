@@ -6484,6 +6484,7 @@ dependencies = [
  "iota-node-storage",
  "iota-package-resolver",
  "iota-protocol-config",
+ "iota-sdk-graphql-client",
  "iota-sdk-grpc-client",
  "iota-sdk-move-types",
  "iota-sdk-types",

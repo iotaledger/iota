@@ -21,12 +21,10 @@ use common::{
     start_test_server, start_test_server_with, start_test_server_with_traffic_controller,
 };
 use futures::StreamExt;
-use iota_grpc_server::{
-    GrpcServerHandle,
-    constants::{IOTA_SDK_GRPC_CLIENT_VERSION_MIN, X_IOTA_SDK_GRPC_CLIENT_VERSION_MIN},
-};
+use iota_grpc_server::{GrpcServerHandle, constants::IOTA_SDK_GRPC_CLIENT_VERSION_MIN};
 use iota_grpc_types::{
     field::FieldMaskUtil,
+    headers::X_IOTA_SDK_GRPC_CLIENT_VERSION_MIN,
     v1::{
         ledger_service::{
             GetObjectsRequest, ObjectRequest, ObjectRequests,

@@ -12,10 +12,13 @@ use std::{
 
 use anyhow::Result;
 use iota_config::node::ListenerLimitsConfig;
-use iota_grpc_types::v1::{
-    ledger_service as grpc_ledger_service, move_package_service as grpc_move_package_service,
-    service_methods, state_service as grpc_state_service,
-    transaction_execution_service as grpc_tx_service,
+use iota_grpc_types::{
+    headers::X_IOTA_SDK_GRPC_CLIENT_VERSION_MIN,
+    v1::{
+        ledger_service as grpc_ledger_service, move_package_service as grpc_move_package_service,
+        service_methods, state_service as grpc_state_service,
+        transaction_execution_service as grpc_tx_service,
+    },
 };
 use iota_network_stack::{grpc_timeout::GrpcTimeout, server::insert_tonic_connect_info};
 use iota_traffic_controller::TrafficController;
@@ -27,10 +30,8 @@ use tonic::service::Routes;
 use crate::{
     GrpcCheckpointDataBroadcaster, GrpcReader, GrpcServerMetrics, LedgerGrpcService,
     MovePackageGrpcService, StateGrpcService, TransactionExecutionGrpcService,
-    constants::{IOTA_SDK_GRPC_CLIENT_VERSION_MIN, X_IOTA_SDK_GRPC_CLIENT_VERSION_MIN},
-    metrics::GrpcMetricsLayer,
-    server_timing::ServerTimingLayer,
-    traffic_control::TrafficControlLayer,
+    constants::IOTA_SDK_GRPC_CLIENT_VERSION_MIN, metrics::GrpcMetricsLayer,
+    server_timing::ServerTimingLayer, traffic_control::TrafficControlLayer,
 };
 
 /// Handle to control a running gRPC server
