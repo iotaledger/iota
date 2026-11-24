@@ -1481,6 +1481,11 @@ mod faulty_attestor {
                 .collect::<BTreeSet<_>>(),
             "exactly the refuted attestations are certified"
         );
+        assert_eq!(
+            fullnode.with(|node| node.state().epoch_store_for_testing().cut_off_validators()),
+            BTreeSet::from([attestor]),
+            "the fullnode stops submitting through the cut-off attestor"
+        );
 
         // The attestor rejects submissions once a commit's horizon shows its
         // sum at the cutoff.

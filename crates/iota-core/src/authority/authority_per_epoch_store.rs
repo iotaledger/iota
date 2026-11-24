@@ -811,6 +811,10 @@ pub struct AuthorityPerEpochStore {
     /// `Rejected` response instead of waiting for the gRPC deadline.
     dropped_tx_status_cache: super::dropped_tx_status_cache::DroppedTxStatusCache,
 
+    /// The validators cut off for the rest of the epoch, as of the last
+    /// checkpoint this node executed. Kept by the checkpoint executor.
+    cut_off_validators: RwLock<BTreeSet<AuthorityName>>,
+
     /// The active deny rule set: the union of the mirrored on-chain state
     /// and the stake-weighted aggregate of the recorded deny rule proposals.
     /// Recomputed via `store_active_transaction_deny_rules` in
@@ -1538,6 +1542,7 @@ impl AuthorityPerEpochStore {
             executed_digests_notify_read: NotifyRead::new(),
             signed_effects_digests_cache,
             dropped_tx_status_cache: super::dropped_tx_status_cache::DroppedTxStatusCache::new(),
+            cut_off_validators: Default::default(),
             active_transaction_deny_rules,
             mirrored_transaction_deny_rules,
             soft_locks: OnceCell::new(),
@@ -2324,6 +2329,16 @@ impl AuthorityPerEpochStore {
         state
             .is_cut_off_as_of_highest_horizon(index, max_refuted_units_squared)
             .then_some(index)
+    }
+
+    /// The validators cut off for the rest of the epoch, as of the last
+    /// checkpoint this node executed; empty when the cutoff is off.
+    pub fn cut_off_validators(&self) -> BTreeSet<AuthorityName> {
+        self.cut_off_validators.read().clone()
+    }
+
+    pub(crate) fn set_cut_off_validators(&self, validators: BTreeSet<AuthorityName>) {
+        *self.cut_off_validators.write() = validators;
     }
 
     /// `attestation_max_refuted_units_squared`, when set and this node keeps

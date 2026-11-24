@@ -22,6 +22,7 @@
 //! a signal for reconfig.
 
 use std::{
+    collections::BTreeSet,
     future::Future,
     sync::{
         Arc,
@@ -39,9 +40,9 @@ use iota_sdk_types::{
     TransactionEffectsDigest, TransactionKind,
 };
 use iota_types::{
-    attestation::AttestationRecord,
-    base_types::ExecutionData,
-    committee::EpochId,
+    attestation::{AttestationRecord, AttestationTotals, AttestationVerdict},
+    base_types::{AuthorityName, ExecutionData},
+    committee::{Committee, EpochId},
     effects::TransactionEffectsAPI,
     executable_transaction::VerifiedExecutableTransaction,
     full_checkpoint_content::CheckpointData,
@@ -59,8 +60,8 @@ use tracing::{debug, info, instrument, warn};
 
 use crate::{
     authority::{
-        AuthorityState, ExecutionEnv, authority_per_epoch_store::AuthorityPerEpochStore,
-        backpressure::BackpressureManager,
+        AuthorityState, ExecutionEnv, attestation::attestors_taking_whole_score,
+        authority_per_epoch_store::AuthorityPerEpochStore, backpressure::BackpressureManager,
         shared_object_version_manager::gas_object_cancellation_version_from_effects,
     },
     checkpoint_progress_tracker::CheckpointProgressTracker,
@@ -124,6 +125,16 @@ impl CheckpointExecutionData {
             }
         }
         records
+    }
+
+    /// Whether the summary certifies a refuted record. Only such a record
+    /// changes the epoch's totals.
+    fn certifies_refuted_record(&self) -> bool {
+        self.version_specific_data.as_ref().is_some_and(|data| {
+            data.attestation_entries()
+                .iter()
+                .any(|entry| matches!(entry.record.verdict, AttestationVerdict::Refuted { .. }))
+        })
     }
 }
 
@@ -299,6 +310,7 @@ impl CheckpointExecutor {
         let Some(next_to_schedule) = self.get_next_to_schedule() else {
             return StopReason::EpochComplete;
         };
+        self.seed_cut_off_validators();
 
         let this = Arc::new(self);
 
@@ -588,6 +600,12 @@ impl CheckpointExecutor {
         }
 
         fail_point!("crash");
+
+        // Before the watermark, so whoever sees the checkpoint executed also sees
+        // the validators it cuts off.
+        if ckpt_state.data.certifies_refuted_record() {
+            self.store_cut_off_validators(ckpt_state.data.version_specific_data.as_ref());
+        }
 
         // Keep this after the index commit: `wait_for_checkpoint_inclusion`
         // reads this bump as "the checkpoint is indexed".
@@ -1516,6 +1534,42 @@ impl CheckpointExecutor {
             .expect("unable to get version_specific_data")
     }
 
+    /// Stores on the epoch store the validators that the totals in `data`,
+    /// the epoch's through its checkpoint, show as cut off.
+    fn store_cut_off_validators(&self, data: Option<&CheckpointVersionSpecificData>) {
+        let Some(max_refuted_units_squared) = self
+            .epoch_store
+            .protocol_config()
+            .attestation_max_refuted_units_squared_as_option()
+        else {
+            return;
+        };
+        let Some(totals) = data.and_then(|data| data.attestation_totals()) else {
+            return;
+        };
+        self.epoch_store.set_cut_off_validators(cut_off_attestors(
+            totals,
+            max_refuted_units_squared,
+            self.epoch_store.committee(),
+        ));
+    }
+
+    /// Stores the cut-off validators as of the highest executed checkpoint, so
+    /// a node restarted during the epoch does not start without them.
+    fn seed_cut_off_validators(&self) {
+        let highest_executed = self
+            .checkpoint_store
+            .get_highest_executed_checkpoint()
+            .expect("db error");
+        // Checked before parsing: an earlier epoch's summary may not parse
+        // under this epoch's protocol config.
+        if let Some(checkpoint) =
+            highest_executed.filter(|checkpoint| checkpoint.epoch() == self.epoch_store.epoch())
+        {
+            self.store_cut_off_validators(self.parse_version_specific_data(&checkpoint).as_ref());
+        }
+    }
+
     // Extract randomness rounds from the checkpoint version-specific data (if
     // available). Otherwise, extract randomness rounds from the first
     // transaction in the checkpoint
@@ -1571,4 +1625,16 @@ fn attestation_record_differs(
     certified: Option<AttestationRecord>,
 ) -> bool {
     local.filter(|record| !record.verdict.is_valid()) != certified
+}
+
+/// The committee members whose `totals` take their whole score.
+fn cut_off_attestors(
+    totals: &AttestationTotals,
+    max_refuted_units_squared: u64,
+    committee: &Committee,
+) -> BTreeSet<AuthorityName> {
+    attestors_taking_whole_score(totals, max_refuted_units_squared)
+        .into_iter()
+        .filter_map(|attestor| committee.authority_by_index(u32::from(attestor)).copied())
+        .collect()
 }
