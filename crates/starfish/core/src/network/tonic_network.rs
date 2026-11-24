@@ -3001,7 +3001,7 @@ mod tests {
         use parking_lot::Mutex;
 
         use super::{FetchBlockHeadersRequest, FetchBlockHeadersResponse, TonicManager};
-        use crate::network::test_network::TestService;
+        use crate::network::{NetworkClient as _, test_network::TestService};
 
         const REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
 
@@ -3072,6 +3072,13 @@ mod tests {
             panic!("the peer holds its only header-fetch slot");
         };
         assert_eq!(status.code(), tonic::Code::ResourceExhausted);
+        // The client reports the refusal as the peer's admission limit.
+        assert!(matches!(
+            second
+                .fetch_block_headers(server_index, vec![], vec![], Duration::from_secs(5))
+                .await,
+            Err(ConsensusError::AdmissionLimitReached(_))
+        ));
 
         // Another authority has its own budget.
         let other = tokio::spawn(async move { header_fetch(&other_peer, server_index).await });
