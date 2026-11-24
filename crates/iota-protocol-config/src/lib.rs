@@ -2574,6 +2574,13 @@ impl ProtocolConfig {
     pub fn enable_claim_account_transaction(&self) -> bool {
         let enable_claim_account_transaction = self.feature_flags.enable_claim_account_transaction;
         if enable_claim_account_transaction {
+            // A claimed account is authenticated by the built-in authenticator
+            // of its key's scheme, so without them it could never send a
+            // transaction, and an address can only be claimed once.
+            assert!(
+                self.enable_builtin_move_authenticators(),
+                "enable_claim_account_transaction requires enable_builtin_move_authenticators to be set"
+            );
             // The validity check rejects a claim whose budget cannot cover the
             // pipeline, so the bounds that define that floor must be set.
             assert!(
@@ -2587,7 +2594,12 @@ impl ProtocolConfig {
     }
 
     pub fn enable_smart_accounts(&self) -> bool {
-        self.feature_flags.enable_smart_accounts
+        let enable_smart_accounts = self.feature_flags.enable_smart_accounts;
+        assert!(
+            !enable_smart_accounts || self.enable_move_authentication(),
+            "enable_smart_accounts requires enable_move_authentication to be set"
+        );
+        enable_smart_accounts
     }
 }
 
