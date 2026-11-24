@@ -24,8 +24,6 @@ This how-to demonstrates how to sign an IOTA transfer with a key held on a Ledge
 This example runs on **localnet**. Make sure you have a local IOTA node running before executing the code.
 :::
 
-{/* The embeds are pinned to an iota-rust-sdk commit because the revision in docs/site/iota-sdk-references.rev predates the Ledger examples. Switch them to the SDK_REV placeholder once that revision includes them. */}
-
 ## Prerequisites
 
 - The IOTA SDK installed for your target language, with Ledger support:
@@ -71,49 +69,49 @@ On Linux, building the SDK with USB support needs the `libudev` development pack
   <TabItem value="rust" label="Rust" default>
 
 ```rust reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/crates/iota-sdk/examples/ledger_sign_send_iota.rs#L17-L20
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/crates/iota-sdk/examples/ledger_sign_send_iota.rs#L17-L20
 ```
 
   </TabItem>
   <TabItem value="go" label="Go">
 
 ```go reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/go/examples/ledger_sign_send_iota/main.go#L16-L21
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/go/examples/ledger_sign_send_iota/main.go#L16-L21
 ```
 
   </TabItem>
   <TabItem value="python" label="Python">
 
 ```python reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/python/examples/ledger_sign_send_iota.py#L14-L17
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/python/examples/ledger_sign_send_iota.py#L14-L17
 ```
 
   </TabItem>
   <TabItem value="kotlin" label="Kotlin">
 
 ```kotlin reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/kotlin/examples/LedgerSignSendIota.kt#L11-L14
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/kotlin/examples/LedgerSignSendIota.kt#L11-L14
 ```
 
   </TabItem>
   <TabItem value="swift" label="Swift">
 
 ```swift reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/swift/examples/LedgerSignSendIota.swift#L13-L16
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/swift/examples/LedgerSignSendIota.swift#L13-L16
 ```
 
   </TabItem>
   <TabItem value="csharp" label="C#">
 
 ```csharp reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/csharp/examples/LedgerSignSendIota/Program.cs#L13-L15
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/csharp/examples/LedgerSignSendIota/Program.cs#L13-L15
 ```
 
   </TabItem>
   <TabItem value="wasm" label="WASM/TS">
 
 ```javascript reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/wasm/examples/ledger_sign_send_iota.mjs#L60-L64
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/wasm/examples/ledger_sign_send_iota.mjs#L60-L64
 ```
 
   </TabItem>
@@ -127,42 +125,42 @@ Connect to the first device attached over USB, or to the emulator when `LEDGER_S
   <TabItem value="rust" label="Rust" default>
 
 ```rust reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/crates/iota-sdk/examples/ledger_sign_send_iota.rs#L22-L27
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/crates/iota-sdk/examples/ledger_sign_send_iota.rs#L22-L27
 ```
 
   </TabItem>
   <TabItem value="go" label="Go">
 
 ```go reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/go/examples/ledger_sign_send_iota/main.go#L23-L34
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/go/examples/ledger_sign_send_iota/main.go#L23-L34
 ```
 
   </TabItem>
   <TabItem value="python" label="Python">
 
 ```python reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/python/examples/ledger_sign_send_iota.py#L19-L23
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/python/examples/ledger_sign_send_iota.py#L19-L23
 ```
 
   </TabItem>
   <TabItem value="kotlin" label="Kotlin">
 
 ```kotlin reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/kotlin/examples/LedgerSignSendIota.kt#L16-L22
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/kotlin/examples/LedgerSignSendIota.kt#L16-L22
 ```
 
   </TabItem>
   <TabItem value="swift" label="Swift">
 
 ```swift reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/swift/examples/LedgerSignSendIota.swift#L18-L22
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/swift/examples/LedgerSignSendIota.swift#L18-L22
 ```
 
   </TabItem>
   <TabItem value="csharp" label="C#">
 
 ```csharp reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/csharp/examples/LedgerSignSendIota/Program.cs#L17-L20
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/csharp/examples/LedgerSignSendIota/Program.cs#L17-L20
 ```
 
   </TabItem>
@@ -171,11 +169,11 @@ https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a52
 The WASM bindings can open neither USB devices nor TCP sockets, so the example implements the transport in JavaScript. This one reaches the emulator from Node.
 
 ```javascript reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/wasm/examples/ledger_sign_send_iota.mjs#L24-L58
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/wasm/examples/ledger_sign_send_iota.mjs#L24-L58
 ```
 
 ```javascript reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/wasm/examples/ledger_sign_send_iota.mjs#L66-L67
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/wasm/examples/ledger_sign_send_iota.mjs#L66-L67
 ```
 
   </TabItem>
@@ -189,49 +187,49 @@ Create a signer for the key at a derivation path. The address of that key is the
   <TabItem value="rust" label="Rust" default>
 
 ```rust reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/crates/iota-sdk/examples/ledger_sign_send_iota.rs#L28-L30
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/crates/iota-sdk/examples/ledger_sign_send_iota.rs#L28-L30
 ```
 
   </TabItem>
   <TabItem value="go" label="Go">
 
 ```go reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/go/examples/ledger_sign_send_iota/main.go#L35-L40
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/go/examples/ledger_sign_send_iota/main.go#L35-L40
 ```
 
   </TabItem>
   <TabItem value="python" label="Python">
 
 ```python reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/python/examples/ledger_sign_send_iota.py#L24-L26
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/python/examples/ledger_sign_send_iota.py#L24-L26
 ```
 
   </TabItem>
   <TabItem value="kotlin" label="Kotlin">
 
 ```kotlin reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/kotlin/examples/LedgerSignSendIota.kt#L23-L25
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/kotlin/examples/LedgerSignSendIota.kt#L23-L25
 ```
 
   </TabItem>
   <TabItem value="swift" label="Swift">
 
 ```swift reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/swift/examples/LedgerSignSendIota.swift#L23-L25
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/swift/examples/LedgerSignSendIota.swift#L23-L25
 ```
 
   </TabItem>
   <TabItem value="csharp" label="C#">
 
 ```csharp reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/csharp/examples/LedgerSignSendIota/Program.cs#L21-L23
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/csharp/examples/LedgerSignSendIota/Program.cs#L21-L23
 ```
 
   </TabItem>
   <TabItem value="wasm" label="WASM/TS">
 
 ```javascript reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/wasm/examples/ledger_sign_send_iota.mjs#L68-L70
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/wasm/examples/ledger_sign_send_iota.mjs#L68-L70
 ```
 
   </TabItem>
@@ -245,49 +243,49 @@ Connect to localnet and request funds from the faucet for the sender address.
   <TabItem value="rust" label="Rust" default>
 
 ```rust reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/crates/iota-sdk/examples/ledger_sign_send_iota.rs#L32-L37
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/crates/iota-sdk/examples/ledger_sign_send_iota.rs#L32-L37
 ```
 
   </TabItem>
   <TabItem value="go" label="Go">
 
 ```go reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/go/examples/ledger_sign_send_iota/main.go#L42-L50
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/go/examples/ledger_sign_send_iota/main.go#L42-L50
 ```
 
   </TabItem>
   <TabItem value="python" label="Python">
 
 ```python reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/python/examples/ledger_sign_send_iota.py#L28-L32
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/python/examples/ledger_sign_send_iota.py#L28-L32
 ```
 
   </TabItem>
   <TabItem value="kotlin" label="Kotlin">
 
 ```kotlin reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/kotlin/examples/LedgerSignSendIota.kt#L27-L30
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/kotlin/examples/LedgerSignSendIota.kt#L27-L30
 ```
 
   </TabItem>
   <TabItem value="swift" label="Swift">
 
 ```swift reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/swift/examples/LedgerSignSendIota.swift#L27-L31
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/swift/examples/LedgerSignSendIota.swift#L27-L31
 ```
 
   </TabItem>
   <TabItem value="csharp" label="C#">
 
 ```csharp reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/csharp/examples/LedgerSignSendIota/Program.cs#L25-L28
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/csharp/examples/LedgerSignSendIota/Program.cs#L25-L28
 ```
 
   </TabItem>
   <TabItem value="wasm" label="WASM/TS">
 
 ```javascript reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/wasm/examples/ledger_sign_send_iota.mjs#L72-L76
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/wasm/examples/ledger_sign_send_iota.mjs#L72-L76
 ```
 
   </TabItem>
@@ -299,49 +297,49 @@ https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a52
   <TabItem value="rust" label="Rust" default>
 
 ```rust reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/crates/iota-sdk/examples/ledger_sign_send_iota.rs#L39-L40
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/crates/iota-sdk/examples/ledger_sign_send_iota.rs#L39-L40
 ```
 
   </TabItem>
   <TabItem value="go" label="Go">
 
 ```go reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/go/examples/ledger_sign_send_iota/main.go#L52-L53
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/go/examples/ledger_sign_send_iota/main.go#L52-L53
 ```
 
   </TabItem>
   <TabItem value="python" label="Python">
 
 ```python reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/python/examples/ledger_sign_send_iota.py#L34-L35
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/python/examples/ledger_sign_send_iota.py#L34-L35
 ```
 
   </TabItem>
   <TabItem value="kotlin" label="Kotlin">
 
 ```kotlin reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/kotlin/examples/LedgerSignSendIota.kt#L32-L33
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/kotlin/examples/LedgerSignSendIota.kt#L32-L33
 ```
 
   </TabItem>
   <TabItem value="swift" label="Swift">
 
 ```swift reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/swift/examples/LedgerSignSendIota.swift#L33-L34
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/swift/examples/LedgerSignSendIota.swift#L33-L34
 ```
 
   </TabItem>
   <TabItem value="csharp" label="C#">
 
 ```csharp reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/csharp/examples/LedgerSignSendIota/Program.cs#L30-L31
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/csharp/examples/LedgerSignSendIota/Program.cs#L30-L31
 ```
 
   </TabItem>
   <TabItem value="wasm" label="WASM/TS">
 
 ```javascript reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/wasm/examples/ledger_sign_send_iota.mjs#L78-L79
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/wasm/examples/ledger_sign_send_iota.mjs#L78-L79
 ```
 
   </TabItem>
@@ -355,49 +353,49 @@ The transaction builder passes the signer the coins the transaction spends, so t
   <TabItem value="rust" label="Rust" default>
 
 ```rust reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/crates/iota-sdk/examples/ledger_sign_send_iota.rs#L42-L49
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/crates/iota-sdk/examples/ledger_sign_send_iota.rs#L42-L49
 ```
 
   </TabItem>
   <TabItem value="go" label="Go">
 
 ```go reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/go/examples/ledger_sign_send_iota/main.go#L55-L64
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/go/examples/ledger_sign_send_iota/main.go#L55-L64
 ```
 
   </TabItem>
   <TabItem value="python" label="Python">
 
 ```python reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/python/examples/ledger_sign_send_iota.py#L37-L43
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/python/examples/ledger_sign_send_iota.py#L37-L43
 ```
 
   </TabItem>
   <TabItem value="kotlin" label="Kotlin">
 
 ```kotlin reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/kotlin/examples/LedgerSignSendIota.kt#L35-L41
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/kotlin/examples/LedgerSignSendIota.kt#L35-L41
 ```
 
   </TabItem>
   <TabItem value="swift" label="Swift">
 
 ```swift reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/swift/examples/LedgerSignSendIota.swift#L36-L42
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/swift/examples/LedgerSignSendIota.swift#L36-L42
 ```
 
   </TabItem>
   <TabItem value="csharp" label="C#">
 
 ```csharp reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/csharp/examples/LedgerSignSendIota/Program.cs#L33-L38
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/csharp/examples/LedgerSignSendIota/Program.cs#L33-L38
 ```
 
   </TabItem>
   <TabItem value="wasm" label="WASM/TS">
 
 ```javascript reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/wasm/examples/ledger_sign_send_iota.mjs#L81-L89
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/wasm/examples/ledger_sign_send_iota.mjs#L81-L89
 ```
 
   </TabItem>
@@ -431,49 +429,49 @@ The IOTA app shows what a transaction does when it can work that out from the tr
   <TabItem value="rust" label="Rust" default>
 
 ```rust reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/crates/iota-sdk/examples/ledger_sign_send_iota.rs#L4-L52
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/crates/iota-sdk/examples/ledger_sign_send_iota.rs#L4-L52
 ```
 
   </TabItem>
   <TabItem value="go" label="Go">
 
 ```go reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/go/examples/ledger_sign_send_iota/main.go#L4-L65
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/go/examples/ledger_sign_send_iota/main.go#L4-L65
 ```
 
   </TabItem>
   <TabItem value="python" label="Python">
 
 ```python reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/python/examples/ledger_sign_send_iota.py#L4-L47
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/python/examples/ledger_sign_send_iota.py#L4-L47
 ```
 
   </TabItem>
   <TabItem value="kotlin" label="Kotlin">
 
 ```kotlin reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/kotlin/examples/LedgerSignSendIota.kt#L4-L42
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/kotlin/examples/LedgerSignSendIota.kt#L4-L42
 ```
 
   </TabItem>
   <TabItem value="swift" label="Swift">
 
 ```swift reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/swift/examples/LedgerSignSendIota.swift#L4-L44
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/swift/examples/LedgerSignSendIota.swift#L4-L44
 ```
 
   </TabItem>
   <TabItem value="csharp" label="C#">
 
 ```csharp reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/csharp/examples/LedgerSignSendIota/Program.cs#L4-L40
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/csharp/examples/LedgerSignSendIota/Program.cs#L4-L40
 ```
 
   </TabItem>
   <TabItem value="wasm" label="WASM/TS">
 
 ```javascript reference
-https://github.com/iotaledger/iota-rust-sdk/blob/f77a4ff3d5ca819c4d3b09a62043a5253c153747/bindings/wasm/examples/ledger_sign_send_iota.mjs#L4-L89
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/wasm/examples/ledger_sign_send_iota.mjs#L4-L89
 ```
 
   </TabItem>

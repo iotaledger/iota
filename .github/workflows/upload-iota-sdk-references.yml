@@ -114,6 +114,10 @@ jobs:
           cargo install wasm-bindgen-cli --version 0.2.122
           npm install -g pnpm@10 typedoc typedoc-plugin-markdown
 
+      - name: Install libudev for hidapi
+        if: matrix.language != 'wasm'
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev
+
       - name: Generate the ${{ matrix.language }} reference
         run: cd iota-rust-sdk && ./scripts/reference-docs/generate.sh ${{ matrix.language }}
 
