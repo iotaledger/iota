@@ -382,22 +382,20 @@ impl DagState {
             .read_fast_sync_ongoing()
             .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
 
-        // Skip if fast sync is ongoing; the fast commit syncer reinitializes this
-        // state once it completes.
-        if !fast_sync_ongoing {
-            if let Some(last_commit) = last_commit.as_ref() {
-                let recovery_start = last_schedule_update_index.saturating_add(1);
-                store
-                    .scan_commits((recovery_start..=last_commit.index()).into())
-                    .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"))
-                    .iter()
-                    .for_each(|commit| {
-                        for block_ref in commit.block_headers() {
-                            last_committed_rounds[block_ref.author] =
-                                max(last_committed_rounds[block_ref.author], block_ref.round);
-                        }
-                    });
-            }
+        // Catch up from the commits stored after the last `CommitInfo`. Only their
+        // block refs are read, which fast sync stores too.
+        if let Some(last_commit) = last_commit.as_ref() {
+            let recovery_start = last_schedule_update_index.saturating_add(1);
+            store
+                .scan_commits((recovery_start..=last_commit.index()).into())
+                .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"))
+                .iter()
+                .for_each(|commit| {
+                    for block_ref in commit.block_headers() {
+                        last_committed_rounds[block_ref.author] =
+                            max(last_committed_rounds[block_ref.author], block_ref.round);
+                    }
+                });
         }
 
         info!(
@@ -3107,6 +3105,55 @@ mod test {
         // Then all should be found apart from the last one
         expected_headers.insert(3, None);
         assert_eq!(result, expected_headers);
+    }
+
+    /// A restart during fast sync recovers the committed rounds from the
+    /// commits stored after the last `CommitInfo`, which fast sync stores
+    /// without their headers.
+    #[tokio::test]
+    async fn test_recovery_during_fast_sync_updates_committed_rounds_from_stored_commits() {
+        telemetry_subscribers::init_for_testing();
+        let context = Arc::new(Context::new_for_test(4).0);
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=6).build();
+
+        // The CommitInfo is written at commit 3, with the rounds committed up to
+        // it; commits 4 and 5 come after it.
+        let commits_up_to_info = dag_builder.get_sub_dag_and_commits(1..=3);
+        let rounds_at_info = dag_builder.last_committed_rounds.clone();
+        let later_commits = dag_builder.get_sub_dag_and_commits(4..=5);
+        assert_ne!(rounds_at_info, dag_builder.last_committed_rounds);
+        let commit_info = CommitInfo {
+            committed_rounds: rounds_at_info,
+            reputation_scores: ReputationScores::new((1..=3).into(), vec![]),
+        };
+        let store = Arc::new(MemStore::new());
+        store
+            .write(
+                WriteBatch {
+                    fast_commit_sync_flag: Some(true),
+                    ..Default::default()
+                }
+                .commits(
+                    commits_up_to_info
+                        .iter()
+                        .chain(&later_commits)
+                        .map(|(_, commit)| commit.clone())
+                        .collect(),
+                )
+                .commit_info(vec![(
+                    commits_up_to_info.last().unwrap().1.reference(),
+                    commit_info,
+                )]),
+            )
+            .unwrap();
+
+        let dag_state = DagState::new(context, store);
+
+        assert_eq!(
+            dag_state.last_committed_rounds(),
+            dag_builder.last_committed_rounds
+        );
     }
 
     #[tokio::test]
