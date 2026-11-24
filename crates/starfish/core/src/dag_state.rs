@@ -303,8 +303,13 @@ pub(crate) struct DagState {
     /// the next dag state flush. This is okay because we can recover
     /// reputation scores & last_committed_rounds from the commits as
     /// needed.
-    /// The `CommitRef` is the boundary commit — the last commit of the window
-    /// that just closed — so recovery resumes from its index + 1.
+    /// Each entry is a `CommitInfo` keyed by the last commit at the time it was
+    /// written. Its `committed_rounds` field holds, for each authority, the
+    /// highest round of its blocks committed up to that commit. Its
+    /// `reputation_scores` field holds the scores computed over a commit range;
+    /// the leader schedule built from them applies from the end of that range +
+    /// 1 to the end of the next range. The key is that range end, except after a
+    /// recovered backlog, where it is a later commit inside the next range.
     commit_info_to_write: Vec<(CommitRef, CommitInfo)>,
 
     /// Misbehavior scoring metrics (in-memory + persisted buckets).
