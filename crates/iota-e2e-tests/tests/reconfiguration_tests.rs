@@ -506,6 +506,104 @@ async fn test_create_advance_epoch_tx_race() {
     test_cluster.wait_for_epoch(None).await;
 }
 
+/// A transaction a validator accepts for the new epoch while the consensus of
+/// the ended epoch is still running executes from that one submission.
+#[cfg(msim)]
+#[sim_test]
+async fn transaction_accepted_before_old_consensus_stops_is_executed() {
+    use std::{
+        net::SocketAddr,
+        sync::atomic::{AtomicUsize, Ordering},
+    };
+
+    use iota_core::authority_client::validator_v2::ValidatorV2API;
+    use iota_macros::register_fail_point_async;
+    use iota_types::messages_grpc::TxStatusUpdate;
+    use tokio::sync::watch;
+
+    // Every validator stops between the new epoch store going live and the
+    // shutdown of its consensus, so the old consensus keeps its quorum.
+    let waiting = Arc::new(AtomicUsize::new(0));
+    let (release, _) = watch::channel(false);
+    let release = Arc::new(release);
+    {
+        let waiting = waiting.clone();
+        let release = release.clone();
+        register_fail_point_async("reconfig_before_consensus_shutdown", move || {
+            waiting.fetch_add(1, Ordering::SeqCst);
+            let mut released = release.subscribe();
+            async move {
+                released.wait_for(|released| *released).await.unwrap();
+            }
+        });
+    }
+
+    // `submit_tx` needs the P-COOL flow.
+    let _pcool_guard = override_pcool_flow(true);
+
+    let test_cluster = TestClusterBuilder::new()
+        .with_epoch_duration_ms(30_000)
+        .build()
+        .await;
+    let validators = test_cluster.get_validator_pubkeys();
+
+    let transaction = test_cluster
+        .test_transaction_builder()
+        .await
+        .transfer_iota(None, Address::random())
+        .build();
+    let transaction = test_cluster.wallet.sign_transaction(&transaction);
+    let digest = *transaction.digest();
+
+    tokio::time::timeout(Duration::from_secs(120), async {
+        while waiting.load(Ordering::SeqCst) < validators.len() {
+            sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("every validator should reach the epoch change");
+
+    let submitted = test_cluster.authority_aggregator().authority_clients[&validators[0]]
+        .authority_client()
+        .submit_tx(
+            vec![transaction],
+            Some(SocketAddr::new([127, 0, 0, 1].into(), 0)),
+        )
+        .await
+        .unwrap();
+    assert!(
+        matches!(
+            submitted.as_slice(),
+            [(submitted_digest, TxStatusUpdate::Submitted)] if *submitted_digest == digest
+        ),
+        "the validator should accept the transaction for the new epoch, got {submitted:?}"
+    );
+
+    // Time for the old consensus to sequence a block.
+    sleep(Duration::from_secs(5)).await;
+    release.send(true).unwrap();
+
+    let node = test_cluster
+        .swarm
+        .validator_node_handles()
+        .into_iter()
+        .find(|node| node.with(|node| node.state().name) == validators[0])
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(60), async {
+        while node.with(|node| {
+            node.state()
+                .get_transaction_cache_reader()
+                .try_get_executed_effects(&digest)
+                .unwrap()
+                .is_none()
+        }) {
+            sleep(Duration::from_millis(500)).await;
+        }
+    })
+    .await
+    .expect("the transaction should execute without being submitted again");
+}
+
 #[sim_test]
 async fn test_reconfig_with_failing_validator() {
     iota_protocol_config::ProtocolConfig::poison_get_for_min_version();

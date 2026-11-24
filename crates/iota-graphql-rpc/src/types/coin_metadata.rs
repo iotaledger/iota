@@ -8,7 +8,6 @@ use iota_types::coin::{CoinMetadata as NativeCoinMetadata, TreasuryCap};
 
 use crate::{
     config::DEFAULT_PAGE_SIZE,
-    connection::ScanConnection,
     context_data::db_data_provider::PgManager,
     data::Db,
     error::Error,
@@ -26,7 +25,9 @@ use crate::{
         object::{self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus},
         owner::OwnerImpl,
         stake::StakedIota,
-        transaction_block::{self, TransactionBlock, TransactionBlockFilter},
+        transaction_block::{
+            self, TransactionBlock, TransactionBlockConnection, TransactionBlockFilter,
+        },
         type_filter::ExactTypeFilter,
         uint53::UInt53,
     },
@@ -236,7 +237,7 @@ impl CoinMetadata {
             deprecation = "`scanLimit` will be removed with v1.38, along with the support for combining complex filters."
         )]
         scan_limit: Option<u64>,
-    ) -> Result<ScanConnection<String, TransactionBlock>> {
+    ) -> Result<TransactionBlockConnection> {
         ObjectImpl(&self.super_.super_)
             .received_transaction_blocks(ctx, first, after, last, before, filter, scan_limit)
             .await

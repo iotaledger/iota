@@ -175,6 +175,22 @@ impl From<BlockRef> for StreamPosition {
     }
 }
 
+/// What happened to a valid streamed bundle.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum BlockBundleOutcome {
+    /// The block was sent to the core with the bundled headers.
+    ForwardedToCore,
+    /// The block's round is above the far-future ceiling; only the bundled
+    /// headers were used.
+    DroppedFarFuture,
+    /// The last commit lags the quorum commit too far; the whole bundle was
+    /// refused.
+    RejectedCommitLag,
+    /// The last solid commit lags the last commit too far; the whole bundle
+    /// was refused.
+    RejectedSolidCommitLag,
+}
+
 /// Network service for handling requests from peers.
 #[async_trait]
 pub(crate) trait NetworkService: Send + Sync + 'static {
@@ -183,14 +199,15 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     /// serialized_block must be verified before its contents are trusted.
     /// `last_streamed_block` is the highest round of the peer's own blocks the
     /// receiver holds, from the subscription request or from this connection;
-    /// the caller keeps it per connection.
+    /// the caller keeps it per connection. Returns an error only for invalid
+    /// data from the peer or a local failure.
     async fn handle_subscribed_block_bundle(
         &self,
         peer: AuthorityIndex,
         serialized_block_bundle: SerializedBlockBundle,
         encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
         last_streamed_block: &mut StreamPosition,
-    ) -> ConsensusResult<()>;
+    ) -> ConsensusResult<BlockBundleOutcome>;
 
     /// Handles the subscription request from the peer.
     /// A stream of newly proposed blocks with additional data (headers or

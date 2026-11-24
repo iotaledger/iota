@@ -6660,7 +6660,7 @@ async fn test_move_new() -> Result<(), anyhow::Error> {
                 verbose_mode: false,
                 seed: None,
                 rand_num_iters: None,
-                trace_execution: false,
+                trace_execution: None,
             },
         }),
     }

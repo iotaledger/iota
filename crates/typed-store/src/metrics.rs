@@ -341,6 +341,7 @@ pub struct OperationMetrics {
     pub rocksdb_batch_commit_latency_seconds: HistogramVec,
     pub rocksdb_batch_commit_bytes: HistogramVec,
     pub rocksdb_num_active_db_handles: IntGaugeVec,
+    pub rocksdb_close_duration_ms: IntGaugeVec,
     pub rocksdb_very_slow_batch_writes_count: IntCounterVec,
     pub rocksdb_very_slow_batch_writes_duration_ms: IntCounterVec,
     pub rocksdb_very_slow_puts_count: IntCounterVec,
@@ -492,6 +493,14 @@ impl OperationMetrics {
                 &["db_name"],
                 registry;
                 MetricLevel::Trace,
+            )
+            .unwrap(),
+            rocksdb_close_duration_ms: register_int_gauge_vec_with_registry!(
+                "rocksdb_close_duration_ms",
+                "Time taken by the last close of the database, in milliseconds",
+                &["db_name"],
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             rocksdb_very_slow_batch_writes_count: register_int_counter_vec_with_registry!(

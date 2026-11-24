@@ -3297,7 +3297,6 @@ async fn aggregator_with_one_validator_forging_extended_data(
                 input_objects: None,
                 output_objects: Some(
                     real.output_objects
-                        .clone()
                         .unwrap()
                         .into_iter()
                         .map(|o| {

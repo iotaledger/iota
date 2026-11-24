@@ -1375,7 +1375,7 @@ mod tests {
                 // only write one block for the final round, which is the leader
                 // of the committed subdag.
                 if round == max_round {
-                    leader = Some(block.clone());
+                    leader = Some(block);
                     break;
                 }
             }

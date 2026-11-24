@@ -49,7 +49,8 @@ pub(crate) type WaveNumber = u32;
 /// `CommitV3` is the largest variant. Its sub-DAG holds the leader and at most
 /// one block per authority in each of the `gc_depth` rounds below it.
 /// `committed_transactions` holds one [`TransactionRef`] per block whose
-/// acknowledgments reach a quorum in this commit; a block acknowledges blocks
+/// acknowledgments reach a quorum in this commit, or that this commit
+/// traverses after its quorum was reached earlier; a block acknowledges blocks
 /// at most `gc_depth` rounds below it, so these span the `2 * gc_depth` rounds
 /// below the leader, plus the leader itself in an optimistic commit.
 /// `reputation_scores_desc` holds at most one entry per authority.
@@ -1266,7 +1267,7 @@ mod tests {
                 // only write one block for the final round, which is the leader
                 // of the committed subdag.
                 if round == first_wave_rounds {
-                    leader = Some(block.clone());
+                    leader = Some(block);
                     break;
                 }
             }
@@ -1356,7 +1357,7 @@ mod tests {
                 // only write one block for the final round, which is the leader
                 // of the committed subdag.
                 if round == first_wave_rounds {
-                    leader = Some(block.clone());
+                    leader = Some(block);
                     break;
                 }
             }

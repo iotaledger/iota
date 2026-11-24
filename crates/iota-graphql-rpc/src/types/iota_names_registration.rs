@@ -31,14 +31,15 @@ use super::{
     owner::OwnerImpl,
     stake::StakedIota,
     string_input::impl_string_input,
-    transaction_block::{self, TransactionBlock, TransactionBlockFilter},
+    transaction_block::{
+        self, TransactionBlock, TransactionBlockConnection, TransactionBlockFilter,
+    },
     type_filter::ExactTypeFilter,
     uint53::UInt53,
 };
 use crate::{
     backward_view::consistent,
     config::DEFAULT_PAGE_SIZE,
-    connection::ScanConnection,
     data::{Db, DbConnection, QueryExecutor},
     error::Error,
     types::object::{ObjectOwner, StoredBackwardObject},
@@ -290,7 +291,7 @@ impl NameRegistration {
             deprecation = "`scanLimit` will be removed with v1.38, along with the support for combining complex filters."
         )]
         scan_limit: Option<u64>,
-    ) -> Result<ScanConnection<String, TransactionBlock>> {
+    ) -> Result<TransactionBlockConnection> {
         ObjectImpl(&self.super_.super_)
             .received_transaction_blocks(ctx, first, after, last, before, filter, scan_limit)
             .await

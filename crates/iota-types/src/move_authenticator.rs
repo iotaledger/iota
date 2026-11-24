@@ -201,6 +201,12 @@ impl MoveAuthenticatorExt for MoveAuthenticatorV1 {
                     "MoveAuthenticator cannot authenticate receiving objects".to_string(),
                 ));
             }
+            CallArg::TransactionDependency(_) => {
+                return Err(UserInputError::Unsupported(
+                    "MoveAuthenticator cannot authenticate transaction dependency inputs"
+                        .to_string(),
+                ));
+            }
             _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         })
     }
@@ -274,6 +280,14 @@ impl MoveAuthenticatorExt for MoveAuthenticatorV1 {
             self.receiving_objects().is_empty(),
             UserInputError::Unsupported(
                 "MoveAuthenticatorV1 cannot have receiving objects as input".to_string(),
+            )
+        );
+        fp_ensure!(
+            self.call_args()
+                .iter()
+                .all(|arg| !matches!(arg, CallArg::TransactionDependency(_))),
+            UserInputError::Unsupported(
+                "MoveAuthenticatorV1 cannot have transaction dependency inputs".to_string(),
             )
         );
 

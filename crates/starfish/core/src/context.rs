@@ -47,6 +47,8 @@ pub(crate) struct Context {
     pub peer_responsiveness: Arc<PeerResponsiveness>,
     /// Commitment over an empty transaction list for this committee.
     pub(crate) empty_transactions_commitment: TransactionsCommitment,
+    /// When this authority started.
+    pub start_time: std::time::Instant,
 }
 
 impl Context {
@@ -72,6 +74,21 @@ impl Context {
             clock,
             peer_responsiveness,
             empty_transactions_commitment,
+            start_time: std::time::Instant::now(),
+        }
+    }
+
+    /// Records how long after start this authority first reached `stage`.
+    /// Callers record only stages that a restart in the middle of the epoch
+    /// does not reach again.
+    pub(crate) fn record_epoch_start_stage(&self, stage: &str) {
+        let gauge = self
+            .metrics
+            .node_metrics
+            .epoch_start_stage_ms
+            .with_label_values(&[stage]);
+        if gauge.get() == 0 {
+            gauge.set(self.start_time.elapsed().as_millis() as i64);
         }
     }
 

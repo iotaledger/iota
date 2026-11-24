@@ -14,6 +14,7 @@ use std::{
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{Stream, StreamExt as _, TryStreamExt as _, future, stream};
+use hyper_util::client::legacy::connect::HttpConnector;
 use iota_http::{PeerConnectionEvent, ServerHandle};
 use iota_network_stack::{
     Multiaddr,
@@ -452,8 +453,8 @@ impl NetworkClient for TonicClient {
 /// Reads the commits and certifier headers of a
 /// `fetch_commits_and_transactions` response stream, which come before its
 /// transactions, and returns the rest of the stream as transaction chunks. If
-/// the stream is cut by an error after commits arrived, the transaction chunks
-/// end with that error.
+/// the stream is cut by an error after the transactions started, the
+/// transaction chunks end with that error; an earlier cut fails the fetch.
 async fn collect_commits_and_transactions<S>(
     context: &Context,
     peer: AuthorityIndex,
@@ -560,19 +561,9 @@ where
                         limit: FetchCommitsAndTransactionsResponse::MAX_ENTRIES,
                     });
                 }
-                let error = mid_stream_error(e);
-                if commits.is_empty() {
-                    return Err(error);
-                }
-                // Keep what arrived and surface the cut alongside it: only
-                // the caller can tell whether the delivered chunks cover
-                // anything usable.
-                warn!("fetch_commits_and_transactions from {peer} failed mid-stream: {error}");
-                return Ok(FetchedCommitsAndTransactions {
-                    commits,
-                    certifier_block_headers,
-                    transactions: stream::once(future::ready(Err(error))).boxed(),
-                });
+                // A cut here can leave commits without the votes that certify
+                // them, and checking those would charge the peer for the cut.
+                return Err(mid_stream_error(e));
             }
         }
     };
@@ -909,6 +900,12 @@ impl ChannelPool {
                 Ok(channel) => return Ok(channel),
                 Err(e) => e,
             };
+            self.context
+                .metrics
+                .node_metrics
+                .subscriber_connect_failures
+                .with_label_values(&[self.context.authority_hostname(peer)])
+                .inc();
             let retry_at = tokio::time::Instant::now() + Duration::from_secs(1);
             if retry_at >= deadline {
                 return Err(error);
@@ -980,21 +977,31 @@ impl ChannelPool {
             .tls_config(client_tls_config)
             .unwrap();
 
+        // `Endpoint::connect` bounds only the TCP connect by `connect_timeout`.
+        // Passing the connector in bounds every connection attempt of the
+        // channel, TLS handshake included, so a reconnect to a peer that
+        // stalls the handshake gives up too.
+        let mut http = HttpConnector::new();
+        http.enforce_http(false);
+        http.set_nodelay(true);
+        http.set_connect_timeout(Some(connect_timeout));
+
         trace!("Connecting to endpoint at {address}");
-        let channel = match tokio::time::timeout_at(deadline, endpoint.connect()).await {
-            Ok(Ok(channel)) => channel,
-            Ok(Err(e)) => {
-                debug!("Failed to connect to endpoint at {address}: {e:?}");
-                return Err(ConsensusError::NetworkClientConnection(format!(
-                    "Failed to connect to endpoint at {address}: {e:?}"
-                )));
-            }
-            Err(_) => {
-                return Err(ConsensusError::NetworkClientConnection(format!(
-                    "Timed out connecting to endpoint at {address}"
-                )));
-            }
-        };
+        let channel =
+            match tokio::time::timeout_at(deadline, endpoint.connect_with_connector(http)).await {
+                Ok(Ok(channel)) => channel,
+                Ok(Err(e)) => {
+                    debug!("Failed to connect to endpoint at {address}: {e:?}");
+                    return Err(ConsensusError::NetworkClientConnection(format!(
+                        "Failed to connect to endpoint at {address}: {e:?}"
+                    )));
+                }
+                Err(_) => {
+                    return Err(ConsensusError::NetworkClientConnection(format!(
+                        "Timed out connecting to endpoint at {address}"
+                    )));
+                }
+            };
         trace!("Connected to {address}");
 
         let channel = tower::ServiceBuilder::new()
@@ -2462,23 +2469,37 @@ mod tests {
         ));
     }
 
-    /// A stream cut before anything arrived delivers nothing to keep, so the
-    /// fetch fails outright.
+    /// A stream cut before the transactions start fails the fetch, including
+    /// after commits and, from older servers, certifier headers arrived.
     #[tokio::test]
-    async fn cut_before_any_commit_fails_the_fetch() {
+    async fn cut_before_the_transactions_fails_the_fetch() {
         let (context, _keys) = Context::new_for_test(4);
         let peer = AuthorityIndex::new_for_test(1);
-        let cut = stream::iter([Err(tonic::Status::unknown("h2 protocol error"))]);
+        let cut = || Err(tonic::Status::unknown("h2 protocol error"));
+        let headers_first = FetchCommitsAndTransactionsResponse {
+            certifier_block_headers: vec![Bytes::from_static(b"header")],
+            ..chunk(2, 0)
+        };
+        for responses in [
+            vec![cut()],
+            vec![Ok(chunk(2, 0)), cut()],
+            vec![Ok(headers_first), Ok(chunk(2, 0)), cut()],
+        ] {
+            let result = collect_commits_and_transactions(
+                &context,
+                peer,
+                &requested_range(),
+                stream::iter(responses),
+            )
+            .await;
 
-        let result =
-            collect_commits_and_transactions(&context, peer, &requested_range(), cut).await;
-
-        assert!(matches!(result, Err(ConsensusError::NetworkRequest(_))));
+            assert!(matches!(result, Err(ConsensusError::NetworkRequest(_))));
+        }
     }
 
-    /// A cut after commits arrived keeps the delivered chunks and returns the
-    /// error alongside them, so the caller can attribute missing transactions
-    /// to the connection instead of the peer's data.
+    /// A cut after the transactions started keeps the delivered chunks and
+    /// returns the error alongside them, so the caller can attribute missing
+    /// transactions to the connection instead of the peer's data.
     #[tokio::test]
     async fn cut_after_commits_keeps_the_delivered_chunks_and_the_error() {
         let (context, _keys) = Context::new_for_test(4);
@@ -2531,14 +2552,12 @@ mod tests {
             Err(tonic::Status::deadline_exceeded("deadline")),
         ]);
 
-        let response = collect_commits_and_transactions(&context, peer, &requested_range(), cut)
-            .await
-            .expect("a cut after commits arrived keeps them");
-        let (_transactions, stream_error) = read_to_end(response.transactions).await;
+        let result =
+            collect_commits_and_transactions(&context, peer, &requested_range(), cut).await;
 
         assert!(matches!(
-            stream_error,
-            Some(ConsensusError::NetworkRequestTimeout(_))
+            result,
+            Err(ConsensusError::NetworkRequestTimeout(_))
         ));
     }
 
@@ -2872,6 +2891,102 @@ mod tests {
         long.abort();
     }
 
+    /// A pooled channel whose peer comes back without answering the TLS
+    /// handshake fails each call once the connect timeout passes, instead of
+    /// hanging, and connects again once the peer serves.
+    #[cfg(not(msim))]
+    #[tokio::test]
+    async fn pooled_channel_gives_up_on_a_peer_that_stalls_the_tls_handshake() {
+        use std::{net::TcpListener, time::Duration};
+
+        use parking_lot::Mutex;
+
+        use super::{TonicManager, to_socket_addr};
+        use crate::network::{NetworkClient as _, test_network::TestService};
+
+        const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
+        /// How long the test waits for a call before deciding that no deadline
+        /// ended it. Far longer than `CONNECT_TIMEOUT`, so a slow machine does
+        /// not fail the test.
+        const GIVE_UP: Duration = Duration::from_secs(10);
+
+        let (context, keys) = Context::new_for_test(4);
+        let server_index = context.committee.to_authority_index(0).unwrap();
+        let server_context = Arc::new(context.clone().with_authority_index(server_index));
+        let start_server = || {
+            let mut server = TonicManager::new(server_context.clone(), keys[0].0.clone());
+            async move {
+                server
+                    .install_service(Arc::new(Mutex::new(TestService::new())))
+                    .await;
+                server
+            }
+        };
+        let mut server = start_server().await;
+
+        let client_context = Arc::new(
+            context
+                .clone()
+                .with_authority_index(context.committee.to_authority_index(1).unwrap()),
+        );
+        let client =
+            TonicManager::<Mutex<TestService>>::new(client_context, keys[1].0.clone()).client();
+        client
+            .channel_pool
+            .get_channel(
+                client.network_keypair.clone(),
+                server_index,
+                CONNECT_TIMEOUT,
+            )
+            .await
+            .expect("the server is up");
+
+        server.stop().await;
+        // Never accepted, so the TLS handshake of the next connection attempt
+        // gets no answer.
+        let listener = TcpListener::bind(
+            to_socket_addr(&context.committee.authority(server_index).address).unwrap(),
+        )
+        .unwrap();
+
+        // The first call can still reach the closing connection and fail at
+        // once. The second one has to connect again.
+        for call in 1..=2 {
+            let started = tokio::time::Instant::now();
+            // A request timeout past `GIVE_UP`, so only the connect timeout
+            // can end the call in time.
+            let result = tokio::time::timeout(
+                GIVE_UP,
+                client.fetch_commits(server_index, (1..=2).into(), 2 * GIVE_UP),
+            )
+            .await
+            .unwrap_or_else(|_| panic!("call {call} was still pending after {GIVE_UP:?}"));
+            assert!(
+                matches!(result, Err(ConsensusError::NetworkRequest(_))),
+                "call {call} must fail, got {result:?}"
+            );
+            if call == 2 {
+                assert!(
+                    started.elapsed() >= CONNECT_TIMEOUT,
+                    "call {call} failed after {:?}, before the connect timeout: {result:?}",
+                    started.elapsed()
+                );
+            }
+        }
+
+        drop(listener);
+        let _server = start_server().await;
+        // Only a call makes the pooled channel connect; taking it from the
+        // pool does not.
+        tokio::time::timeout(
+            GIVE_UP,
+            client.fetch_commits(server_index, (1..=2).into(), GIVE_UP),
+        )
+        .await
+        .unwrap_or_else(|_| panic!("the call was still pending after {GIVE_UP:?}"))
+        .expect("the pooled channel connects again once the peer serves");
+    }
+
     /// A header fetch whose request message never arrives is charged to its
     /// peer's budget from the moment its headers land, so a peer cannot stack
     /// pending decodes across connections. The permit is returned when the
@@ -3136,8 +3251,9 @@ mod tests {
         let admitted = fetch().await.expect("the shared budget is free again");
         assert_eq!(in_use.get(), 2);
 
-        // Reading the abandoned response fails before its payload arrives,
-        // and only that releases the peer's slot.
+        // Reading the abandoned response fails with the deadline before its
+        // payload arrives, and only that ends the stream and releases the
+        // peer's slot.
         let mut unread = unread.into_inner();
         let read_to_the_end = async {
             while let Some(response) = unread.message().await? {
@@ -3149,12 +3265,14 @@ mod tests {
             Ok::<(), tonic::Status>(())
         }
         .await;
-        assert!(
-            read_to_the_end.is_err(),
-            "reading a reclaimed response must fail"
+        assert_eq!(
+            read_to_the_end
+                .expect_err("reading a reclaimed response must fail")
+                .code(),
+            tonic::Code::DeadlineExceeded
         );
         drop((unread, admitted));
-        settles("the reset streams keep their slots", &|| in_use.get() == 0).await;
+        settles("the ended streams keep their slots", &|| in_use.get() == 0).await;
         // The deadline fired once, for the response that was never read.
         tokio::time::sleep(SEND_TIMEOUT).await;
         assert_eq!(reclaimed.get(), 1);

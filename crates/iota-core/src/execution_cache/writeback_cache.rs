@@ -63,7 +63,6 @@ use iota_sdk_types::{
 use iota_types::{
     attestation::AttestationRecord,
     base_types::{EpochId, VerifiedExecutionData},
-    effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
     global_state_hash::GlobalStateHash,
@@ -231,9 +230,6 @@ struct UncommittedData {
     // marker_cache.
     markers: DashMap<MarkerKey, CachedVersionMap<MarkerValue>>,
 
-    // The epoch in which each consumed object version stopped being current.
-    superseded_versions: DashMap<ObjectId, CachedVersionMap<EpochId>>,
-
     transaction_effects: DashMap<TransactionEffectsDigest, TransactionEffects>,
 
     transaction_events: DashMap<TransactionDigest, TransactionEvents>,
@@ -253,7 +249,6 @@ impl UncommittedData {
         Self {
             objects: DashMap::with_shard_amount(2048),
             markers: DashMap::with_shard_amount(2048),
-            superseded_versions: DashMap::with_shard_amount(2048),
             transaction_effects: DashMap::with_shard_amount(2048),
             executed_effects_digests: DashMap::with_shard_amount(2048),
             pending_transaction_writes: DashMap::with_shard_amount(2048),
@@ -266,7 +261,6 @@ impl UncommittedData {
     fn clear(&self) {
         self.objects.clear();
         self.markers.clear();
-        self.superseded_versions.clear();
         self.transaction_effects.clear();
         self.executed_effects_digests.clear();
         self.pending_transaction_writes.clear();
@@ -283,7 +277,6 @@ impl UncommittedData {
             assert!(
                 self.objects.is_empty()
                     && self.markers.is_empty()
-                    && self.superseded_versions.is_empty()
                     && self.transaction_effects.is_empty()
                     && self.executed_effects_digests.is_empty()
                     && self.transaction_events.is_empty()
@@ -330,9 +323,6 @@ struct CachedCommittedData {
     // See module level comment for an explanation of caching strategy.
     marker_cache: MokaCache<MarkerKey, Arc<Mutex<CachedVersionMap<MarkerValue>>>>,
 
-    // See module level comment for an explanation of caching strategy.
-    superseded_version_cache: MokaCache<ObjectId, Arc<Mutex<CachedVersionMap<EpochId>>>>,
-
     transactions: MonotonicCache<TransactionDigest, PointCacheItem<Arc<VerifiedTransaction>>>,
 
     transaction_effects:
@@ -360,12 +350,6 @@ impl CachedCommittedData {
                 config.marker_cache_size(),
             ))
             .build();
-        let superseded_version_cache = MokaCache::builder(8)
-            .max_capacity(randomize_cache_capacity_in_tests(
-                config.marker_cache_size(),
-            ))
-            .build();
-
         let transactions = MonotonicCache::new(randomize_cache_capacity_in_tests(
             config.transaction_cache_size(),
         ));
@@ -388,7 +372,6 @@ impl CachedCommittedData {
         Self {
             object_cache,
             marker_cache,
-            superseded_version_cache,
             transactions,
             transaction_effects,
             transaction_events,
@@ -400,7 +383,6 @@ impl CachedCommittedData {
     fn clear(&self) {
         self.object_cache.invalidate_all();
         self.marker_cache.invalidate_all();
-        self.superseded_version_cache.invalidate_all();
         self.transactions.invalidate_all();
         self.transaction_effects.invalidate_all();
         self.transaction_events.invalidate_all();
@@ -413,7 +395,6 @@ impl CachedCommittedData {
 
         assert_empty(&self.object_cache);
         assert_empty(&self.marker_cache);
-        assert_empty(&self.superseded_version_cache);
         assert!(self.transactions.is_empty());
         assert!(self.transaction_effects.is_empty());
         assert!(self.transaction_events.is_empty());
@@ -820,35 +801,6 @@ impl WritebackCache {
         )
     }
 
-    fn get_object_superseded_in_epoch_cache_only(
-        &self,
-        object_id: &ObjectId,
-        version: Version,
-    ) -> CacheResult<EpochId> {
-        Self::with_locked_cache_entries(
-            &self.dirty.superseded_versions,
-            &self.cached.superseded_version_cache,
-            object_id,
-            |dirty_entry, cached_entry| {
-                check_cache_entry_by_version!(
-                    self,
-                    "superseded_version",
-                    "uncommitted",
-                    dirty_entry,
-                    version
-                );
-                check_cache_entry_by_version!(
-                    self,
-                    "superseded_version",
-                    "committed",
-                    cached_entry,
-                    version
-                );
-                CacheResult::Miss
-            },
-        )
-    }
-
     fn get_latest_marker_value_cache_only(
         &self,
         object_id: &ObjectId,
@@ -1167,18 +1119,6 @@ impl WritebackCache {
             self.write_marker_value(epoch_id, object_key, *marker_value);
         }
 
-        // The versions this transaction consumed stop being current here.
-        if tx_outputs.record_superseded_versions {
-            for modified in effects.modified_at_versions() {
-                self.dirty
-                    .superseded_versions
-                    .entry(*modified.object_id())
-                    .or_default()
-                    .value_mut()
-                    .insert(modified.version(), epoch_id);
-            }
-        }
-
         // Write children before parents to ensure that readers do not observe a parent
         // object before its most recent children are visible.
         for (object_id, object) in written.iter() {
@@ -1197,6 +1137,9 @@ impl WritebackCache {
             }
         }
 
+        // The objects above are readable before the effects below are. The
+        // attestation judge waits for the effects of a version it can read,
+        // so both must stay in this one synchronous call.
         let tx_digest = *transaction.digest();
         let effects_digest = effects.digest();
 
@@ -1297,32 +1240,33 @@ impl WritebackCache {
     fn commit_transaction_outputs(
         &self,
         epoch: EpochId,
-        (all_outputs, db_batch): Batch,
+        batch: Batch,
         digests: &[TransactionDigest],
     ) -> IotaResult {
         let _metrics_guard =
             iota_metrics::monitored_scope("WritebackCache::commit_transaction_outputs");
+        let all_outputs = self.write_transaction_outputs_batch(batch, digests);
+        self.flush_committed_transaction_outputs(epoch, &all_outputs);
+        Ok(())
+    }
+
+    // Writes the batch to the db and returns the outputs to flush.
+    fn write_transaction_outputs_batch(
+        &self,
+        (all_outputs, db_batch): Batch,
+        digests: &[TransactionDigest],
+    ) -> Vec<Arc<TransactionOutputs>> {
         fail_point!("writeback-cache-commit");
         trace!(?digests);
 
-        // Flush writes to disk before removing anything from dirty set. otherwise,
-        // a cache eviction could cause a value to disappear briefly, even if we insert
-        // to the cache before removing from the dirty set.
-        db_batch.write().expect("db error");
-
-        let _metrics_guard =
-            iota_metrics::monitored_scope("WritebackCache::commit_transaction_outputs::flush");
-        for outputs in all_outputs.iter() {
-            let tx_digest = outputs.transaction.digest();
-            assert!(
-                self.dirty
-                    .pending_transaction_writes
-                    .remove(tx_digest)
-                    .is_some()
-            );
-            self.flush_transactions_from_dirty_to_cached(epoch, *tx_digest, outputs);
+        {
+            let _metrics_guard =
+                iota_metrics::monitored_scope("WritebackCache::commit_transaction_outputs::write");
+            db_batch.write().expect("db error");
         }
 
+        // Counted here and not at the flush, so the pending count that load
+        // shedding reads does not depend on when the flush runs.
         let num_outputs = all_outputs.len() as u64;
         let num_commits = self
             .dirty
@@ -1338,7 +1282,32 @@ impl WritebackCache {
 
         self.set_backpressure(pending_count);
 
-        Ok(())
+        all_outputs
+    }
+
+    // Moves the outputs from the dirty set to the cache. Only after they are
+    // written to the db: otherwise a cache eviction could make a value
+    // disappear briefly, even if it is inserted into the cache before it is
+    // removed from the dirty set.
+    fn flush_committed_transaction_outputs(
+        &self,
+        epoch: EpochId,
+        all_outputs: &[Arc<TransactionOutputs>],
+    ) {
+        let _metrics_guard =
+            iota_metrics::monitored_scope("WritebackCache::commit_transaction_outputs::flush");
+        for outputs in all_outputs {
+            let tx_digest = outputs.transaction.digest();
+            self.flush_transactions_from_dirty_to_cached(epoch, *tx_digest, outputs);
+            // Last: the cache may hold a remembered miss for this transaction,
+            // which a reader takes as absent without asking the database.
+            assert!(
+                self.dirty
+                    .pending_transaction_writes
+                    .remove(tx_digest)
+                    .is_some()
+            );
+        }
     }
 
     fn approximate_pending_transaction_count(&self) -> u64 {
@@ -1445,18 +1414,6 @@ impl WritebackCache {
                 object_key.1,
                 marker_value,
             );
-        }
-
-        if outputs.record_superseded_versions {
-            for modified in effects.modified_at_versions() {
-                Self::move_version_from_dirty_to_cache(
-                    &self.dirty.superseded_versions,
-                    &self.cached.superseded_version_cache,
-                    *modified.object_id(),
-                    modified.version(),
-                    &epoch,
-                );
-            }
         }
 
         for (object_id, object) in written.iter() {
@@ -1659,6 +1616,22 @@ impl ExecutionCacheCommit for WritebackCache {
         WritebackCache::commit_transaction_outputs(self, epoch, batch, digests)
     }
 
+    fn write_transaction_outputs_batch(
+        &self,
+        batch: Batch,
+        digests: &[TransactionDigest],
+    ) -> Vec<Arc<TransactionOutputs>> {
+        WritebackCache::write_transaction_outputs_batch(self, batch, digests)
+    }
+
+    fn flush_committed_transaction_outputs(
+        &self,
+        epoch: EpochId,
+        outputs: &[Arc<TransactionOutputs>],
+    ) {
+        WritebackCache::flush_committed_transaction_outputs(self, epoch, outputs)
+    }
+
     fn try_persist_transaction(&self, tx: &VerifiedExecutableTransaction) -> IotaResult {
         self.store.persist_transaction(tx)
     }
@@ -1763,6 +1736,27 @@ impl ObjectCacheRead for WritebackCache {
         self.store
             .get_historic_objects()
             .get_in_epoch(epoch, &ObjectKey(*object_id, version))
+    }
+
+    fn try_find_lowest_version_above_in_epoch(
+        &self,
+        object_id: &ObjectId,
+        version: Version,
+        epoch: EpochId,
+    ) -> IotaResult<Option<(Version, bool)>> {
+        // Uncommitted first: the commit writes the store before it drops the
+        // uncommitted copy, so a racing commit cannot hide the version.
+        let uncommitted = self.dirty.objects.get(object_id).and_then(|versions| {
+            versions
+                .get_least_above(&version)
+                .map(|(version, _)| *version)
+        });
+        let committed = self
+            .record_db_get("lowest_version_above")
+            .find_lowest_version_above_in_epoch(object_id, version, epoch)?;
+        let lowest = uncommitted.into_iter().chain(committed).min();
+        // A version the store holds was written with its writer's effects.
+        Ok(lowest.map(|lowest| (lowest, committed != Some(lowest))))
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -2072,21 +2066,6 @@ impl ObjectCacheRead for WritebackCache {
         }
     }
 
-    fn try_object_superseded_in_epoch(
-        &self,
-        object_id: &ObjectId,
-        version: Version,
-        epoch: EpochId,
-    ) -> IotaResult<bool> {
-        match self.get_object_superseded_in_epoch_cache_only(object_id, version) {
-            CacheResult::Hit(superseded_in) => Ok(superseded_in == epoch),
-            CacheResult::NegativeHit => Ok(false),
-            CacheResult::Miss => self
-                .record_db_get("superseded_version")
-                .object_superseded_in_epoch(object_id, version, epoch),
-        }
-    }
-
     fn try_get_latest_marker(
         &self,
         object_id: &ObjectId,
@@ -2212,6 +2191,17 @@ impl ObjectCacheRead for WritebackCache {
             .boxed()
     }
 
+    fn try_multi_transactions_executed(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<bool>> {
+        Ok(self
+            .try_multi_get_executed_effects_digests(digests)?
+            .into_iter()
+            .map(|effects_digest| effects_digest.is_some())
+            .collect())
+    }
+
     fn multi_input_objects_available_cache_only(&self, keys: &[InputKey]) -> Vec<bool> {
         keys.iter()
             .map(|key| {
@@ -2224,6 +2214,10 @@ impl ObjectCacheRead for WritebackCache {
                             CacheResult::Hit(_)
                         ),
                         InputKey::Package { id } => self.packages.contains_key(id),
+                        InputKey::ExecutedTransaction { digest } => matches!(
+                            self.executed_effects_digest_from_memory(digest),
+                            CacheResult::Hit(Some(_))
+                        ),
                     }
                 }
             })

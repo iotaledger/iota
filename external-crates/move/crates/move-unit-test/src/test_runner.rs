@@ -27,7 +27,10 @@ use move_core_types::{
     u256::U256,
     vm_status::StatusCode,
 };
-use move_trace_format::format::{MoveTraceBuilder, TRACE_FILE_EXTENSION};
+use move_trace_format::{
+    format::{MoveTraceBuilder, TRACE_FILE_EXTENSION},
+    tracers::{function_only::FunctionOnlyTracer, instruction_only::InstructionOnlyTracer},
+};
 use move_vm_runtime::{
     move_vm::MoveVM, native_extensions::NativeContextExtensions,
     native_functions::NativeFunctionTable,
@@ -40,7 +43,7 @@ use rand::{Rng, SeedableRng, rngs::StdRng};
 use rayon::prelude::*;
 
 use crate::{
-    extensions, format_module_id,
+    TraceType, extensions, format_module_id,
     test_reporter::{
         FailureReason, MoveError, TestFailure, TestResults, TestRunInfo, TestStatistics,
     },
@@ -56,7 +59,7 @@ pub struct SharedTestingConfig {
     prng_seed: Option<u64>,
     num_iters: u64,
     deterministic_generation: bool,
-    trace_location: Option<String>,
+    trace_location: Option<(TraceType, String)>,
 }
 
 pub struct TestRunner {
@@ -119,7 +122,7 @@ impl TestRunner {
         prng_seed: Option<u64>,
         num_iters: u64,
         deterministic_generation: bool,
-        trace_location: Option<String>,
+        trace_location: Option<(TraceType, String)>,
         tests: TestPlan,
         // TODO: maybe we should require the clients to always pass in a list of native functions
         // so we don't have to make assumptions about their gas parameters.
@@ -275,12 +278,19 @@ impl SharedTestingConfig {
         let move_vm = MoveVM::new_with_config(natives, vm_config).unwrap();
         let extensions = extensions::new_extensions();
 
-        let mut move_tracer = MoveTraceBuilder::new();
-        let tracer = if self.trace_location.is_some() {
-            Some(&mut move_tracer)
-        } else {
-            None
-        };
+        let mut move_tracer =
+            self.trace_location
+                .as_ref()
+                .map(|(trace_type, _)| match trace_type {
+                    TraceType::InstructionOnly => {
+                        MoveTraceBuilder::new_with_tracer(Box::new(InstructionOnlyTracer))
+                    }
+                    TraceType::FunctionOnly => {
+                        MoveTraceBuilder::new_with_tracer(Box::new(FunctionOnlyTracer))
+                    }
+                    TraceType::Full => MoveTraceBuilder::new(),
+                });
+        let tracer = move_tracer.as_mut();
 
         let mut session =
             move_vm.new_session_with_extensions(&self.starting_storage_state, extensions);
@@ -315,11 +325,8 @@ impl SharedTestingConfig {
                 err.remove_exec_state();
             }
         }
-        let trace = if self.trace_location.is_some() {
-            Some(move_tracer.into_trace())
-        } else {
-            None
-        };
+
+        let trace = move_tracer.map(|t| t.into_trace());
         let test_run_info = TestRunInfo::new(
             now.elapsed(),
             // TODO(Gas): This doesn't look quite right...
@@ -456,7 +463,7 @@ impl SharedTestingConfig {
         if let Some(location) = &self.trace_location {
             let trace_file_location = format!(
                 "{}/{}__{}{}.{}",
-                location,
+                location.1,
                 format_module_id(output.test_info, &output.test_plan.module_id).replace("::", "__"),
                 function_name,
                 if let Some(seed) = prng_seed {

@@ -2831,3 +2831,145 @@ fn transaction_identifiers_validity_check_rejects_system_transaction() {
         "{result:?}"
     );
 }
+
+/// A transaction with a dependency input, expiring after `epoch` when given,
+/// built from `pt`.
+fn transaction_with_dependency_input(
+    pt: ProgrammableTransaction,
+    epoch: Option<u64>,
+) -> Transaction {
+    let sender_kp = SimpleKeypair::from(Ed25519PrivateKey::random());
+    let sender = (&PublicKey::from(&sender_kp)).into();
+    let gas_price = 10;
+    let gas_data = GasPayment {
+        objects: vec![random_object_ref()],
+        owner: sender,
+        price: gas_price,
+        budget: gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+    };
+    let mut transaction =
+        Transaction::new_with_gas_data(TransactionKind::new_programmable(pt), sender, gas_data);
+    if let Some(epoch) = epoch {
+        *transaction.expiration_mut_for_testing() = TransactionExpiration::Epoch(epoch);
+    }
+    transaction
+}
+
+/// The latest protocol config, with transaction dependencies enabled.
+fn config_with_transaction_dependencies() -> ProtocolConfig {
+    let mut config = ProtocolConfig::get_for_max_version_UNSAFE();
+    config.set_enable_transaction_dependencies_for_testing(true);
+    config
+}
+
+#[test]
+fn transaction_dependency_input_is_valid_with_an_epoch_expiration() {
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.transaction_dependency(TransactionDigest::random());
+    builder
+        .transfer_object(dbg_addr(1), random_object_ref())
+        .unwrap();
+    let transaction = transaction_with_dependency_input(builder.finish(), Some(3));
+
+    transaction
+        .validity_check(&config_with_transaction_dependencies())
+        .unwrap();
+    assert!(transaction.transaction_dependency().is_some());
+}
+
+#[test]
+fn transaction_dependency_input_requires_an_epoch_expiration() {
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.transaction_dependency(TransactionDigest::random());
+    let transaction = transaction_with_dependency_input(builder.finish(), None);
+
+    assert_eq!(
+        transaction.validity_check(&config_with_transaction_dependencies()),
+        Err(UserInputError::TransactionDependencyRequiresExpiration)
+    );
+}
+
+#[test]
+fn at_most_one_transaction_dependency_input() {
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.transaction_dependency(TransactionDigest::random());
+    builder.transaction_dependency(TransactionDigest::random());
+    let transaction = transaction_with_dependency_input(builder.finish(), Some(3));
+
+    assert!(matches!(
+        transaction.validity_check(&config_with_transaction_dependencies()),
+        Err(UserInputError::SizeLimitExceeded { .. })
+    ));
+}
+
+#[test]
+fn transaction_dependency_input_cannot_be_used_by_a_command() {
+    // Build a PTB with a dependency at index 0 and a pure at index 1, then a
+    // command that references index 0.
+    let pt = ProgrammableTransaction {
+        inputs: vec![
+            CallArg::TransactionDependency(TransactionDigest::random()),
+            CallArg::Pure(bcs::to_bytes(&dbg_addr(1)).unwrap()),
+        ],
+        commands: vec![Command::new_transfer_objects(
+            vec![Argument::Input(0)],
+            Argument::Input(1),
+        )],
+    };
+    let transaction = transaction_with_dependency_input(pt, Some(3));
+
+    assert_eq!(
+        transaction.validity_check(&config_with_transaction_dependencies()),
+        Err(UserInputError::TransactionDependencyInputUsed {
+            command_idx: 0,
+            argument_idx: 0,
+        })
+    );
+}
+
+/// A dependent has to expire with the current epoch. An earlier epoch is
+/// expired and a later one is refused, while a transaction without a
+/// dependency may expire in a later epoch.
+#[test]
+fn transaction_dependency_input_requires_the_current_epoch() {
+    let config = config_with_transaction_dependencies();
+    let check = |with_dependency: bool, expiration_epoch: u64| {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        if with_dependency {
+            builder.transaction_dependency(TransactionDigest::random());
+        }
+        builder
+            .transfer_object(dbg_addr(1), random_object_ref())
+            .unwrap();
+        let transaction =
+            transaction_with_dependency_input(builder.finish(), Some(expiration_epoch));
+        SenderSignedTransaction::new(transaction, vec![]).validity_check(&TxValidityCheckContext {
+            config: &config,
+            epoch: 3,
+        })
+    };
+
+    check(true, 3).unwrap();
+    assert_eq!(check(true, 2).unwrap_err(), IotaError::TransactionExpired);
+    assert_eq!(
+        check(true, 4).unwrap_err(),
+        IotaError::UserInput {
+            error: UserInputError::TransactionDependencyRequiresExpiration
+        }
+    );
+    check(false, 4).unwrap();
+}
+
+#[test]
+fn transaction_dependency_input_is_unsupported_before_its_protocol_version() {
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.transaction_dependency(TransactionDigest::random());
+    let transaction = transaction_with_dependency_input(builder.finish(), Some(3));
+    let mut config = ProtocolConfig::get_for_max_version_UNSAFE();
+    config.set_enable_transaction_dependencies_for_testing(false);
+
+    assert!(matches!(
+        transaction.validity_check(&config),
+        Err(UserInputError::Unsupported(msg)) if msg == "transaction dependency inputs are not enabled"
+    ));
+}

@@ -9,10 +9,11 @@ use std::{
 
 use anemo::codegen::InboundRequestLayer;
 use anemo_tower::{auth::RequireAuthorizationLayer, inflight_limit};
+use dashmap::DashMap;
 use iota_config::p2p::RandomnessConfig;
 use iota_sdk_types::RandomnessRound;
 use iota_types::{base_types::AuthorityName, committee::EpochId};
-use tokio::sync::mpsc;
+use tokio::sync::{OwnedSemaphorePermit, mpsc};
 
 use super::{
     Handle, RandomnessEventLoop, RandomnessMessage, RandomnessServer, auth::AllowedPeersUpdatable,
@@ -60,12 +61,12 @@ impl Builder {
         let config = config.unwrap_or_default();
         let metrics = metrics.unwrap_or_else(Metrics::disabled);
         let (sender, mailbox) = mpsc::channel(config.mailbox_capacity());
-        let mailbox_sender = sender.downgrade();
-        let handle = Handle {
-            sender: sender.clone(),
-        };
+        let handle = Handle { sender };
+        let (peer_sender, peer_mailbox) = mpsc::channel(config.peer_mailbox_capacity());
         let server = Server {
-            sender: sender.downgrade(),
+            sender: peer_sender,
+            queued_per_peer: DashMap::new(),
+            max_queued_requests_per_peer: config.max_queued_requests_per_peer(),
         };
         let randomness_server = RandomnessServer::new(server).add_layer_for_send_signatures(
             InboundRequestLayer::new(inflight_limit::InflightLimitLayer::new(
@@ -85,7 +86,7 @@ impl Builder {
                 config,
                 handle,
                 mailbox,
-                mailbox_sender,
+                peer_mailbox,
                 allowed_peers,
                 metrics,
                 randomness_tx,
@@ -101,7 +102,7 @@ pub struct UnstartedRandomness {
     pub(super) config: RandomnessConfig,
     pub(super) handle: Handle,
     pub(super) mailbox: mpsc::Receiver<RandomnessMessage>,
-    pub(super) mailbox_sender: mpsc::WeakSender<RandomnessMessage>,
+    pub(super) peer_mailbox: mpsc::Receiver<(RandomnessMessage, OwnedSemaphorePermit)>,
     pub(super) allowed_peers: AllowedPeersUpdatable,
     pub(super) metrics: Metrics,
     pub(super) randomness_tx: mpsc::Sender<(EpochId, RandomnessRound, Vec<u8>)>,
@@ -114,7 +115,7 @@ impl UnstartedRandomness {
             config,
             handle,
             mailbox,
-            mailbox_sender,
+            peer_mailbox,
             allowed_peers,
             metrics,
             randomness_tx,
@@ -124,7 +125,7 @@ impl UnstartedRandomness {
                 name,
                 config,
                 mailbox,
-                mailbox_sender,
+                peer_mailbox,
                 network,
                 allowed_peers,
                 allowed_peers_set: HashSet::new(),

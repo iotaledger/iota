@@ -17,8 +17,9 @@ pub(crate) struct AvailableRange {
     pub last: u64,
 }
 
-/// Range of checkpoints that the RPC is guaranteed to produce a consistent
-/// response for.
+/// Range of checkpoints that consistent object queries can be viewed at. A
+/// query paginated with a cursor is viewed at the checkpoint the cursor was
+/// issued at, so the cursor expires once that checkpoint leaves the range.
 #[Object]
 impl AvailableRange {
     async fn first(&self, ctx: &Context<'_>) -> Result<Option<Checkpoint>> {

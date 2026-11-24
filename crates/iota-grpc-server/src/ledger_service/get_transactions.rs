@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use futures::Stream;
+use futures::{Stream, StreamExt};
 use iota_grpc_types::{
     field::FieldMaskTree,
     google::rpc::bad_request::FieldViolation,
@@ -24,9 +24,13 @@ use crate::{
     merge::Merge,
     metrics::{RequestMetrics, ResponseItemKind},
     transaction_execution_service::TransactionReadSource,
-    types::{GrpcReader, TransactionReadFields, TransactionsStreamResult},
+    types::{GrpcReader, StoreReadBudget, TransactionReadFields, TransactionsStreamResult},
     validation::validate_read_mask,
 };
+
+/// The most transactions of one request whose store reads share one call for each kind of data.
+/// Matches JSON-RPC's default limit of digests per request.
+const TRANSACTION_READ_CHUNK_SIZE: usize = 50;
 
 type ValidationResult = Result<(Vec<TransactionDigest>, FieldMaskTree), RpcError>;
 
@@ -61,6 +65,19 @@ pub(crate) fn validate_get_transaction_requests(
 
 /// Available Read Mask Fields
 ///
+/// Data the node has pruned is read from the configured key-value store, with one store call for
+/// each kind of data (checkpoint lookup, transactions and effects, checkpoint summaries, events,
+/// objects) for up to [`TRANSACTION_READ_CHUNK_SIZE`] transactions of a request at a time. The
+/// result of a transaction is:
+/// - `UNAVAILABLE` if a store call it needs fails, or once the store calls of the request have
+///   taken 30 s in total. A failed checkpoint lookup counts as a miss while that budget lasts.
+/// - `UNAVAILABLE` if the store returns the checkpoint of a pruned transaction but lacks its
+///   transaction, effects or events.
+/// - `INTERNAL` if the store returns data that does not match the effects.
+///
+/// A store that reports a failure as missing data gives the result of missing
+/// data.
+///
 /// The `get_transactions` function supports the following `read_mask` fields to
 /// control which data is included in the response:
 ///
@@ -75,6 +92,8 @@ pub(crate) fn validate_get_transaction_requests(
 ///   - `effects.bcs` - the full BCS-encoded effects
 ///
 /// ## Event Fields
+/// If the transaction's events are unavailable (e.g. pruned and not in the
+/// key-value store), the transaction's result is a `FAILED_PRECONDITION` error.
 /// - `events` - includes all event fields
 ///   - `events.digest` - the events digest
 ///   - `events.events` - includes all event fields
@@ -90,12 +109,15 @@ pub(crate) fn validate_get_transaction_requests(
 /// Both are read from the ledger, so a node without the gRPC indexes serves
 /// them too.
 /// - `checkpoint` - the checkpoint that included the transaction
-/// - `timestamp` - the timestamp of the checkpoint that included the transaction
+/// - `timestamp` - the timestamp of the checkpoint that included the transaction; if that
+///   checkpoint's summary is unavailable (e.g. on a node restored from a snapshot),
+///   `FAILED_PRECONDITION` when a key-value store is set and the summary is not in it, and
+///   `INTERNAL` without a store
 ///
 /// ## Object Fields
-/// If a required object is unavailable (e.g. pruned from the object store),
-/// the transaction's result is a `FAILED_PRECONDITION` error rather than a
-/// silently incomplete list; narrow the read mask or fetch objects
+/// If a required object is unavailable (e.g. pruned and not in the key-value
+/// store), the transaction's result is a `FAILED_PRECONDITION` error rather
+/// than a silently incomplete list; narrow the read mask or fetch objects
 /// individually via `get_objects` for best-effort retrieval.
 /// - `input_objects` - includes all input object fields
 ///   - `input_objects.reference` - includes all reference fields
@@ -116,9 +138,9 @@ pub(crate) fn validate_get_transaction_requests(
 ///
 /// ## Derived Change Fields
 /// Derived from the transaction's effects and input/output objects. If a
-/// required object is unavailable (e.g. pruned from the object store), the
-/// transaction's result is a `FAILED_PRECONDITION` error rather than a
-/// silently wrong answer; retry without these fields.
+/// required object is unavailable (e.g. pruned and not in the key-value
+/// store), the transaction's result is a `FAILED_PRECONDITION` error rather
+/// than a silently wrong answer; retry without these fields.
 /// - `balance_changes` - per-owner, per-coin-type balance deltas. For a failed transaction this
 ///   contains only the gas charge.
 /// - `object_changes` - structured object changes (created, mutated, deleted, wrapped, unwrapped,
@@ -151,12 +173,21 @@ pub(crate) fn get_transactions(
 
     let (digests, read_mask) = validate_get_transaction_requests(requests, read_mask)?;
     let max_message_size = validate_max_message_size(max_message_size_bytes)?;
+    let store_budget = StoreReadBudget::default();
+    // Without a store, reading ahead would only hold results in memory.
+    let chunk_size = if reader.has_transaction_fallback() {
+        TRANSACTION_READ_CHUNK_SIZE
+    } else {
+        1
+    };
 
     Ok(crate::create_batching_stream!(
-        digests.into_iter(),
-        digest,
+        stream: futures::stream::iter(digests.chunks(chunk_size))
+            .then(|digests| get_transactions_impl(&reader, &config, digests, &read_mask, &store_budget))
+            .flat_map(futures::stream::iter),
+        tx_read,
         {
-            let tx_result = match get_transaction_impl(&reader, &config, digest, &read_mask) {
+            let tx_result = match tx_read {
                 Ok(tx) => TransactionResult::default().with_executed_transaction(tx),
                 Err(error) => TransactionResult::default().with_error(error.into_status_proto()),
             };
@@ -172,34 +203,42 @@ pub(crate) fn get_transactions(
     ))
 }
 
-#[tracing::instrument(skip(reader, config))]
-fn get_transaction_impl(
+async fn get_transactions_impl(
     reader: &Arc<GrpcReader>,
     config: &iota_config::node::GrpcApiConfig,
-    digest: TransactionDigest,
+    digests: &[TransactionDigest],
     read_mask: &FieldMaskTree,
-) -> Result<ExecutedTransaction, RpcError> {
+    store_budget: &StoreReadBudget,
+) -> Vec<Result<ExecutedTransaction, RpcError>> {
     // Derive which optional fields to fetch based on the read_mask
     let fields = TransactionReadFields::from_mask(read_mask);
 
     // Get transaction data from storage, skipping unrequested fields
-    let tx_read = reader.get_transaction_read(&digest, &fields)?;
+    let tx_reads = reader
+        .get_transaction_reads(digests, &fields, store_budget)
+        .await;
 
-    // Create a source for the merge
-    let source = TransactionReadSource {
-        reader: reader.clone(),
-        config,
-        transaction: tx_read.transaction,
-        signatures: tx_read.signatures,
-        effects: tx_read.effects,
-        events: tx_read.events,
-        checkpoint: tx_read.checkpoint,
-        timestamp_ms: tx_read.timestamp_ms,
-        input_objects: tx_read.input_objects,
-        output_objects: tx_read.output_objects,
-        mocked_coin: None,
-    };
+    tx_reads
+        .into_iter()
+        .map(|tx_read| {
+            let tx_read = tx_read?;
+            // Create a source for the merge
+            let source = TransactionReadSource {
+                reader: reader.clone(),
+                config,
+                transaction: tx_read.transaction,
+                signatures: tx_read.signatures,
+                effects: tx_read.effects,
+                events: tx_read.events,
+                checkpoint: tx_read.checkpoint,
+                timestamp_ms: tx_read.timestamp_ms,
+                input_objects: tx_read.input_objects,
+                output_objects: tx_read.output_objects,
+                mocked_coin: None,
+            };
 
-    ExecutedTransaction::merge_from(&source, read_mask)
-        .map_err(|e| e.with_context("failed to merge transaction"))
+            ExecutedTransaction::merge_from(&source, read_mask)
+                .map_err(|e| e.with_context("failed to merge transaction"))
+        })
+        .collect()
 }

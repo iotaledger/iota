@@ -40,9 +40,21 @@ use crate::{
     transactions_synchronizer::{TransactionsSynchronizer, TransactionsSynchronizerHandle},
 };
 
+/// When each step of [`ConsensusAuthority::stop`] finished, in order.
+#[derive(Clone, Copy, Debug)]
+pub struct StopTimings {
+    /// The tasks that call into the core thread have stopped.
+    pub tasks_stopped: Instant,
+    /// The core thread has stopped.
+    pub core_stopped: Instant,
+    /// The last writes have been flushed to the store.
+    pub dag_flushed: Instant,
+    /// The network client and server have stopped.
+    pub network_stopped: Instant,
+}
+
 pub struct ConsensusAuthority {
     context: Arc<Context>,
-    start_time: Instant,
     transaction_client: Arc<TransactionClient>,
     header_synchronizer: Arc<HeaderSynchronizerHandle>,
     transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
@@ -120,10 +132,11 @@ impl ConsensusAuthority {
             initialise_metrics(registry),
             clock,
         ));
-        let start_time = Instant::now();
 
-        let (tx_client, tx_receiver) = TransactionClient::new(context.clone());
-        let tx_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (tx_client, tx_receiver, priority_tx_receiver) =
+            TransactionClient::new(context.clone());
+        let tx_consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
 
         let (core_signals, signals_receivers) = CoreSignals::new(context.clone());
 
@@ -363,12 +376,11 @@ impl ConsensusAuthority {
 
         info!(
             "Consensus authority started, took {:?}",
-            start_time.elapsed()
+            context.start_time.elapsed()
         );
 
         Self {
             context,
-            start_time,
             transaction_client: Arc::new(tx_client),
             header_synchronizer,
             shard_reconstructor,
@@ -390,10 +402,10 @@ impl ConsensusAuthority {
         }
     }
 
-    pub async fn stop(mut self) {
+    pub async fn stop(mut self) -> StopTimings {
         info!(
             "Stopping authority. Total run time: {:?}",
-            self.start_time.elapsed()
+            self.context.start_time.elapsed()
         );
 
         // Gracefully stop DAG visualizer server if running.
@@ -449,21 +461,32 @@ impl ConsensusAuthority {
             handle.stop().await;
         }
         self.leader_timeout_handle.stop().await;
+        let tasks_stopped = Instant::now();
         // Shutdown Core to stop block productions and broadcast.
         // When using streaming, all subscribers to broadcast blocks stop after this.
         self.core_thread_handle.stop().await;
+        let core_stopped = Instant::now();
         // Final flush to ensure all buffered data (including pending transactions
         // referenced by not-yet-solid commits) is persisted before shutdown.
         self.dag_state.write().flush();
+        let dag_flushed = Instant::now();
         // Stop outgoing long-lived streams before stopping network server.
         self.subscriber.stop();
         self.network_manager.stop().await;
+        let network_stopped = Instant::now();
 
         self.context
             .metrics
             .node_metrics
             .uptime
-            .observe(self.start_time.elapsed().as_secs_f64());
+            .observe(self.context.start_time.elapsed().as_secs_f64());
+
+        StopTimings {
+            tasks_stopped,
+            core_stopped,
+            dag_flushed,
+            network_stopped,
+        }
     }
 
     #[cfg(msim)]
@@ -545,7 +568,7 @@ pub(crate) mod tests {
         block_header::GENESIS_ROUND,
         commit::CommitIndex,
         storage::{Store, WriteBatch},
-        transaction::NoopTransactionVerifier,
+        transaction::{NoopTransactionVerifier, Priority},
     };
 
     #[tokio::test]
@@ -742,7 +765,7 @@ pub(crate) mod tests {
             submitted_transactions.insert(txn.clone());
             authorities[i as usize % authorities.len()]
                 .transaction_client()
-                .submit(vec![txn])
+                .submit(vec![txn], Priority::Normal)
                 .await
                 .unwrap();
         }
@@ -793,7 +816,7 @@ pub(crate) mod tests {
             submitted_transactions.insert(txn.clone());
             authorities[i as usize % authorities.len()]
                 .transaction_client()
-                .submit(vec![txn])
+                .submit(vec![txn], Priority::Normal)
                 .await
                 .unwrap();
         }
@@ -808,7 +831,7 @@ pub(crate) mod tests {
             submitted_transactions.insert(txn.clone());
             authorities[i as usize % authorities.len()]
                 .transaction_client()
-                .submit(vec![txn])
+                .submit(vec![txn], Priority::Normal)
                 .await
                 .unwrap();
         }
@@ -943,7 +966,7 @@ pub(crate) mod tests {
             submitted_transactions.insert(txn.clone());
             authorities[i as usize % authorities.len()]
                 .transaction_client()
-                .submit(vec![txn])
+                .submit(vec![txn], Priority::Normal)
                 .await
                 .unwrap();
         }

@@ -85,7 +85,7 @@ use crate::{
     },
     index_rebuild_cancellation::{RebuildCancelled, is_cancelled},
     par_index_live_object_set::par_index_live_object_set,
-    progress_logger::{PROGRESS_REPORT_INTERVAL, progress_line},
+    progress::{PROGRESS_REPORT_INTERVAL, progress_line},
 };
 
 const ENV_VAR_HISTORY_BLOCK_CACHE_SIZE_MB: &str = "RPC_INDEX_HISTORY_BLOCK_CACHE_MB";
@@ -96,51 +96,6 @@ const DEFAULT_OWNER_BLOCK_CACHE_SIZE_MB: usize = 2 * 1024;
 /// How many threads one compaction of the index database may be split
 /// across.
 const MAX_SUBCOMPACTIONS: u32 = 8;
-
-/// The index database directories of earlier releases, superseded by
-/// [`schema::RPC_INDEXES_DIR`].
-const LEGACY_INDEX_DIRS: [&str; 3] = ["indexes", "jsonrpc_indexes", "grpc_indexes"];
-
-/// Removes the index databases of earlier releases from `db_path`; this store
-/// cannot reuse them.
-pub fn remove_legacy_index_dirs(db_path: &Path) -> std::io::Result<()> {
-    for dir in LEGACY_INDEX_DIRS {
-        let legacy_dir = db_path.join(dir);
-        if legacy_dir.exists() {
-            info!("removing the legacy index database at {legacy_dir:?}");
-            std::fs::remove_dir_all(&legacy_dir)?;
-        }
-    }
-    Ok(())
-}
-
-/// The disk space [`remove_legacy_index_dirs`] frees in `db_path` on the file
-/// system `counted_for` is on. Space freed elsewhere does not count, nor does
-/// space on a file system that cannot be told apart.
-pub fn legacy_index_dirs_size(db_path: &Path, counted_for: &Path) -> u64 {
-    fn size(path: &Path) -> u64 {
-        let Ok(metadata) = std::fs::symlink_metadata(path) else {
-            return 0;
-        };
-        if !metadata.is_dir() {
-            return metadata.len();
-        }
-        std::fs::read_dir(path).map_or(0, |entries| {
-            entries
-                .filter_map(Result::ok)
-                .map(|entry| size(&entry.path()))
-                .sum()
-        })
-    }
-    LEGACY_INDEX_DIRS
-        .iter()
-        .map(|dir| db_path.join(dir))
-        .filter(|dir| {
-            dir.exists() && typed_store::rocks::on_same_file_system(dir, counted_for) == Some(true)
-        })
-        .map(|dir| size(&dir))
-        .sum()
-}
 
 /// A staged index update for one checkpoint, waiting for its in-order commit.
 struct PendingCheckpointUpdate {
