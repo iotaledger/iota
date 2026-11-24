@@ -20,6 +20,7 @@ use iota_types::{
     error::{IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
     object::Object,
+    signature::VerifyParams,
     transaction::{
         CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
         TransactionEnvelope, VerifiedCertificate,
@@ -51,6 +52,11 @@ use crate::{
     },
     unit_test_utils::{init_local_authorities, init_local_authorities_with_overload_thresholds},
 };
+
+/// The signature checks the newest protocol version applies.
+fn latest_verify_params() -> VerifyParams {
+    VerifyParams::from_protocol_config(&ProtocolConfig::get_for_max_version_UNSAFE())
+}
 
 #[expect(dead_code)]
 async fn wait_for_certs(
@@ -258,7 +264,7 @@ async fn execute_owned_on_first_three_authorities(
     do_transaction(&authority_clients[2], tx).await;
     let cert = extract_cert(authority_clients, committee, tx.digest())
         .await
-        .try_into_verified_for_testing(committee, &Default::default())
+        .try_into_verified_for_testing(committee, &latest_verify_params())
         .unwrap();
     do_cert(&authority_clients[0], &cert).await;
     do_cert(&authority_clients[1], &cert).await;
@@ -289,7 +295,7 @@ async fn execute_shared_on_first_three_authorities(
     do_transaction(&authority_clients[2], tx).await;
     let cert = extract_cert(authority_clients, committee, tx.digest())
         .await
-        .try_into_verified_for_testing(committee, &Default::default())
+        .try_into_verified_for_testing(committee, &latest_verify_params())
         .unwrap();
     do_cert_with_shared_objects(&authority_clients[0].authority_client().state, &cert).await;
     do_cert_with_shared_objects(&authority_clients[1].authority_client().state, &cert).await;
@@ -465,6 +471,9 @@ async fn execution_with_dependencies(use_execution_scheduler: bool) {
         );
     }
     for cert in executed_owned_certs.iter().rev() {
+        authorities[3]
+            .epoch_store_for_testing()
+            .assign_to_a_new_commit_for_testing(&[cert.key()]);
         authorities[3].execution_scheduler().enqueue(
             vec![(
                 Schedulable::Transaction(VerifiedExecutableTransaction::new_from_certificate(
@@ -504,12 +513,19 @@ async fn try_sign_on_first_three_authorities(
     }
     extract_cert(authority_clients, committee, tx.digest())
         .await
-        .try_into_verified_for_testing(committee, &Default::default())
+        .try_into_verified_for_testing(committee, &latest_verify_params())
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn test_per_object_overload() {
     telemetry_subscribers::init_for_testing();
+
+    // Load shedding on the execution queue only applies to the pre-consensus
+    // flow, which `handle_transaction` serves.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(false);
+        config
+    });
 
     // Initialize a network with 1 account and 2000 gas objects.
     let (addr, key): (_, AccountPrivateKey) = get_key_pair();
@@ -640,6 +656,13 @@ async fn test_per_object_overload() {
 #[tokio::test]
 async fn test_txn_age_overload() {
     telemetry_subscribers::init_for_testing();
+
+    // Load shedding on the execution queue only applies to the pre-consensus
+    // flow, which `handle_transaction` serves.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(false);
+        config
+    });
 
     // Initialize a network with 1 account and 3 gas objects.
     let (addr, key): (_, AccountPrivateKey) = get_key_pair();

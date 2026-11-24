@@ -10,9 +10,10 @@ use std::{
 };
 
 use axum::{Router, routing::get};
-use fastcrypto::traits::KeyPair as _;
+use bytes::Bytes;
 use iota_http::{Builder, Config, metrics::ListenerMetrics};
 pub use iota_metrics::test_utils::MetricsReader;
+use iota_sdk_crypto::ed25519::Ed25519PrivateKey;
 use prometheus_filtered::{MetricLevel, Registry};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -35,19 +36,35 @@ pub fn setup() -> (MetricsReader, ListenerMetrics) {
     (MetricsReader::new(&registry).with_prefix(PREFIX), metrics)
 }
 
+/// The request a listener gives to its service.
+pub type ServiceRequest = http::Request<iota_http::body::BoxBody>;
+
+type BoxError = Box<dyn std::error::Error + Send + Sync>;
+
 /// Starts a listener on a free port, with TLS if `tls_config` is given. The
 /// server stops with the handle.
-pub fn serve_handle(
+pub fn serve_handle<S, B>(
     config: Config,
     metrics: &ListenerMetrics,
     tls_config: Option<rustls::ServerConfig>,
-    app: Router,
-) -> iota_http::ServerHandle<SocketAddr> {
+    service: S,
+) -> iota_http::ServerHandle<SocketAddr>
+where
+    S: tower::Service<
+            ServiceRequest,
+            Response = http::Response<B>,
+            Error: Into<BoxError>,
+            Future: Send,
+        > + Clone
+        + Send
+        + 'static,
+    B: http_body::Body<Data = Bytes, Error: Into<BoxError>> + Send + 'static,
+{
     let mut builder = Builder::new().config(config.metrics(Some(metrics.clone())));
     if let Some(tls_config) = tls_config {
         builder = builder.tls_config(tls_config);
     }
-    builder.serve(("127.0.0.1", 0), app).unwrap()
+    builder.serve(("127.0.0.1", 0), service).unwrap()
 }
 
 /// Lets the server run until the test ends and the runtime is dropped.
@@ -57,8 +74,24 @@ fn keep_running(handle: iota_http::ServerHandle<SocketAddr>) -> SocketAddr {
     addr
 }
 
+/// Like [`serve_handle`], with no TLS, and the server runs until the test ends.
+pub fn serve_service<S, B>(config: Config, metrics: &ListenerMetrics, service: S) -> SocketAddr
+where
+    S: tower::Service<
+            ServiceRequest,
+            Response = http::Response<B>,
+            Error: Into<BoxError>,
+            Future: Send,
+        > + Clone
+        + Send
+        + 'static,
+    B: http_body::Body<Data = Bytes, Error: Into<BoxError>> + Send + 'static,
+{
+    keep_running(serve_handle(config, metrics, None, service))
+}
+
 pub fn serve(config: Config, metrics: &ListenerMetrics, app: Router) -> SocketAddr {
-    keep_running(serve_handle(config, metrics, None, app))
+    serve_service(config, metrics, app)
 }
 
 pub fn ok_app() -> Router {
@@ -94,16 +127,63 @@ pub async fn get_root(stream: &mut TcpStream) {
     assert_eq!(read_response(stream).await, b"ok");
 }
 
+pub async fn h2_connect(
+    address: SocketAddr,
+    builder: h2::client::Builder,
+) -> h2::client::SendRequest<Bytes> {
+    h2_connect_with_task(address, builder).await.0
+}
+
+/// Like [`h2_connect`]. Aborting the task closes the TCP connection.
+pub async fn h2_connect_with_task(
+    address: SocketAddr,
+    builder: h2::client::Builder,
+) -> (h2::client::SendRequest<Bytes>, tokio::task::JoinHandle<()>) {
+    let tcp_stream = TcpStream::connect(address).await.unwrap();
+    let (sender, connection) = builder.handshake::<_, Bytes>(tcp_stream).await.unwrap();
+    let task = tokio::spawn(async move {
+        let _ = connection.await;
+    });
+    (sender, task)
+}
+
+pub async fn h2_get(
+    sender: &h2::client::SendRequest<Bytes>,
+    path: &str,
+) -> h2::client::ResponseFuture {
+    let mut sender = sender.clone().ready().await.unwrap();
+    let request = http::Request::get(format!("http://localhost{path}"))
+        .body(())
+        .unwrap();
+    sender.send_request(request, true).unwrap().0
+}
+
+/// Reads the body of a response to its end and returns the number of bytes.
+pub async fn h2_read_body(mut body: h2::RecvStream) -> usize {
+    let mut body_len = 0;
+    while let Some(chunk) = body.data().await {
+        let chunk = chunk.unwrap();
+        body_len += chunk.len();
+        body.flow_control().release_capacity(chunk.len()).unwrap();
+    }
+    body_len
+}
+
+/// Reads a response to its end and returns the number of body bytes.
+pub async fn h2_read(response: h2::client::ResponseFuture) -> usize {
+    h2_read_body(response.await.unwrap().into_body()).await
+}
+
 pub const SERVER_NAME: &str = "iota-http-test";
 
 pub fn tls_configs() -> (
     tokio_rustls::rustls::ServerConfig,
     tokio_rustls::rustls::ClientConfig,
 ) {
-    let keypair = key_pair(SERVER_SEED);
-    let public_key = keypair.public().to_owned();
+    let private_key = Ed25519PrivateKey::new([SERVER_SEED; 32]);
+    let public_key = private_key.public_key();
     (
-        iota_tls::create_rustls_server_config(keypair.private(), SERVER_NAME.to_string()),
+        iota_tls::create_rustls_server_config(private_key, SERVER_NAME.to_string()),
         iota_tls::create_rustls_client_config(public_key, SERVER_NAME.to_string(), None),
     )
 }
@@ -116,9 +196,11 @@ pub fn serve_tls(config: Config, metrics: &ListenerMetrics, app: Router) -> Sock
 /// A TLS listener that accepts the client key `CLIENT_SEED` only.
 pub fn serve_mutual_tls(config: Config, metrics: &ListenerMetrics, app: Router) -> SocketAddr {
     let server_config = iota_tls::create_rustls_server_config_with_client_verifier(
-        key_pair(SERVER_SEED).private(),
+        Ed25519PrivateKey::new([SERVER_SEED; 32]),
         SERVER_NAME.to_string(),
-        iota_tls::AllowPublicKeys::new([key_pair(CLIENT_SEED).public().to_owned()].into()),
+        iota_tls::AllowPublicKeys::new(
+            [Ed25519PrivateKey::new([CLIENT_SEED; 32]).public_key()].into(),
+        ),
     );
     keep_running(serve_handle(config, metrics, Some(server_config), app))
 }
@@ -126,9 +208,9 @@ pub fn serve_mutual_tls(config: Config, metrics: &ListenerMetrics, app: Router) 
 /// Opens a TLS connection with the client key `CLIENT_SEED`.
 pub async fn connect_mutual_tls(addr: SocketAddr) -> tokio_rustls::client::TlsStream<TcpStream> {
     let client_config = iota_tls::create_rustls_client_config(
-        key_pair(SERVER_SEED).public().to_owned(),
+        Ed25519PrivateKey::new([SERVER_SEED; 32]).public_key(),
         SERVER_NAME.to_string(),
-        Some(key_pair(CLIENT_SEED).private()),
+        Some(Ed25519PrivateKey::new([CLIENT_SEED; 32])),
     );
     let tcp = TcpStream::connect(addr).await.unwrap();
     tokio_rustls::TlsConnector::from(Arc::new(client_config))
@@ -139,8 +221,3 @@ pub async fn connect_mutual_tls(addr: SocketAddr) -> tokio_rustls::client::TlsSt
 
 const SERVER_SEED: u8 = 42;
 const CLIENT_SEED: u8 = 43;
-
-fn key_pair(seed: u8) -> fastcrypto::ed25519::Ed25519KeyPair {
-    use fastcrypto::{ed25519::Ed25519PrivateKey, traits::ToFromBytes};
-    fastcrypto::ed25519::Ed25519KeyPair::from(Ed25519PrivateKey::from_bytes(&[seed; 32]).unwrap())
-}

@@ -402,10 +402,10 @@ mod tests {
             _client_addr: Option<SocketAddr>,
         ) -> Result<HandleCertificateResponseV1, IotaError> {
             let epoch_store = self.authority.epoch_store_for_testing();
+            let certificate = VerifiedCertificate::new_unchecked(request.certificate);
+            epoch_store.assign_to_a_new_commit_for_testing(&[certificate.key()]);
             let (effects, _) = self.authority.try_execute_immediately(
-                &VerifiedExecutableTransaction::new_from_certificate(
-                    VerifiedCertificate::new_unchecked(request.certificate),
-                ),
+                &VerifiedExecutableTransaction::new_from_certificate(certificate),
                 ExecutionEnv::new(),
                 &epoch_store,
             )?;

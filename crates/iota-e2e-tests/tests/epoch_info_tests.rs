@@ -73,7 +73,9 @@ async fn assert_epoch_info_chain_complete(checkpoint_store: &CheckpointStore, cu
 }
 
 /// Every node — the fullnode and each validator — populates its `epoch_info`
-/// chain from its own executed boundaries, leaving a complete chain.
+/// chain from its own executed boundaries, leaving a complete chain. Validators
+/// load only the epoch-change transaction at a boundary while the fullnode
+/// loads the whole checkpoint, and both must write the same rows.
 #[sim_test]
 async fn epoch_info_chain_is_populated_live() {
     let test_cluster = TestClusterBuilder::new()
@@ -104,6 +106,32 @@ async fn epoch_info_chain_is_populated_live() {
             )
         });
         assert_epoch_info_chain_complete(&validator_store, validator_epoch).await;
+
+        for epoch in 0..validator_epoch.min(fullnode_epoch) {
+            // Nodes can hold different signature sets for the same
+            // checkpoint, so compare the summary without them.
+            let row = |store: &CheckpointStore| {
+                let row = store.get_epoch_info(epoch).unwrap().unwrap();
+                let proof = row.epoch_close_proof.unwrap();
+                bcs::to_bytes(&(
+                    row.epoch,
+                    row.start_checkpoint,
+                    row.start_timestamp_ms,
+                    row.system_state,
+                    proof.last_checkpoint_summary.data(),
+                    proof.last_checkpoint_contents,
+                    proof.end_of_epoch_tx_effects,
+                    proof.end_of_epoch_tx_events,
+                    proof.next_epoch_start_system_state_objects,
+                ))
+                .unwrap()
+            };
+            assert_eq!(
+                row(&validator_store),
+                row(&fullnode_store),
+                "closed epoch {epoch}'s row must match the fullnode's"
+            );
+        }
     }
 }
 

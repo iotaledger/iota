@@ -398,6 +398,14 @@ impl<R: rand::CryptoRng> ConfigBuilder<R> {
         let committee = self.committee;
 
         let mut rng = self.rng.unwrap();
+        // Stake validators for the highest protocol version they can upgrade to,
+        // so that they stay above its low stake threshold.
+        let protocol_version = match &self.supported_protocol_versions_config {
+            Some(ProtocolVersionsConfig::Global(versions)) => {
+                versions.max.min(ProtocolVersion::MAX)
+            }
+            _ => ProtocolVersion::MAX,
+        };
         let validators = match committee {
             CommitteeConfig::Size(size) => {
                 // We always get fixed authority keys from this function (which is isolated from
@@ -410,7 +418,8 @@ impl<R: rand::CryptoRng> ConfigBuilder<R> {
                     .enumerate()
                     .map(|(i, authority_key)| {
                         let mut builder = ValidatorGenesisConfigBuilder::new()
-                            .with_authority_key_pair(authority_key);
+                            .with_authority_key_pair(authority_key)
+                            .with_protocol_version(protocol_version);
                         if let Some(rgp) = self.reference_gas_price {
                             builder = builder.with_gas_price(rgp);
                         }
@@ -433,7 +442,8 @@ impl<R: rand::CryptoRng> ConfigBuilder<R> {
                     .map(|(i, (account_key, authority_key))| {
                         let mut builder = ValidatorGenesisConfigBuilder::new()
                             .with_authority_key_pair(authority_key)
-                            .with_account_private_key(account_key);
+                            .with_account_private_key(account_key)
+                            .with_protocol_version(protocol_version);
                         if let Some(rgp) = self.reference_gas_price {
                             builder = builder.with_gas_price(rgp);
                         }
@@ -458,7 +468,8 @@ impl<R: rand::CryptoRng> ConfigBuilder<R> {
                     let mut builder = ValidatorGenesisConfigBuilder::new()
                         .with_ip("127.0.0.1".to_owned())
                         .with_account_private_key(key)
-                        .with_deterministic_ports(port_offset as u16);
+                        .with_deterministic_ports(port_offset as u16)
+                        .with_protocol_version(protocol_version);
                     if let Some(rgp) = self.reference_gas_price {
                         builder = builder.with_gas_price(rgp);
                     }
@@ -521,10 +532,7 @@ impl<R: rand::CryptoRng> ConfigBuilder<R> {
                 .add_objects(self.additional_objects);
 
             for (i, validator) in validators.iter().enumerate() {
-                let name = validator
-                    .name
-                    .clone()
-                    .unwrap_or(format!("validator-{i}").to_string());
+                let name = validator.name.clone().unwrap_or(format!("validator-{i}"));
                 let validator_info = validator.to_validator_info(name);
                 builder =
                     builder.add_validator(validator_info.info, validator_info.proof_of_possession);

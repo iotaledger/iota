@@ -112,8 +112,7 @@ impl SignatureVerifier {
         non_committee_validators: BTreeSet<AuthorityName>,
         batch_size: usize,
         metrics: Arc<SignatureVerifierMetrics>,
-        accept_passkey_in_multisig: bool,
-        additional_multisig_checks: bool,
+        verify_params: VerifyParams,
     ) -> Self {
         Self {
             committee,
@@ -135,10 +134,7 @@ impl SignatureVerifier {
             ),
             queue: Mutex::new(CertBuffer::new(batch_size)),
             metrics,
-            verify_params: VerifyParams::new(
-                accept_passkey_in_multisig,
-                additional_multisig_checks,
-            ),
+            verify_params,
         }
     }
 
@@ -146,16 +142,14 @@ impl SignatureVerifier {
         committee: Arc<Committee>,
         non_committee_validators: BTreeSet<AuthorityName>,
         metrics: Arc<SignatureVerifierMetrics>,
-        accept_passkey_in_multisig: bool,
-        additional_multisig_checks: bool,
+        verify_params: VerifyParams,
     ) -> Self {
         Self::new_with_batch_size(
             committee,
             non_committee_validators,
             MAX_BATCH_SIZE,
             metrics,
-            accept_passkey_in_multisig,
-            additional_multisig_checks,
+            verify_params,
         )
     }
 

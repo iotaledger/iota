@@ -272,10 +272,9 @@ impl ScoringSubdag {
 }
 
 /// Reputation multiplier applied to a strong vote relative to an ordinary vote.
-/// A strong vote (only produced under `consensus_starfish_speed`) is a stronger
-/// signal that the voter promptly saw and backed the leader — it attests
-/// holding the leader's transaction data, not just its header — so it scores
-/// double. This scorer only runs under
+/// A strong vote is a stronger signal that the voter promptly saw and backed
+/// the leader — it attests holding the leader's transaction data, not just its
+/// header — so it scores double. This scorer only runs under
 /// `consensus_enable_sliding_window_leader_schedule`, so the weighting ships
 /// as part of the redesigned schedule and V2 scoring is unaffected.
 const STRONG_VOTE_MULTIPLIER: u64 = 2;
@@ -291,8 +290,8 @@ const STRONG_VOTE_MULTIPLIER: u64 = 2;
 /// r). The round-(r+1) and round-(r+2) blocks are collected from all three
 /// commits following `c_minus_3` (`c_minus_2`, `c_minus_1`, `c`).
 ///
-/// Under `consensus_starfish_speed`, a voting block that is a *strong* vote for
-/// the leader has its contribution multiplied by [`STRONG_VOTE_MULTIPLIER`].
+/// A voting block that is a *strong* vote for the leader has its contribution
+/// multiplied by [`STRONG_VOTE_MULTIPLIER`].
 ///
 /// Equivocation: if A has multiple voting blocks at r+1 within that window,
 /// `contribution[A] = 0`.
@@ -308,11 +307,6 @@ pub(crate) fn compute_per_commit_contribution(
     let r = leader_ref.round;
     let vote_round = r + 1;
     let certify_round = r + 2;
-
-    // Strong votes score double. Gate on the flag so a stray strong_vote on a
-    // non-speed block can never change scoring (strong votes only exist under
-    // starfish speed).
-    let double_strong_votes = context.protocol_config.consensus_starfish_speed();
 
     // Voting blocks at round r+1 that strongly link to the leader block, grouped
     // by author, each tagged with whether it is a strong vote for the leader.
@@ -371,7 +365,7 @@ pub(crate) fn compute_per_commit_contribution(
         .iter()
         .enumerate()
         .map(|(author, agg)| {
-            if double_strong_votes && strong_voter[author] {
+            if strong_voter[author] {
                 agg.stake() * STRONG_VOTE_MULTIPLIER
             } else {
                 agg.stake()
@@ -382,8 +376,6 @@ pub(crate) fn compute_per_commit_contribution(
 
 #[cfg(test)]
 mod tests {
-
-    use rstest::rstest;
 
     use super::*;
     use crate::{
@@ -517,17 +509,10 @@ mod tests {
             .collect()
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_compute_per_commit_contribution_full_connectivity(
-        #[values(false, true)] starfish_speed: bool,
-    ) {
+    async fn test_compute_per_commit_contribution_full_connectivity() {
         telemetry_subscribers::init_for_testing();
-        let mut context = Context::new_for_test(4).0;
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(starfish_speed);
-        let context = Arc::new(context);
+        let context = Arc::new(Context::new_for_test(4).0);
         let subdags = build_four_commits(context.clone());
         assert_eq!(subdags.len(), 4);
 
@@ -541,10 +526,9 @@ mod tests {
 
         // In a fully-connected DAG, every authority votes for commit-1's leader and
         // every round-(r+2) block certifies every voting block. So every authority's
-        // contribution equals the full committee stake — doubled under
-        // StarfishSpeed, where every one of these votes is a strong vote.
-        let vote_weight: u64 = if starfish_speed { 2 } else { 1 };
-        let expected_per_authority: u64 = context.committee.total_stake() * vote_weight;
+        // contribution equals the full committee stake — doubled, since every
+        // one of these votes is a strong vote.
+        let expected_per_authority: u64 = context.committee.total_stake() * 2;
         assert_eq!(
             contribution,
             vec![expected_per_authority; context.committee.size()],
@@ -700,11 +684,8 @@ mod tests {
     #[tokio::test]
     async fn test_compute_per_commit_contribution_doubles_strong_vote() {
         telemetry_subscribers::init_for_testing();
-        // Strong votes score double under starfish speed.
-        let mut ctx = Context::new_for_test(4).0;
-        ctx.protocol_config
-            .set_consensus_starfish_speed_for_testing(true);
-        let context = Arc::new(ctx);
+        // Strong votes score double.
+        let context = Arc::new(Context::new_for_test(4).0);
         let committee = &context.committee;
         let r: Round = 10;
         let leader_authority = AuthorityIndex::new_for_test(0);

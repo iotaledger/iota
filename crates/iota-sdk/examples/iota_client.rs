@@ -6,8 +6,8 @@
 //! There are several in-built methods for connecting to the IOTA devnet,
 //! testnet, and localnet (running locally), as well as a custom way for
 //! connecting to custom URLs. The example prints out the API versions of the
-//! different networks, and finally, it prints the list of available RPC methods
-//! and the list of subscriptions. Note that running this code will fail if
+//! different networks, and finally, it prints the list of available RPC
+//! methods. Note that running this code will fail if
 //! there is no IOTA network running locally on the default address:
 //! 127.0.0.1:9000
 //!
@@ -39,10 +39,6 @@ async fn main() -> Result<(), anyhow::Error> {
     println!("IOTA mainnet version: {}", mainnet_client.api_version());
 
     println!("rpc methods: {:?}", testnet_client.available_rpc_methods());
-    println!(
-        "available subscriptions: {:?}",
-        testnet_client.available_subscriptions()
-    );
 
     Ok(())
 }

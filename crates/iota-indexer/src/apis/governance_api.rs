@@ -14,13 +14,13 @@ use iota_json_rpc_types::{
     IotaSystemStateSummaryV1 as IotaSystemStateSummaryV1Schema, StakeStatus, ValidatorApys,
 };
 use iota_open_rpc::Module;
+use iota_sdk_move_types::iota_framework::object::ID;
 use iota_sdk_types::{Address, ObjectId, StructTag};
 use iota_types::{
     MoveTypeTagTrait,
     committee::EpochId,
     dynamic_field::DynamicFieldInfo,
     governance::StakedIota,
-    id::ID,
     iota_serde::BigInt,
     iota_system_state::{
         PoolTokenExchangeRate,
@@ -88,9 +88,17 @@ impl GovernanceReadApi {
         }
     }
 
+    /// The latest system state summary, reporting the validator count limits
+    /// and stake thresholds that the protocol config enforces.
     async fn get_latest_iota_system_state(&self) -> Result<IotaSystemStateSummary, IndexerError> {
         self.inner
-            .spawn_blocking(|this| this.get_latest_iota_system_state())
+            .spawn_blocking(|this| {
+                let mut summary = this.get_latest_iota_system_state()?;
+                summary.apply_protocol_config_validator_parameters(
+                    this.get_chain_identifier()?.chain(),
+                );
+                Ok(summary)
+            })
             .await
     }
 

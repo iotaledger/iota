@@ -15,12 +15,16 @@
 //! `within_alive_epoch` cancellation at an epoch boundary, which is the
 //! scheduler's only reconfiguration mechanism.
 
-use std::{time::Duration, vec};
+use std::{path::Path, str::FromStr, time::Duration, vec};
 
 use iota_config::node::AuthorityOverloadConfig;
+use iota_framework::BuiltInFramework;
+use iota_move_build::BuildConfig;
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    MoveAuthenticatorV1, ObjectId, RandomnessRound, SenderSignedTransaction, SharedObjectReference,
-    TransactionEffectsDigest, UserSignature, Version, VersionAssignment,
+    Address, MoveAuthenticatorV1, ObjectId, RandomnessRound, SenderSignedTransaction,
+    SharedObjectReference, TransactionDigest, TransactionEffectsDigest, TypeTag, UserSignature,
+    Version, VersionAssignment,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -28,6 +32,7 @@ use iota_types::{
     error::IotaError,
     executable_transaction::VerifiedExecutableTransaction,
     object::Object,
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::InputKey,
     transaction::{CallArg, TransactionEnvelope, VerifiedTransaction},
 };
@@ -39,10 +44,12 @@ use tokio::{
 use crate::{
     authority::{
         AuthorityState, ExecutionEnv,
+        authority_test_utils::init_certified_transaction,
         authority_tests::{
             init_state_with_objects, randomness_assigned_versions, resolve_randomness_round,
         },
         shared_object_version_manager::Schedulable,
+        test_authority_builder::TestAuthorityBuilder,
     },
     execution_scheduler::{
         ExecutionSchedulerAPI, PendingTransaction, execution_scheduler_impl::ExecutionScheduler,
@@ -165,10 +172,12 @@ async fn execution_scheduler_waits_for_missing_owned_input() {
 }
 
 /// A transaction whose own input is only the (available) gas object, but whose
-/// `MoveAuthenticator` authenticates the given shared object.
+/// `MoveAuthenticator` authenticates the given shared object, passing
+/// `type_args` to its authenticate function.
 fn make_shared_authenticator_transaction(
     gas_object: &Object,
     shared_object: &Object,
+    type_args: Vec<TypeTag>,
 ) -> VerifiedExecutableTransaction {
     let (sender, _sender_key) = deterministic_random_account_private_key();
     let tx_data = TestTransactionBuilder::new(sender, gas_object.object_ref(), 100)
@@ -176,7 +185,7 @@ fn make_shared_authenticator_transaction(
         .build();
     let authenticator = MoveAuthenticatorV1::new(
         vec![],
-        vec![],
+        type_args,
         SharedObjectReference::new(shared_object.id(), 0.into(), false),
     );
     let signed = TransactionEnvelope::new(SenderSignedTransaction::new(
@@ -186,9 +195,9 @@ fn make_shared_authenticator_transaction(
     VerifiedExecutableTransaction::new_system(VerifiedTransaction::new_unchecked(signed), 0)
 }
 
-/// Enqueues `transaction`, asserts it is held while its authenticator's shared
-/// input is missing, then releases the input via `make_shared_input_available`
-/// and asserts the transaction is dispatched.
+/// Enqueues `transaction`, asserts it is held while an input its authenticator
+/// needs is missing, then releases the input via `make_input_available` and
+/// asserts the transaction is dispatched.
 async fn assert_awaits_authenticator_input(
     who: &str,
     state: &AuthorityState,
@@ -196,7 +205,7 @@ async fn assert_awaits_authenticator_input(
     rx_ready_transactions: &mut UnboundedReceiver<PendingTransaction>,
     transaction: &VerifiedExecutableTransaction,
     env: ExecutionEnv,
-    make_shared_input_available: impl FnOnce(),
+    make_input_available: impl FnOnce(),
 ) {
     scheduler.enqueue_transactions(
         vec![(transaction.clone(), env)],
@@ -206,11 +215,11 @@ async fn assert_awaits_authenticator_input(
     sleep(Duration::from_secs(1)).await;
     assert!(
         rx_ready_transactions.try_recv().is_err(),
-        "{who} dispatched before its authenticator's shared input became available"
+        "{who} dispatched before an input its authenticator needs became available"
     );
     assert_eq!(scheduler.num_pending_transactions(), 1);
 
-    make_shared_input_available();
+    make_input_available();
     let ready = rx_ready_transactions.recv().await.unwrap();
     assert_eq!(ready.transaction.digest(), transaction.digest());
 }
@@ -239,7 +248,8 @@ async fn schedulers_wait_for_authenticator_inputs() {
         let state = init_state_with_objects(vec![gas_object.clone(), shared_object.clone()]).await;
         let (scheduler, mut rx_ready_transactions) = make_execution_scheduler(&state);
 
-        let transaction = make_shared_authenticator_transaction(&gas_object, &shared_object);
+        let transaction =
+            make_shared_authenticator_transaction(&gas_object, &shared_object, vec![]);
         let env = ExecutionEnv::new().with_assigned_versions(vec![VersionAssignment::new(
             shared_object.id(),
             shared_version,
@@ -273,7 +283,8 @@ async fn schedulers_wait_for_authenticator_inputs() {
         let state = init_state_with_objects(vec![gas_object.clone(), shared_object.clone()]).await;
         let (scheduler, mut rx_ready_transactions) = make_transaction_manager(&state);
 
-        let transaction = make_shared_authenticator_transaction(&gas_object, &shared_object);
+        let transaction =
+            make_shared_authenticator_transaction(&gas_object, &shared_object, vec![]);
         let env = ExecutionEnv::new().with_assigned_versions(vec![VersionAssignment::new(
             shared_object.id(),
             shared_version,
@@ -297,6 +308,171 @@ async fn schedulers_wait_for_authenticator_inputs() {
             },
         )
         .await;
+    }
+}
+
+/// The `examples/move/basics` package, not yet in any store.
+fn basics_package() -> Object {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/move/basics");
+    let modules = BuildConfig::new_for_testing()
+        .build(&path)
+        .unwrap()
+        .into_modules();
+    Object::new_package_for_testing(
+        &modules,
+        TransactionDigest::GENESIS_MARKER,
+        BuiltInFramework::genesis_move_packages(),
+    )
+    .unwrap()
+}
+
+/// A transaction's readiness set must include the packages that its
+/// `MoveAuthenticator`'s type arguments name: every other input is available,
+/// but the package is not published yet, so the scheduler must hold the
+/// transaction until it is. Otherwise a node that has not executed the publish
+/// yet would authenticate against a store without the package.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn schedulers_wait_for_authenticator_type_arg_packages() {
+    let package = basics_package();
+    let type_arg = TypeTag::from_str(&format!("{}::object_basics::Object", package.id())).unwrap();
+
+    // ExecutionScheduler: released by writing the package into the cache, which
+    // the scheduler observes through `notify_read_input_objects`.
+    {
+        let (owner, _key) = deterministic_random_account_private_key();
+        let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+        let account = Object::shared_for_testing();
+        let state = init_state_with_objects(vec![gas_object.clone(), account.clone()]).await;
+        let (scheduler, mut rx_ready_transactions) = make_execution_scheduler(&state);
+
+        let transaction =
+            make_shared_authenticator_transaction(&gas_object, &account, vec![type_arg.clone()]);
+        let env = ExecutionEnv::new().with_assigned_versions(vec![VersionAssignment::new(
+            account.id(),
+            account.version(),
+        )]);
+
+        assert_awaits_authenticator_input(
+            "ExecutionScheduler",
+            &state,
+            &scheduler,
+            &mut rx_ready_transactions,
+            &transaction,
+            env,
+            || {
+                state
+                    .get_cache_writer()
+                    .write_object_entry_for_test(package.clone());
+            },
+        )
+        .await;
+    }
+
+    // TransactionManager: released by an explicit `objects_available` push.
+    {
+        let (owner, _key) = deterministic_random_account_private_key();
+        let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+        let account = Object::shared_for_testing();
+        let state = init_state_with_objects(vec![gas_object.clone(), account.clone()]).await;
+        let (scheduler, mut rx_ready_transactions) = make_transaction_manager(&state);
+
+        let transaction =
+            make_shared_authenticator_transaction(&gas_object, &account, vec![type_arg]);
+        let env = ExecutionEnv::new().with_assigned_versions(vec![VersionAssignment::new(
+            account.id(),
+            account.version(),
+        )]);
+
+        assert_awaits_authenticator_input(
+            "TransactionManager",
+            &state,
+            &scheduler,
+            &mut rx_ready_transactions,
+            &transaction,
+            env,
+            || {
+                scheduler.objects_available(
+                    vec![InputKey::Package { id: package.id() }],
+                    &state.epoch_store_for_testing(),
+                );
+            },
+        )
+        .await;
+    }
+}
+
+/// Enqueues `transaction` and asserts it is dispatched although the package
+/// its authenticator's type argument names is in no store.
+async fn assert_dispatches_without_the_type_arg_package(
+    who: &str,
+    state: &AuthorityState,
+    scheduler: &dyn ExecutionSchedulerAPI,
+    rx_ready_transactions: &mut UnboundedReceiver<PendingTransaction>,
+    transaction: &VerifiedExecutableTransaction,
+    env: ExecutionEnv,
+) {
+    scheduler.enqueue_transactions(
+        vec![(transaction.clone(), env)],
+        &state.epoch_store_for_testing(),
+    );
+    let ready = timeout(Duration::from_secs(1), rx_ready_transactions.recv())
+        .await
+        .unwrap_or_else(|_| panic!("{who} waited for a type argument package"))
+        .unwrap();
+    assert_eq!(ready.transaction.digest(), transaction.digest());
+}
+
+/// Without the flag, the packages a `MoveAuthenticator`'s type arguments name
+/// are not inputs, as before the flag: neither scheduler waits for one that is
+/// not published.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn schedulers_do_not_wait_for_authenticator_type_arg_packages_without_the_flag() {
+    let package = basics_package();
+    let type_arg = TypeTag::from_str(&format!("{}::object_basics::Object", package.id())).unwrap();
+    let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+    protocol_config.set_move_authenticator_type_arg_packages_as_inputs_for_testing(false);
+
+    for who in ["ExecutionScheduler", "TransactionManager"] {
+        let (owner, _key) = deterministic_random_account_private_key();
+        let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+        let account = Object::shared_for_testing();
+        let state = TestAuthorityBuilder::new()
+            .with_protocol_config(protocol_config.clone())
+            .build()
+            .await;
+        state.insert_genesis_object(gas_object.clone());
+        state.insert_genesis_object(account.clone());
+
+        let transaction =
+            make_shared_authenticator_transaction(&gas_object, &account, vec![type_arg.clone()]);
+        let env = ExecutionEnv::new().with_assigned_versions(vec![VersionAssignment::new(
+            account.id(),
+            account.version(),
+        )]);
+
+        if who == "ExecutionScheduler" {
+            let (scheduler, mut rx_ready_transactions) = make_execution_scheduler(&state);
+            assert_dispatches_without_the_type_arg_package(
+                who,
+                &state,
+                &scheduler,
+                &mut rx_ready_transactions,
+                &transaction,
+                env,
+            )
+            .await;
+        } else {
+            let (scheduler, mut rx_ready_transactions) = make_transaction_manager(&state);
+            assert_dispatches_without_the_type_arg_package(
+                who,
+                &state,
+                &scheduler,
+                &mut rx_ready_transactions,
+                &transaction,
+                env,
+            )
+            .await;
+        }
     }
 }
 
@@ -936,4 +1112,55 @@ async fn execution_scheduler_dispatches_gas_object_cancellation_with_its_env() {
         .unwrap();
     assert_eq!(pending.transaction.digest(), transaction.digest());
     assert_eq!(pending.execution_env.assigned_versions, assigned_versions);
+}
+
+/// A dependent is released once its dependency's effects are written, which
+/// the scheduler learns from the transaction cache.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn execution_scheduler_waits_for_the_transaction_dependency() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_transaction_dependencies_for_testing(true);
+        config
+    });
+    let (sender, key) = deterministic_random_account_private_key();
+    let gas_objects: Vec<Object> = (0..2)
+        .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), sender))
+        .collect();
+    let state = init_state_with_objects(gas_objects.clone()).await;
+    let epoch_store = state.epoch_store_for_testing();
+    let (execution_scheduler, mut rx_ready_transactions) = make_execution_scheduler(&state);
+    let transfer = |gas_object: &Object, dependency: Option<TransactionDigest>| {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.transfer_iota(Address::random(), Some(1_000));
+        let mut transaction = TestTransactionBuilder::new(
+            sender,
+            gas_object.object_ref(),
+            epoch_store.reference_gas_price(),
+        )
+        .programmable(builder.finish());
+        if let Some(dependency) = dependency {
+            transaction = transaction.with_transaction_dependency(dependency, 0);
+        }
+        init_certified_transaction(transaction.build_and_sign(&key), &state)
+    };
+
+    let dependency = transfer(&gas_objects[0], None);
+    let dependent = VerifiedExecutableTransaction::new_from_certificate(transfer(
+        &gas_objects[1],
+        Some(*dependency.digest()),
+    ));
+    execution_scheduler
+        .enqueue_transactions(vec![(dependent.clone(), ExecutionEnv::new())], &epoch_store);
+    sleep(Duration::from_secs(1)).await;
+    assert!(rx_ready_transactions.try_recv().is_err());
+
+    state
+        .try_execute_for_test(&dependency, ExecutionEnv::new())
+        .unwrap();
+
+    let ready = timeout(Duration::from_secs(10), rx_ready_transactions.recv())
+        .await
+        .expect("dispatched within the deadline")
+        .unwrap();
+    assert_eq!(ready.transaction.digest(), dependent.digest());
 }

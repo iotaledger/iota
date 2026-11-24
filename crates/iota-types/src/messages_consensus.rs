@@ -12,7 +12,7 @@ use std::{
 
 use byteorder::{BigEndian, ReadBytesExt};
 use fastcrypto::{error::FastCryptoResult, groups::bls12381, hash::HashFunction};
-use fastcrypto_tbls::dkg_v1;
+use fastcrypto_threshold::dkg_v1;
 use iota_sdk_types::{
     DenyRuleSet, Digest, MisbehaviorReportDigest, ObjectReference, SenderSignedTransaction,
     TransactionDigest, crypto::IntentScope,
@@ -22,6 +22,7 @@ use serde::{Deserialize, Serialize};
 use tracing::warn;
 
 use crate::{
+    attestation::{Attestation, AttestedTransaction},
     base_types::{AuthorityName, ConciseableName},
     crypto::{AuthoritySignature, DefaultHash, default_hash},
     message_envelope::{Envelope, Message, VerifiedEnvelope},
@@ -289,17 +290,17 @@ pub enum ConsensusTransactionKind {
 
     // DKG is used to generate keys for use in the random beacon protocol.
     // `RandomnessDkgMessage` is sent out at start-of-epoch to initiate the process.
-    // Contents are a serialized `fastcrypto_tbls::dkg::Message`.
+    // Contents are a serialized `fastcrypto_threshold::dkg::Message`.
     RandomnessDkgMessage(AuthorityName, Vec<u8>),
     // `RandomnessDkgConfirmation` is the second DKG message, sent as soon as a threshold amount
     // of `RandomnessDkgMessages` have been received locally, to complete the key generation
-    // process. Contents are a serialized `fastcrypto_tbls::dkg::Confirmation`.
+    // process. Contents are a serialized `fastcrypto_threshold::dkg::Confirmation`.
     RandomnessDkgConfirmation(AuthorityName, Vec<u8>),
     MisbehaviorReport(VersionedMisbehaviorReport),
     /// P-COOL user transaction. Raw, uncertified transaction submitted
     /// directly to consensus without pre-consensus object locking.
     /// Conflicts are resolved post-consensus.
-    UserTransactionV1(Box<TransactionEnvelope>),
+    UserTransactionV1(Box<AttestedTransaction>),
     OverloadNotificationV1(
         AuthorityName,
         u64, // generation
@@ -327,7 +328,7 @@ impl ConsensusTransactionKind {
     ) -> Option<R> {
         match self {
             Self::CertifiedTransaction(c) => Some(certified(c)),
-            Self::UserTransactionV1(t) => Some(raw(t)),
+            Self::UserTransactionV1(t) => Some(raw(&t.transaction)),
             Self::CheckpointSignature(_)
             | Self::EndOfPublish(_)
             | Self::CapabilityNotificationV1(_)
@@ -354,12 +355,14 @@ impl ConsensusTransactionKind {
         self.map_cert_or_raw_user_tx(|c| *c.digest(), |t| *t.digest())
     }
 
-    /// Returns the raw, uncertified user transaction (`UserTransactionV1`)
-    /// submitted directly to consensus, or `None` for any other kind. Certified
-    /// user transactions are not included here.
-    pub fn as_user_transaction(&self) -> Option<&TransactionEnvelope> {
+    /// Returns the raw, uncertified user transaction together with its
+    /// attestation (`Some` when it was attested), or `None` for any other
+    /// kind. Certified user transactions are not included here.
+    pub fn as_user_transaction_with_attestation(
+        &self,
+    ) -> Option<(&TransactionEnvelope, Option<&Attestation>)> {
         match self {
-            Self::UserTransactionV1(tx) => Some(tx),
+            Self::UserTransactionV1(t) => Some((&t.transaction, t.attestation.as_ref())),
             Self::CertifiedTransaction(_)
             | Self::CheckpointSignature(_)
             | Self::EndOfPublish(_)
@@ -373,6 +376,13 @@ impl ConsensusTransactionKind {
             #[allow(deprecated)]
             Self::NewJWKFetchedDeprecated => None,
         }
+    }
+
+    /// Returns the raw, uncertified user transaction (`UserTransactionV1`)
+    /// submitted directly to consensus, or `None` for any other kind.
+    /// Certified user transactions are not included here.
+    pub fn as_user_transaction(&self) -> Option<&TransactionEnvelope> {
+        self.as_user_transaction_with_attestation().map(|(t, _)| t)
     }
 
     /// Returns `true` only for a raw, uncertified user transaction
@@ -536,14 +546,10 @@ impl MisbehaviorObservationsV1 {
         // the future, reports should be unwrapped (or translated) to a type verifiable
         // by the starfish crate, which means that the verification logic will probably
         // move out of this crate.
-        if (self.faulty_blocks_provable.len() != committee_size)
-            || (self.faulty_blocks_unprovable.len() != committee_size)
-            || (self.equivocations.len() != committee_size)
-            || (self.missing_proposals.len() != committee_size)
-        {
-            return false;
-        }
-        true
+        self.faulty_blocks_provable.len() == committee_size
+            && self.faulty_blocks_unprovable.len() == committee_size
+            && self.equivocations.len() == committee_size
+            && self.missing_proposals.len() == committee_size
     }
 }
 
@@ -754,7 +760,10 @@ impl ConsensusTransaction {
         let tracking_id = hasher.finish().to_le_bytes();
         Self {
             tracking_id,
-            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(transaction)),
+            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+                transaction,
+                None,
+            ))),
         }
     }
 
@@ -796,6 +805,16 @@ impl ConsensusTransaction {
         Self {
             tracking_id,
             kind: ConsensusTransactionKind::TransactionDenyRuleProposal(proposal),
+        }
+    }
+
+    pub fn new_attested_user_transaction(attested_tx: AttestedTransaction) -> Self {
+        let mut hasher = DefaultHasher::new();
+        attested_tx.digest().hash(&mut hasher);
+        let tracking_id = hasher.finish().to_le_bytes();
+        Self {
+            tracking_id,
+            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(attested_tx)),
         }
     }
 

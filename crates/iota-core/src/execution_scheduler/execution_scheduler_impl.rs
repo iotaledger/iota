@@ -29,6 +29,7 @@ use crate::{
     execution_scheduler::{
         ExecutingGuard, ExecutionSchedulerAPI, PendingTransaction, PendingTransactionStats,
         executed_in_current_epoch, overload_tracker::OverloadTracker,
+        transaction_dependency_input_key,
     },
 };
 
@@ -105,7 +106,11 @@ impl ExecutionScheduler {
         // (e.g. the Clock) is available and panic in the input loader.
         let input_object_kinds = tx
             .data()
-            .collect_all_input_object_kind_for_reading()
+            .collect_all_input_object_kind_for_reading(
+                epoch_store
+                    .protocol_config()
+                    .move_authenticator_type_arg_packages_as_inputs(),
+            )
             // The transaction is already verified by the time it is scheduled, so
             // its input objects are well-formed.
             .expect("collect_all_input_object_kind_for_reading() cannot fail");
@@ -146,7 +151,15 @@ impl ExecutionScheduler {
             .zip(availability)
             .filter_map(|(key, available)| if !available { Some(key) } else { None })
             .collect();
-        if missing_input_keys.is_empty() {
+        let missing_dependency =
+            transaction_dependency_input_key(&tx, &execution_env.assigned_versions)
+                .and_then(|key| key.transaction_digest())
+                .filter(|dependency| {
+                    !self
+                        .transaction_cache_read
+                        .is_tx_already_executed(dependency)
+                });
+        if missing_input_keys.is_empty() && missing_dependency.is_none() {
             self.metrics
                 .transaction_manager_num_enqueued_certificates
                 .with_label_values(&["ready"])
@@ -161,9 +174,22 @@ impl ExecutionScheduler {
             .transaction_manager_num_enqueued_certificates
             .with_label_values(&["pending"])
             .inc();
+        let dependency_executed = async {
+            if let Some(dependency) = missing_dependency {
+                self.transaction_cache_read
+                    .notify_read_executed_effects_digests(
+                        "ExecutionScheduler::notify_read_transaction_dependency",
+                        &[dependency],
+                    )
+                    .await;
+            }
+        };
         tokio::select! {
-            _ = self.object_cache_read
-                .notify_read_input_objects(&missing_input_keys, &receiving_object_keys, epoch) => {
+            _ = futures::future::join(
+                self.object_cache_read
+                    .notify_read_input_objects(&missing_input_keys, &receiving_object_keys, epoch),
+                dependency_executed,
+            ) => {
                     self.metrics
                         .transaction_manager_transaction_queue_age_s
                         .observe(enqueue_time.elapsed().as_secs_f64());

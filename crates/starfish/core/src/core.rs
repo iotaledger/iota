@@ -37,7 +37,7 @@ use crate::{
     acknowledgment_stats::AcknowledgmentStats,
     authority_set::AuthoritySet,
     block_header::{
-        BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockHeaderV2, BlockRef, BlockTimestampMs,
+        BlockHeader, BlockHeaderAPI, BlockHeaderV2, BlockRef, BlockTimestampMs,
         CommitmentVerifiedTransactions, GENESIS_ROUND, Round, SignedBlockHeader, Slot, StrongVote,
         TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard,
     },
@@ -54,7 +54,7 @@ use crate::{
     leader_schedule::LeaderSchedule,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     transaction::TransactionConsumer,
-    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
+    transaction_ref::TransactionRef,
     universal_committer::{
         UniversalCommitter, universal_committer_builder::UniversalCommitterBuilder,
     },
@@ -144,7 +144,6 @@ pub(crate) enum ReasonToCreateBlock {
     Recover,
     QuorumSubscribersExist,
     KnownLastBlock,
-    #[allow(dead_code)]
     FastSyncComplete,
 }
 
@@ -177,7 +176,7 @@ impl ReasonToCreateBlock {
             ReasonToCreateBlock::Recover => true,
             ReasonToCreateBlock::QuorumSubscribersExist => true,
             ReasonToCreateBlock::KnownLastBlock => true,
-            ReasonToCreateBlock::FastSyncComplete => true,
+            ReasonToCreateBlock::FastSyncComplete => false,
         }
     }
 }
@@ -394,7 +393,7 @@ impl Core {
         source: DataSource,
     ) -> ConsensusResult<(
         BTreeSet<BlockRef>,
-        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         let _scope = monitored_scope("Core::add_blocks");
         let _s = self
@@ -412,10 +411,8 @@ impl Core {
         let (accepted_blocks_headers, missing_block_refs) =
             self.block_manager.try_accept_blocks(blocks, source);
 
-        if self.context.protocol_config.consensus_starfish_speed() {
-            self.record_strong_blame_metrics(&accepted_blocks_headers);
-            self.record_acknowledgment_stats(&accepted_blocks_headers);
-        }
+        self.record_strong_blame_metrics(&accepted_blocks_headers);
+        self.record_acknowledgment_stats(&accepted_blocks_headers);
 
         let missing_committed_txns = if !accepted_blocks_headers.is_empty() {
             trace!(
@@ -463,7 +460,7 @@ impl Core {
         source: DataSource,
     ) -> ConsensusResult<(
         BTreeSet<BlockRef>,
-        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         let _scope = monitored_scope("Core::add_block_headers");
         let _s = self
@@ -482,10 +479,8 @@ impl Core {
             .block_manager
             .try_accept_block_headers(block_headers, source);
 
-        if self.context.protocol_config.consensus_starfish_speed() {
-            self.record_strong_blame_metrics(&accepted_block_headers);
-            self.record_acknowledgment_stats(&accepted_block_headers);
-        }
+        self.record_strong_blame_metrics(&accepted_block_headers);
+        self.record_acknowledgment_stats(&accepted_block_headers);
 
         let missing_committed_txns = if !accepted_block_headers.is_empty() {
             trace!(
@@ -591,7 +586,7 @@ impl Core {
         certified_commits: CertifiedCommits,
     ) -> ConsensusResult<(
         BTreeSet<BlockRef>,
-        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         let _scope = monitored_scope("Core::add_certified_commits");
 
@@ -711,12 +706,14 @@ impl Core {
         )
     }
 
-    /// Reinitialize consensus components after fast sync completes.
-    /// This stores block headers on disk and reinitializes DagState,
-    /// BlockManager, and CommitObserver so that regular syncer can take
-    /// over.
+    /// Rebuilds the consensus components from storage and `block_headers`
+    /// when fast sync ends, so that regular sync can take over, then proposes
+    /// a block if one is due and signals the current round. `block_headers`
+    /// should cover the `dag_state_cached_rounds` window.
     ///
-    /// Block headers should cover the cached_rounds window (~500 rounds).
+    /// # Errors
+    ///
+    /// Fails if reading the stored commits fails or the node is shutting down.
     pub(crate) async fn reinitialize_components(
         &mut self,
         block_headers: Vec<VerifiedBlockHeader>,
@@ -735,7 +732,7 @@ impl Core {
         );
 
         // Hold the dag_state lock for the entire flow to ensure consistency
-        let (last_commit_index, threshold_round, last_commit_leader) = {
+        let (threshold_round, last_commit_leader) = {
             let mut dag_state = self.dag_state.write();
 
             // 1. Store block headers on disk
@@ -747,31 +744,33 @@ impl Core {
             // 2. Flush everything to storage
             dag_state.flush();
 
-            // 3. Get current state before reinitializing
-            let last_commit_index = dag_state.last_commit_index();
-
-            // 4. Reinitialize DagState
+            // 3. Reinitialize DagState
             dag_state.reinitialize();
 
             let threshold_round = dag_state.threshold_clock_round();
             let last_commit_leader = dag_state.last_commit_leader();
-            (last_commit_index, threshold_round, last_commit_leader)
+            (threshold_round, last_commit_leader)
         };
 
-        // 5. Reinitialize LeaderSchedule from stored commit info
+        // 4. Reinitialize LeaderSchedule from stored commit info
         self.leader_schedule.reinitialize(&self.dag_state);
 
-        // 6. Reinitialize BlockManager
+        // 5. Reinitialize BlockManager
         self.block_manager.reinitialize();
 
-        // 7. Update last_finalized_leader to match the new DAG state
+        // 6. Update last_finalized_leader to match the new DAG state
         self.last_finalized_leader = last_commit_leader;
 
-        // 8. Reinitialize CommitObserver with recovery (uses recover_and_send_commits)
-        self.commit_observer.reinitialize(last_commit_index).await?;
+        // 7. Reinitialize CommitObserver with recovery (uses recover_and_send_commits)
+        self.commit_observer.reinitialize().await?;
 
-        // 9. Reset signaling state
+        // 8. Reset signaling state
         self.last_signaled_round = threshold_round.saturating_sub(1);
+
+        // 9. Proposal triggers that arrived during fast sync were dropped and
+        // no new header may come, so propose now if due and signal the round.
+        self.try_propose(ReasonToCreateBlock::FastSyncComplete)?;
+        self.try_signal_new_round();
 
         info!("Components reinitialized successfully");
         Ok(())
@@ -792,6 +791,10 @@ impl Core {
         tracing::trace!(round = ?new_clock_round, "new_consensus_round_sent");
         self.signals.new_round(new_clock_round);
         self.last_signaled_round = new_clock_round;
+        // A restart that recovers a later round does not record it again.
+        if new_clock_round == 2 {
+            self.context.record_epoch_start_stage("round_2");
+        }
 
         // Report the threshold clock round
         self.context
@@ -811,7 +814,7 @@ impl Core {
         reason: ReasonToCreateBlock,
     ) -> ConsensusResult<(
         Option<VerifiedBlock>,
-        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         let _scope = monitored_scope("Core::new_block");
         if self.last_proposed_round() < round {
@@ -831,7 +834,7 @@ impl Core {
         reason: ReasonToCreateBlock,
     ) -> ConsensusResult<(
         Option<VerifiedBlock>,
-        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         if !self.should_propose() {
             return Ok((None, BTreeMap::new()));
@@ -937,8 +940,7 @@ impl Core {
         // Record the first moment in this clock round at which the ordinary
         // (base Starfish) propose condition was satisfied. Used to observe the
         // extra wait imposed by the StarfishSpeed strong-vote condition.
-        if self.context.protocol_config.consensus_starfish_speed()
-            && !reason.is_forced()
+        if !reason.is_forced()
             && leader_header.is_some()
             && self
                 .proposal_rate_limiter
@@ -956,13 +958,10 @@ impl Core {
         if !reason.is_forced() {
             leader_header.as_ref()?;
 
-            // Strong-vote readiness check 1 (StarfishSpeed only, bypassed on
-            // soft-timeout): 2f+1 strong votes at quorum_round pinned to the
-            // leader at quorum_round - 1.
-            if !strong_vote_timed_out
-                && self.context.protocol_config.consensus_starfish_speed()
-                && quorum_round > GENESIS_ROUND
-            {
+            // Strong-vote readiness check 1 (bypassed on soft-timeout): 2f+1
+            // strong votes at quorum_round pinned to the leader at
+            // quorum_round - 1.
+            if !strong_vote_timed_out && quorum_round > GENESIS_ROUND {
                 if let Some(prev_leader) = self.leader_header(quorum_round - 1) {
                     if !self.has_strong_vote_quorum(quorum_round, prev_leader.author()) {
                         return None;
@@ -983,12 +982,10 @@ impl Core {
         // the block header below.
         let strong_vote = self.strong_vote_for(leader_header.as_ref());
 
-        // Strong-vote readiness check 2 (StarfishSpeed only, bypassed on
-        // soft-timeout): our block would itself be a strong vote for the
-        // leader at clock_round-1.
+        // Strong-vote readiness check 2 (bypassed on soft-timeout): our block
+        // would itself be a strong vote for the leader at clock_round-1.
         if !reason.is_forced()
             && !strong_vote_timed_out
-            && self.context.protocol_config.consensus_starfish_speed()
             && !strong_vote.as_ref().is_some_and(|sv| sv.is_strong_vote())
         {
             return None;
@@ -1022,7 +1019,7 @@ impl Core {
         // re-counted as an abandoned round on a later call.
         if let Some((r, start)) = self.ordinary_propose_ready_at {
             if r == clock_round {
-                if !reason.is_forced() && self.context.protocol_config.consensus_starfish_speed() {
+                if !reason.is_forced() {
                     self.context
                         .metrics
                         .node_metrics
@@ -1191,30 +1188,17 @@ impl Core {
 
         // Create the block and insert to storage.
         let ancestor_refs = ancestors.iter().map(|b| b.reference()).collect();
-        let block_header = if self.context.protocol_config.consensus_starfish_speed() {
-            BlockHeader::V2(BlockHeaderV2::new(
-                self.context.committee.epoch(),
-                round,
-                self.context.own_index,
-                now,
-                ancestor_refs,
-                acknowledgments,
-                commit_votes,
-                transactions_commitment,
-                strong_vote,
-            ))
-        } else {
-            BlockHeader::V1(BlockHeaderV1::new(
-                self.context.committee.epoch(),
-                round,
-                self.context.own_index,
-                now,
-                ancestor_refs,
-                acknowledgments,
-                commit_votes,
-                transactions_commitment,
-            ))
-        };
+        let block_header = BlockHeader::V2(BlockHeaderV2::new(
+            self.context.committee.epoch(),
+            round,
+            self.context.own_index,
+            now,
+            ancestor_refs,
+            acknowledgments,
+            commit_votes,
+            transactions_commitment,
+            strong_vote,
+        ));
 
         let signed_block_header = SignedBlockHeader::new(block_header, &self.block_signer)
             .expect("Block signing failed.");
@@ -1252,6 +1236,8 @@ impl Core {
                     )
                     .as_secs_f64(),
                 );
+        } else {
+            self.context.record_epoch_start_stage("first_own_block");
         }
 
         // Construct verified transactions to be used for storing and broadcasting
@@ -1289,8 +1275,8 @@ impl Core {
         drop(dag_state_guard);
         // Now acknowledge the transactions for their inclusion to block
         let block_ref = verified_block.reference();
-        let gen_transaction_ref = GenericTransactionRef::from(verified_block.transaction_ref());
-        ack_transactions(gen_transaction_ref);
+        let transaction_ref = verified_block.transaction_ref();
+        ack_transactions(transaction_ref);
 
         info!("Created block {block_ref} for round {round}");
 
@@ -1316,7 +1302,7 @@ impl Core {
         source: CommittedSubDagSource,
     ) -> ConsensusResult<(
         Vec<PendingSubDag>,
-        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         let _s = self
             .context
@@ -1327,7 +1313,7 @@ impl Core {
             .start_timer();
 
         let mut committed_sub_dags = Vec::new();
-        let mut all_missing_committed_txns = BTreeMap::new();
+        let mut all_missing_committed_txns = BTreeMap::<_, BTreeSet<_>>::new();
         // TODO: Add optimization to abort early without quorum for a round.
         loop {
             // LeaderSchedule has a limit to how many sequenced leaders can be committed
@@ -1411,10 +1397,7 @@ impl Core {
                 sequenced_leaders.len(),
                 sequenced_leaders
                     .iter()
-                    .map(|(b, m, _)| match m {
-                        Some(state) => format!("{}({state})", b.reference()),
-                        None => b.reference().to_string(),
-                    })
+                    .map(|(b, m, _)| format!("{}({m})", b.reference()))
                     .join(",")
             );
 
@@ -1422,15 +1405,21 @@ impl Core {
             let (subdags, missing_transactions_refs) = self
                 .commit_observer
                 .handle_committed_leaders(sequenced_leaders, source)?;
+            if subdags
+                .first()
+                .is_some_and(|subdag| subdag.base.commit_ref.index == 1)
+            {
+                self.context.record_epoch_start_stage("first_commit");
+            }
 
-            // Check for duplicates before extending
-            assert!(
-                !missing_transactions_refs
-                    .keys()
-                    .any(|k| all_missing_committed_txns.contains_key(k)),
-                "duplicate committed missing transactions reference found"
-            );
-            all_missing_committed_txns.extend(missing_transactions_refs);
+            // The same transaction ref can be missing on both sides of a leader
+            // schedule change.
+            for (transaction_ref, authors) in missing_transactions_refs {
+                all_missing_committed_txns
+                    .entry(transaction_ref)
+                    .or_default()
+                    .extend(authors);
+            }
 
             // After a positive commit advance, refresh the quorum commit index
             // on `DagState` so the eviction of `pending_commit_votes` is bounded.
@@ -1455,7 +1444,7 @@ impl Core {
             .iter()
             .flat_map(|sub_dag| sub_dag.committed_transaction_refs.iter())
             .filter_map(|block_ref| {
-                (block_ref.author() == self.context.own_index).then_some(*block_ref)
+                (block_ref.author == self.context.own_index).then_some(*block_ref)
             })
             .collect::<Vec<_>>();
 
@@ -1480,7 +1469,7 @@ impl Core {
     }
     pub(crate) fn get_missing_transaction_data(
         &self,
-    ) -> BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>> {
+    ) -> BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>> {
         let _scope = monitored_scope("Core::get_missing_transaction_data");
         let _s = self
             .context
@@ -1498,6 +1487,11 @@ impl Core {
     /// Sets if there is 2f+1 subscriptions to the block stream.
     pub(crate) fn set_quorum_subscribers_exists(&mut self, exists: bool) {
         info!("A quorum of block subscribers exists: {exists}");
+        // Before the first own block, so a restart in the middle of the epoch
+        // does not record it.
+        if exists && self.last_proposed_round() == 0 {
+            self.context.record_epoch_start_stage("subscriber_quorum");
+        }
         self.quorum_subscribers_exists = exists;
     }
 
@@ -1690,11 +1684,8 @@ impl Core {
     }
 
     /// The strong-vote payload of a block of ours voting on `leader_header`,
-    /// absent without StarfishSpeed or without the leader block.
+    /// absent without the leader block.
     fn strong_vote_for(&self, leader_header: Option<&VerifiedBlockHeader>) -> Option<StrongVote> {
-        if !self.context.protocol_config.consensus_starfish_speed() {
-            return None;
-        }
         leader_header.map(|header| Self::compute_strong_vote(&self.dag_state.read(), header))
     }
 
@@ -1745,7 +1736,7 @@ impl Core {
     }
 
     /// Counts the strong blames against this node's leader blocks among
-    /// freshly-accepted blocks. Called only when Starfish-Speed flag is on.
+    /// freshly-accepted blocks.
     fn record_strong_blame_metrics(&self, blocks: &[VerifiedBlockHeader]) {
         let own_index = self.context.own_index;
         for block in blocks {
@@ -2005,8 +1996,10 @@ impl CoreTestFixture {
             LeaderSchedule::from_store(context.clone(), dag_state.clone())
                 .with_num_commits_per_schedule(10),
         );
-        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
-        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (_transaction_client, tx_receiver, priority_tx_receiver) =
+            TransactionClient::new(context.clone());
+        let transaction_consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
         let (signals, signal_receivers) = CoreSignals::new(context.clone());
         // Need at least one subscriber to the block broadcast channel.
         let block_receiver = signal_receivers.block_broadcast_receiver();
@@ -2052,6 +2045,7 @@ impl CoreTestFixture {
 mod test {
     use std::{
         collections::{BTreeSet, HashSet},
+        iter,
         time::Duration,
     };
 
@@ -2070,30 +2064,26 @@ mod test {
             BlockHeaderDigest, TestBlockHeader, TestBlockHeaderVersion, TransactionsCommitment,
             genesis_block_headers, genesis_blocks,
         },
-        commit::{CommitAPI, CommitRange},
+        commit::{CommitAPI, CommitDigest, CommitRange, CommitRef},
         leader_scoring::ReputationScores,
         storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
-        transaction::{BlockStatus, TransactionClient},
+        transaction::{BlockStatus, Priority, TransactionClient},
         transaction_ref::TransactionRef,
     };
 
     /// Recover Core and continue proposing from the last round which forms a
     /// quorum.
-    #[rstest]
     #[tokio::test]
-    async fn test_core_recover_from_store_for_full_round(
-        #[values(false, true)] starfish_speed: bool,
-    ) {
+    async fn test_core_recover_from_store_for_full_round() {
         telemetry_subscribers::init_for_testing();
-        let (mut context, mut key_pairs) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(starfish_speed);
+        let (context, mut key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
-        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (_transaction_client, tx_receiver, priority_tx_receiver) =
+            TransactionClient::new(context.clone());
+        let transaction_consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
         let mut block_status_subscriptions = FuturesUnordered::new();
 
         // Create a fully connected DAG with 6 rounds.
@@ -2106,13 +2096,13 @@ mod test {
         // able to commit transactions up to round 2.
         for block in dag_builder.block_headers(1..=2) {
             if block.author() == context.own_index {
-                let generic_ref = GenericTransactionRef::TransactionRef(TransactionRef {
+                let transaction_ref = TransactionRef {
                     round: block.round(),
                     author: block.author(),
                     transactions_commitment: block.transactions_commitment(),
-                });
+                };
                 let subscription =
-                    transaction_consumer.subscribe_for_block_status_testing(generic_ref);
+                    transaction_consumer.subscribe_for_block_status_testing(transaction_ref);
                 block_status_subscriptions.push(subscription);
             }
         }
@@ -2208,21 +2198,17 @@ mod test {
     /// Recover Core and continue proposing when having a partial last round
     /// which doesn't form a quorum and we haven't proposed for that round
     /// yet.
-    #[rstest]
     #[tokio::test]
-    async fn test_core_recover_from_store_for_partial_round(
-        #[values(false, true)] starfish_speed: bool,
-    ) {
+    async fn test_core_recover_from_store_for_partial_round() {
         telemetry_subscribers::init_for_testing();
 
-        let (mut context, mut key_pairs) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(starfish_speed);
+        let (context, mut key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
-        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (_transaction_client, tx_receiver, priority_tx_receiver) =
+            TransactionClient::new(context.clone());
+        let transaction_consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
 
         // Create test blocks for all authorities except our's (index = 0). For
         // round 4 only produce f+1 blocks, so skip authority 1 as well.
@@ -2357,8 +2343,10 @@ mod test {
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
-        let (transaction_client, tx_receiver) = TransactionClient::new(context.clone());
-        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (transaction_client, tx_receiver, priority_tx_receiver) =
+            TransactionClient::new(context.clone());
+        let transaction_consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
         let (signals, signal_receivers) = CoreSignals::new(context.clone());
         // Need at least one subscriber to the block broadcast channel.
         let mut block_receiver = signal_receivers.block_broadcast_receiver();
@@ -2390,7 +2378,7 @@ mod test {
             total += transaction.len();
             index += 1;
             let _w = transaction_client
-                .submit_no_wait(vec![transaction])
+                .submit_no_wait(vec![transaction], Priority::Normal)
                 .await
                 .unwrap();
 
@@ -2507,16 +2495,10 @@ mod test {
         assert_eq!(dag_state.read().last_commit_index(), 0);
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_core_propose_once_receiving_a_quorum(
-        #[values(false, true)] starfish_speed: bool,
-    ) {
+    async fn test_core_propose_once_receiving_a_quorum() {
         telemetry_subscribers::init_for_testing();
-        let (mut context, mut key_pairs) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(starfish_speed);
+        let (context, mut key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
 
         let store = Arc::new(MemStore::new());
@@ -2528,8 +2510,10 @@ mod test {
             dag_state.clone(),
         ));
 
-        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
-        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (_transaction_client, tx_receiver, priority_tx_receiver) =
+            TransactionClient::new(context.clone());
+        let transaction_consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
         let (signals, signal_receivers) = CoreSignals::new(context.clone());
         // Need at least one subscriber to the block broadcast channel.
         let _block_receiver = signal_receivers.block_broadcast_receiver();
@@ -2562,14 +2546,14 @@ mod test {
 
         // A round 1 block votes on the genesis leader, whose transactions are
         // always available, so peers send a strong vote for it.
-        let round_1_strong_vote = starfish_speed.then(|| StrongVote {
+        let round_1_strong_vote = Some(StrongVote {
             leader_authority: core.leader_schedule.elect_leader(GENESIS_ROUND, 0),
             missing: AuthoritySet::new(),
         });
         let round_1_block = |author: u8| {
             VerifiedBlock::new_for_test(
                 TestBlockHeader::new(1, author)
-                    .set_version(TestBlockHeaderVersion::from_context(&context))
+                    .set_version(TestBlockHeaderVersion::V2)
                     .set_strong_vote(round_1_strong_vote)
                     .build(),
             )
@@ -2680,8 +2664,10 @@ mod test {
             dag_state.clone(),
         ));
 
-        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
-        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (_transaction_client, tx_receiver, priority_tx_receiver) =
+            TransactionClient::new(context.clone());
+        let transaction_consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
         let (signals, signal_receivers) = CoreSignals::new(context.clone());
         // Need at least one subscriber to the block broadcast channel.
         let _block_receiver = signal_receivers.block_broadcast_receiver();
@@ -2762,9 +2748,8 @@ mod test {
         assert_eq!(our_ancestor_included.round, 10);
     }
 
-    #[rstest]
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    async fn test_core_try_new_block_leader_timeout(#[values(false, true)] starfish_speed: bool) {
+    async fn test_core_try_new_block_leader_timeout() {
         telemetry_subscribers::init_for_testing();
 
         // Since we run the test with started_paused = true, any time-dependent
@@ -2789,10 +2774,7 @@ mod test {
             sleep(wait_time).await;
         }
 
-        let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(starfish_speed);
+        let (context, _) = Context::new_for_test(4);
         // Create the cores for all authorities
         let mut all_cores = create_cores(context, vec![1, 1, 1, 1]).await;
 
@@ -2902,8 +2884,10 @@ mod test {
             dag_state.clone(),
         ));
 
-        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
-        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (_transaction_client, tx_receiver, priority_tx_receiver) =
+            TransactionClient::new(context.clone());
+        let transaction_consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
         let (signals, signal_receivers) = CoreSignals::new(context.clone());
         // Need at least one subscriber to the block broadcast channel.
         let _block_receiver = signal_receivers.block_broadcast_receiver();
@@ -2958,16 +2942,12 @@ mod test {
         assert!(missing_committed_txns.is_empty());
     }
 
-    #[rstest]
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    async fn test_leader_schedule_change(#[values(false, true)] starfish_speed: bool) {
+    async fn test_leader_schedule_change() {
         telemetry_subscribers::init_for_testing();
         let default_params = Parameters::default();
 
         let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(starfish_speed);
         // The expected scores come from V2 vote scoring and the good/bad split
         // assumes stake-rank selection; run with the sliding-window schedule
         // and absolute-score selection off.
@@ -3057,10 +3037,10 @@ mod test {
     /// seed and topology.
     ///
     /// Stands in for the leader timeout where the ordinary path did not
-    /// propose, recording the round in `rounds_needing_timeout`. Under
-    /// StarfishSpeed this is the round after a schedule rotation: the strong
-    /// votes of the previous round are pinned to the leader the previous
-    /// schedule elected, not the one now elected.
+    /// propose, recording the round in `rounds_needing_timeout`. This is the
+    /// round after a schedule rotation: the strong votes of the previous round
+    /// are pinned to the leader the previous schedule elected, not the one now
+    /// elected.
     async fn gossip_one_round(
         cores: &mut [CoreTestFixture],
         round: u32,
@@ -3138,8 +3118,6 @@ mod test {
                 round <= MAX_ROUNDS,
                 "network did not reach a post-rotation mid-interval state within {MAX_ROUNDS} rounds"
             );
-            // This network always runs with StarfishSpeed off, so no round ever
-            // needs the timeout stand-in.
             last_round_blocks = gossip_one_round(
                 cores,
                 round,
@@ -3198,10 +3176,6 @@ mod test {
         let default_params = Parameters::default();
 
         let (mut context, _) = Context::new_for_test(4);
-        // Test blocks carry no strong votes; run with StarfishSpeed off.
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(false);
         if enable_absolute_score_leader_schedule {
             context
                 .protocol_config
@@ -3299,13 +3273,6 @@ mod test {
             .set_consensus_commit_transactions_only_for_traversed_headers_for_testing(
                 commit_only_for_traversed_headers,
             );
-        // Runs with StarfishSpeed off: the DAG is built up front against the
-        // builder's leader schedule, while the core swaps out the authority whose
-        // blocks this DAG never links, so its votes count for no leader the core
-        // elects and the last leader of the DAG never leaves the pending state.
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(false);
         // Enforce the protocol-config invariant before exercising the pipeline:
         // fast commit sync requires committing only for traversed headers.
         assert!(context.protocol_config.consensus_fast_commit_sync());
@@ -3429,54 +3396,44 @@ mod test {
         assert!(missing_references.is_empty());
         let first_missing_transaction_from_skipped = *missing_transactions
             .iter()
-            .find(|(a, _)| a.author() == authority_to_skip)
+            .find(|(a, _)| a.author == authority_to_skip)
             .unwrap()
             .0;
         if commit_only_for_traversed_headers {
             assert_eq!(
-                first_missing_transaction_from_skipped.round(),
+                first_missing_transaction_from_skipped.round,
                 num_rounds_with_skip_ancestors
             );
         } else {
-            assert_eq!(first_missing_transaction_from_skipped.round(), 1);
+            assert_eq!(first_missing_transaction_from_skipped.round, 1);
         }
         // Ensure that the block header corresponding to the
         // first_missing_transaction_from_skipped is not in dag_state
         // if commit_only_for_traversed_headers=false and in dag_state otherwise
         let is_in_dag_state = {
             let dag = core_catch_up.dag_state.read();
-            match first_missing_transaction_from_skipped {
-                GenericTransactionRef::BlockRef(ref b) => {
-                    let block_ref = BlockRef::new(b.round, b.author, b.digest);
-                    dag.get_verified_block_headers(&[block_ref])[0].is_some()
-                }
-                GenericTransactionRef::TransactionRef(ref t) => {
-                    // resolve_block_ref returns None iff the block header is absent from
-                    // dag_state, which is exactly the condition we want to check.
-                    dag.resolve_block_ref(t).is_some_and(|block_ref| {
-                        dag.get_verified_block_headers(&[block_ref])[0].is_some()
-                    })
-                }
-            }
+            // resolve_block_refs is empty iff the block header is absent from
+            // dag_state, which is exactly the condition we want to check.
+            dag.resolve_block_refs(&first_missing_transaction_from_skipped)
+                .iter()
+                .any(|block_ref| dag.get_verified_block_headers(&[*block_ref])[0].is_some())
         };
         assert_eq!(is_in_dag_state, commit_only_for_traversed_headers);
-        let last_solid_commit_round = core_catch_up
-            .dag_state
-            .read()
-            .last_solid_commit_leader_round()
-            .unwrap();
-        // Latest solid (with all transactions being locally available) leader round is
-        // 2 as only transactions from round 0 could be sequenced at this point.
-        // All other transactions are not yet synced
-        assert_eq!(last_solid_commit_round, 2u32);
+        // No commit is solid (with all transactions being locally available) yet:
+        // the round 1 leader is committed optimistically, so even the first commit
+        // sequences round 1 transactions, and none of them are synced yet.
+        assert_eq!(
+            core_catch_up
+                .dag_state
+                .read()
+                .last_solid_commit_leader_round(),
+            None
+        );
         // Now assume that the missing transactions were synced by the transaction
         // synchronizer
         let missing_verified_transactions: Vec<_> = all_sequenced_transactions
             .into_iter()
-            .filter(|tx| {
-                let generic_ref = GenericTransactionRef::TransactionRef(tx.transaction_ref());
-                missing_transactions.contains_key(&generic_ref)
-            })
+            .filter(|tx| missing_transactions.contains_key(&tx.transaction_ref()))
             .collect();
         core_catch_up
             .add_transactions(
@@ -3508,25 +3465,20 @@ mod test {
             opt_verified_transaction[0].is_some(),
             commit_only_for_traversed_headers
         );
-        // Try to get a serialized transaction from skipped authority. It should now be
-        // possible with get_serialized_transactions() method since it just
-        // reads bytes from storage
-        let opt_serialized_transaction = core_catch_up
-            .dag_state
-            .read()
-            .get_serialized_transactions(&[first_missing_transaction_from_skipped]);
+        // The transaction from the skipped authority was flushed, so its bytes
+        // are in the store.
+        let opt_serialized_transaction = core_fixture_catch_up
+            .store
+            .read_serialized_transactions(&[first_missing_transaction_from_skipped])
+            .unwrap();
         assert!(opt_serialized_transaction[0].is_some());
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_add_certified_commits(#[values(false, true)] starfish_speed: bool) {
+    async fn test_add_certified_commits() {
         telemetry_subscribers::init_for_testing();
 
-        let (mut context, _key_pairs) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(starfish_speed);
+        let (context, _key_pairs) = Context::new_for_test(4);
         let context = context.with_parameters(Parameters {
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
             ..Default::default()
@@ -3629,18 +3581,12 @@ mod test {
         }
     }
 
-    #[rstest]
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    async fn test_commit_on_leader_schedule_change_boundary_without_multileader(
-        #[values(false, true)] starfish_speed: bool,
-    ) {
+    async fn test_commit_on_leader_schedule_change_boundary_without_multileader() {
         telemetry_subscribers::init_for_testing();
         let default_params = Parameters::default();
 
         let (mut context, _) = Context::new_for_test(6);
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(starfish_speed);
         // The expected scores come from V2 vote scoring and the good/bad split
         // assumes stake-rank selection; run with the sliding-window schedule
         // and absolute-score selection off.
@@ -3723,14 +3669,7 @@ mod test {
         }
         // The ordinary path proposes every round but round 23, where the
         // rotation moves the leader the round 22 votes were pinned to.
-        assert_eq!(
-            rounds_needing_timeout,
-            if starfish_speed {
-                BTreeSet::from([23])
-            } else {
-                BTreeSet::new()
-            }
-        );
+        assert_eq!(rounds_needing_timeout, BTreeSet::from([23]));
         for core_fixture in cores {
             // Check commits have been persisted to store
             let last_commit = core_fixture
@@ -3795,16 +3734,117 @@ mod test {
         }
     }
 
-    #[rstest]
+    /// A missing payload committed on both sides of a leader schedule change
+    /// in one call is reported once, with the acknowledgers of both headers
+    /// that carry it, instead of aborting the node.
     #[tokio::test]
-    async fn test_core_signals(#[values(false, true)] starfish_speed: bool) {
+    async fn missing_payload_repeated_across_schedule_change_is_merged() {
+        let (context, _) = Context::new_for_test(4);
+        let mut fixture = CoreTestFixture::new(
+            context,
+            vec![1; 4],
+            AuthorityIndex::new_for_test(0),
+            true,
+            false,
+            None,
+        )
+        .await;
+
+        // Every block links all blocks of the previous round, so commit r has
+        // leader round r and the schedule changes after commit 10. Authority 3
+        // has two headers at round 8 with one payload: authorities 0-2
+        // acknowledge the first at round 9, committing the payload in commit
+        // 10, and authorities 1-3 the second at round 11, committing it again
+        // in commit 12.
+        let mut ancestors: Vec<BlockRef> = genesis_block_headers(&fixture.core.context)
+            .iter()
+            .map(|header| header.reference())
+            .collect();
+        let mut equivocating_headers = Vec::new();
+        let mut transaction_ref = None;
+        let mut headers = Vec::new();
+        for round in 1..=17 {
+            let mut layer = Vec::new();
+            for author in 0..4u8 {
+                let mut acknowledgments: Vec<BlockRef> = ancestors
+                    .iter()
+                    .filter(|ancestor| {
+                        ancestor.round > 0 && !equivocating_headers.contains(*ancestor)
+                    })
+                    .copied()
+                    .collect();
+                match (round, author) {
+                    (9, 0..=2) => acknowledgments.push(equivocating_headers[0]),
+                    (11, 1..=3) => acknowledgments.push(equivocating_headers[1]),
+                    _ => {}
+                }
+                let copies = if (round, author) == (8, 3) { 2 } else { 1 };
+                for copy in 0..copies {
+                    let header = VerifiedBlockHeader::new_for_test(
+                        TestBlockHeader::new(round, author)
+                            .set_ancestors(ancestors.clone())
+                            .set_acknowledgments(acknowledgments.clone())
+                            .set_timestamp_ms(round as u64 * 1000 + copy)
+                            .build(),
+                    );
+                    if copies == 2 {
+                        equivocating_headers.push(header.reference());
+                        transaction_ref = Some(header.transaction_ref());
+                    }
+                    layer.push(header.reference());
+                    headers.push(header);
+                }
+            }
+            ancestors = layer;
+        }
+        let transaction_ref = transaction_ref.unwrap();
+
+        let (_, missing) = fixture
+            .core
+            .add_block_headers(headers, DataSource::Test)
+            .unwrap();
+
+        assert_eq!(
+            missing[&transaction_ref],
+            (0..4)
+                .map(AuthorityIndex::new_for_test)
+                .collect::<BTreeSet<_>>()
+        );
+        assert_eq!(
+            fixture
+                .core
+                .leader_schedule
+                .leader_swap_table
+                .read()
+                .reputation_scores
+                .commit_range,
+            CommitRange::new(1..=10)
+        );
+        let commits = fixture
+            .store
+            .scan_commits((0..=CommitIndex::MAX).into())
+            .unwrap();
+        assert_eq!(
+            commits
+                .iter()
+                .map(|commit| commit.leader().round)
+                .collect::<Vec<_>>(),
+            (1..=12).collect::<Vec<_>>()
+        );
+        let payload_commits: Vec<CommitIndex> = commits
+            .iter()
+            .filter(|commit| commit.committed_transactions().contains(&transaction_ref))
+            .map(|commit| commit.index())
+            .collect();
+        assert_eq!(payload_commits, [10, 12]);
+    }
+
+    #[tokio::test]
+    async fn test_core_signals() {
         telemetry_subscribers::init_for_testing();
         let default_params = Parameters::default();
 
-        let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(starfish_speed);
+        let (context, _) = Context::new_for_test(4);
         // create the cores and their signals for all the authorities
         let mut cores = create_cores(context, vec![1, 1, 1, 1]).await;
 
@@ -3902,16 +3942,12 @@ mod test {
         }
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_core_compress_proposal_references(#[values(false, true)] starfish_speed: bool) {
+    async fn test_core_compress_proposal_references() {
         telemetry_subscribers::init_for_testing();
         let default_params = Parameters::default();
 
-        let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(starfish_speed);
+        let (context, _) = Context::new_for_test(4);
         // create the cores and their signals for all the authorities
         let mut cores = create_cores(context, vec![1, 1, 1, 1]).await;
 
@@ -4000,20 +4036,18 @@ mod test {
         *receiver.borrow_and_update()
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_commit_and_notify_for_block_status(#[values(false, true)] starfish_speed: bool) {
+    async fn test_commit_and_notify_for_block_status() {
         telemetry_subscribers::init_for_testing();
-        let (mut context, mut key_pairs) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(starfish_speed);
+        let (context, mut key_pairs) = Context::new_for_test(4);
 
         let context = Arc::new(context);
 
         let store = Arc::new(MemStore::new());
-        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
-        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (_transaction_client, tx_receiver, priority_tx_receiver) =
+            TransactionClient::new(context.clone());
+        let transaction_consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
         let mut block_status_subscriptions = FuturesUnordered::new();
 
         // Create a fully connected DAG with 8 rounds.
@@ -4025,13 +4059,13 @@ mod test {
         // able to commit transactions up to round 4.
         for block in dag_builder.block_headers(1..=4) {
             if block.author() == context.own_index {
-                let generic_ref = GenericTransactionRef::TransactionRef(TransactionRef {
+                let transaction_ref = TransactionRef {
                     round: block.round(),
                     author: block.author(),
                     transactions_commitment: block.transactions_commitment(),
-                });
+                };
                 let subscription =
-                    transaction_consumer.subscribe_for_block_status_testing(generic_ref);
+                    transaction_consumer.subscribe_for_block_status_testing(transaction_ref);
                 block_status_subscriptions.push(subscription);
             }
         }
@@ -4198,10 +4232,7 @@ mod test {
 
     #[tokio::test]
     async fn test_has_strong_vote_quorum() {
-        let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(true);
+        let (context, _) = Context::new_for_test(4);
         let fixture = CoreTestFixture::new(
             context,
             vec![1; 4],
@@ -4277,9 +4308,6 @@ mod test {
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn leader_blocks_defer_refs_voters_lack(#[values(false, true)] adaptive_acks: bool) {
         let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(true);
         context
             .parameters
             .enable_starfish_speed_adaptive_acknowledgments = adaptive_acks;
@@ -4358,13 +4386,8 @@ mod test {
 
     #[tokio::test]
     async fn acknowledgment_stats_recorded_only_when_enabled() {
-        for (starfish_speed, adaptive_acks) in
-            [(false, false), (false, true), (true, false), (true, true)]
-        {
+        for adaptive_acks in [false, true] {
             let (mut context, _) = Context::new_for_test(4);
-            context
-                .protocol_config
-                .set_consensus_starfish_speed_for_testing(starfish_speed);
             context
                 .parameters
                 .enable_starfish_speed_adaptive_acknowledgments = adaptive_acks;
@@ -4391,18 +4414,15 @@ mod test {
                     AuthorityIndex::new_for_test(1),
                     AuthorityIndex::new_for_test(2)
                 ),
-                u32::from(starfish_speed && adaptive_acks),
-                "starfish_speed={starfish_speed}, adaptive_acks={adaptive_acks}"
+                u32::from(adaptive_acks),
+                "adaptive_acks={adaptive_acks}"
             );
         }
     }
 
     #[tokio::test]
     async fn strong_blame_metrics_recorded_on_both_ingest_paths() {
-        let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(true);
+        let (context, _) = Context::new_for_test(4);
         let mut fixture = CoreTestFixture::new(
             context,
             vec![1; 4],
@@ -4503,10 +4523,7 @@ mod test {
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn proposes_for_skipped_rounds() {
         telemetry_subscribers::init_for_testing();
-        let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(true);
+        let (context, _) = Context::new_for_test(4);
         let min_block_delay = context.parameters.min_block_delay;
         let mut cores = create_cores(context, vec![1, 1, 1, 1]).await;
 
@@ -4615,5 +4632,173 @@ mod test {
                     .unwrap();
             assert_eq!(block.round(), round);
         }
+    }
+
+    /// After fast sync ends below the node's last commit, execution receives
+    /// every commit in order.
+    #[tokio::test]
+    async fn fast_sync_ending_below_own_commits_sends_every_commit() {
+        telemetry_subscribers::init_for_testing();
+        // GIVEN a node that formed commits from block headers alone, so none of
+        // its commits is solid.
+        let (context, _) = Context::new_for_test(4);
+        let mut fixture = CoreTestFixture::new(
+            context.clone(),
+            vec![1; 4],
+            AuthorityIndex::new_for_test(0),
+            true,
+            false,
+            None,
+        )
+        .await;
+        let mut dag_builder = DagBuilder::new(Arc::new(context));
+        dag_builder.layers(1..=8).build();
+        fixture
+            .core
+            .add_block_headers(dag_builder.block_headers(1..=8), DataSource::Test)
+            .unwrap();
+        let own_last_commit_index = fixture.core.dag_state.read().last_commit_index();
+        assert!(own_last_commit_index > 2);
+        assert!(fixture.commit_receiver.try_recv().is_err());
+
+        // WHEN fast sync delivers the same commits up to an index below the
+        // node's last commit, and the components are reinitialized.
+        fixture.core.dag_state.write().flush();
+        let fast_sync_end = own_last_commit_index - 2;
+        let commits = fixture
+            .store
+            .scan_commits((1..=fast_sync_end).into())
+            .unwrap();
+        let transactions: BTreeMap<TransactionRef, CommitmentVerifiedTransactions> = dag_builder
+            .transactions(1..=8)
+            .into_iter()
+            .map(|transactions| (transactions.transaction_ref(), transactions))
+            .collect();
+        let misbehavior_counts = fixture
+            .core
+            .dag_state
+            .read()
+            .misbehavior_store()
+            .snapshot_totals();
+        let committed_subdags = commits
+            .iter()
+            .map(|commit| {
+                CommittedSubDag::new(
+                    commit.leader(),
+                    vec![],
+                    commit.block_headers().to_vec(),
+                    commit
+                        .committed_transactions()
+                        .iter()
+                        .map(|tx_ref| transactions[tx_ref].clone())
+                        .collect(),
+                    commit.timestamp_ms(),
+                    commit.reference(),
+                    commit.reputation_scores().to_vec(),
+                    misbehavior_counts.clone(),
+                )
+            })
+            .collect();
+        fixture
+            .core
+            .handle_committed_sub_dags_from_fast_sync(FastSyncOutput {
+                commits,
+                committed_subdags,
+                voting_block_headers: vec![],
+            })
+            .unwrap();
+        fixture
+            .core
+            .reinitialize_components(dag_builder.block_headers(1..=8))
+            .await
+            .unwrap();
+
+        // THEN once the payloads arrive and the DAG grows, execution receives
+        // every commit index in order.
+        fixture
+            .core
+            .add_transactions(dag_builder.transactions(1..=8), DataSource::Test)
+            .unwrap();
+        dag_builder.layers(9..=12).build();
+        fixture
+            .core
+            .add_blocks(dag_builder.blocks(9..=12), DataSource::Test)
+            .unwrap();
+        let last_commit_index = fixture.core.dag_state.read().last_commit_index();
+        assert!(last_commit_index > own_last_commit_index);
+        let mut sent_indices = Vec::new();
+        while let Ok(sub_dag) = fixture.commit_receiver.try_recv() {
+            sent_indices.push(sub_dag.commit_ref.index);
+        }
+        assert_eq!(sent_indices, (1..=last_commit_index).collect::<Vec<_>>());
+    }
+
+    /// When fast sync ends, a node proposes and broadcasts a block without
+    /// waiting for another header if a proposal is due, and signals the
+    /// current round either way.
+    #[rstest]
+    #[case::proposal_due(0, Some(5), 6)]
+    #[case::behind_quorum_commit_round(5, None, 5)]
+    #[tokio::test]
+    async fn fast_sync_reinitialization_proposes_only_when_due(
+        #[case] quorum_commit_index: CommitIndex,
+        #[case] proposed_round: Option<Round>,
+        #[case] signaled_round: Round,
+    ) {
+        telemetry_subscribers::init_for_testing();
+        // GIVEN a node that stored peer headers before fast sync: authorities
+        // 1, 2 and 3 up to round 4, and only 1 and 2 at round 5, so a quorum at
+        // round 5 needs this node's block. The node has no commits and peers
+        // voted for commits up to `quorum_commit_index`; at 5 the approximate
+        // quorum commit round reaches round 5, so no proposal is due.
+        let (context, _) = Context::new_for_test(4);
+        let own_index = AuthorityIndex::new_for_test(0);
+        let mut fixture =
+            CoreTestFixture::new(context.clone(), vec![1; 4], own_index, false, false, None).await;
+        let mut dag_builder = DagBuilder::new(Arc::new(context));
+        dag_builder
+            .layers(1..=4)
+            .authorities(vec![own_index])
+            .skip_block()
+            .build();
+        dag_builder
+            .layers(5..=5)
+            .authorities(vec![own_index, AuthorityIndex::new_for_test(3)])
+            .skip_block()
+            .build();
+        {
+            let mut dag_state = fixture.core.dag_state.write();
+            dag_state.accept_block_headers(dag_builder.block_headers(1..=5), DataSource::Test);
+            dag_state.set_fast_sync_ongoing_flag(true);
+            dag_state.flush();
+        }
+        for author in 1..=3 {
+            let header = VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(5, author)
+                    .set_commit_votes(vec![CommitRef::new(quorum_commit_index, CommitDigest::MIN)])
+                    .build(),
+            );
+            fixture.core.commit_vote_monitor.observe_block(&header);
+        }
+        assert_eq!(fixture.core.last_proposed_round(), 1);
+        let mut block_receiver = fixture.signal_receivers.block_broadcast_receiver();
+        let mut new_round_receiver = fixture.signal_receivers.new_round_receiver();
+        new_round_receiver.mark_unchanged();
+
+        // WHEN fast sync ends.
+        fixture.core.reinitialize_components(vec![]).await.unwrap();
+
+        // THEN, only if a proposal is due, the node broadcasts blocks up to
+        // round 5; it signals the current round either way.
+        let last_broadcast_round = iter::from_fn(|| block_receiver.try_recv().ok())
+            .last()
+            .map(|block| block.round());
+        assert_eq!(last_broadcast_round, proposed_round);
+        assert_eq!(
+            fixture.core.last_proposed_round(),
+            proposed_round.unwrap_or(1)
+        );
+        assert!(new_round_receiver.has_changed().unwrap());
+        assert_eq!(*new_round_receiver.borrow(), signaled_round);
     }
 }

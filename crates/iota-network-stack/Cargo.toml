@@ -17,6 +17,7 @@ futures.workspace = true
 http.workspace = true
 http-body.workspace = true
 hyper-rustls = { version = "0.27", default-features = false, features = ["webpki-roots", "http1", "http2", "ring", "tls12"] }
+hyper-timeout = "0.5"
 hyper-util.workspace = true
 multiaddr.workspace = true
 once_cell.workspace = true
@@ -37,13 +38,13 @@ iota-multiaddr.workspace = true
 
 [dev-dependencies]
 # external dependencies
-fastcrypto = { workspace = true, features = ["copy_key"] }
 http-body-util.workspace = true
 hyper = { workspace = true, features = ["client", "http2"] }
-rand08.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
 
 # internal dependencies
 iota-metrics = { workspace = true, features = ["test-utils"] }
+iota-sdk-crypto = { workspace = true, features = ["ed25519", "rand"] }
 iota-tls.workspace = true
 prometheus-filtered.workspace = true
 

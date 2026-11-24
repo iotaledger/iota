@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 39;
+pub const MAX_PROTOCOL_VERSION: u64 = 41;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -253,6 +253,48 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Validate PTB indices at signing time.
 // Version 39: Allow random beacon DKG to complete after its timeout on devnet
 //             and testnet.
+//             The consensus handler's processed-transaction cache holds only
+//             messages recorded as processed, so a cache hit gives the same
+//             answer as the processed-message table on every validator. A
+//             user transaction from an authority that has sent EndOfPublish
+//             no longer makes a later transaction with the same key in the
+//             same commit be skipped as a duplicate.
+//             Raise the minimum validator joining stake to 6M IOTA, the low
+//             stake threshold to 5.5M IOTA and the very low stake threshold to
+//             5M IOTA on all chains.
+//             Reject a multisig whose committee mixes Ed25519 with other key
+//             schemes unless every committee member has signed.
+//             Enable Groth16 verifying key input length checks before deserialization.
+//             Reject the deprecated global storage instructions and non-empty
+//             `acquires` lists when execution deserializes a module, and
+//             verify modules without the acquires pass and with vector element
+//             borrows checked by the call rule.
+// Version 40: Post-consensus validation takes the instantiation-loop graph
+//             edge limit, and whether the instantiation-loop check is
+//             metered, from the protocol config.
+//             Make the packages named by a `MoveAuthenticator`'s type
+//             arguments inputs of that authenticator.
+//             Limit the struct, enum and vector values in Move-call
+//             arguments, per call and per transaction.
+//             Reject `<SELF>` as an identifier in transactions, at signing,
+//             after consensus and in block verification. Block verification
+//             also rejects a block that carries a system transaction kind in
+//             a user transaction or certificate.
+//             Update the gas model version to 3.
+//             Enable validator attestation on devnet, with the checkpoint
+//             summary data version that certifies the verdicts.
+// Version 41: Commit a block's transactions once its header is traversed even
+//             if its acknowledgment quorum was reached first, outside Mainnet.
+//             `ecdsa_r1::secp256r1_ecrecover` rejects a signature whose
+//             restored x-coordinate is not below the field modulus.
+//             Outside Mainnet and Testnet, a programmable transaction may
+//             carry a transaction dependency input: its commands run only if
+//             the named transaction succeeded in the current epoch. If that
+//             transaction fails after the dependent was sequenced, the
+//             dependent executes as failed with `TransactionDependencyFailed`.
+//             Raise `max_auth_gas` to 0.001 IOTA on devnet.
+//             Set the attestation freshness window on devnet.
+//             Set the penalty for refuted attestations on devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -617,40 +659,47 @@ struct FeatureFlags {
     // If true, enables the P-COOL (post-consensus owned-object locking) flow:
     // transactions bypass pre-consensus certification and owned-object locking,
     // and conflicts are resolved deterministically post-consensus (white-flag
-    // conflict resolution) using persistent locks.
+    // conflict resolution) using persistent locks. Post-consensus deny checks
+    // use a consensus-governed deny rule set instead of each validator's local
+    // `TransactionDenyConfig`: validators announce proposed rules, and the
+    // active set is their stake-weighted aggregate. The active set is mirrored
+    // into the on-chain `TransactionDenyRules` object, which is created at the
+    // end of the first epoch with the flow and updated by system transactions
+    // when the active set changes.
+    //
+    // Post-consensus validation is deterministic: it reads object state as of
+    // `pcool_deterministic_validation_horizon_distance` commits below the
+    // commit it validates, and checks the sender against the coin deny list
+    // for the coin types of its inputs there, with changes made this epoch
+    // counting; execution no longer checks inputs against it. A committee
+    // validator does not execute state-synced checkpoints while its epoch is
+    // running: it waits for its own checkpoint builder and takes only
+    // randomness signatures from state sync. Once the certified last
+    // checkpoint of the epoch is known, it executes the rest of the epoch from
+    // state sync and stops processing consensus commits.
+    //
+    // From protocol version 39 requires `max_meter_ticks_regex_reference_safety`,
+    // `consensus_dedup_only_recorded_messages`, a positive
+    // `pcool_deterministic_validation_horizon_distance` and
+    // `deny_rule_update_max_entries_per_tx`, and excludes
+    // `pre_consensus_sponsor_only_move_authentication`.
     #[serde(skip_serializing_if = "is_false")]
     enable_pcool_flow: bool,
 
-    // If true, immutable transaction inputs do not acquire owned-object locks
-    // in post-consensus conflict resolution — such a lock is never released
-    // and blocks every later reader until the epoch ends. Has no effect
-    // unless `enable_pcool_flow` is set.
+    // No longer read: post-consensus validation never locks immutable inputs.
+    // Kept because shipped protocol versions set it.
     #[serde(skip_serializing_if = "is_false")]
     pcool_skip_immutable_object_locks: bool,
 
-    // If true, post-consensus validation meters the packages a transaction
-    // publishes with the verifier limits from this config instead of each
-    // validator's own `VerifierSigningConfig`, so every validator reaches
-    // the same verdict. Has no effect unless `enable_pcool_flow` is set.
+    // No longer read: post-consensus validation always meters published
+    // packages with the verifier limits from this config. Kept because
+    // shipped protocol versions set it.
     #[serde(skip_serializing_if = "is_false")]
     pcool_verifier_limits_from_protocol_config: bool,
 
     // If true perform consistent verification of metadata
     #[serde(skip_serializing_if = "is_false")]
     validator_metadata_verify_v2: bool,
-
-    // If true, post-consensus deny checks use a consensus-governed deny rule set
-    // (validators announce proposed rules; the active set is their stake-weighted
-    // aggregate) instead of each validator's local `TransactionDenyConfig`.
-    #[serde(skip_serializing_if = "is_false")]
-    deny_rule_governance: bool,
-
-    // If true, the consensus-governed deny rule set is mirrored into the on-chain
-    // `TransactionDenyRules` object: the object is created at the end of the first
-    // enabled epoch and updated by system transactions when the active set changes.
-    // Requires `deny_rule_governance`.
-    #[serde(skip_serializing_if = "is_false")]
-    deny_rule_governance_on_chain: bool,
 
     // If true, the package holding a `MoveAuthenticator`'s authenticate function,
     // together with that package's dependencies, is checked against the package
@@ -712,6 +761,13 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     disallow_self_identifier: bool,
 
+    // Reject a transaction whose type arguments, Move call module or function
+    // name, or Move authenticator type arguments carry an identifier that
+    // move-core rejects (`<SELF>`), at signing, after consensus and in block
+    // verification.
+    #[serde(skip_serializing_if = "is_false")]
+    disallow_self_identifier_in_transactions: bool,
+
     // If true, the version field of a published module header must be the encoding
     // the serializer produces for the version it decodes to. Below binary format
     // version 7 the flavor byte is not part of the header, and without this check
@@ -732,10 +788,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     check_cyclic_dependencies: bool,
 
-    // If true, deprecate global storage ops during Move module deserialization
-    #[serde(skip_serializing_if = "is_false")]
-    deprecate_global_storage_ops_during_deserialization: bool,
-
     // Validate PTB input and result indices before signing.
     #[serde(skip_serializing_if = "is_false")]
     validate_ptb_argument_indices: bool,
@@ -744,6 +796,84 @@ struct FeatureFlags {
     // in the epoch.
     #[serde(skip_serializing_if = "is_false")]
     allow_dkg_completion_after_timeout: bool,
+
+    // If true, a consensus message is skipped as a duplicate of an earlier message with the same
+    // key that was recorded as processed or passed verification in the same commit:
+    // - The consensus handler adds a message to its processed-transaction cache only after the
+    //   epoch store recorded it as processed. Otherwise the cache also holds messages that were
+    //   dropped without being recorded, and since it differs between validators and after a
+    //   restart, skipping on a cache hit lets validators disagree about a later message with the
+    //   same key.
+    // - A user transaction from an authority that has sent EndOfPublish fails verification, so it
+    //   does not make a later transaction with the same key in its commit be skipped.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_dedup_only_recorded_messages: bool,
+
+    // If true, a multisig whose committee mixes Ed25519 with other key schemes
+    // is only accepted when every committee member has signed. Ed25519 members
+    // carry no flag byte in the multisig address preimage, so two different
+    // mixed committees can derive the same address.
+    #[serde(skip_serializing_if = "is_false")]
+    reject_partially_signed_mixed_ed25519_multisig: bool,
+
+    // If true, groth16::prepare_verifying_key checks that the verifying key has
+    // no more than MAX_PUBLIC_INPUTS public inputs.
+    #[serde(skip_serializing_if = "is_false")]
+    limit_groth16_pvk_inputs: bool,
+
+    // If true, groth16::verify_groth16_proof checks that the prepared verifying
+    // key has the length implied by the number of public inputs, and aborts
+    // with EInvalidVerifyingKey if it does not.
+    #[serde(skip_serializing_if = "is_false")]
+    check_groth16_pvk_length: bool,
+
+    // If true, deprecate global storage ops everywhere. A module that uses the
+    // deprecated global storage instructions, or has a non-empty `acquires`
+    // list, fails to deserialize. The verifier skips the acquires pass, checks
+    // vector element borrows with the same rule as calls, and fails if a
+    // deprecated instruction reaches it. This applies to every module the VM
+    // verifies, including published packages it loads. Signing always runs
+    // with it on; post-consensus validation follows this flag.
+    #[serde(skip_serializing_if = "is_false")]
+    deprecate_global_storage_ops: bool,
+
+    // If true, post-consensus validation meters the instantiation-loop check
+    // of the bytecode verifier. Signing always meters it.
+    #[serde(skip_serializing_if = "is_false")]
+    meter_instantiation_loops: bool,
+
+    // If true, the packages named by a `MoveAuthenticator`'s type arguments are
+    // inputs of that authenticator, as those of a `MoveCall` are. Without it no
+    // node waits for them, so a node that has not executed such a package's
+    // publish yet fails an authentication that the others pass.
+    #[serde(skip_serializing_if = "is_false")]
+    move_authenticator_type_arg_packages_as_inputs: bool,
+
+    // If true, the block-proposing validator attests each received user transaction
+    // before sending it to consensus. The attestor certifies that Move authentication
+    // passed and the attestation carries a computation cost estimate for
+    // shared-object scheduling. The Move authenticators run at execution, and
+    // in the attestor's dry run, then share at most `max_auth_gas`; the
+    // transaction body gets the rest of the budget.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_validator_attestation: bool,
+
+    // If true, a block whose transactions reach their acknowledgment quorum
+    // before its header is traversed is committed once its header is traversed.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_commit_transactions_once_traversed: bool,
+
+    // If true, `ecdsa_r1::secp256r1_ecrecover` rejects a signature whose
+    // restored x-coordinate `r + n` is not below the field modulus, instead
+    // of wrapping it at 2^256.
+    #[serde(skip_serializing_if = "is_false")]
+    secp256r1_ecrecover_checks_x_below_p: bool,
+
+    // If true, a programmable transaction may carry a transaction dependency
+    // input. It executes after the named transaction, and fails without running
+    // its commands if that transaction failed.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_transaction_dependencies: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -776,8 +906,9 @@ impl ConsensusTransactionOrdering {
 pub enum PerObjectCongestionControlMode {
     #[default]
     None, // No congestion control.
-    TotalGasBudget, // Use txn gas budget as execution cost.
-    TotalTxCount,   // Use total txn count as execution cost.
+    TotalGasBudget,        // Use txn gas budget as execution cost.
+    TotalTxCount,          // Use total txn count as execution cost.
+    TotalComputationUnits, // Use attested computation units as execution cost.
 }
 
 impl PerObjectCongestionControlMode {
@@ -1069,13 +1200,21 @@ pub struct ProtocolConfig {
     /// Maximum depth of a Move value within the VM.
     max_move_value_depth: Option<u64>,
 
+    /// Maximum number of struct, enum and vector values in the arguments of
+    /// one Move call.
+    max_move_call_argument_nodes: Option<u64>,
+
+    /// Maximum number of struct, enum and vector values in the arguments of
+    /// all Move calls of one programmable transaction.
+    max_move_call_argument_nodes_total: Option<u64>,
+
     /// Maximum number of variants in an enum. Enforced by the bytecode verifier
     /// at signing.
     max_move_enum_variants: Option<u64>,
 
     // === Metered bytecode verifier limits ===
     // Enforced on the packages a transaction publishes when post-consensus
-    // validation checks them (via `pcool_verifier_limits_from_protocol_config`).
+    // validation checks them.
     // Signing, admission and simulation are validator-local decisions and use
     // each validator's own `VerifierSigningConfig` instead.
 
@@ -1099,6 +1238,11 @@ pub struct ProtocolConfig {
     /// may spend per function, module and package. The check rejects a module
     /// it cannot finish within the limit.
     max_meter_ticks_regex_reference_safety: Option<u64>,
+
+    /// Maximum number of edges in the instantiation-loop graph of a Move
+    /// module, checked only by post-consensus validation. Signing uses a limit
+    /// set in the binary instead, and execution does not check it.
+    max_instantiation_loop_graph_edges: Option<u64>,
 
     // === Object runtime internal operation limits ====
     // These affect dynamic fields
@@ -1559,7 +1703,33 @@ pub struct ProtocolConfig {
     checkpoint_rate_window_size: Option<u64>,
 
     /// Version number to use for version_specific_data in `CheckpointSummary`.
+    /// 2 adds the attestation entries and totals and is required by
+    /// `enable_validator_attestation`.
     checkpoint_summary_version_specific_data: Option<u64>,
+
+    /// Tolerance, in percent of the executed computation units, within which
+    /// an attestor's claimed units count as accurate. Both sides are rounded
+    /// up to `gas_rounding_step` and capped at the budget on out-of-gas, and
+    /// the check only applies when the transaction body ran. Unset disables
+    /// it.
+    attestor_accuracy_tolerance_percentage: Option<u64>,
+
+    /// Sum of the squared wasted authentication units of an attestor's refuted
+    /// attestations at which the cut takes its whole epoch reward, through its
+    /// entry in the change-epoch scores: one fault of √value units takes it
+    /// all, one of half that size a quarter; 0 takes the whole reward on the
+    /// first refuted attestation. The cut reaches the reward only under
+    /// `adjust_rewards_by_score`. An attestor whose sum reaches it has its
+    /// attested transactions dropped at post-consensus validation for the rest
+    /// of the epoch. Unset disables the penalty and the cutoff.
+    attestation_max_refuted_units_squared: Option<u64>,
+
+    /// How many commits before the one an attested transaction was first
+    /// sequenced in a recorded version may have stopped being current for the
+    /// judge to re-run authentication at it; leader rounds for a version a
+    /// commit prologue or a deny-rules update superseded, the only position
+    /// those carry. Unset admits any commit of the epoch.
+    attestation_freshness_window_commits: Option<u64>,
 
     /// The max number of transactions that can be included in a single Soft
     /// Bundle.
@@ -1585,15 +1755,9 @@ pub struct ProtocolConfig {
 
     /// Maximum number of added plus removed entries one injected
     /// `TransactionDenyRulesUpdate` transaction may carry; a larger diff is
-    /// split into multiple transactions in the same commit. Set together with
-    /// the `deny_rule_governance` feature flags.
+    /// split into multiple transactions in the same commit. Required by
+    /// `enable_pcool_flow` from protocol version 39.
     deny_rule_update_max_entries_per_tx: Option<u64>,
-
-    /// Consensus round before which removals are never injected into the
-    /// `TransactionDenyRules` object, so validators can re-announce their
-    /// rules after an epoch change before unsupported entries are dropped.
-    /// Set together with the `deny_rule_governance` feature flags.
-    deny_rule_removal_grace_round_floor: Option<u64>,
 
     /// Configures the garbage collection depth for consensus. When is unset or
     /// `0` then the garbage collection is disabled.
@@ -1619,6 +1783,14 @@ pub struct ProtocolConfig {
     /// by the congestion tracker; `None` disables it. Must be positive when
     /// set. Requires `enable_pcool_flow`.
     max_concurrent_execution_workers: Option<u16>,
+
+    /// How many consensus commits back post-consensus validation reads object
+    /// state. Validating a transaction in commit C reads object state as of
+    /// commit C - K, where K is this distance; that commit is the horizon of
+    /// C, and it must be fully executed before C is validated. Set on Devnet
+    /// from protocol version 39. Required by `enable_pcool_flow` from that
+    /// version.
+    pcool_deterministic_validation_horizon_distance: Option<u64>,
 
     /// Scorer version. When set to `None`, MisbehaviorReports are not sent nor
     /// considered valid. When set to `Some(version)`, scores are included in
@@ -1953,6 +2125,25 @@ impl ProtocolConfig {
             .consensus_commit_transactions_only_for_traversed_headers
     }
 
+    /// Whether a block whose transactions reached their acknowledgment quorum
+    /// before its header was traversed is committed once its header is
+    /// traversed.
+    ///
+    /// # Panics
+    ///
+    /// If the flag is set without
+    /// `consensus_commit_transactions_only_for_traversed_headers`.
+    pub fn consensus_commit_transactions_once_traversed(&self) -> bool {
+        let res = self
+            .feature_flags
+            .consensus_commit_transactions_once_traversed;
+        assert!(
+            !res || self.consensus_commit_transactions_only_for_traversed_headers(),
+            "consensus_commit_transactions_once_traversed requires consensus_commit_transactions_only_for_traversed_headers to be enabled"
+        );
+        res
+    }
+
     /// Check whether congestion limit overshoot is enabled in the gas price
     /// feedback mechanism.
     pub fn congestion_limit_overshoot_in_gas_price_feedback_mechanism(&self) -> bool {
@@ -2078,17 +2269,6 @@ impl ProtocolConfig {
         self.feature_flags.enable_pcool_flow
     }
 
-    pub fn pcool_skip_immutable_object_locks(&self) -> bool {
-        self.feature_flags.pcool_skip_immutable_object_locks
-    }
-
-    /// Effective only with its prerequisite `enable_pcool_flow`: a config
-    /// missing the prerequisite reads as disabled.
-    pub fn pcool_verifier_limits_from_protocol_config(&self) -> bool {
-        self.feature_flags
-            .pcool_verifier_limits_from_protocol_config
-    }
-
     pub fn validator_metadata_verify_v2(&self) -> bool {
         self.feature_flags.validator_metadata_verify_v2
     }
@@ -2138,14 +2318,6 @@ impl ProtocolConfig {
 
     pub fn max_ptb_value_size_v2(&self) -> bool {
         self.feature_flags.max_ptb_value_size_v2
-    }
-
-    pub fn deny_rule_governance(&self) -> bool {
-        self.feature_flags.deny_rule_governance
-    }
-
-    pub fn deny_rule_governance_on_chain(&self) -> bool {
-        self.feature_flags.deny_rule_governance_on_chain
     }
 
     pub fn deny_authenticator_packages(&self) -> bool {
@@ -2247,17 +2419,60 @@ impl ProtocolConfig {
         self.feature_flags.check_cyclic_dependencies
     }
 
-    pub fn deprecate_global_storage_ops_during_deserialization(&self) -> bool {
-        self.feature_flags
-            .deprecate_global_storage_ops_during_deserialization
-    }
-
     pub fn validate_ptb_argument_indices(&self) -> bool {
         self.feature_flags.validate_ptb_argument_indices
     }
 
     pub fn allow_dkg_completion_after_timeout(&self) -> bool {
         self.feature_flags.allow_dkg_completion_after_timeout
+    }
+
+    pub fn disallow_self_identifier_in_transactions(&self) -> bool {
+        self.feature_flags.disallow_self_identifier_in_transactions
+    }
+
+    pub fn consensus_dedup_only_recorded_messages(&self) -> bool {
+        self.feature_flags.consensus_dedup_only_recorded_messages
+    }
+
+    pub fn reject_partially_signed_mixed_ed25519_multisig(&self) -> bool {
+        self.feature_flags
+            .reject_partially_signed_mixed_ed25519_multisig
+    }
+
+    pub fn limit_groth16_pvk_inputs(&self) -> bool {
+        self.feature_flags.limit_groth16_pvk_inputs
+    }
+
+    pub fn check_groth16_pvk_length(&self) -> bool {
+        self.feature_flags.check_groth16_pvk_length
+    }
+
+    pub fn deprecate_global_storage_ops(&self) -> bool {
+        self.feature_flags.deprecate_global_storage_ops
+    }
+
+    pub fn meter_instantiation_loops(&self) -> bool {
+        self.feature_flags.meter_instantiation_loops
+    }
+
+    pub fn move_authenticator_type_arg_packages_as_inputs(&self) -> bool {
+        self.feature_flags
+            .move_authenticator_type_arg_packages_as_inputs
+    }
+
+    /// Its prerequisites are checked once, in [`Self::get_for_version`].
+    pub fn enable_validator_attestation(&self) -> bool {
+        self.feature_flags.enable_validator_attestation
+    }
+
+    pub fn secp256r1_ecrecover_checks_x_below_p(&self) -> bool {
+        self.feature_flags.secp256r1_ecrecover_checks_x_below_p
+    }
+
+    /// Its prerequisites are checked once, in [`Self::get_for_version`].
+    pub fn enable_transaction_dependencies(&self) -> bool {
+        self.feature_flags.enable_transaction_dependencies
     }
 }
 
@@ -2320,31 +2535,59 @@ impl ProtocolConfig {
                     .expect("failed to parse ProtocolConfig feature flags override env variables");
 
             feature_flag_overrides.apply_to(&mut ret.feature_flags);
+
+            // An environment override can switch attestation off but cannot
+            // unset a parameter, so the parameters that require it go with
+            // the flag.
+            if !ret.feature_flags.enable_validator_attestation {
+                ret.unset_attestation_parameters();
+            }
         }
 
-        // The on-chain mirror has no state to mirror without governance itself.
+        // Devnet runs the P-COOL flow from version 32, before the settings it
+        // requires exist; only versions from 39 on are checked for them. A test
+        // override can return the config of another version, so the check
+        // reads the version of the config returned.
+        let pcool_requirements_apply =
+            ret.feature_flags.enable_pcool_flow && ret.version >= ProtocolVersion::new(39);
+        // Post-consensus validation meters published packages with the
+        // verifier limits from this config, and reads the regex check budget
+        // through the panicking accessor.
         assert!(
-            !ret.feature_flags.deny_rule_governance_on_chain
-                || ret.feature_flags.deny_rule_governance,
-            "deny_rule_governance_on_chain requires deny_rule_governance"
+            !pcool_requirements_apply || ret.max_meter_ticks_regex_reference_safety.is_some(),
+            "enable_pcool_flow requires max_meter_ticks_regex_reference_safety"
         );
-        // Post-consensus validation reads the regex check budget through the
-        // panicking accessor once the flag is set, so the constant must exist
-        // wherever the flag does, including when an override sets the flag on
-        // an earlier version.
+        // For the same reason, the consensus handler must not skip a message
+        // as a duplicate of one that was dropped without being recorded, as
+        // its cache of such messages differs between validators.
         assert!(
-            !ret.feature_flags.pcool_verifier_limits_from_protocol_config
-                || ret.max_meter_ticks_regex_reference_safety.is_some(),
-            "pcool_verifier_limits_from_protocol_config requires \
-                max_meter_ticks_regex_reference_safety"
+            !pcool_requirements_apply || ret.feature_flags.consensus_dedup_only_recorded_messages,
+            "enable_pcool_flow requires consensus_dedup_only_recorded_messages"
         );
-        // The injection cannot chunk updates or gate removals without its
-        // knobs.
+        // With a distance of 0, the consensus handler processing commit C
+        // would wait for C itself to be fully executed, which cannot happen
+        // before the handler finishes processing C.
         assert!(
-            !ret.feature_flags.deny_rule_governance_on_chain
-                || (ret.deny_rule_update_max_entries_per_tx.is_some()
-                    && ret.deny_rule_removal_grace_round_floor.is_some()),
-            "deny_rule_governance_on_chain requires deny_rule_update_max_entries_per_tx and deny_rule_removal_grace_round_floor"
+            !pcool_requirements_apply
+                || ret
+                    .pcool_deterministic_validation_horizon_distance
+                    .is_some_and(|distance| distance > 0),
+            "enable_pcool_flow requires a positive pcool_deterministic_validation_horizon_distance"
+        );
+        // Without the sender's authenticator run before consensus, a sponsor
+        // alone could get a transaction sequenced that locks a Move account's
+        // owned objects.
+        assert!(
+            !pcool_requirements_apply
+                || !ret
+                    .feature_flags
+                    .pre_consensus_sponsor_only_move_authentication,
+            "enable_pcool_flow excludes pre_consensus_sponsor_only_move_authentication"
+        );
+        // The injection cannot chunk updates without its limit.
+        assert!(
+            !pcool_requirements_apply || ret.deny_rule_update_max_entries_per_tx.is_some(),
+            "enable_pcool_flow requires deny_rule_update_max_entries_per_tx"
         );
         // A deny-rule update chunk must always execute, or the object falls
         // permanently behind the mirrored state on every validator at once.
@@ -2371,7 +2614,63 @@ impl ProtocolConfig {
             "deny_rule_update_max_entries_per_tx must be positive, at most {DENY_RULE_UPDATE_MAX_ENTRIES_PER_TX_CEILING}, and within the system transaction object limits"
         );
 
+        if ret.enable_validator_attestation() {
+            assert!(
+                ret.enable_pcool_flow(),
+                "enable_validator_attestation requires enable_pcool_flow to be set"
+            );
+            assert!(
+                ret.report_move_authentication_error(),
+                "enable_validator_attestation requires report_move_authentication_error to be set"
+            );
+            // The attestation verdicts are certified in the summary's version 2.
+            assert!(
+                ret.checkpoint_summary_version_specific_data == Some(2),
+                "enable_validator_attestation requires checkpoint_summary_version_specific_data = 2"
+            );
+            // Execution and the attestor's dry run limit the Move
+            // authenticators to `max_auth_gas`.
+            assert!(
+                ret.max_auth_gas.is_some(),
+                "enable_validator_attestation requires max_auth_gas to be set"
+            );
+        }
+        if ret.attestation_max_refuted_units_squared.is_some() {
+            assert!(
+                ret.enable_validator_attestation(),
+                "attestation_max_refuted_units_squared requires enable_validator_attestation"
+            );
+            assert!(
+                ret.pass_validator_scores_to_advance_epoch(),
+                "attestation_max_refuted_units_squared requires \
+                 pass_validator_scores_to_advance_epoch"
+            );
+        }
+        if ret.attestation_freshness_window_commits.is_some() {
+            assert!(
+                ret.enable_validator_attestation(),
+                "attestation_freshness_window_commits requires enable_validator_attestation"
+            );
+        }
+        // A transaction without shared inputs that waits too long for its
+        // dependency is cancelled through its gas object, which carries the
+        // suggested gas price.
+        if ret.enable_transaction_dependencies() {
+            assert!(
+                ret.congestion_control_gas_price_feedback_mechanism(),
+                "enable_transaction_dependencies requires \
+                 congestion_control_gas_price_feedback_mechanism to be set"
+            );
+        }
+
         ret
+    }
+
+    /// Unsets the parameters [`Self::get_for_version`] accepts only with
+    /// `enable_validator_attestation`.
+    fn unset_attestation_parameters(&mut self) {
+        self.attestation_max_refuted_units_squared = None;
+        self.attestation_freshness_window_commits = None;
     }
 
     /// Get the value ProtocolConfig that are in effect during the given
@@ -2531,6 +2830,7 @@ impl ProtocolConfig {
             max_meter_ticks_per_module: Some(16_000_000),
             max_meter_ticks_per_package: Some(16_000_000),
             max_meter_ticks_regex_reference_safety: None,
+            max_instantiation_loop_graph_edges: None,
 
             object_runtime_max_num_cached_objects: Some(1000),
             object_runtime_max_num_cached_objects_system_tx: Some(1000 * 16),
@@ -2831,6 +3131,8 @@ impl ProtocolConfig {
             // Limits the length of a Move identifier
             max_move_identifier_len: Some(128),
             max_move_value_depth: Some(128),
+            max_move_call_argument_nodes: None,
+            max_move_call_argument_nodes_total: None,
             max_move_enum_variants: None,
 
             gas_rounding_step: Some(1_000),
@@ -2883,6 +3185,9 @@ impl ProtocolConfig {
             checkpoint_rate_window_size: None,
 
             checkpoint_summary_version_specific_data: Some(1),
+            attestor_accuracy_tolerance_percentage: None,
+            attestation_max_refuted_units_squared: None,
+            attestation_freshness_window_commits: None,
 
             max_soft_bundle_size: Some(5),
 
@@ -2892,7 +3197,6 @@ impl ProtocolConfig {
 
             max_committee_members_count: None,
             deny_rule_update_max_entries_per_tx: None,
-            deny_rule_removal_grace_round_floor: None,
 
             consensus_gc_depth: None,
 
@@ -2901,6 +3205,8 @@ impl ProtocolConfig {
             max_congestion_limit_overshoot_per_commit: None,
 
             max_concurrent_execution_workers: None,
+
+            pcool_deterministic_validation_horizon_distance: None,
 
             scorer_version: None,
 
@@ -3597,7 +3903,7 @@ impl ProtocolConfig {
                     // the limits below instead of each validator's own
                     // `VerifierSigningConfig`. The values are that config's
                     // defaults, so a validator that leaves it alone reaches
-                    // the same verdict at admission and post-consensus. Set on
+                    // the same result at admission and post-consensus. Set on
                     // all chains; inert where the P-COOL flow is off.
                     cfg.max_verifier_meter_ticks_per_function = Some(2_200_000);
                     cfg.max_meter_ticks_per_module = Some(2_200_000);
@@ -3671,6 +3977,101 @@ impl ProtocolConfig {
                     if chain != Chain::Mainnet {
                         cfg.feature_flags.allow_dkg_completion_after_timeout = true;
                     }
+                    cfg.feature_flags.consensus_dedup_only_recorded_messages = true;
+
+                    // Raise the minimum validator joining stake to 6M IOTA, the low
+                    // stake threshold to 5.5M IOTA and the very low stake threshold to
+                    // 5M IOTA on all chains.
+                    cfg.min_validator_joining_stake = Some(6_000_000_000_000_000);
+                    cfg.validator_low_stake_threshold = Some(5_500_000_000_000_000);
+                    cfg.validator_very_low_stake_threshold = Some(5_000_000_000_000_000);
+
+                    // Reject a multisig whose committee mixes Ed25519 with other key
+                    // schemes unless every committee member has signed.
+                    cfg.feature_flags
+                        .reject_partially_signed_mixed_ed25519_multisig = true;
+
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        // Post-consensus validation reads object state as of
+                        // 4 commits below the one it validates.
+                        cfg.pcool_deterministic_validation_horizon_distance = Some(4);
+                        // Mirror the governed deny rules into the on-chain
+                        // object in chunks of at most 1000 entries.
+                        cfg.deny_rule_update_max_entries_per_tx = Some(1000);
+                    }
+
+                    // Reject Groth16 verifying keys whose size does not match the
+                    // number of public inputs before deserializing them.
+                    cfg.feature_flags.limit_groth16_pvk_inputs = true;
+                    cfg.feature_flags.check_groth16_pvk_length = true;
+
+                    // At execution too, not only at signing: reject the
+                    // deprecated global storage instructions and non-empty
+                    // `acquires` lists when deserializing a module, and verify
+                    // modules without the acquires pass and with vector element
+                    // borrows checked by the call rule.
+                    cfg.feature_flags.deprecate_global_storage_ops = true;
+                }
+                40 => {
+                    // Post-consensus validation meters the instantiation-loop
+                    // check and caps its graph with these values, which signing
+                    // also uses.
+                    cfg.feature_flags.meter_instantiation_loops = true;
+                    cfg.max_instantiation_loop_graph_edges = Some(100_000);
+
+                    // Make the packages named by a `MoveAuthenticator`'s type
+                    // arguments inputs of that authenticator.
+                    cfg.feature_flags
+                        .move_authenticator_type_arg_packages_as_inputs = true;
+
+                    // Limit the struct, enum and vector values in Move-call
+                    // arguments.
+                    cfg.max_move_call_argument_nodes = Some(2_097_152);
+                    cfg.max_move_call_argument_nodes_total = Some(16_777_216);
+
+                    // Reject `<SELF>` as an identifier in transactions, at
+                    // signing, after consensus and in block verification.
+                    cfg.feature_flags.disallow_self_identifier_in_transactions = true;
+
+                    // Update the gas model version.
+                    cfg.gas_model_version = Some(3);
+
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        // Validators attest the user transactions they propose,
+                        // and the checkpoint summary certifies the verdicts.
+                        cfg.feature_flags.enable_validator_attestation = true;
+                        cfg.checkpoint_summary_version_specific_data = Some(2);
+                    }
+                }
+                41 => {
+                    // Commit a block's transactions once its header is
+                    // traversed, also when their acknowledgment quorum came
+                    // first.
+                    if chain != Chain::Mainnet {
+                        cfg.feature_flags
+                            .consensus_commit_transactions_once_traversed = true;
+                    }
+
+                    // `ecdsa_r1::secp256r1_ecrecover` rejects a signature
+                    // whose restored x-coordinate is not below the field
+                    // modulus.
+                    cfg.feature_flags.secp256r1_ecrecover_checks_x_below_p = true;
+
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        // A programmable transaction may carry a transaction
+                        // dependency input.
+                        cfg.feature_flags.enable_transaction_dependencies = true;
+                        // Raise max_auth_gas to 0.001 IOTA, the minimum transaction
+                        // cost at a gas price of 1000.
+                        cfg.max_auth_gas = Some(1_000_000);
+
+                        // Ten minutes at devnet's 20 commits a second.
+                        cfg.attestation_freshness_window_commits = Some(12_000);
+
+                        // Cuts an attestor off after no more than 100 refuted
+                        // attestations per epoch at the current `max_auth_gas`.
+                        cfg.attestation_max_refuted_units_squared = Some(100_000_000);
+                    }
                 }
                 // Use this template when making changes:
                 //
@@ -3720,6 +4121,29 @@ impl ProtocolConfig {
         } else {
             self.additional_borrow_checks()
         };
+        let deprecate_global_storage_ops = if signing_limits.is_some() {
+            // Always on during signing, regardless of protocol version: reject
+            // the deprecated global storage instructions, skip the acquires
+            // pass and check vector element borrows with the call rule.
+            true
+        } else {
+            self.deprecate_global_storage_ops()
+        };
+
+        // Far above the largest instantiation-loop graph in the system packages
+        // and examples.
+        const MAX_INSTANTIATION_LOOP_GRAPH_EDGES_AT_SIGNING: usize = 100_000;
+
+        // Applied with the signing limits only: execution verifies without a
+        // meter. Both fail with PROGRAM_TOO_COMPLEX, which signing rejects.
+        // Post-consensus validation takes them from the protocol config, see
+        // `post_consensus_verifier_config`.
+        let (meter_instantiation_loops, max_instantiation_loop_graph_edges) =
+            if signing_limits.is_some() {
+                (true, Some(MAX_INSTANTIATION_LOOP_GRAPH_EDGES_AT_SIGNING))
+            } else {
+                (false, None)
+            };
 
         VerifierConfig {
             max_loop_depth: Some(self.max_loop_depth() as usize),
@@ -3747,6 +4171,39 @@ impl ProtocolConfig {
             sanity_check_with_regex_reference_safety: sanity_check_with_regex_reference_safety
                 .map(|limit| limit as u128),
             check_cyclic_dependencies: self.feature_flags.check_cyclic_dependencies,
+            meter_instantiation_loops,
+            max_instantiation_loop_graph_edges,
+            deprecate_global_storage_ops,
+        }
+    }
+
+    /// The bytecode verifier config for post-consensus validation: the
+    /// protocol's sign-time limits, with `deprecate_global_storage_ops`, the
+    /// instantiation-loop graph edge limit and the metering of that check
+    /// taken from the protocol config rather than set as at signing.
+    ///
+    /// # Panics
+    ///
+    /// Panics before protocol version 35, which has no
+    /// `max_meter_ticks_regex_reference_safety`.
+    pub fn post_consensus_verifier_config(&self) -> VerifierConfig {
+        // Before protocol version 40, the check is metered and capped at
+        // 100,000 edges, the values signing used then.
+        let (meter_instantiation_loops, max_instantiation_loop_graph_edges) =
+            if self.version < ProtocolVersion::new(40) {
+                (true, Some(100_000))
+            } else {
+                (
+                    self.meter_instantiation_loops(),
+                    self.max_instantiation_loop_graph_edges_as_option()
+                        .map(|edges| edges as usize),
+                )
+            };
+        VerifierConfig {
+            deprecate_global_storage_ops: self.deprecate_global_storage_ops(),
+            meter_instantiation_loops,
+            max_instantiation_loop_graph_edges,
+            ..self.verifier_config(Some(self.verifier_signing_limits()))
         }
     }
 
@@ -3754,8 +4211,8 @@ impl ProtocolConfig {
     /// `verifier_config` takes: back edges per function, back edges per module,
     /// and the meter limit of the regex-based reference safety check.
     /// `VerifierSigningConfig::limits_for_signing` is the validator-local
-    /// counterpart. Defined from the protocol version that sets
-    /// `pcool_verifier_limits_from_protocol_config`.
+    /// counterpart. Defined from protocol version 35, which sets
+    /// `max_meter_ticks_regex_reference_safety`.
     pub fn verifier_signing_limits(&self) -> (usize, usize, usize) {
         (
             self.max_back_edges_per_function() as usize,
@@ -3822,6 +4279,14 @@ impl ProtocolConfig {
 
     pub fn set_check_canonical_module_version_header_for_testing(&mut self, val: bool) {
         self.feature_flags.check_canonical_module_version_header = val;
+    }
+
+    pub fn set_deprecate_global_storage_ops_for_testing(&mut self, val: bool) {
+        self.feature_flags.deprecate_global_storage_ops = val;
+    }
+
+    pub fn set_meter_instantiation_loops_for_testing(&mut self, val: bool) {
+        self.feature_flags.meter_instantiation_loops = val;
     }
 
     pub fn set_consensus_round_prober_for_testing(&mut self, val: bool) {
@@ -3897,6 +4362,11 @@ impl ProtocolConfig {
             .consensus_commit_transactions_only_for_traversed_headers = val;
     }
 
+    pub fn set_consensus_commit_transactions_once_traversed_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .consensus_commit_transactions_once_traversed = val;
+    }
+
     pub fn set_congestion_limit_overshoot_in_gas_price_feedback_mechanism_for_testing(
         &mut self,
         val: bool,
@@ -3921,8 +4391,14 @@ impl ProtocolConfig {
         self.feature_flags.publish_package_metadata = val;
     }
 
+    /// Turning Move authentication off also turns off reporting Move
+    /// authentication errors and validator attestation, which require it.
     pub fn set_enable_move_authentication_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_move_authentication = val;
+        if !val {
+            self.set_report_move_authentication_error_for_testing(false);
+            self.set_enable_validator_attestation_for_testing(false);
+        }
     }
 
     pub fn set_enable_move_authentication_for_sponsor_for_testing(&mut self, val: bool) {
@@ -3950,17 +4426,31 @@ impl ProtocolConfig {
         self.feature_flags.always_advance_dkg_to_resolution = val;
     }
 
+    pub fn set_enable_transaction_dependencies_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_transaction_dependencies = val;
+    }
+
+    /// Turning the flow on also turns on the flags it requires, turns off
+    /// `pre_consensus_sponsor_only_move_authentication`, which it excludes, and
+    /// fills in the settings it requires when unset, whatever the version.
+    /// Turning the flow off also turns validator attestation off, since
+    /// attestation cannot run without the flow.
     pub fn set_enable_pcool_flow_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_pcool_flow = val;
-    }
-
-    pub fn set_pcool_skip_immutable_object_locks_for_testing(&mut self, val: bool) {
-        self.feature_flags.pcool_skip_immutable_object_locks = val;
-    }
-
-    pub fn set_pcool_verifier_limits_from_protocol_config_for_testing(&mut self, val: bool) {
-        self.feature_flags
-            .pcool_verifier_limits_from_protocol_config = val;
+        if val {
+            self.feature_flags
+                .pre_consensus_sponsor_only_move_authentication = false;
+            // Post-consensus validation reads this budget; versions before 35
+            // leave it unset.
+            self.max_meter_ticks_regex_reference_safety
+                .get_or_insert(2_200_000);
+            self.feature_flags.consensus_dedup_only_recorded_messages = true;
+            self.pcool_deterministic_validation_horizon_distance
+                .get_or_insert(4);
+            self.deny_rule_update_max_entries_per_tx.get_or_insert(1000);
+        } else {
+            self.set_enable_validator_attestation_for_testing(false);
+        }
     }
 
     pub fn set_reject_immutable_account_objects_for_testing(&mut self, val: bool) {
@@ -3979,20 +4469,21 @@ impl ProtocolConfig {
         self.feature_flags.disallow_randomness_in_move_authenticator = val;
     }
 
+    pub fn set_move_authenticator_type_arg_packages_as_inputs_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .move_authenticator_type_arg_packages_as_inputs = val;
+    }
+
+    pub fn set_disallow_self_identifier_in_transactions_for_testing(&mut self, val: bool) {
+        self.feature_flags.disallow_self_identifier_in_transactions = val;
+    }
+
     pub fn set_commits_per_schedule_for_testing(&mut self, val: u32) {
         self.consensus_commits_per_schedule = Some(val);
     }
 
-    pub fn set_deny_rule_governance_for_testing(&mut self, val: bool) {
-        self.feature_flags.deny_rule_governance = val;
-    }
-
     pub fn set_deny_authenticator_packages_for_testing(&mut self, val: bool) {
         self.feature_flags.deny_authenticator_packages = val;
-    }
-
-    pub fn set_deny_rule_governance_on_chain_for_testing(&mut self, val: bool) {
-        self.feature_flags.deny_rule_governance_on_chain = val;
     }
 
     /// Keeps the config consistent with the getters that assert on this flag:
@@ -4008,6 +4499,11 @@ impl ProtocolConfig {
             self.feature_flags
                 .pass_calculated_validator_scores_to_advance_epoch = false;
         }
+    }
+
+    pub fn set_pass_calculated_validator_scores_to_advance_epoch_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .pass_calculated_validator_scores_to_advance_epoch = val;
     }
 
     pub fn set_package_metadata_with_dynamic_module_metadata_for_testing(&mut self, val: bool) {
@@ -4035,6 +4531,23 @@ impl ProtocolConfig {
 
     pub fn set_allow_dkg_completion_after_timeout_for_testing(&mut self, val: bool) {
         self.feature_flags.allow_dkg_completion_after_timeout = val;
+    }
+
+    /// Turning the flag off also turns off `enable_pcool_flow`, which requires
+    /// it.
+    pub fn set_consensus_dedup_only_recorded_messages_for_testing(&mut self, val: bool) {
+        self.feature_flags.consensus_dedup_only_recorded_messages = val;
+        if !val {
+            self.set_enable_pcool_flow_for_testing(false);
+        }
+    }
+
+    /// Turning attestation off also unsets the parameters that require it.
+    pub fn set_enable_validator_attestation_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_validator_attestation = val;
+        if !val {
+            self.unset_attestation_parameters();
+        }
     }
 }
 
@@ -4160,12 +4673,98 @@ mod test {
     }
 
     #[test]
+    fn commit_transactions_once_traversed_activation() {
+        for chain in [Chain::Unknown, Chain::Mainnet, Chain::Testnet] {
+            for version in MIN_PROTOCOL_VERSION..=MAX_PROTOCOL_VERSION {
+                let config = ProtocolConfig::get_for_version(ProtocolVersion::new(version), chain);
+                assert_eq!(
+                    config.consensus_commit_transactions_once_traversed(),
+                    version >= 41 && chain != Chain::Mainnet,
+                    "unexpected activation for {chain:?} at version {version}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn test_getters() {
         let prot: ProtocolConfig =
             ProtocolConfig::get_for_version(ProtocolVersion::new(1), Chain::Unknown);
         assert_eq!(
             prot.max_arguments(),
             prot.max_arguments_as_option().unwrap()
+        );
+    }
+
+    #[test]
+    fn only_signing_bounds_the_instantiation_loop_checker() {
+        let prot = ProtocolConfig::get_for_max_version_UNSAFE();
+
+        let signing = prot.verifier_config(Some((0, 0, 0)));
+        assert!(signing.max_instantiation_loop_graph_edges.is_some());
+        assert!(signing.meter_instantiation_loops);
+
+        let execution = prot.verifier_config(None);
+        assert_eq!(execution.max_instantiation_loop_graph_edges, None);
+        assert!(!execution.meter_instantiation_loops);
+    }
+
+    #[test]
+    fn post_consensus_verifier_config_follows_deprecate_global_storage_ops() {
+        let mut prot = ProtocolConfig::get_for_max_version_UNSAFE();
+        prot.set_deprecate_global_storage_ops_for_testing(false);
+
+        assert!(
+            prot.verifier_config(Some((0, 0, 0)))
+                .deprecate_global_storage_ops
+        );
+        let post_consensus = prot.post_consensus_verifier_config();
+        assert!(!post_consensus.deprecate_global_storage_ops);
+        assert_eq!(
+            post_consensus.max_back_edges_per_function,
+            Some(prot.max_back_edges_per_function() as usize)
+        );
+
+        prot.set_deprecate_global_storage_ops_for_testing(true);
+        assert!(
+            prot.post_consensus_verifier_config()
+                .deprecate_global_storage_ops
+        );
+    }
+
+    #[test]
+    fn post_consensus_verifier_config_bounds_the_instantiation_loop_checker() {
+        let before = ProtocolConfig::get_for_version(ProtocolVersion::new(39), Chain::Unknown);
+        let config = before.post_consensus_verifier_config();
+        assert!(config.meter_instantiation_loops);
+        assert_eq!(config.max_instantiation_loop_graph_edges, Some(100_000));
+
+        let mut prot = ProtocolConfig::get_for_version(ProtocolVersion::new(40), Chain::Unknown);
+        prot.set_max_instantiation_loop_graph_edges_for_testing(7);
+        prot.set_meter_instantiation_loops_for_testing(false);
+        let config = prot.post_consensus_verifier_config();
+        assert!(!config.meter_instantiation_loops);
+        assert_eq!(config.max_instantiation_loop_graph_edges, Some(7));
+
+        // The node's signing config keeps its own values.
+        let signing = prot.verifier_config(Some((0, 0, 0)));
+        assert!(signing.meter_instantiation_loops);
+        assert_eq!(signing.max_instantiation_loop_graph_edges, Some(100_000));
+    }
+
+    #[test]
+    fn signing_and_post_consensus_instantiation_loop_limits_match() {
+        let prot = ProtocolConfig::get_for_max_version_UNSAFE();
+        let signing = prot.verifier_config(Some(prot.verifier_signing_limits()));
+        let post_consensus = prot.post_consensus_verifier_config();
+
+        assert_eq!(
+            signing.meter_instantiation_loops,
+            post_consensus.meter_instantiation_loops
+        );
+        assert_eq!(
+            signing.max_instantiation_loop_graph_edges,
+            post_consensus.max_instantiation_loop_graph_edges
         );
     }
 
@@ -4291,13 +4890,28 @@ mod test {
     #[should_panic(expected = "deny_rule_update_max_entries_per_tx must be positive")]
     fn deny_rule_chunk_limit_above_the_ceiling_is_rejected() {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_deny_rule_governance_for_testing(true);
-            config.set_deny_rule_governance_on_chain_for_testing(true);
-            config.set_deny_rule_removal_grace_round_floor_for_testing(0);
+            config.set_enable_pcool_flow_for_testing(true);
             config.set_deny_rule_update_max_entries_per_tx_for_testing(2048 + 1);
             config
         });
         let _ = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    }
+
+    /// Execution and the attestor's dry run read `max_auth_gas` under
+    /// attestation, so a configuration without it is rejected at startup
+    /// rather than stopping the validator at the first transaction.
+    #[test]
+    #[should_panic(expected = "enable_validator_attestation requires max_auth_gas to be set")]
+    fn attestation_without_max_auth_gas_is_rejected() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.disable_max_auth_gas_for_testing();
+            config
+        });
+        let config = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        assert!(
+            config.enable_validator_attestation(),
+            "the latest devnet configuration should run attestation"
+        );
     }
 
     /// A zero chunk limit would make every delta unsplittable; the pure
@@ -4306,9 +4920,7 @@ mod test {
     #[should_panic(expected = "deny_rule_update_max_entries_per_tx must be positive")]
     fn deny_rule_chunk_limit_of_zero_is_rejected() {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_deny_rule_governance_for_testing(true);
-            config.set_deny_rule_governance_on_chain_for_testing(true);
-            config.set_deny_rule_removal_grace_round_floor_for_testing(0);
+            config.set_enable_pcool_flow_for_testing(true);
             config.set_deny_rule_update_max_entries_per_tx_for_testing(0);
             config
         });
@@ -4319,14 +4931,235 @@ mod test {
     #[test]
     fn deny_rule_chunk_limit_within_system_tx_object_id_limit_is_accepted() {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_deny_rule_governance_for_testing(true);
-            config.set_deny_rule_governance_on_chain_for_testing(true);
-            config.set_deny_rule_removal_grace_round_floor_for_testing(0);
+            config.set_enable_pcool_flow_for_testing(true);
             config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
             config
         });
         let config = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
         assert_eq!(config.deny_rule_update_max_entries_per_tx(), 1000);
+    }
+
+    /// From version 39 the P-COOL flow requires the deny rule settings, which
+    /// mirror the governed deny rules into the on-chain object.
+    #[test]
+    #[should_panic(expected = "enable_pcool_flow requires deny_rule_update_max_entries_per_tx")]
+    fn pcool_flow_without_the_deny_rule_settings_is_rejected() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config.disable_deny_rule_update_max_entries_per_tx_for_testing();
+            config
+        });
+        let _ = ProtocolConfig::get_for_version(ProtocolVersion::new(39), Chain::Unknown);
+    }
+
+    /// Devnet runs the P-COOL flow from version 32, before the settings it
+    /// requires exist. Those versions are not checked for them.
+    #[test]
+    fn devnet_versions_before_39_run_the_pcool_flow_without_its_settings() {
+        for version in 32..39 {
+            let config =
+                ProtocolConfig::get_for_version(ProtocolVersion::new(version), Chain::Unknown);
+            assert!(config.enable_pcool_flow(), "version {version}");
+            assert_eq!(
+                config.deny_rule_update_max_entries_per_tx_as_option(),
+                None,
+                "version {version}"
+            );
+        }
+    }
+
+    /// Devnet sets the horizon distance from version 39 on; Mainnet, Testnet
+    /// and earlier versions leave it unset. An override still wins.
+    #[test]
+    fn horizon_distance_is_set_on_devnet_from_version_39() {
+        let config = ProtocolConfig::get_for_version(ProtocolVersion::new(39), Chain::Unknown);
+        assert_eq!(config.pcool_deterministic_validation_horizon_distance(), 4);
+        for (version, chain) in [
+            (38, Chain::Unknown),
+            (39, Chain::Mainnet),
+            (39, Chain::Testnet),
+        ] {
+            let config = ProtocolConfig::get_for_version(ProtocolVersion::new(version), chain);
+            assert_eq!(
+                config.pcool_deterministic_validation_horizon_distance_as_option(),
+                None,
+                "version {version} on {chain:?}"
+            );
+        }
+
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_pcool_deterministic_validation_horizon_distance_for_testing(5);
+            config
+        });
+        let config = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        assert_eq!(config.pcool_deterministic_validation_horizon_distance(), 5);
+    }
+
+    /// The P-COOL flow has no horizon distance to fall back on.
+    #[test]
+    #[should_panic(expected = "pcool_deterministic_validation_horizon_distance")]
+    fn pcool_flow_without_a_horizon_distance_is_rejected() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config.disable_pcool_deterministic_validation_horizon_distance_for_testing();
+            config
+        });
+        let _ = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    }
+
+    /// With a horizon distance of 0, the consensus handler processing commit C
+    /// would wait for C itself to be fully executed, which cannot happen before
+    /// the handler finishes processing C, so the network would halt. The
+    /// configuration is rejected at startup.
+    #[test]
+    #[should_panic(expected = "pcool_deterministic_validation_horizon_distance")]
+    fn horizon_distance_of_zero_with_the_pcool_flow_is_rejected() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config.set_pcool_deterministic_validation_horizon_distance_for_testing(0);
+            config
+        });
+        let _ = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    }
+
+    /// Every version from 39 and chain that turns the P-COOL flow on sets a
+    /// positive horizon distance and the verifier limits post-consensus
+    /// validation meters published packages with.
+    #[test]
+    fn every_version_with_the_pcool_flow_sets_its_requirements() {
+        for chain in [Chain::Unknown, Chain::Mainnet, Chain::Testnet] {
+            for version in 39..=MAX_PROTOCOL_VERSION {
+                let config = ProtocolConfig::get_for_version(ProtocolVersion::new(version), chain);
+                if config.enable_pcool_flow() {
+                    assert!(
+                        config
+                            .pcool_deterministic_validation_horizon_distance_as_option()
+                            .is_some_and(|distance| distance > 0),
+                        "version {version} on {chain:?} runs the P-COOL flow without a positive \
+                         horizon distance"
+                    );
+                    assert!(
+                        config
+                            .max_meter_ticks_regex_reference_safety_as_option()
+                            .is_some(),
+                        "version {version} on {chain:?} runs the P-COOL flow without the \
+                         regex reference safety budget"
+                    );
+                }
+            }
+        }
+    }
+
+    /// The penalty's value is calibrated for refuted attestations of at most
+    /// 2 × `gas_rounding_step` units, execution's run plus the judge's re-run.
+    /// That holds while `max_auth_gas` buys no more than one step per run at a
+    /// gas price of 1,000.
+    #[test]
+    fn refuted_attestation_penalty_requires_max_auth_gas_within_one_rounding_step() {
+        const GAS_PRICE: u64 = 1_000;
+        for chain in [Chain::Unknown, Chain::Mainnet, Chain::Testnet] {
+            for version in MIN_PROTOCOL_VERSION..=MAX_PROTOCOL_VERSION {
+                let config = ProtocolConfig::get_for_version(ProtocolVersion::new(version), chain);
+                if config
+                    .attestation_max_refuted_units_squared_as_option()
+                    .is_some()
+                {
+                    assert!(
+                        config.max_auth_gas() <= config.gas_rounding_step() * GAS_PRICE,
+                        "version {version} on {chain:?} penalizes refuted attestations while \
+                         max_auth_gas buys more than one gas_rounding_step"
+                    );
+                }
+            }
+        }
+    }
+
+    /// Turning the P-COOL flow on for a test also turns on what it requires,
+    /// as a version that turns it on must, whatever the version the test
+    /// starts from.
+    #[test]
+    fn enabling_the_pcool_flow_for_testing_enables_its_requirements() {
+        let mut config = ProtocolConfig::get_for_version(
+            ProtocolVersion::new(MIN_PROTOCOL_VERSION),
+            Chain::Unknown,
+        );
+        assert!(
+            config
+                .max_meter_ticks_regex_reference_safety_as_option()
+                .is_none()
+        );
+        config.set_enable_pcool_flow_for_testing(true);
+        assert!(config.enable_pcool_flow());
+        assert_eq!(config.max_meter_ticks_regex_reference_safety(), 2_200_000);
+        assert!(config.consensus_dedup_only_recorded_messages());
+        assert_eq!(config.pcool_deterministic_validation_horizon_distance(), 4);
+        assert_eq!(config.deny_rule_update_max_entries_per_tx(), 1000);
+    }
+
+    /// An override that returns an older version's config for every version
+    /// asked for, as `TestAuthorityBuilder` installs, is checked against the
+    /// version of that config, which runs the P-COOL flow on Devnet before the
+    /// settings it requires exist.
+    #[test]
+    fn an_override_returning_an_older_config_is_checked_against_its_version() {
+        let older = ProtocolConfig::get_for_version(ProtocolVersion::new(37), Chain::Unknown);
+        assert!(older.enable_pcool_flow());
+        assert!(!older.consensus_dedup_only_recorded_messages());
+        let _guard = ProtocolConfig::apply_overrides_for_testing(move |_, _| older.clone());
+        let config = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        assert_eq!(config.version, ProtocolVersion::new(37));
+    }
+
+    /// Without `consensus_dedup_only_recorded_messages` the consensus handler
+    /// could skip a message as a duplicate of one only some validators saw
+    /// dropped, so the combination is rejected at startup.
+    #[test]
+    #[should_panic(expected = "enable_pcool_flow requires consensus_dedup_only_recorded_messages")]
+    fn pcool_flow_without_dedup_of_recorded_messages_is_rejected() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.feature_flags.consensus_dedup_only_recorded_messages = false;
+            config
+        });
+        let _ = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    }
+
+    /// With sponsor-only pre-consensus authentication, a sponsor alone could get
+    /// a transaction sequenced that locks a Move account's owned objects, so
+    /// the P-COOL flow excludes it.
+    #[test]
+    #[should_panic(
+        expected = "enable_pcool_flow excludes pre_consensus_sponsor_only_move_authentication"
+    )]
+    fn pcool_flow_with_sponsor_only_pre_consensus_authentication_is_rejected() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config
+                .feature_flags
+                .pre_consensus_sponsor_only_move_authentication = true;
+            config
+        });
+        let _ = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    }
+
+    /// Turning the P-COOL flow on for testing turns sponsor-only pre-consensus
+    /// authentication off, which Testnet's version 34 has on.
+    #[test]
+    fn turning_the_pcool_flow_on_turns_sponsor_only_authentication_off() {
+        let mut config = ProtocolConfig::get_for_version(ProtocolVersion::new(34), Chain::Testnet);
+        assert!(config.pre_consensus_sponsor_only_move_authentication());
+        config.set_enable_pcool_flow_for_testing(true);
+        assert!(!config.pre_consensus_sponsor_only_move_authentication());
+    }
+
+    /// A test that turns a requirement off keeps a valid config instead of
+    /// tripping the startup check.
+    #[test]
+    fn disabling_a_requirement_for_testing_disables_the_pcool_flow() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_consensus_dedup_only_recorded_messages_for_testing(false);
+            config
+        });
+        let config = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        assert!(!config.enable_pcool_flow());
     }
 
     #[test]

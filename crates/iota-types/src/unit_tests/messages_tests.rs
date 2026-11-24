@@ -6,6 +6,7 @@
 use std::{
     collections::{BTreeMap, hash_map::DefaultHasher},
     hash::Hasher,
+    str::FromStr,
 };
 
 use fastcrypto::traits::{AggregateAuthenticator, KeyPair};
@@ -35,12 +36,17 @@ use crate::{
     transaction::SenderSignedTransactionAPI,
     utils::{
         assert_size_limit_err, blake2b256_of_sig, make_move_authenticator_sig,
-        make_move_authenticator_tx, make_passkey_authenticator_sig,
-        make_sponsored_move_authenticator_tx, make_sponsored_regular_sig_tx, make_transaction,
-        make_transaction_data, make_upgraded_multisig_tx, ptb_above_max_tx_size,
-        ptb_with_pure_inputs,
+        make_move_authenticator_tx, make_move_authenticator_tx_with_inconsistent_shared_input,
+        make_passkey_authenticator_sig, make_sponsored_move_authenticator_tx,
+        make_sponsored_regular_sig_tx, make_transaction, make_transaction_data,
+        make_upgraded_multisig_tx, ptb_above_max_tx_size, ptb_with_pure_inputs,
     },
 };
+
+/// The signature checks the newest protocol version applies.
+fn latest_verify_params() -> VerifyParams {
+    VerifyParams::from_protocol_config(&ProtocolConfig::get_for_max_version_UNSAFE())
+}
 
 #[test]
 fn test_signed_values() {
@@ -78,7 +84,7 @@ fn test_signed_values() {
         ),
         vec![&sender_sec],
     )
-    .try_into_verified_for_testing(&Default::default())
+    .try_into_verified_for_testing(&latest_verify_params())
     .unwrap();
 
     let bad_transaction =
@@ -101,7 +107,7 @@ fn test_signed_values() {
         AuthorityPublicKeyBytes::from(sec1.public()),
     );
     assert!(
-        v.try_into_verified_for_testing(&committee, &Default::default())
+        v.try_into_verified_for_testing(&committee, &latest_verify_params())
             .is_ok()
     );
 
@@ -112,7 +118,7 @@ fn test_signed_values() {
         AuthorityPublicKeyBytes::from(sec2.public()),
     );
     assert!(
-        v.try_into_verified_for_testing(&committee, &Default::default())
+        v.try_into_verified_for_testing(&committee, &latest_verify_params())
             .is_err()
     );
 
@@ -123,7 +129,7 @@ fn test_signed_values() {
         AuthorityPublicKeyBytes::from(sec3.public()),
     );
     assert!(
-        v.try_into_verified_for_testing(&committee, &Default::default())
+        v.try_into_verified_for_testing(&committee, &latest_verify_params())
             .is_err()
     );
 
@@ -134,7 +140,7 @@ fn test_signed_values() {
         AuthorityPublicKeyBytes::from(sec1.public()),
     );
     assert!(
-        v.try_into_verified_for_testing(&committee, &Default::default())
+        v.try_into_verified_for_testing(&committee, &latest_verify_params())
             .is_err()
     );
 }
@@ -172,7 +178,7 @@ fn test_certificates() {
         ),
         vec![&sender_sec],
     )
-    .try_into_verified_for_testing(&Default::default())
+    .try_into_verified_for_testing(&latest_verify_params())
     .unwrap();
 
     let v1 = SignedTransaction::new(
@@ -203,7 +209,7 @@ fn test_certificates() {
     let c =
         CertifiedTransaction::new(transaction.clone().into_message(), sigs, &committee).unwrap();
     assert!(
-        c.verify_signatures_authenticated(&committee, &Default::default(),)
+        c.verify_signatures_authenticated(&committee, &latest_verify_params(),)
             .is_ok()
     );
 
@@ -520,7 +526,7 @@ fn test_digest_caching() {
         ),
         vec![&ssec2],
     )
-    .try_into_verified_for_testing(&Default::default())
+    .try_into_verified_for_testing(&latest_verify_params())
     .unwrap();
 
     let mut signed_tx = SignedTransaction::new(
@@ -531,7 +537,7 @@ fn test_digest_caching() {
     );
     assert!(
         signed_tx
-            .verify_signatures_authenticated_for_testing(&committee, &Default::default())
+            .verify_signatures_authenticated_for_testing(&committee, &latest_verify_params())
             .is_ok()
     );
 
@@ -649,7 +655,7 @@ fn test_user_signature_committed_in_signed_transactions() {
         gas_price,
     );
     let transaction_a = TransactionEnvelope::from_data_and_signer(tx.clone(), vec![&sender_sec])
-        .try_into_verified_for_testing(&Default::default())
+        .try_into_verified_for_testing(&latest_verify_params())
         .unwrap();
     // transaction_b intentionally invalid (sender does not match signer).
     let transaction_b = VerifiedTransaction::new_unchecked(
@@ -754,7 +760,7 @@ fn test_sponsored_transaction_message() {
         tx.clone(),
         vec![sender_sig.clone(), sponsor_sig.clone()],
     )
-    .try_into_verified_for_testing(&Default::default())
+    .try_into_verified_for_testing(&latest_verify_params())
     .unwrap();
 
     assert_eq!(
@@ -770,13 +776,13 @@ fn test_sponsored_transaction_message() {
         tx.clone(),
         vec![sponsor_sig.clone(), sender_sig.clone()],
     )
-    .try_into_verified_for_testing(&Default::default())
+    .try_into_verified_for_testing(&latest_verify_params())
     .unwrap();
 
     // Test incomplete signature lists (missing sponsor sig)
     assert!(matches!(
         TransactionEnvelope::from_user_sig_data(tx.clone(), vec![sender_sig.clone()],)
-            .try_into_verified_for_testing(&Default::default())
+            .try_into_verified_for_testing(&latest_verify_params())
             .unwrap_err(),
         IotaError::SignerSignatureNumberMismatch { .. }
     ));
@@ -784,7 +790,7 @@ fn test_sponsored_transaction_message() {
     // Test incomplete signature lists (missing sender sig)
     assert!(matches!(
         TransactionEnvelope::from_user_sig_data(tx.clone(), vec![sponsor_sig.clone()],)
-            .try_into_verified_for_testing(&Default::default())
+            .try_into_verified_for_testing(&latest_verify_params())
             .unwrap_err(),
         IotaError::SignerSignatureNumberMismatch { .. }
     ));
@@ -798,7 +804,7 @@ fn test_sponsored_transaction_message() {
             tx.clone(),
             vec![sender_sig, sponsor_sig.clone(), third_party_sig.clone()],
         )
-        .try_into_verified_for_testing(&Default::default())
+        .try_into_verified_for_testing(&latest_verify_params())
         .unwrap_err(),
         IotaError::SignerSignatureNumberMismatch { .. }
     ));
@@ -806,7 +812,7 @@ fn test_sponsored_transaction_message() {
     // Test irrelevant sigs
     assert!(matches!(
         TransactionEnvelope::from_user_sig_data(tx, vec![sponsor_sig, third_party_sig],)
-            .try_into_verified_for_testing(&Default::default())
+            .try_into_verified_for_testing(&latest_verify_params())
             .unwrap_err(),
         IotaError::SignerSignatureAbsent { .. }
     ));
@@ -1133,6 +1139,99 @@ fn validity_check_rejects_randomness_state_in_move_authenticator() {
     }
 }
 
+/// With the P-COOL flow, a mutable shared call argument is refused from the
+/// transaction bytes alone. An immutable one passes.
+#[test]
+fn validity_check_rejects_a_mutable_shared_call_argument_in_move_authenticator() {
+    let config = ProtocolConfig::get_for_max_version_UNSAFE();
+    let context = TxValidityCheckContext {
+        config: &config,
+        epoch: 0,
+    };
+    let sender = Address::random();
+    let account = SharedObjectReference::new(sender.into(), Version::from(1), false);
+    let id = ObjectId::random();
+    let argument = |mutable| {
+        MoveAuthenticatorV1::new(
+            vec![CallArg::Shared(SharedObjectReference::new(
+                id,
+                Version::from(1),
+                mutable,
+            ))],
+            vec![],
+            account,
+        )
+    };
+
+    assert_eq!(
+        with_move_authenticator(make_transaction_data(sender), argument(true))
+            .validity_check(&context)
+            .unwrap_err(),
+        IotaError::UserInput {
+            error: UserInputError::MutableSharedIsInMoveAuthenticatorInput { object_id: id },
+        }
+    );
+    with_move_authenticator(make_transaction_data(sender), argument(false))
+        .validity_check(&context)
+        .unwrap();
+}
+
+/// With the P-COOL flow, the authenticator state object is refused from the
+/// transaction bytes alone, as a call argument and as the object to
+/// authenticate.
+#[test]
+fn validity_check_rejects_authenticator_state_in_move_authenticator() {
+    let config = ProtocolConfig::get_for_max_version_UNSAFE();
+    let sender = Address::random();
+    let state = SharedObjectReference::new(ObjectId::AUTHENTICATOR_STATE, Version::from(1), false);
+    let account = SharedObjectReference::new(sender.into(), Version::from(1), false);
+
+    let as_call_arg = MoveAuthenticatorV1::new(vec![CallArg::Shared(state)], vec![], account);
+    let as_account_object = MoveAuthenticatorV1::new(vec![], vec![], state);
+
+    for authenticator in [as_call_arg, as_account_object] {
+        assert_eq!(
+            with_move_authenticator(make_transaction_data(sender), authenticator)
+                .validity_check(&TxValidityCheckContext {
+                    config: &config,
+                    epoch: 0,
+                })
+                .unwrap_err(),
+            IotaError::UserInput {
+                error: UserInputError::InaccessibleSystemObject {
+                    object_id: ObjectId::AUTHENTICATOR_STATE,
+                },
+            }
+        );
+    }
+}
+
+/// Without the P-COOL flow, as on Mainnet and Testnet, the transaction bytes
+/// alone refuse neither the authenticator state object nor a mutable shared
+/// object as a `MoveAuthenticator` input: the checks on the loaded objects do.
+#[test]
+fn validity_check_leaves_move_authenticator_input_kinds_to_the_loaded_objects() {
+    let mut config = ProtocolConfig::get_for_max_version_UNSAFE();
+    config.set_enable_pcool_flow_for_testing(false);
+    let sender = Address::random();
+    let account = SharedObjectReference::new(sender.into(), Version::from(1), false);
+    let state = SharedObjectReference::new(ObjectId::AUTHENTICATOR_STATE, Version::from(1), false);
+    let mutable_shared = SharedObjectReference::new(ObjectId::random(), Version::from(1), true);
+
+    for authenticator in [
+        MoveAuthenticatorV1::new(vec![CallArg::Shared(mutable_shared)], vec![], account),
+        MoveAuthenticatorV1::new(vec![CallArg::Shared(state)], vec![], account),
+        MoveAuthenticatorV1::new(vec![], vec![], state),
+    ] {
+        with_move_authenticator(make_transaction_data(sender), authenticator)
+            .validity_check(&TxValidityCheckContext {
+                config: &config,
+                epoch: 0,
+            })
+            .unwrap();
+    }
+}
+
 /// The restriction is on the authenticator only: a transaction whose
 /// programmable part reads the randomness state object, and then only
 /// transfers, is still accepted alongside an authenticator that does not name
@@ -1189,6 +1288,491 @@ fn validity_check_rejects_randomness_state_in_both_transaction_and_move_authenti
     );
 }
 
+/// `tx`, with its sender authenticated by a `MoveAuthenticator` that passes
+/// `type_args` to its authenticate function.
+fn with_authenticator_type_args(
+    tx: Transaction,
+    type_args: Vec<TypeTag>,
+) -> SenderSignedTransaction {
+    let account = SharedObjectReference::new(tx.sender().into(), Version::from(1), false);
+    with_move_authenticator(tx, MoveAuthenticatorV1::new(vec![], type_args, account))
+}
+
+/// Reads every kind in `kinds` as an immutable object with the kind's id, which
+/// is all splitting the inputs into groups looks at.
+fn read_for_testing(kinds: Vec<InputObjectKind>) -> InputObjects {
+    kinds
+        .into_iter()
+        .map(|kind| {
+            ObjectReadResult::new(
+                kind,
+                Object::immutable_with_id_for_testing(kind.object_id()).into(),
+            )
+        })
+        .collect::<Vec<_>>()
+        .into()
+}
+
+/// An authenticator lists the packages its type arguments name, nested ones
+/// included and each once, only when asked; a primitive type argument names
+/// no package.
+#[test]
+fn move_authenticator_input_objects_include_type_arg_packages_when_asked() {
+    let outer = ObjectId::random();
+    let inner = ObjectId::random();
+    let account = SharedObjectReference::new(ObjectId::random(), Version::from(1), false);
+    let authenticator = MoveAuthenticatorV1::new(
+        vec![],
+        vec![
+            TypeTag::from_str(&format!("vector<{outer}::m::S<{inner}::n::T>>")).unwrap(),
+            TypeTag::from_str(&format!("{outer}::m::U")).unwrap(),
+            TypeTag::U64,
+        ],
+        account,
+    );
+
+    let without_packages = authenticator.input_objects(false);
+    assert!(
+        without_packages
+            .iter()
+            .all(|kind| !matches!(kind, InputObjectKind::MovePackage(_)))
+    );
+
+    let mut expected = without_packages;
+    expected.extend(
+        BTreeSet::from([outer, inner])
+            .into_iter()
+            .map(InputObjectKind::MovePackage),
+    );
+    assert_eq!(authenticator.input_objects(true), expected);
+}
+
+/// The packages a `MoveAuthenticator`'s type arguments name, nested ones
+/// included, are read as inputs only when asked.
+#[test]
+fn collect_all_input_object_kind_for_reading_adds_authenticator_type_arg_packages() {
+    let outer = ObjectId::random();
+    let inner = ObjectId::random();
+    let tx = with_authenticator_type_args(
+        make_transaction_data(Address::random()),
+        vec![
+            TypeTag::from_str(&format!("vector<{outer}::m::S<{inner}::n::T>>")).unwrap(),
+            TypeTag::U64,
+        ],
+    );
+
+    let without_packages = tx
+        .collect_all_input_object_kind_for_reading(false)
+        .unwrap()
+        .into_iter()
+        .collect::<HashSet<_>>();
+    assert!(
+        without_packages
+            .iter()
+            .all(|kind| !matches!(kind, InputObjectKind::MovePackage(_)))
+    );
+
+    let with_packages = tx.collect_all_input_object_kind_for_reading(true).unwrap();
+    let mut expected = without_packages;
+    expected.extend([
+        InputObjectKind::MovePackage(outer),
+        InputObjectKind::MovePackage(inner),
+    ]);
+    assert_eq!(with_packages.len(), expected.len());
+    assert_eq!(with_packages.into_iter().collect::<HashSet<_>>(), expected);
+}
+
+/// The type argument packages are split into the inputs of the authenticator
+/// that names them, not into the transaction's own inputs.
+#[test]
+fn split_input_objects_into_groups_for_reading_puts_type_arg_packages_in_the_authenticator_group() {
+    let package = ObjectId::random();
+    let tx = with_authenticator_type_args(
+        make_transaction_data(Address::random()),
+        vec![TypeTag::from_str(&format!("{package}::m::S")).unwrap()],
+    );
+    let input_objects =
+        read_for_testing(tx.collect_all_input_object_kind_for_reading(true).unwrap());
+
+    let (tx_input_objects, per_authenticator_inputs) = tx
+        .split_input_objects_into_groups_for_reading(input_objects)
+        .unwrap();
+
+    let is_the_package = |kind: &InputObjectKind| *kind == InputObjectKind::MovePackage(package);
+    assert!(!tx_input_objects.object_kinds().any(is_the_package));
+    let [(authenticator_input_objects, _)] = per_authenticator_inputs.as_slice() else {
+        panic!("one authenticator must give one group");
+    };
+    assert_eq!(
+        authenticator_input_objects
+            .object_kinds()
+            .filter(|kind| is_the_package(kind))
+            .count(),
+        1
+    );
+}
+
+/// Without the flag the type argument packages are not read, and the
+/// authenticator's group holds no package.
+#[test]
+fn split_input_objects_into_groups_for_reading_leaves_out_unread_type_arg_packages() {
+    let package = ObjectId::random();
+    let tx = with_authenticator_type_args(
+        make_transaction_data(Address::random()),
+        vec![TypeTag::from_str(&format!("{package}::m::S")).unwrap()],
+    );
+    let input_objects =
+        read_for_testing(tx.collect_all_input_object_kind_for_reading(false).unwrap());
+
+    let (_, per_authenticator_inputs) = tx
+        .split_input_objects_into_groups_for_reading(input_objects)
+        .unwrap();
+
+    let [(authenticator_input_objects, _)] = per_authenticator_inputs.as_slice() else {
+        panic!("one authenticator must give one group");
+    };
+    assert!(
+        authenticator_input_objects
+            .object_kinds()
+            .all(|kind| !matches!(kind, InputObjectKind::MovePackage(_)))
+    );
+}
+
+/// A transaction that calls `package`, and whose sender's authenticator names
+/// a type of `package` in a type argument.
+fn move_call_and_type_arg_naming(package: ObjectId) -> SenderSignedTransaction {
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.programmable_move_call(
+        package,
+        Identifier::from_static("m"),
+        Identifier::from_static("f"),
+        vec![],
+        vec![],
+    );
+    with_authenticator_type_args(
+        Transaction::new_programmable(
+            Address::random(),
+            vec![random_object_ref()],
+            builder.finish(),
+            TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+            1,
+        ),
+        vec![TypeTag::from_str(&format!("{package}::m::S")).unwrap()],
+    )
+}
+
+/// A package the transaction names itself is in the transaction's group only,
+/// with or without the type argument packages read, so authentication runs on
+/// the same inputs as without the flag.
+#[test]
+fn split_input_objects_into_groups_for_reading_leaves_a_package_the_transaction_names_to_it() {
+    let package = ObjectId::random();
+    let tx = move_call_and_type_arg_naming(package);
+
+    for include_type_arg_packages in [true, false] {
+        let input_objects = read_for_testing(
+            tx.collect_all_input_object_kind_for_reading(include_type_arg_packages)
+                .unwrap(),
+        );
+        let (tx_input_objects, per_authenticator_inputs) = tx
+            .split_input_objects_into_groups_for_reading(input_objects)
+            .unwrap();
+
+        assert!(
+            tx_input_objects
+                .object_kinds()
+                .any(|kind| *kind == InputObjectKind::MovePackage(package))
+        );
+        let [(authenticator_input_objects, _)] = per_authenticator_inputs.as_slice() else {
+            panic!("one authenticator must give one group");
+        };
+        assert!(
+            authenticator_input_objects
+                .object_kinds()
+                .all(|kind| !matches!(kind, InputObjectKind::MovePackage(_)))
+        );
+    }
+}
+
+/// A package named both by a `MoveCall` and by an authenticator's type
+/// argument is listed once among the transaction's inputs.
+#[test]
+fn input_objects_lists_a_package_named_by_a_move_call_and_a_type_arg_once() {
+    let package = ObjectId::random();
+    let tx = move_call_and_type_arg_naming(package);
+
+    assert_eq!(
+        tx.input_objects(true)
+            .unwrap()
+            .into_iter()
+            .filter(|kind| *kind == InputObjectKind::MovePackage(package))
+            .count(),
+        1
+    );
+}
+
+/// Asserts that `tx`'s inputs, with the packages named by authenticator type
+/// arguments, list `id`, and only as an object.
+fn assert_listed_only_as_an_object(tx: &SenderSignedTransaction, id: ObjectId) {
+    let kinds = tx.input_objects(true).unwrap();
+    assert!(kinds.iter().any(|kind| kind.object_id() == id));
+    assert!(!kinds.contains(&InputObjectKind::MovePackage(id)));
+}
+
+/// A type argument that names an object input's id does not fail listing the
+/// inputs: the object stays, and the id is not listed as a package. This holds
+/// for the account, for an object the programmable transaction passes, and for
+/// a gas coin, which the validity check does not compare against the type
+/// arguments.
+#[test]
+fn input_objects_skips_a_type_arg_package_that_names_an_object() {
+    let sender = Address::random();
+    let type_arg = |id: ObjectId| TypeTag::from_str(&format!("{id}::m::S")).unwrap();
+
+    let account = ObjectId::from(sender);
+    let tx = with_authenticator_type_args(make_transaction_data(sender), vec![type_arg(account)]);
+    assert_listed_only_as_an_object(&tx, account);
+
+    let object = ObjectId::random();
+    for input in object_call_args(object) {
+        let tx = with_authenticator_type_args(
+            transaction_passing(sender, input),
+            vec![type_arg(object)],
+        );
+        assert_listed_only_as_an_object(&tx, object);
+    }
+
+    let data = make_transaction_data(sender);
+    let gas = data.gas()[0].object_id;
+    let tx = with_authenticator_type_args(data, vec![type_arg(gas)]);
+    assert_listed_only_as_an_object(&tx, gas);
+}
+
+/// When one authenticator's type argument names an id that the other
+/// authenticator passes as an object, listing the inputs keeps the object,
+/// whichever authenticator comes first.
+#[test]
+fn input_objects_keeps_an_object_another_authenticators_type_arg_names() {
+    let object = ObjectId::random();
+    let type_arg = TypeTag::from_str(&format!("{object}::m::S")).unwrap();
+
+    for input in object_call_args(object) {
+        let type_arg_first = sponsored_with_authenticators(
+            (vec![], vec![type_arg.clone()]),
+            (vec![input.clone()], vec![]),
+        );
+        let object_first =
+            sponsored_with_authenticators((vec![input], vec![]), (vec![], vec![type_arg.clone()]));
+        for tx in [type_arg_first, object_first] {
+            assert_listed_only_as_an_object(&tx, object);
+        }
+    }
+}
+
+/// When the sender's and the sponsor's authenticators name the same package,
+/// it is read once, and each authenticator's group holds it.
+#[test]
+fn two_authenticators_naming_the_same_package_each_get_it() {
+    let package = ObjectId::random();
+    let type_arg = TypeTag::from_str(&format!("{package}::m::S")).unwrap();
+    let (sponsored, _, _) =
+        make_sponsored_move_authenticator_tx(Address::random(), Address::random());
+    let data = sponsored.data().transaction().clone();
+    let authenticator_for = |address: Address| {
+        UserSignature::MoveAuthenticator(MoveAuthenticator::from(MoveAuthenticatorV1::new(
+            vec![],
+            vec![type_arg.clone()],
+            SharedObjectReference::new(address.into(), Version::from(1), false),
+        )))
+    };
+    let tx = SenderSignedTransaction::new(
+        data.clone(),
+        vec![
+            authenticator_for(data.sender()),
+            authenticator_for(data.gas_owner()),
+        ],
+    );
+
+    let kinds = tx.collect_all_input_object_kind_for_reading(true).unwrap();
+    assert_eq!(
+        kinds
+            .iter()
+            .filter(|kind| **kind == InputObjectKind::MovePackage(package))
+            .count(),
+        1
+    );
+
+    let (_, per_authenticator_inputs) = tx
+        .split_input_objects_into_groups_for_reading(read_for_testing(kinds))
+        .unwrap();
+    assert_eq!(per_authenticator_inputs.len(), 2);
+    for (authenticator_input_objects, _) in &per_authenticator_inputs {
+        assert!(
+            authenticator_input_objects
+                .object_kinds()
+                .any(|kind| *kind == InputObjectKind::MovePackage(package))
+        );
+    }
+}
+
+/// `tx.validity_check` at the max protocol version, first with the packages
+/// named by authenticator type arguments listed as inputs, then without.
+fn validity_check_with_and_without_type_arg_packages(
+    tx: &SenderSignedTransaction,
+) -> (IotaResult<usize>, IotaResult<usize>) {
+    let flag_on = ProtocolConfig::get_for_max_version_UNSAFE();
+    assert!(flag_on.move_authenticator_type_arg_packages_as_inputs());
+    let mut flag_off = flag_on.clone();
+    flag_off.set_move_authenticator_type_arg_packages_as_inputs_for_testing(false);
+    let check =
+        |config: &ProtocolConfig| tx.validity_check(&TxValidityCheckContext { config, epoch: 0 });
+    (check(&flag_on), check(&flag_off))
+}
+
+/// A transaction whose programmable part passes `input` to a Move call.
+fn transaction_passing(sender: Address, input: CallArg) -> Transaction {
+    let mut builder = ProgrammableTransactionBuilder::new();
+    let arg = builder.obj(input).unwrap();
+    builder.programmable_move_call(
+        ObjectId::random(),
+        Identifier::from_static("m"),
+        Identifier::from_static("f"),
+        vec![],
+        vec![arg],
+    );
+    Transaction::new_programmable(
+        sender,
+        vec![random_object_ref()],
+        builder.finish(),
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        1,
+    )
+}
+
+/// A sponsored transaction where the sender's and the sponsor's
+/// authenticators pass the given call arguments and type arguments.
+fn sponsored_with_authenticators(
+    sender: (Vec<CallArg>, Vec<TypeTag>),
+    sponsor: (Vec<CallArg>, Vec<TypeTag>),
+) -> SenderSignedTransaction {
+    let (sponsored, _, _) =
+        make_sponsored_move_authenticator_tx(Address::random(), Address::random());
+    let data = sponsored.data().transaction().clone();
+    let authenticator = |address: Address, (call_args, type_args)| {
+        UserSignature::MoveAuthenticator(MoveAuthenticator::from(MoveAuthenticatorV1::new(
+            call_args,
+            type_args,
+            SharedObjectReference::new(address.into(), Version::from(1), false),
+        )))
+    };
+    SenderSignedTransaction::new(
+        data.clone(),
+        vec![
+            authenticator(data.sender(), sender),
+            authenticator(data.gas_owner(), sponsor),
+        ],
+    )
+}
+
+/// The ways to name `id` as an object rather than as a package.
+fn object_call_args(id: ObjectId) -> [CallArg; 2] {
+    [
+        CallArg::ImmutableOrOwned(ObjectReference::new(
+            id,
+            Version::from(1),
+            ObjectDigest::new([0; 32]),
+        )),
+        CallArg::Shared(SharedObjectReference::new(id, Version::from(1), false)),
+    ]
+}
+
+fn inconsistent_input(object_id: ObjectId) -> IotaError {
+    IotaError::UserInput {
+        error: UserInputError::InconsistentInput { object_id },
+    }
+}
+
+/// An id the programmable transaction names as an object cannot also be a
+/// package named by an authenticator's type argument. With the flag, the
+/// transaction bytes alone refuse this, so validation at a commit decides it
+/// before any object is read. Without the flag, the package is not an input,
+/// and nothing is compared.
+#[test]
+fn validity_check_rejects_a_type_arg_package_the_transaction_names_as_an_object() {
+    let sender = Address::random();
+    let package = ObjectId::random();
+    let type_arg = TypeTag::from_str(&format!("{package}::m::S")).unwrap();
+
+    for input in object_call_args(package) {
+        let tx = with_authenticator_type_args(
+            transaction_passing(sender, input),
+            vec![type_arg.clone()],
+        );
+        let (flag_on, flag_off) = validity_check_with_and_without_type_arg_packages(&tx);
+        assert_eq!(flag_on.unwrap_err(), inconsistent_input(package));
+        flag_off.unwrap();
+    }
+}
+
+/// The same holds when an authenticator, not the programmable transaction,
+/// names the id as an object: the same authenticator in one of its call
+/// arguments, or the other authenticator of a sponsored transaction.
+#[test]
+fn validity_check_rejects_a_type_arg_package_an_authenticator_names_as_an_object() {
+    let package = ObjectId::random();
+    let type_arg = TypeTag::from_str(&format!("{package}::m::S")).unwrap();
+
+    for input in object_call_args(package) {
+        let same_authenticator = sponsored_with_authenticators(
+            (vec![input.clone()], vec![type_arg.clone()]),
+            (vec![], vec![]),
+        );
+        let other_authenticator =
+            sponsored_with_authenticators((vec![input], vec![]), (vec![], vec![type_arg.clone()]));
+        for tx in [same_authenticator, other_authenticator] {
+            let (flag_on, flag_off) = validity_check_with_and_without_type_arg_packages(&tx);
+            assert_eq!(flag_on.unwrap_err(), inconsistent_input(package));
+            flag_off.unwrap();
+        }
+    }
+}
+
+/// Naming a package in a type argument stays allowed when the same package is
+/// also called by the programmable transaction, or also named by the other
+/// authenticator's type argument: every place names it as a package.
+#[test]
+fn validity_check_accepts_a_type_arg_package_named_elsewhere_as_a_package() {
+    let package = ObjectId::random();
+    let type_arg = TypeTag::from_str(&format!("{package}::m::S")).unwrap();
+
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.programmable_move_call(
+        package,
+        Identifier::from_static("m"),
+        Identifier::from_static("f"),
+        vec![],
+        vec![],
+    );
+    let called_by_the_transaction = with_authenticator_type_args(
+        Transaction::new_programmable(
+            Address::random(),
+            vec![random_object_ref()],
+            builder.finish(),
+            TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+            1,
+        ),
+        vec![type_arg.clone()],
+    );
+    let named_by_both_authenticators =
+        sponsored_with_authenticators((vec![], vec![type_arg.clone()]), (vec![], vec![type_arg]));
+
+    for tx in [called_by_the_transaction, named_by_both_authenticators] {
+        let (flag_on, flag_off) = validity_check_with_and_without_type_arg_packages(&tx);
+        flag_on.unwrap();
+        flag_off.unwrap();
+    }
+}
+
 #[test]
 fn verify_sender_signature_correctly_with_flag() {
     // set up authorities
@@ -1229,7 +1813,7 @@ fn verify_sender_signature_correctly_with_flag() {
     tx_data_3.gas_data_mut().owner = tx_data_3.sender();
 
     let transaction = TransactionEnvelope::from_data_and_signer(tx, vec![&sender_kp])
-        .try_into_verified_for_testing(&Default::default())
+        .try_into_verified_for_testing(&latest_verify_params())
         .unwrap();
 
     // create tx also signed by authority
@@ -1260,7 +1844,7 @@ fn verify_sender_signature_correctly_with_flag() {
     );
 
     let transaction_1 = TransactionEnvelope::from_data_and_signer(tx_data_2, vec![&sender_kp_2])
-        .try_into_verified_for_testing(&Default::default())
+        .try_into_verified_for_testing(&latest_verify_params())
         .unwrap();
 
     let signed_tx_1 = SignedTransaction::new(
@@ -1307,11 +1891,11 @@ fn verify_sender_signature_correctly_with_flag() {
 
     // r1 signature tx verifies ok
     assert!(
-        tx_3.try_into_verified_for_testing(&Default::default())
+        tx_3.try_into_verified_for_testing(&latest_verify_params())
             .is_ok()
     );
     let verified_tx_3 = tx_31
-        .try_into_verified_for_testing(&Default::default())
+        .try_into_verified_for_testing(&latest_verify_params())
         .unwrap();
     // r1 signature verified and accepted by authority
     let signed_tx_3 = SignedTransaction::new(
@@ -1347,6 +1931,15 @@ fn test_consensus_commit_prologue_v1_transaction() {
     );
     assert!(tx.is_system_tx());
     assert_eq!(tx.data().transaction().input_objects().unwrap().len(), 1);
+}
+
+/// A transaction and its Move authenticator that name the same shared object
+/// with different initial versions still report a shared object, without
+/// panicking: `validity_check` rejects such a transaction only later.
+#[test]
+fn test_contains_shared_object_with_inconsistent_authenticator_input() {
+    let (tx, _) = make_move_authenticator_tx_with_inconsistent_shared_input(Address::random(), 0);
+    assert!(tx.data().contains_shared_object());
 }
 
 fn transaction_deny_rules_update_kind() -> TransactionKind {
@@ -1396,10 +1989,9 @@ fn test_transaction_deny_rules_update_transaction() {
 /// it on they are system transactions that users cannot submit.
 #[test]
 fn test_transaction_deny_rules_kinds_rejected_from_users() {
-    let flag_off = ProtocolConfig::get_for_max_version_UNSAFE();
-    let mut flag_on = ProtocolConfig::get_for_max_version_UNSAFE();
-    flag_on.set_deny_rule_governance_for_testing(true);
-    flag_on.set_deny_rule_governance_on_chain_for_testing(true);
+    let mut flag_off = ProtocolConfig::get_for_max_version_UNSAFE();
+    flag_off.set_enable_pcool_flow_for_testing(false);
+    let flag_on = ProtocolConfig::get_for_max_version_UNSAFE();
 
     let create =
         TransactionKind::EndOfEpoch(vec![EndOfEpochTransactionKind::TransactionDenyRulesCreate]);
@@ -1617,7 +2209,7 @@ fn test_certificate_digest() {
             ),
             vec![&sender_sec],
         )
-        .try_into_verified_for_testing(&Default::default())
+        .try_into_verified_for_testing(&latest_verify_params())
         .unwrap()
     };
 
@@ -1642,7 +2234,7 @@ fn test_certificate_digest() {
 
         let cert = CertifiedTransaction::new(transaction.clone().into_message(), sigs, &committee)
             .unwrap();
-        cert.verify_signatures_authenticated(&committee, &Default::default())
+        cert.verify_signatures_authenticated(&committee, &latest_verify_params())
             .unwrap();
         cert
     };
@@ -1964,4 +2556,420 @@ fn check_serialized_size_rejects_a_transaction_above_the_size_limit() {
     make_transaction_data(sender)
         .check_serialized_size(&config)
         .unwrap();
+}
+
+fn config_with_self_identifier_check() -> ProtocolConfig {
+    let config = ProtocolConfig::get_for_max_version_UNSAFE();
+    assert!(config.disallow_self_identifier_in_transactions());
+    config
+}
+
+fn config_without_self_identifier_check() -> ProtocolConfig {
+    let config = ProtocolConfig::get_for_version(ProtocolVersion::new(39), Chain::Unknown);
+    assert!(!config.disallow_self_identifier_in_transactions());
+    config
+}
+
+fn self_identifier() -> Identifier {
+    Identifier::new_unchecked("<SELF>")
+}
+
+fn struct_type(module: Identifier, name: Identifier, type_params: Vec<TypeTag>) -> TypeTag {
+    TypeTag::Struct(Box::new(StructTag::new(
+        "0x2".parse::<Address>().unwrap(),
+        module,
+        name,
+        type_params,
+    )))
+}
+
+fn self_type() -> TypeTag {
+    struct_type(Identifier::from_static("iota"), self_identifier(), vec![])
+}
+
+fn assert_self_identifier_rejected(result: UserInputResult) {
+    assert!(
+        matches!(&result, Err(UserInputError::InvalidIdentifier { error }) if error == "<SELF>"),
+        "{result:?}"
+    );
+}
+
+#[test]
+fn command_validity_check_rejects_self_type_arg_name() {
+    let command = move_call_command(vec![self_type()]);
+    assert_self_identifier_rejected(command.validity_check(&config_with_self_identifier_check()));
+    command
+        .validity_check(&config_without_self_identifier_check())
+        .unwrap();
+}
+
+#[test]
+fn command_validity_check_rejects_self_type_arg_module() {
+    let command = move_call_command(vec![struct_type(
+        self_identifier(),
+        Identifier::from_static("IOTA"),
+        vec![],
+    )]);
+    assert_self_identifier_rejected(command.validity_check(&config_with_self_identifier_check()));
+    command
+        .validity_check(&config_without_self_identifier_check())
+        .unwrap();
+}
+
+#[test]
+fn command_validity_check_rejects_nested_self_type_arg() {
+    let coin_of_self = struct_type(
+        Identifier::from_static("coin"),
+        Identifier::from_static("Coin"),
+        vec![self_type()],
+    );
+    let command = move_call_command(vec![TypeTag::Vector(Box::new(coin_of_self))]);
+    assert_self_identifier_rejected(command.validity_check(&config_with_self_identifier_check()));
+    command
+        .validity_check(&config_without_self_identifier_check())
+        .unwrap();
+}
+
+#[test]
+fn command_validity_check_accepts_regular_names_with_flag() {
+    let iota = struct_type(
+        Identifier::from_static("iota"),
+        Identifier::from_static("IOTA"),
+        vec![],
+    );
+    let command = move_call_command(vec![struct_type(
+        Identifier::from_static("coin"),
+        Identifier::from_static("Coin"),
+        vec![iota],
+    )]);
+    command
+        .validity_check(&config_with_self_identifier_check())
+        .unwrap();
+}
+
+fn move_call(module: Identifier, function: Identifier, type_arguments: Vec<TypeTag>) -> MoveCall {
+    MoveCall {
+        package: ObjectId::random(),
+        module,
+        function,
+        type_arguments,
+        arguments: vec![],
+    }
+}
+
+#[test]
+fn command_validity_check_rejects_self_module_and_function() {
+    let commands = [
+        Command::MoveCall(move_call(
+            self_identifier(),
+            Identifier::from_static("zero"),
+            vec![],
+        )),
+        Command::MoveCall(move_call(
+            Identifier::from_static("coin"),
+            self_identifier(),
+            vec![],
+        )),
+    ];
+    for command in &commands {
+        assert_self_identifier_rejected(
+            command.validity_check(&config_with_self_identifier_check()),
+        );
+        command
+            .validity_check(&config_without_self_identifier_check())
+            .unwrap();
+    }
+}
+
+#[test]
+fn make_move_vector_validity_check_rejects_self_type() {
+    let command = Command::MakeMoveVector(MakeMoveVector {
+        type_tag: Some(self_type()),
+        elements: vec![],
+    });
+    assert_self_identifier_rejected(command.validity_check(&config_with_self_identifier_check()));
+    command
+        .validity_check(&config_without_self_identifier_check())
+        .unwrap();
+}
+
+#[test]
+fn move_authenticator_validity_check_rejects_self_type_arg() {
+    let authenticator = MoveAuthenticator::from(MoveAuthenticatorV1::new(
+        vec![],
+        vec![self_type()],
+        SharedObjectReference::new(
+            ObjectId::random(),
+            crate::object::OBJECT_START_VERSION,
+            false,
+        ),
+    ));
+    assert_self_identifier_rejected(
+        authenticator.validity_check(&config_with_self_identifier_check()),
+    );
+    authenticator
+        .validity_check(&config_without_self_identifier_check())
+        .unwrap();
+}
+
+fn signed_transaction_with_commands(commands: Vec<Command>) -> SenderSignedTransaction {
+    let data = Transaction::new_programmable(
+        Address::random(),
+        vec![random_object_ref()],
+        ProgrammableTransaction {
+            inputs: vec![],
+            commands,
+        },
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        1,
+    );
+    SenderSignedTransaction::new(data, vec![])
+}
+
+fn move_call_command(type_arguments: Vec<TypeTag>) -> Command {
+    Command::MoveCall(move_call(
+        Identifier::from_static("coin"),
+        Identifier::from_static("zero"),
+        type_arguments,
+    ))
+}
+
+#[test]
+fn transaction_identifiers_validity_check_rejects_self_type_arg() {
+    let tx = signed_transaction_with_commands(vec![move_call_command(vec![self_type()])]);
+    assert_self_identifier_rejected(transaction_identifiers_validity_check(&tx));
+}
+
+#[test]
+fn transaction_identifiers_validity_check_rejects_self_call_target() {
+    let module = Command::MoveCall(move_call(
+        self_identifier(),
+        Identifier::from_static("zero"),
+        vec![],
+    ));
+    let function = Command::MoveCall(move_call(
+        Identifier::from_static("coin"),
+        self_identifier(),
+        vec![],
+    ));
+    for command in [module, function] {
+        let tx = signed_transaction_with_commands(vec![command]);
+        assert_self_identifier_rejected(transaction_identifiers_validity_check(&tx));
+    }
+}
+
+#[test]
+fn transaction_identifiers_validity_check_rejects_self_vector_type() {
+    let tx = signed_transaction_with_commands(vec![Command::MakeMoveVector(MakeMoveVector {
+        type_tag: Some(self_type()),
+        elements: vec![],
+    })]);
+    assert_self_identifier_rejected(transaction_identifiers_validity_check(&tx));
+}
+
+#[test]
+fn transaction_identifiers_validity_check_rejects_self_in_authenticator() {
+    let authenticator = MoveAuthenticator::from(MoveAuthenticatorV1::new(
+        vec![],
+        vec![self_type()],
+        SharedObjectReference::new(
+            ObjectId::random(),
+            crate::object::OBJECT_START_VERSION,
+            false,
+        ),
+    ));
+    let tx = SenderSignedTransaction::new(
+        make_transaction_data(Address::random()),
+        vec![UserSignature::MoveAuthenticator(authenticator)],
+    );
+    assert_self_identifier_rejected(transaction_identifiers_validity_check(&tx));
+}
+
+#[test]
+fn transaction_identifiers_validity_check_accepts_clean_transaction() {
+    let iota = struct_type(
+        Identifier::from_static("iota"),
+        Identifier::from_static("IOTA"),
+        vec![],
+    );
+    let tx = signed_transaction_with_commands(vec![
+        move_call_command(vec![TypeTag::Vector(Box::new(iota.clone()))]),
+        Command::MakeMoveVector(MakeMoveVector {
+            type_tag: Some(iota),
+            elements: vec![],
+        }),
+    ]);
+    transaction_identifiers_validity_check(&tx).unwrap();
+    transaction_identifiers_validity_check(make_move_authenticator_tx(Address::random()).data())
+        .unwrap();
+}
+
+#[test]
+fn transaction_identifiers_validity_check_rejects_system_transaction() {
+    let event = Event {
+        package_id: ObjectId::random(),
+        module: self_identifier(),
+        sender: Address::random(),
+        struct_tag: StructTag::new(
+            "0x2".parse::<Address>().unwrap(),
+            Identifier::from_static("iota"),
+            Identifier::from_static("IOTA"),
+            vec![],
+        ),
+        contents: vec![],
+    };
+    let tx = SenderSignedTransaction::new(
+        Transaction::new_system_transaction(TransactionKind::Genesis(GenesisTransaction {
+            objects: vec![],
+            events: vec![event],
+        })),
+        vec![],
+    );
+    let result = transaction_identifiers_validity_check(&tx);
+    assert!(
+        matches!(&result, Err(UserInputError::Unsupported(_))),
+        "{result:?}"
+    );
+}
+
+/// A transaction with a dependency input, expiring after `epoch` when given,
+/// built from `pt`.
+fn transaction_with_dependency_input(
+    pt: ProgrammableTransaction,
+    epoch: Option<u64>,
+) -> Transaction {
+    let sender_kp = SimpleKeypair::from(Ed25519PrivateKey::random());
+    let sender = (&PublicKey::from(&sender_kp)).into();
+    let gas_price = 10;
+    let gas_data = GasPayment {
+        objects: vec![random_object_ref()],
+        owner: sender,
+        price: gas_price,
+        budget: gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+    };
+    let mut transaction =
+        Transaction::new_with_gas_data(TransactionKind::new_programmable(pt), sender, gas_data);
+    if let Some(epoch) = epoch {
+        *transaction.expiration_mut_for_testing() = TransactionExpiration::Epoch(epoch);
+    }
+    transaction
+}
+
+/// The latest protocol config, with transaction dependencies enabled.
+fn config_with_transaction_dependencies() -> ProtocolConfig {
+    let mut config = ProtocolConfig::get_for_max_version_UNSAFE();
+    config.set_enable_transaction_dependencies_for_testing(true);
+    config
+}
+
+#[test]
+fn transaction_dependency_input_is_valid_with_an_epoch_expiration() {
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.transaction_dependency(TransactionDigest::random());
+    builder
+        .transfer_object(dbg_addr(1), random_object_ref())
+        .unwrap();
+    let transaction = transaction_with_dependency_input(builder.finish(), Some(3));
+
+    transaction
+        .validity_check(&config_with_transaction_dependencies())
+        .unwrap();
+    assert!(transaction.transaction_dependency().is_some());
+}
+
+#[test]
+fn transaction_dependency_input_requires_an_epoch_expiration() {
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.transaction_dependency(TransactionDigest::random());
+    let transaction = transaction_with_dependency_input(builder.finish(), None);
+
+    assert_eq!(
+        transaction.validity_check(&config_with_transaction_dependencies()),
+        Err(UserInputError::TransactionDependencyRequiresExpiration)
+    );
+}
+
+#[test]
+fn at_most_one_transaction_dependency_input() {
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.transaction_dependency(TransactionDigest::random());
+    builder.transaction_dependency(TransactionDigest::random());
+    let transaction = transaction_with_dependency_input(builder.finish(), Some(3));
+
+    assert!(matches!(
+        transaction.validity_check(&config_with_transaction_dependencies()),
+        Err(UserInputError::SizeLimitExceeded { .. })
+    ));
+}
+
+#[test]
+fn transaction_dependency_input_cannot_be_used_by_a_command() {
+    // Build a PTB with a dependency at index 0 and a pure at index 1, then a
+    // command that references index 0.
+    let pt = ProgrammableTransaction {
+        inputs: vec![
+            CallArg::TransactionDependency(TransactionDigest::random()),
+            CallArg::Pure(bcs::to_bytes(&dbg_addr(1)).unwrap()),
+        ],
+        commands: vec![Command::new_transfer_objects(
+            vec![Argument::Input(0)],
+            Argument::Input(1),
+        )],
+    };
+    let transaction = transaction_with_dependency_input(pt, Some(3));
+
+    assert_eq!(
+        transaction.validity_check(&config_with_transaction_dependencies()),
+        Err(UserInputError::TransactionDependencyInputUsed {
+            command_idx: 0,
+            argument_idx: 0,
+        })
+    );
+}
+
+/// A dependent has to expire with the current epoch. An earlier epoch is
+/// expired and a later one is refused, while a transaction without a
+/// dependency may expire in a later epoch.
+#[test]
+fn transaction_dependency_input_requires_the_current_epoch() {
+    let config = config_with_transaction_dependencies();
+    let check = |with_dependency: bool, expiration_epoch: u64| {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        if with_dependency {
+            builder.transaction_dependency(TransactionDigest::random());
+        }
+        builder
+            .transfer_object(dbg_addr(1), random_object_ref())
+            .unwrap();
+        let transaction =
+            transaction_with_dependency_input(builder.finish(), Some(expiration_epoch));
+        SenderSignedTransaction::new(transaction, vec![]).validity_check(&TxValidityCheckContext {
+            config: &config,
+            epoch: 3,
+        })
+    };
+
+    check(true, 3).unwrap();
+    assert_eq!(check(true, 2).unwrap_err(), IotaError::TransactionExpired);
+    assert_eq!(
+        check(true, 4).unwrap_err(),
+        IotaError::UserInput {
+            error: UserInputError::TransactionDependencyRequiresExpiration
+        }
+    );
+    check(false, 4).unwrap();
+}
+
+#[test]
+fn transaction_dependency_input_is_unsupported_before_its_protocol_version() {
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.transaction_dependency(TransactionDigest::random());
+    let transaction = transaction_with_dependency_input(builder.finish(), Some(3));
+    let mut config = ProtocolConfig::get_for_max_version_UNSAFE();
+    config.set_enable_transaction_dependencies_for_testing(false);
+
+    assert!(matches!(
+        transaction.validity_check(&config),
+        Err(UserInputError::Unsupported(msg)) if msg == "transaction dependency inputs are not enabled"
+    ));
 }

@@ -12,12 +12,29 @@ use serde::{Deserialize, Serialize};
 /// caps allow it to keep. Both caps are validated against it at startup.
 pub const MAX_HEADERS_OR_SHARDS_PER_BUNDLE: usize = 1024;
 
-/// Ceiling on the headers a header-sync fetch response may carry. The server
-/// truncates its response to its own `max_headers_per_header_sync_fetch`,
-/// validated against this at startup, so a client can reject a response past
-/// it as misbehaviour while still accepting a peer configured above its own
-/// cap.
-pub const MAX_HEADERS_PER_HEADER_SYNC_FETCH: usize = 1024;
+/// Ceiling on the headers a fetch response may carry, for header sync and
+/// commit sync alike. The server truncates its response to its own
+/// `max_headers_per_header_sync_fetch` or `max_headers_per_commit_sync_fetch`,
+/// both validated against this at startup, so a client can reject a response
+/// past it as misbehaviour while still accepting a peer configured above its
+/// own cap. Enforced while decoding each response message, before its entries
+/// are materialised.
+pub const HEADERS_PER_FETCH_CEILING: usize = 1024;
+
+/// Ceiling on the transaction entries a fetch request or response may carry,
+/// for transaction sync and regular commit sync alike. A client requests at
+/// most its own `max_transactions_per_transaction_sync_fetch` or
+/// `max_transactions_per_commit_sync_fetch`, both validated against this at
+/// startup, and the server returns at most one entry per requested reference.
+/// Enforced while decoding each message, before its entries are materialised.
+pub const TRANSACTIONS_PER_FETCH_CEILING: usize = 1024;
+
+/// Ceiling on the commits a commit-sync fetch may request, for regular and
+/// fast commit sync alike. A client requests at most its own
+/// `commit_sync_batch_size` or `fast_commit_sync_batch_size` commits, both
+/// validated against this at startup. Enforced while decoding each response
+/// message, before its entries are materialised.
+pub const COMMITS_PER_FETCH_CEILING: usize = 1024;
 
 /// Operational configurations of a consensus authority.
 ///
@@ -185,18 +202,14 @@ pub struct Parameters {
     /// that the voters are not expected to hold at the next round, judged
     /// from how soon they acknowledged recent blocks. Voters count by how
     /// often this node's blocks reference them. Deferred acknowledgments go
-    /// into later blocks. Effective only when the
-    /// protocol-level `consensus_starfish_speed` flag is also on.
+    /// into later blocks.
     #[serde(default = "Parameters::default_enable_starfish_speed_adaptive_acknowledgments")]
     pub enable_starfish_speed_adaptive_acknowledgments: bool,
 
     /// Prefer more responsive peers when the transactions synchronizer, the
     /// commit syncer and the header synchronizer select peers to fetch from.
     /// Responses are verified the same way regardless, so it cannot affect
-    /// safety. Enabled by default; disabling it restores the previous
-    /// selection: for the transactions synchronizer a uniform random order
-    /// that excludes the most recently failed peers (up to less than f+1 by
-    /// stake), and for the commit syncer and the header synchronizer a uniform
+    /// safety. Enabled by default; disabling it selects peers in a uniform
     /// random order.
     #[serde(default = "Parameters::default_enable_peer_responsiveness_ranking")]
     pub enable_peer_responsiveness_ranking: bool,
@@ -397,10 +410,53 @@ impl Parameters {
                 ));
             }
         }
-        if self.max_headers_per_header_sync_fetch > MAX_HEADERS_PER_HEADER_SYNC_FETCH {
-            return Err(format!(
-                "max_headers_per_header_sync_fetch must not exceed {MAX_HEADERS_PER_HEADER_SYNC_FETCH}"
-            ));
+        let header_fetch_fields = [
+            (
+                "max_headers_per_header_sync_fetch",
+                self.max_headers_per_header_sync_fetch,
+            ),
+            (
+                "max_headers_per_commit_sync_fetch",
+                self.max_headers_per_commit_sync_fetch,
+            ),
+        ];
+        for (name, value) in header_fetch_fields {
+            if value > HEADERS_PER_FETCH_CEILING {
+                return Err(format!(
+                    "{name} must not exceed {HEADERS_PER_FETCH_CEILING}"
+                ));
+            }
+        }
+        let transaction_fetch_fields = [
+            (
+                "max_transactions_per_transaction_sync_fetch",
+                self.max_transactions_per_transaction_sync_fetch,
+            ),
+            (
+                "max_transactions_per_commit_sync_fetch",
+                self.max_transactions_per_commit_sync_fetch,
+            ),
+        ];
+        for (name, value) in transaction_fetch_fields {
+            if value > TRANSACTIONS_PER_FETCH_CEILING {
+                return Err(format!(
+                    "{name} must not exceed {TRANSACTIONS_PER_FETCH_CEILING}"
+                ));
+            }
+        }
+        let commit_fetch_fields = [
+            ("commit_sync_batch_size", self.commit_sync_batch_size),
+            (
+                "fast_commit_sync_batch_size",
+                self.fast_commit_sync_batch_size,
+            ),
+        ];
+        for (name, value) in commit_fetch_fields {
+            if value as usize > COMMITS_PER_FETCH_CEILING {
+                return Err(format!(
+                    "{name} must not exceed {COMMITS_PER_FETCH_CEILING}"
+                ));
+            }
         }
         Ok(())
     }

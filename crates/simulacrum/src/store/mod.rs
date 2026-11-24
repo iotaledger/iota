@@ -60,7 +60,7 @@ pub trait SimulatorStore:
 
     fn get_system_state(&self) -> iota_types::iota_system_state::IotaSystemState;
 
-    fn get_clock(&self) -> iota_types::clock::Clock;
+    fn get_clock(&self) -> iota_sdk_move_types::iota_framework::clock::Clock;
 
     fn get_last_checkpoint_of_epoch(&self, epoch: EpochId) -> Option<CheckpointSequenceNumber>;
 

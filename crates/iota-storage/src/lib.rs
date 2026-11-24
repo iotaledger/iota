@@ -10,15 +10,14 @@ use std::{
     io,
     io::{BufReader, Read, Write},
     path::PathBuf,
-    sync::Arc,
 };
 
 use anyhow::{Result, anyhow};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use bytes::{Buf, Bytes};
 use fastcrypto::hash::{HashFunction, Sha3_256};
+use iota_common::debug_fatal;
 use iota_types::{
-    committee::Committee,
     messages_checkpoint::{CertifiedCheckpointSummary, VerifiedCheckpoint},
     storage::WriteStore,
 };
@@ -128,10 +127,10 @@ pub fn compress<R: Read, W: Write>(reader: &mut R, writer: &mut W) -> Result<()>
     Ok(())
 }
 
-pub fn read<R: Read + 'static>(
+pub fn read<R: Read + Send + 'static>(
     expected_magic: u32,
     mut reader: R,
-) -> Result<(Box<dyn Read>, StorageFormat)> {
+) -> Result<(Box<dyn Read + Send>, StorageFormat)> {
     let magic = reader.read_u32::<BigEndian>()?;
     if magic != expected_magic {
         Err(anyhow!(
@@ -140,7 +139,7 @@ pub fn read<R: Read + 'static>(
     } else {
         let storage_format = StorageFormat::try_from(reader.read_u8()?)?;
         let file_compression = FileCompression::try_from(reader.read_u8()?)?;
-        let reader: Box<dyn Read> = match file_compression {
+        let reader: Box<dyn Read + Send> = match file_compression {
             FileCompression::Zstd => Box::new(zstd::stream::Decoder::new(reader)?),
             FileCompression::None => Box::new(BufReader::new(reader)),
         };
@@ -148,10 +147,21 @@ pub fn read<R: Read + 'static>(
     }
 }
 
-pub fn make_iterator<T: DeserializeOwned, R: Read + 'static>(
+/// Returns an iterator over the blobs of a blob file, each decoded as `T`. The
+/// iterator ends as described on [`BlobIter`].
+///
+/// Each call of `next` blocks the thread: it reads, decompresses and decodes
+/// one blob, and a blob can be several GiB. In async code, use the iterator on
+/// a blocking thread, for example with `tokio::task::spawn_blocking`.
+///
+/// # Errors
+///
+/// Returns an error when the file header cannot be read or is not valid, or
+/// when its magic number is not `expected_magic`.
+pub fn make_iterator<T: DeserializeOwned, R: Read + Send + 'static>(
     expected_magic: u32,
     reader: R,
-) -> Result<impl Iterator<Item = T>> {
+) -> Result<impl Iterator<Item = T> + Send> {
     let (reader, storage_format) = read(expected_magic, reader)?;
     match storage_format {
         StorageFormat::Blob => Ok(BlobIter::new(reader)),
@@ -220,23 +230,6 @@ pub fn verify_checkpoint_linkage(
 }
 
 #[expect(clippy::result_large_err)]
-pub fn verify_checkpoint_with_committee(
-    committee: Arc<Committee>,
-    current: &VerifiedCheckpoint,
-    checkpoint: CertifiedCheckpointSummary,
-) -> Result<VerifiedCheckpoint, CertifiedCheckpointSummary> {
-    let checkpoint = verify_checkpoint_linkage(current, checkpoint)?;
-
-    checkpoint
-        .verify_authority_signatures(&committee)
-        .map_err(|e| {
-            debug!("error verifying checkpoint: {e}");
-            checkpoint.clone()
-        })?;
-    Ok(VerifiedCheckpoint::new_unchecked(checkpoint))
-}
-
-#[expect(clippy::result_large_err)]
 pub fn verify_checkpoint<S>(
     current: &VerifiedCheckpoint,
     store: S,
@@ -245,13 +238,22 @@ pub fn verify_checkpoint<S>(
 where
     S: WriteStore,
 {
-    let committee = store.get_committee(checkpoint.epoch()).unwrap_or_else(|| {
-        panic!(
-            "BUG: should have committee for epoch {} before we try to verify checkpoint {}",
+    let checkpoint = verify_checkpoint_linkage(current, checkpoint)?;
+
+    let Some(committee) = store.get_committee(checkpoint.epoch()) else {
+        debug_fatal!(
+            "store has no committee for epoch {} of checkpoint {} after the linkage check",
             checkpoint.epoch(),
             checkpoint.sequence_number()
-        )
-    });
+        );
+        return Err(checkpoint);
+    };
 
-    verify_checkpoint_with_committee(committee, current, checkpoint)
+    checkpoint
+        .verify_authority_signatures(&committee)
+        .map_err(|e| {
+            debug!("error verifying checkpoint: {e}");
+            checkpoint.clone()
+        })?;
+    Ok(VerifiedCheckpoint::new_unchecked(checkpoint))
 }

@@ -186,13 +186,6 @@ jobs:
 
           eval "./scripts/ci_tests/rust_tests.sh $ARGS"
 
-      - name: check new tests for flakiness
-        run: |
-          ARGS="--run-stress-new-tests-check-for-flakiness"
-          ARGS="$ARGS --changed-crates '${{ inputs.changedCrates }}'"
-
-          eval "./scripts/ci_tests/rust_tests.sh $ARGS"
-
   rust-simtests-cancel:
     needs: [rust-simtests]
     if: failure() && !inputs.isNightly

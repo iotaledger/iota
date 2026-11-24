@@ -14,6 +14,7 @@ use iota_sdk_types::Address;
 use iota_types::{
     committee::Committee,
     crypto::{AccountPrivateKey, AuthorityKeyPair, get_key_pair},
+    signature::VerifyParams,
     transaction::CertifiedTransaction,
 };
 use itertools::Itertools as _;
@@ -80,8 +81,7 @@ fn async_verifier_bench(c: &mut Criterion) {
                         BTreeSet::new(),
                         batch_size,
                         metrics.clone(),
-                        true, // accept_passkey_in_multisig
-                        true, // additional_multisig_checks
+                        VerifyParams::new(true, true, true),
                     ));
 
                     b.iter(|| {

@@ -51,7 +51,7 @@ import { Code } from '@connectrpc/connect';
 | Code               | Typical cause                                                                                             |
 | ------------------ | --------------------------------------------------------------------------------------------------------- |
 | `NotFound`         | The object or transaction does not exist, was deleted, or was pruned                                      |
-| `FailedPrecondition` | Objects or changes were asked for on a transaction whose objects the node has pruned                    |
+| `FailedPrecondition` | Objects or changes were asked for on a transaction whose objects the node has pruned, or the node runs without gRPC indexes |
 | `InvalidArgument`  | An invalid signature, a view call to a function that is not a view, or a read mask path the node does not know |
 | `Unavailable`      | The node is unreachable, or `getHealth` found its latest checkpoint too old                               |
 | `Canceled`         | The call's `signal` was aborted                                                                           |

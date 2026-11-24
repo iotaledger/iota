@@ -2,13 +2,13 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc, time::Instant};
 
 use arc_swap::ArcSwapOption;
 use async_trait::async_trait;
-use fastcrypto::ed25519;
 use iota_config::NodeConfig;
 use iota_metrics::{RegistryID, RegistryService, monitored_mpsc::unbounded_channel};
+use iota_sdk_crypto::ToFromBytes as _;
 use iota_types::committee::EpochId;
 use starfish_config::{Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
 use starfish_core::{
@@ -22,8 +22,10 @@ use crate::{
     consensus_handler::{ConsensusHandlerInitializer, StarfishConsensusHandler},
     consensus_manager::{
         ConsensusManagerMetrics, ConsensusManagerTrait, ReplayWaiter, Running, RunningLockGuard,
+        StartedConsumer, replay_target,
     },
     consensus_validator::IotaTxValidator,
+    epoch::epoch_metrics::EpochMetrics,
     epoch_start_consensus_committee::get_consensus_committee,
     starfish_adapter::LazyStarfishClient,
 };
@@ -39,23 +41,25 @@ pub struct StarfishManager {
     running: Mutex<Running>,
     metrics: Arc<ConsensusManagerMetrics>,
     registry_service: RegistryService,
-    authority: ArcSwapOption<(ConsensusAuthority, RegistryID)>,
+    /// The running authority. Its stop steps go to the epoch metrics because
+    /// the consensus registry is removed at the stop.
+    authority: ArcSwapOption<(ConsensusAuthority, RegistryID, Arc<EpochMetrics>, EpochId)>,
     boot_counter: Mutex<u64>,
     // Use a shared lazy starfish client so we can update the internal starfish
     // client that gets created for every new epoch.
     client: Arc<LazyStarfishClient>,
     consensus_handler: Mutex<Option<StarfishConsensusHandler>>,
     consumer_monitor: ArcSwapOption<CommitConsumerMonitor>,
-    consumer_monitor_sender: broadcast::Sender<Arc<CommitConsumerMonitor>>,
+    consumer_monitor_sender: broadcast::Sender<StartedConsumer>,
 }
 
 impl StarfishManager {
     /// NOTE: Starfish protocol key uses Ed25519 instead of BLS.
-    /// But for security, the protocol keypair must be different from the
-    /// network keypair.
+    /// But for security, the protocol private key must be different from the
+    /// network private key.
     pub fn new(
-        protocol_keypair: ed25519::Ed25519KeyPair,
-        network_keypair: ed25519::Ed25519KeyPair,
+        protocol_private_key: iota_types::crypto::NetworkPrivateKey,
+        network_private_key: iota_types::crypto::NetworkPrivateKey,
         storage_base_path: PathBuf,
         registry_service: RegistryService,
         metrics: Arc<ConsensusManagerMetrics>,
@@ -63,8 +67,9 @@ impl StarfishManager {
     ) -> Self {
         let (consumer_monitor_sender, _) = broadcast::channel(1);
         Self {
-            protocol_keypair: ProtocolKeyPair::new(protocol_keypair),
-            network_keypair: NetworkKeyPair::new(network_keypair),
+            protocol_keypair: ProtocolKeyPair::from_bytes(&protocol_private_key.to_bytes())
+                .expect("valid ed25519 private key bytes"),
+            network_keypair: NetworkKeyPair::new(network_private_key),
             storage_base_path,
             running: Mutex::new(Running::False),
             metrics,
@@ -111,6 +116,9 @@ impl ConsensusManagerTrait for StarfishManager {
         else {
             return;
         };
+        epoch_store
+            .metrics
+            .record_epoch_change_stage_now(epoch, "consensus_start_called");
 
         let consensus_config = config
             .consensus_config()
@@ -160,6 +168,24 @@ impl ConsensusManagerTrait for StarfishManager {
         let starting_commit = last_processed_commit.saturating_sub(num_prior_commits);
         let consumer = CommitConsumer::new(commit_sender, starting_commit);
         let monitor = consumer.monitor();
+        // Every checkpoint built before the restart comes from commits up to the last validated
+        // one. A later commit is validated for the first time, which can wait for execution that
+        // needs the checkpoint executor, and node startup creates that executor only after the
+        // builder has rebuilt those checkpoints. A replayed commit up to the target can still
+        // wait on backpressure, which only the checkpoint executor lifts.
+        let target = protocol_config.enable_pcool_flow().then(|| {
+            let target = replay_target(
+                epoch_store
+                    .last_validated_commit()
+                    .expect("the epoch store of the epoch being started must be readable"),
+                last_processed_commit,
+                epoch_store
+                    .last_commit_before_synced_checkpoint_execution()
+                    .expect("the epoch store of the epoch being started must be readable"),
+            );
+            info!(target, last_processed_commit, "Consensus replay target");
+            target
+        });
 
         // If there is a previous consumer monitor, it indicates that the consensus
         // engine has been restarted, due to an epoch change. However, that on its
@@ -226,14 +252,28 @@ impl ConsensusManagerTrait for StarfishManager {
 
         let registry_id = self.registry_service.add(registry.clone());
 
-        let registered_authority = Arc::new((authority, registry_id));
+        let registered_authority =
+            Arc::new((authority, registry_id, epoch_store.metrics.clone(), epoch));
         self.authority.swap(Some(registered_authority));
 
         // Initialize the client to send transactions to this Starfish instance.
-        self.client.set(client);
+        self.client.set(epoch, client);
+        epoch_store
+            .metrics
+            .record_epoch_change_stage_now(epoch, "consensus_started");
+
+        // Lets a test see whether the handler meets stored commits only after
+        // the replay wait.
+        iota_macros::fail_point_arg!(
+            "consensus-replay-target",
+            |report: crate::consensus_manager::ConsensusReplayTargetReport| {
+                let highest_observed = monitor.highest_observed_commit_at_startup();
+                report(target.unwrap_or(highest_observed), highest_observed)
+            }
+        );
 
         // Send the consumer monitor to the replay waiter.
-        let _ = self.consumer_monitor_sender.send(monitor);
+        let _ = self.consumer_monitor_sender.send((monitor, target));
     }
 
     async fn shutdown(&self) {
@@ -241,6 +281,7 @@ impl ConsensusManagerTrait for StarfishManager {
         else {
             return;
         };
+        let stop_started = Instant::now();
 
         // Stop consensus submissions.
         self.client.clear();
@@ -248,17 +289,42 @@ impl ConsensusManagerTrait for StarfishManager {
         // swap with empty to ensure there is no other reference to authority and we can
         // safely do Arc unwrap
         let r = self.authority.swap(None).unwrap();
-        let Ok((authority, registry_id)) = Arc::try_unwrap(r) else {
+        let Ok((authority, registry_id, epoch_metrics, epoch)) = Arc::try_unwrap(r) else {
             panic!("Failed to retrieve the starfish authority");
         };
 
         // shutdown the authority and wait for it
-        authority.stop().await;
+        let timings = authority.stop().await;
+        let authority_dropped = Instant::now();
 
         // drop the old consensus handler to force stop any underlying task running.
         let mut consensus_handler = self.consensus_handler.lock().await;
         if let Some(mut handler) = consensus_handler.take() {
             handler.abort().await;
+        }
+        let handler_stopped = Instant::now();
+
+        let ms = |from: Instant, to: Instant| to.saturating_duration_since(from).as_millis();
+        info!(
+            tasks_ms = ms(stop_started, timings.tasks_stopped),
+            core_ms = ms(timings.tasks_stopped, timings.core_stopped),
+            flush_ms = ms(timings.core_stopped, timings.dag_flushed),
+            network_ms = ms(timings.dag_flushed, timings.network_stopped),
+            drop_ms = ms(timings.network_stopped, authority_dropped),
+            handler_ms = ms(authority_dropped, handler_stopped),
+            "Consensus stop steps"
+        );
+        // The stop ends the epoch, so its steps belong to the change to the next one.
+        for (stage, at) in [
+            ("consensus_stop_started", stop_started),
+            ("consensus_tasks_stopped", timings.tasks_stopped),
+            ("consensus_core_stopped", timings.core_stopped),
+            ("consensus_dag_flushed", timings.dag_flushed),
+            ("consensus_network_stopped", timings.network_stopped),
+            ("consensus_authority_dropped", authority_dropped),
+            ("consensus_handler_stopped", handler_stopped),
+        ] {
+            epoch_metrics.record_epoch_change_stage(epoch + 1, stage, at);
         }
 
         // unregister the registry id

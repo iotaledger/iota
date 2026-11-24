@@ -13,7 +13,6 @@ use std::{
 use anyhow::{Context, anyhow, bail, ensure};
 use clap::*;
 use colored::Colorize;
-use fastcrypto::traits::KeyPair;
 use iota_config::{
     Config, IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME, IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG,
     IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG, NodeConfig,
@@ -1273,7 +1272,7 @@ fn write_state_sync_fullnode_configs(
         let ssfn_config = FullnodeConfigBuilder::new()
             .with_config_directory(config_directory.to_path_buf())
             .with_p2p_external_address(ssfn.p2p_address)
-            .with_network_key_pair(ssfn.network_key_pair)
+            .with_network_private_key(ssfn.network_key_pair)
             .with_p2p_listen_address(([0, 0, 0, 0], 8084))
             .with_db_path(PathBuf::from("/opt/iota/db/authorities_db/full_node_db"))
             .with_network_address("/ip4/0.0.0.0/tcp/8080/http".parse()?)
@@ -1299,7 +1298,7 @@ fn write_state_sync_fullnode_configs(
             })?;
             Ok(SeedPeer {
                 peer_id: Some(anemo::PeerId(
-                    config.network_key_pair().public().0.to_bytes(),
+                    config.network_private_key().public_key().into_bytes(),
                 )),
                 address,
             })
@@ -1564,14 +1563,14 @@ mod tests {
     #[test]
     fn fullnode_scoped_override_without_a_fullnode_fails() {
         let config_override: NodeConfigOverride =
-            "fullnode:enable-index-processing=false".parse().unwrap();
+            "fullnode:enable-jsonrpc-api=false".parse().unwrap();
         assert!(
             check_fullnode_override_scopes(std::slice::from_ref(&config_override), false).is_err()
         );
         check_fullnode_override_scopes(&[config_override], true).unwrap();
 
         // `all:` reaches the validators, so it stays allowed either way.
-        let all_scoped: NodeConfigOverride = "all:enable-index-processing=false".parse().unwrap();
+        let all_scoped: NodeConfigOverride = "all:enable-jsonrpc-api=false".parse().unwrap();
         check_fullnode_override_scopes(std::slice::from_ref(&all_scoped), false).unwrap();
     }
 

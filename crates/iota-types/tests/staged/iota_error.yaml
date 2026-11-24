@@ -95,3 +95,11 @@
 93: InvalidAdminRequest
 94: TransactionEffectsNotFound
 95: DynamicFieldNotExists
+96: AttestationAuthorMismatch
+97: AttestationUnitsBelowMinimum
+98: AttestationUnitsAboveBudget
+99: AttestorCutOff
+100: AttestationIndexNamesNoSharedObject
+101: AttestationIndexRepeated
+102: AttestationObjectVersionsDiffer
+103: AttestationAuthenticatorInputMissing

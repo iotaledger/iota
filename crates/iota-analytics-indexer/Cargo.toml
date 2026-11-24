@@ -9,7 +9,7 @@ publish = false
 [dependencies]
 # external dependencies
 anyhow.workspace = true
-arrow-array = "54"
+arrow-array = "59"
 async-trait.workspace = true
 bcs.workspace = true
 clap.workspace = true
@@ -19,10 +19,12 @@ fastcrypto = { workspace = true, features = ["copy_key"] }
 gcp-bigquery-client = "0.28.0"
 num_enum.workspace = true
 object_store.workspace = true
-parquet = "54"
+parquet = "59"
 serde.workspace = true
 serde_json.workspace = true
 snowflake-api = "0.11"
+# Must match the `arrow` version that `snowflake-api` uses.
+snowflake-arrow-array = { package = "arrow-array", version = "54" }
 strum.workspace = true
 tap.workspace = true
 tempfile.workspace = true

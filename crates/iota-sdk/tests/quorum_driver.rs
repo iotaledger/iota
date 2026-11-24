@@ -50,6 +50,10 @@ struct MockState {
     /// swallow-and-retry loop instead of always succeeding on the first
     /// poll.
     pub reads_to_fail: usize,
+    /// How many of the next successful `iota_getTransactionBlock` calls
+    /// report no checkpoint yet, as for a transaction that has executed but
+    /// whose checkpoint is not indexed.
+    pub reads_without_checkpoint: usize,
 }
 
 struct MockNode {
@@ -151,8 +155,12 @@ async fn start_mock_node(
                 }
 
                 let mut response = IotaTransactionBlockResponse::new(READ_DIGEST);
-                response.checkpoint = Some(7);
-                response.timestamp_ms = Some(1_700_000_000_000);
+                if state.reads_without_checkpoint > 0 {
+                    state.reads_without_checkpoint -= 1;
+                } else {
+                    response.checkpoint = Some(7);
+                    response.timestamp_ms = Some(1_700_000_000_000);
+                }
                 Ok(serde_json::to_value(response).unwrap())
             },
         )
@@ -217,7 +225,7 @@ async fn fallback_poll_is_discarded_when_the_execute_response_confirms_nothing()
     // A node that answers `WaitForLocalExecution` without confirming it —
     // an older node, or one that could not execute locally in time. The
     // execute response already carries the certified effects, so the poll
-    // is only a wait for local visibility; its response (proven here by a
+    // is only a wait for the checkpoint to be indexed; its response (proven here by a
     // distinct digest and fields the execute API never sets) must not
     // replace or feed into what the caller gets back.
     let node = start_mock_node(Some(false), 0, None).await;
@@ -307,6 +315,33 @@ async fn fallback_retries_past_reads_that_are_not_yet_visible() {
     assert_eq!(
         state.poll_count, 3,
         "the SDK must retry past the two failed reads and succeed on the third"
+    );
+    assert_eq!(response.confirmed_local_execution, Some(true));
+}
+
+#[tokio::test]
+async fn fallback_polls_until_the_node_reports_the_checkpoint() {
+    // A transaction is readable as soon as it has executed, but the node
+    // reports its checkpoint only once that checkpoint is indexed. Only then
+    // does a read after the call see everything the transaction changed.
+    let node = start_mock_node(Some(false), 0, None).await;
+    node.state.lock().unwrap().reads_without_checkpoint = 2;
+    let client = node.client().await;
+
+    let response = client
+        .quorum_driver_api()
+        .execute_transaction_block(
+            sample_transaction(),
+            IotaTransactionBlockResponseOptions::new().with_effects(),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        node.state().poll_count,
+        3,
+        "the SDK must keep polling past reads that report no checkpoint yet"
     );
     assert_eq!(response.confirmed_local_execution, Some(true));
 }

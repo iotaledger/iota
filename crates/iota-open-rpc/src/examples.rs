@@ -19,12 +19,13 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseQuery, IotaTypeTag, MoveCallParams, MoveFunctionArgType,
     ObjectChange,
     ObjectValueKind::{ByImmutableReference, ByMutableReference, ByValue},
-    ObjectsPage, OwnedObjectRef, ProtocolConfigResponse, PtbInput, RPCTransactionRequestParams,
-    Stake, StakeStatus, TransactionBlockBytes, TransactionBlocksPage, TransactionFilter,
-    TransferObjectParams, ValidatorApy, ValidatorApys,
+    ObjectsPage, OwnedObjectCursor, OwnedObjectRef, ProtocolConfigResponse, PtbInput,
+    RPCTransactionRequestParams, Stake, StakeStatus, TransactionBlockBytes, TransactionBlocksPage,
+    TransactionFilter, TransferObjectParams, ValidatorApy, ValidatorApys,
 };
 use iota_open_rpc::ExamplePairing;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_sdk_move_types::iota_framework::object::UID;
 use iota_sdk_types::{
     Address, CheckpointDigest, GasCostSummary, Identifier, MoveStruct, ObjectDigest, ObjectId,
     ObjectReference, Owner, StructTag, Transaction, TransactionDigest, TransactionEventsDigest,
@@ -38,8 +39,8 @@ use iota_types::{
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
     event::EventID,
     gas_coin::GasCoin,
-    id::UID,
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
+    move_layout::MoveLayout,
     object::MoveStructExt,
     parse_iota_struct_tag,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -450,6 +451,7 @@ impl RpcExampleProvider {
             data: page,
             next_cursor: Some((seq + pagelen).into()),
             has_next_page: true,
+            oldest_available_checkpoint: Some(0u64.into()),
         };
 
         Examples::new(
@@ -572,6 +574,7 @@ impl RpcExampleProvider {
             data,
             next_cursor,
             has_next_page,
+            oldest_available_checkpoint: Some(0u64.into()),
         };
         Examples::new(
             "iotax_queryTransactionBlocks",
@@ -872,8 +875,9 @@ impl RpcExampleProvider {
             .collect::<Vec<_>>();
         let page = CoinPage {
             data: coins,
-            next_cursor: Some(next),
+            next_cursor: Some(OwnedObjectCursor::from_object_id(next)),
             has_next_page: true,
+            oldest_available_checkpoint: None,
         };
 
         Examples::new(
@@ -963,8 +967,9 @@ impl RpcExampleProvider {
 
         let page = CoinPage {
             data: coins,
-            next_cursor: Some(next_cursor),
+            next_cursor: Some(OwnedObjectCursor::from_object_id(next_cursor)),
             has_next_page: true,
+            oldest_available_checkpoint: None,
         };
 
         Examples::new(
@@ -1174,6 +1179,7 @@ impl RpcExampleProvider {
             data: dynamic_fields,
             next_cursor: Some(next_cursor),
             has_next_page: true,
+            oldest_available_checkpoint: None,
         };
 
         Examples::new(
@@ -1199,7 +1205,7 @@ impl RpcExampleProvider {
         };
 
         let struct_tag = parse_iota_struct_tag("0x9::test::TestField").unwrap();
-        let contents = UID::new(parent_object_id).to_bcs_bytes();
+        let contents = bcs::to_bytes(&UID::new(parent_object_id)).unwrap();
         let resp = IotaObjectResponse::new_with_data(IotaObjectData {
             content: Some(
                 IotaParsedData::try_from_object(
@@ -1290,8 +1296,9 @@ impl RpcExampleProvider {
         let next_cursor = items.last().unwrap().object_id();
         let result = ObjectsPage {
             data: items,
-            next_cursor: Some(next_cursor.unwrap()),
+            next_cursor: Some(OwnedObjectCursor::from_object_id(next_cursor.unwrap())),
             has_next_page: true,
+            oldest_available_checkpoint: None,
         };
 
         Examples::new(
@@ -1339,6 +1346,7 @@ impl RpcExampleProvider {
             data,
             next_cursor,
             has_next_page,
+            oldest_available_checkpoint: Some(0u64.into()),
         };
         Examples::new(
             "iotax_queryEvents",

@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use std::{
     any::Any,
     convert::Infallible,
@@ -33,7 +34,10 @@ use iota_graphql_rpc_headers::LIMITS_HEADER;
 use iota_grpc_client::GrpcClient;
 use iota_indexer::{
     apis::{OptimisticWriteApi, ReadApi, WriteApi},
-    db::{get_pool_connection, setup_postgres::check_db_migration_consistency},
+    db::{
+        ConnectionPoolConfig, get_pool_connection, new_connection_pool,
+        setup_postgres::check_db_migration_consistency,
+    },
     metrics::IndexerMetrics,
     optimistic_indexing::OptimisticTransactionExecutor,
     read::IndexerReader,
@@ -88,6 +92,9 @@ use crate::{
 const DEFAULT_MAX_CHECKPOINT_LAG: Duration = Duration::from_secs(300);
 /// The maximum complexity allowed for native [`async_graphql`] checks.
 const MAX_COMPLEXITY: usize = 6000;
+/// Subscriptions replay from their own pool, sized as the main pool divided
+/// by this, to limit the extra connections opened on the database.
+const SUBSCRIPTION_POOL_DIVISOR: u32 = 2;
 
 pub(crate) struct Server {
     router: Router,
@@ -450,6 +457,7 @@ impl ServerBuilder {
             &config.historic_fallback,
             &registry,
         )
+        .await
         .map_err(|e| Error::ServerInit(format!("Failed to initialize indexer reader: {e}")))?;
 
         if !config.connection.skip_migration_consistency_check {
@@ -484,7 +492,25 @@ impl ServerBuilder {
             ));
         };
 
-        let graphql_streams = GraphQLStream::new(reader.clone(), &registry).await?;
+        // subscriptions replay from their own pool for better performance.
+        let mut subscription_pool_config = ConnectionPoolConfig::default();
+        // The live broker holds one connection for LISTEN, so keep at least one more for replays.
+        let pool_size = (config.connection.db_pool_size / SUBSCRIPTION_POOL_DIVISOR).max(2);
+        subscription_pool_config.set_pool_size(pool_size);
+        subscription_pool_config.set_statement_timeout(Duration::from_millis(
+            config.service.limits.request_timeout_ms.into(),
+        ));
+        let subscription_pool =
+            new_connection_pool(&config.connection.db_url, &subscription_pool_config).map_err(
+                |e| {
+                    Error::ServerInit(format!(
+                        "failed to create subscription connection pool: {e}"
+                    ))
+                },
+            )?;
+        let subscription_reader = IndexerReader::new_without_watermark_cache(subscription_pool);
+        let graphql_streams =
+            GraphQLStream::new(subscription_reader, &registry, &config.service.limits).await?;
 
         let fullnode_grpc_client =
             GrpcClient::new(fullnode_url).map_err(|e| Error::ServerInit(e.to_string()))?;
@@ -806,7 +832,7 @@ pub mod tests {
     /// Prepares a schema for tests dealing with extensions. Returns a
     /// `ServerBuilder` that can be further extended with `context_data` and
     /// `extension` for testing.
-    fn prep_schema(
+    async fn prep_schema(
         connection_config: Option<ConnectionConfig>,
         service_config: Option<ServiceConfig>,
     ) -> ServerBuilder {
@@ -823,6 +849,7 @@ pub mod tests {
             &HistoricFallbackOptions::default(),
             &registry,
         )
+        .await
         .expect("failed to create pg connection pool");
 
         let version = Version::for_testing();
@@ -913,6 +940,7 @@ pub mod tests {
             cfg.limits.mutation_timeout_ms = timeout.as_millis() as u32;
 
             let schema = prep_schema(None, Some(cfg))
+                .await
                 .context_data(write_api)
                 .extension(Timeout)
                 .extension(TimedExecuteExt {
@@ -1025,6 +1053,7 @@ pub mod tests {
             };
 
             let schema = prep_schema(None, Some(service_config))
+                .await
                 .context_data(PayloadSize(100))
                 .extension(QueryLimitsChecker)
                 .build_schema();
@@ -1078,6 +1107,7 @@ pub mod tests {
             };
 
             let schema = prep_schema(None, Some(service_config))
+                .await
                 .context_data(PayloadSize(100))
                 .extension(QueryLimitsChecker)
                 .build_schema();
@@ -1128,7 +1158,9 @@ pub mod tests {
             },
             ..Default::default()
         };
-        let schema = prep_schema(Some(connection_config), Some(service_config)).build_schema();
+        let schema = prep_schema(Some(connection_config), Some(service_config))
+            .await
+            .build_schema();
 
         let resp = schema
             .execute("{ checkpoints { nodes { sequenceNumber } } }")
@@ -1166,7 +1198,7 @@ pub mod tests {
     }
 
     pub async fn test_query_max_page_limit_impl() {
-        let schema = prep_schema(None, None).build_schema();
+        let schema = prep_schema(None, None).await.build_schema();
 
         schema
             .execute("{ objects(first: 1) { nodes { version } } }")
@@ -1190,7 +1222,7 @@ pub mod tests {
     }
 
     pub async fn test_query_complexity_metrics_impl() {
-        let server_builder = prep_schema(None, None).context_data(PayloadSize(100));
+        let server_builder = prep_schema(None, None).await.context_data(PayloadSize(100));
         let metrics = server_builder.state.metrics.clone();
         let schema = server_builder
             .extension(QueryLimitsChecker) // QueryLimitsChecker is where we actually set the metrics
@@ -1225,7 +1257,7 @@ pub mod tests {
     }
 
     pub async fn test_health_check_impl() {
-        let server_builder = prep_schema(None, None);
+        let server_builder = prep_schema(None, None).await;
         let url = format!(
             "http://{}:{}/health",
             server_builder.state.connection.host, server_builder.state.connection.port
@@ -1250,6 +1282,7 @@ pub mod tests {
         };
 
         let schema = prep_schema(None, Some(service_config))
+            .await
             .context_data(PayloadSize(
                 // Payload size is usually set per request, and it is the size of the raw HTTP
                 // request, which includes the query, variables, and surrounding JSON. Simulate for

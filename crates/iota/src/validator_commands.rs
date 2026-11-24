@@ -25,7 +25,7 @@ use iota_json_rpc_types::{
 use iota_keys::{
     key_derive::generate_new_key,
     keypair_file::{
-        read_authority_keypair_from_file, read_network_keypair_from_file,
+        read_authority_keypair_from_file, read_network_private_key_from_file,
         write_authority_keypair_to_file, write_keypair_to_file,
     },
     keystore::{AccountKeystore, StoredKey},
@@ -44,7 +44,7 @@ use iota_sdk_types::{
 use iota_types::{
     crypto::{
         AuthorityKeyPair, AuthorityPublicKey, AuthorityPublicKeyBytes, DEFAULT_EPOCH_ID,
-        NetworkKeyPair, NetworkPublicKey, Signable, generate_proof_of_possession,
+        NetworkPrivateKey, NetworkPublicKey, Signable, generate_proof_of_possession,
         get_authority_key_pair,
     },
     dynamic_field::DynamicFieldName,
@@ -235,10 +235,10 @@ impl IotaValidatorCommand {
 
                 let authority_keypair: AuthorityKeyPair =
                     read_authority_keypair_from_file(authority_key_file_name)?;
-                let protocol_keypair: NetworkKeyPair =
-                    read_network_keypair_from_file(protocol_key_file_name)?;
-                let network_keypair: NetworkKeyPair =
-                    read_network_keypair_from_file(network_key_file_name)?;
+                let protocol_private_key: NetworkPrivateKey =
+                    read_network_private_key_from_file(protocol_key_file_name)?;
+                let network_private_key: NetworkPrivateKey =
+                    read_network_private_key_from_file(network_key_file_name)?;
 
                 let account_address = Address::from(&account_key.public());
 
@@ -247,9 +247,9 @@ impl IotaValidatorCommand {
                     info: iota_genesis_builder::validator_info::ValidatorInfo {
                         name,
                         authority_key: authority_keypair.public().into(),
-                        protocol_key: protocol_keypair.public().clone(),
+                        protocol_key: protocol_private_key.public_key(),
                         account_address,
-                        network_key: network_keypair.public().clone(),
+                        network_key: network_private_key.public_key(),
                         gas_price: iota_config::node::DEFAULT_VALIDATOR_GAS_PRICE,
                         commission_rate: iota_config::node::DEFAULT_COMMISSION_RATE,
                         network_address: Multiaddr::try_from(format!(
@@ -282,8 +282,8 @@ impl IotaValidatorCommand {
                     CallArg::pure(&AuthorityPublicKeyBytes::from_bytes(
                         validator.authority_key().as_bytes(),
                     )?),
-                    CallArg::pure(&validator.network_key().as_bytes().to_vec()),
-                    CallArg::pure(&validator.protocol_key().as_bytes().to_vec()),
+                    CallArg::pure(&validator.network_key().bytes().to_vec()),
+                    CallArg::pure(&validator.protocol_key().bytes().to_vec()),
                     CallArg::pure(&validator_info.proof_of_possession.as_ref().to_vec()),
                     CallArg::pure(&validator.name().to_owned().into_bytes()),
                     CallArg::pure(&validator.description.clone().into_bytes()),
@@ -1015,8 +1015,8 @@ async fn update_metadata(
         MetadataUpdate::NetworkPubKey { file } => {
             can_validator_mutate_all_data(context).await?;
             let network_pub_key: NetworkPublicKey =
-                read_network_keypair_from_file(file)?.public().clone();
-            let args = vec![CallArg::pure(&network_pub_key.as_bytes().to_vec())];
+                read_network_private_key_from_file(file)?.public_key();
+            let args = vec![CallArg::pure(&network_pub_key.bytes().to_vec())];
             call_0x5(
                 context,
                 "update_validator_next_epoch_network_pubkey",
@@ -1028,8 +1028,8 @@ async fn update_metadata(
         MetadataUpdate::ProtocolPubKey { file } => {
             can_validator_mutate_all_data(context).await?;
             let protocol_pub_key: NetworkPublicKey =
-                read_network_keypair_from_file(file)?.public().clone();
-            let args = vec![CallArg::pure(&protocol_pub_key.as_bytes().to_vec())];
+                read_network_private_key_from_file(file)?.public_key();
+            let args = vec![CallArg::pure(&protocol_pub_key.bytes().to_vec())];
             call_0x5(
                 context,
                 "update_validator_next_epoch_protocol_pubkey",

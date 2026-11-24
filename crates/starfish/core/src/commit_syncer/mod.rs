@@ -55,7 +55,7 @@ use tracing::{info, warn};
 use crate::{
     BlockRef, CommitConsumerMonitor, CommitIndex, Transaction, VerifiedBlockHeader,
     block_header::{
-        BlockHeaderAPI, CommitmentVerifiedTransactions, GENESIS_ROUND, SignedBlockHeader,
+        BlockHeaderAPI, CommitmentVerifiedTransactions, GENESIS_ROUND, SignedBlockHeader, Slot,
         TransactionsCommitment,
     },
     block_verifier::{BlockVerifier, serialized_transactions_size_limit},
@@ -67,13 +67,13 @@ use crate::{
     context::Context,
     core_thread::CoreThreadDispatcher,
     dag_state::{DagState, DataSource},
-    encoder::create_encoder,
+    encoder::{ShardEncoder, create_encoder},
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
     misbehavior_store::MisbehaviorStore,
     network::NetworkClient,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
-    transaction_ref::{GenericTransactionRefAPI, TransactionRef},
+    transaction_ref::TransactionRef,
 };
 
 /// Allowed multiplicity of commit vote headers per authority in a
@@ -271,32 +271,16 @@ impl<C: NetworkClient> Inner<C> {
     }
 }
 
-/// Rejects a deserialized commit whose variant does not match the local
-/// protocol-flag configuration. The flag is uniform across the network within
-/// an epoch, so any mismatch implies either a malicious peer or a misconfigured
-/// upgrade path. Called on commits received over the network in
-/// `verify_commits`; recovery from local store is trusted and skips this check.
-pub(crate) fn check_commit_version_matches_flags(
-    commit: &Commit,
-    protocol_config: &iota_protocol_config::ProtocolConfig,
-) -> ConsensusResult<()> {
-    let starfish_speed = protocol_config.consensus_starfish_speed();
-    let variant_matches_flags = matches!(
-        (commit, starfish_speed),
-        (Commit::V2(_), false) | (Commit::V3(_), true)
-    );
-    if !variant_matches_flags {
-        let actual = match commit {
-            Commit::V1(_) => "V1",
-            Commit::V2(_) => "V2",
-            Commit::V3(_) => "V3",
-        };
-        return Err(ConsensusError::WrongCommitVersionForFlags {
-            actual,
-            starfish_speed,
-        });
-    }
-    Ok(())
+/// Rejects a deserialized commit that is not V3, the only variant honest peers
+/// create. Called on commits received over the network in `verify_commits`;
+/// recovery from local store is trusted and skips this check.
+pub(crate) fn check_commit_version(commit: &Commit) -> ConsensusResult<()> {
+    let actual = match commit {
+        Commit::V1(_) => "V1",
+        Commit::V2(_) => "V2",
+        Commit::V3(_) => return Ok(()),
+    };
+    Err(ConsensusError::WrongCommitVersion { actual })
 }
 
 /// Validates every `AuthorityIndex` carried by a fetched commit against the
@@ -324,7 +308,7 @@ fn verify_commit_authority_indices(
         check(block_ref.author)?;
     }
     for transaction_ref in commit.committed_transactions() {
-        check(transaction_ref.author())?;
+        check(transaction_ref.author)?;
     }
     for (index, _) in commit.reputation_scores() {
         check(*index)?;
@@ -346,15 +330,21 @@ pub(crate) fn verify_commits(
     serialized_vote_blocks_headers: Vec<Bytes>,
     max_commits: usize,
 ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlockHeader>)> {
+    // Every rejection is recorded once against the serving peer, except a vote
+    // header that fails verification, which also charges its author when its
+    // signature is valid.
+    let reject = |e: ConsensusError| {
+        misbehavior_store.record_fetch_fault(peer, &e);
+        e
+    };
+
     // Validate response size - peer should not return more than max_commits
     if serialized_commits.len() > max_commits {
-        let e = ConsensusError::TooManyCommitsFromPeer {
+        return Err(reject(ConsensusError::TooManyCommitsFromPeer {
             peer,
             count: serialized_commits.len() as CommitIndex,
             limit: max_commits as CommitIndex,
-        };
-        misbehavior_store.record_fetch_fault(peer, &e);
-        return Err(e);
+        }));
     }
 
     // One vote header per authority certifies a commit, but servers that do
@@ -366,31 +356,29 @@ pub(crate) fn verify_commits(
         .size()
         .saturating_mul(MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY);
     if serialized_vote_blocks_headers.len() > max_vote_headers {
-        let e = ConsensusError::TooManyCommitVoteHeaders {
+        return Err(reject(ConsensusError::TooManyCommitVoteHeaders {
             peer,
             count: serialized_vote_blocks_headers.len(),
             limit: max_vote_headers,
-        };
-        misbehavior_store.record_fetch_fault(peer, &e);
-        return Err(e);
+        }));
     }
 
     // Parse and verify commits.
     let mut commits = Vec::new();
     for serialized in &serialized_commits {
         let commit: Commit =
-            bcs::from_bytes(serialized).map_err(ConsensusError::MalformedCommit)?;
-        check_commit_version_matches_flags(&commit, &context.protocol_config)?;
-        verify_commit_authority_indices(context, peer, &commit)?;
+            bcs::from_bytes(serialized).map_err(|e| reject(ConsensusError::MalformedCommit(e)))?;
+        check_commit_version(&commit).map_err(reject)?;
+        verify_commit_authority_indices(context, peer, &commit).map_err(reject)?;
         let digest = TrustedCommit::compute_digest(serialized);
         if commits.is_empty() {
             // start is inclusive, so first commit must be at the start index.
             if commit.index() != commit_range.start() {
-                return Err(ConsensusError::UnexpectedStartCommit {
+                return Err(reject(ConsensusError::UnexpectedStartCommit {
                     peer,
                     start: commit_range.start(),
                     commit: Box::new(commit),
-                });
+                }));
             }
         } else {
             // Verify next commit increments index and references the previous digest.
@@ -399,17 +387,17 @@ pub(crate) fn verify_commits(
             if commit.index() != last_commit.index() + 1
                 || &commit.previous_digest() != last_commit_digest
             {
-                return Err(ConsensusError::UnexpectedCommitSequence {
+                return Err(reject(ConsensusError::UnexpectedCommitSequence {
                     peer,
                     prev_commit: Box::new(last_commit.clone()),
                     curr_commit: Box::new(commit),
-                });
+                }));
             }
         }
         commits.push((digest, commit));
     }
     let Some((end_commit_digest, end_commit)) = commits.last() else {
-        return Err(ConsensusError::NoCommitReceived { peer });
+        return Err(reject(ConsensusError::NoCommitReceived { peer }));
     };
 
     // Parse and verify blocks. Then accumulate votes on the end commit.
@@ -418,14 +406,10 @@ pub(crate) fn verify_commits(
     let mut verified_voting_headers = Vec::new();
     for serialized_block_header in serialized_vote_blocks_headers {
         let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
-            .map_err(ConsensusError::MalformedHeader)
-            .inspect_err(|e| {
-                // Author is unknown when deserialization fails — blame the peer.
-                misbehavior_store.record_faulty_block(peer, peer, e);
-            })?;
+            .map_err(|e| reject(ConsensusError::MalformedHeader(e)))?;
         // The block signature needs to be verified.
         if let Err(e) = block_verifier.verify(&signed_block_header) {
-            misbehavior_store.record_faulty_block(peer, signed_block_header.author(), &e);
+            misbehavior_store.record_faulty_block(peer, Some(signed_block_header.slot()), &e);
             return Err(e);
         }
         for vote in signed_block_header.commit_votes() {
@@ -442,11 +426,11 @@ pub(crate) fn verify_commits(
 
     // Check if the end commit has enough votes.
     if !stake_aggregator.reached_threshold(&context.committee) {
-        return Err(ConsensusError::NotEnoughCommitVotes {
+        return Err(reject(ConsensusError::NotEnoughCommitVotes {
             stake: stake_aggregator.stake(),
             peer,
             commit: Box::new(end_commit.clone()),
-        });
+        }));
     }
 
     let trusted_commits = commits
@@ -458,9 +442,15 @@ pub(crate) fn verify_commits(
 }
 
 /// Verifies each payload against the transactions commitment in its ref and
-/// returns the payloads keyed by transaction reference.
+/// returns the payloads keyed by transaction reference. Each ref must come
+/// from a verified header or a certified commit, so its commitment is signed
+/// by its author.
+///
+/// Records each rejection through the fault classifier; a payload that
+/// matches its commitment but fails to parse is also charged to its author.
 pub(crate) fn verify_transactions_commitments(
     context: &Arc<Context>,
+    misbehavior_store: &MisbehaviorStore,
     peer: AuthorityIndex,
     serialized_transactions: BTreeMap<TransactionRef, Bytes>,
 ) -> ConsensusResult<BTreeMap<TransactionRef, CommitmentVerifiedTransactions>> {
@@ -468,56 +458,84 @@ pub(crate) fn verify_transactions_commitments(
     let mut encoder = create_encoder(context);
     let size_limit = serialized_transactions_size_limit(context);
     for (transaction_ref, inner_serialized_transactions) in serialized_transactions {
-        // Range-check the peer-supplied author and round before any consumer
-        // indexes the committee by author.
-        if !context.committee.is_valid_index(transaction_ref.author) {
-            return Err(ConsensusError::InvalidAuthorityIndexRequested {
-                index: transaction_ref.author,
-                max: context.committee.size(),
-                peer,
-            });
-        }
-        if transaction_ref.round == GENESIS_ROUND {
-            return Err(ConsensusError::UnexpectedGenesisRequested { peer });
-        }
-        // Bound the peer-supplied payload before erasure-encoding it.
-        if inner_serialized_transactions.len() > size_limit {
-            return Err(ConsensusError::SerializedTransactionsTooLarge {
-                size: inner_serialized_transactions.len(),
-                limit: size_limit,
-            });
-        }
-        // Step 1: Verify that the transaction commitment matches.
-        if transaction_ref.transactions_commitment
-            != TransactionsCommitment::compute_transactions_commitment(
-                &inner_serialized_transactions,
-                context,
-                &mut encoder,
-            )?
-        {
-            return Err(ConsensusError::TransactionCommitmentFailure {
-                round: transaction_ref.round,
-                author: transaction_ref.author,
-                peer,
-            });
-        }
-
-        // Step 2: Deserialize the actual transactions vector.
-        let transactions: Vec<Transaction> = bcs::from_bytes(&inner_serialized_transactions)
-            .map_err(ConsensusError::MalformedTransactions)?;
-
-        // Step 3: Create a CommitmentVerifiedTransactions instance and insert into map
-        let verified_transactions = CommitmentVerifiedTransactions::new(
-            transactions,
+        let verified_transactions = verify_transactions_commitment(
+            context,
+            &mut encoder,
+            size_limit,
+            peer,
             transaction_ref,
-            None,
             inner_serialized_transactions,
-        );
-
+        )
+        .inspect_err(|e| match e {
+            ConsensusError::MalformedTransactions(_) => misbehavior_store
+                .record_faulty_transactions(
+                    Some(Slot::new(transaction_ref.round, transaction_ref.author)),
+                    [peer],
+                ),
+            e => misbehavior_store.record_fetch_fault(peer, e),
+        })?;
         verified_transactions_map.insert(transaction_ref, verified_transactions);
     }
 
     Ok(verified_transactions_map)
+}
+
+/// Checks one payload against the commitment in `transaction_ref`, then
+/// parses it. A parse failure is returned only for a payload that matches the
+/// commitment.
+fn verify_transactions_commitment(
+    context: &Arc<Context>,
+    encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
+    size_limit: usize,
+    peer: AuthorityIndex,
+    transaction_ref: TransactionRef,
+    inner_serialized_transactions: Bytes,
+) -> ConsensusResult<CommitmentVerifiedTransactions> {
+    // Range-check the author and round before any consumer indexes the
+    // committee by author.
+    if !context.committee.is_valid_index(transaction_ref.author) {
+        return Err(ConsensusError::InvalidAuthorityIndexRequested {
+            index: transaction_ref.author,
+            max: context.committee.size(),
+            peer,
+        });
+    }
+    if transaction_ref.round == GENESIS_ROUND {
+        return Err(ConsensusError::UnexpectedGenesisRequested { peer });
+    }
+    // Bound the peer-supplied payload before erasure-encoding it.
+    if inner_serialized_transactions.len() > size_limit {
+        return Err(ConsensusError::SerializedTransactionsTooLarge {
+            size: inner_serialized_transactions.len(),
+            limit: size_limit,
+        });
+    }
+    // Step 1: Verify that the transaction commitment matches.
+    if transaction_ref.transactions_commitment
+        != TransactionsCommitment::compute_transactions_commitment(
+            &inner_serialized_transactions,
+            context,
+            encoder,
+        )?
+    {
+        return Err(ConsensusError::TransactionCommitmentFailure {
+            round: transaction_ref.round,
+            author: transaction_ref.author,
+            peer,
+        });
+    }
+
+    // Step 2: Deserialize the actual transactions vector.
+    let transactions: Vec<Transaction> = bcs::from_bytes(&inner_serialized_transactions)
+        .map_err(ConsensusError::MalformedTransactions)?;
+
+    // Step 3: Create a CommitmentVerifiedTransactions instance.
+    Ok(CommitmentVerifiedTransactions::new(
+        transactions,
+        transaction_ref,
+        None,
+        inner_serialized_transactions,
+    ))
 }
 
 /// How much of a requested commit range a fetch response actually delivered.
@@ -971,7 +989,7 @@ pub(crate) mod tests {
         Round,
         block_header::{BlockHeaderDigest, TestBlockHeader},
         block_verifier::NoopBlockVerifier,
-        commit::{CommitV1, CommitV2, CommitV3},
+        commit::{CommitV1, CommitV2},
         network::{BlockBundleStream, FetchedCommitsAndTransactions},
         transaction_ref::TransactionRef,
     };
@@ -1116,66 +1134,58 @@ pub(crate) mod tests {
     }
 
     /// Builds a single-commit byte stream from `commit` and runs it through
-    /// `verify_commits` with the two protocol flags set as specified. The
-    /// version check fires before the index check, so the default commit
-    /// index of 0 is fine here.
-    fn run_verify(commit: Commit, starfish_speed_on: bool) -> ConsensusResult<()> {
-        let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(starfish_speed_on);
+    /// `verify_commits`. The version check fires before the index check, so
+    /// the default commit index of 0 is fine here. Also returns the unprovable
+    /// faults charged to the serving peer.
+    fn run_verify(commit: Commit) -> (ConsensusResult<()>, u64) {
+        let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let misbehavior_store = MisbehaviorStore::new(&context);
+        let peer = AuthorityIndex::new_for_test(1);
         let serialized = commit.serialize().unwrap();
-        verify_commits(
+        let result = verify_commits(
             &context,
             &NoopBlockVerifier,
             &misbehavior_store,
-            AuthorityIndex::new_for_test(1),
+            peer,
             CommitRange::new(1..=1),
             vec![serialized],
             vec![],
             10,
         )
-        .map(|_| ())
+        .map(|_| ());
+        let counts = misbehavior_store.snapshot_totals();
+        (
+            result,
+            counts[peer.value()].as_v2().faulty_blocks_unprovable,
+        )
     }
 
     #[rstest::rstest]
-    #[case::v1_with_starfish_off(Commit::V1(CommitV1::default()), false, "V1")]
-    #[case::v1_with_starfish_on(Commit::V1(CommitV1::default()), true, "V1")]
-    #[case::v2_with_starfish_on(Commit::V2(CommitV2::default()), true, "V2")]
-    #[case::v3_with_starfish_off(Commit::V3(CommitV3::default()), false, "V3")]
+    #[case::v1(Commit::V1(CommitV1::default()), "V1")]
+    #[case::v2(Commit::V2(CommitV2::default()), "V2")]
     #[tokio::test]
     async fn verify_commits_rejects_wrong_version(
         #[case] commit: Commit,
-        #[case] starfish_speed_on: bool,
         #[case] expected_variant: &'static str,
     ) {
-        let result = run_verify(commit, starfish_speed_on);
-        let Err(ConsensusError::WrongCommitVersionForFlags {
-            actual,
-            starfish_speed,
-        }) = result
-        else {
-            panic!("expected WrongCommitVersionForFlags, got {result:?}");
+        let (result, unprovable) = run_verify(commit);
+        let Err(ConsensusError::WrongCommitVersion { actual }) = result else {
+            panic!("expected WrongCommitVersion, got {result:?}");
         };
         assert_eq!(actual, expected_variant);
-        assert_eq!(starfish_speed, starfish_speed_on);
+        assert_eq!(unprovable, 1);
     }
 
     #[tokio::test]
     async fn verify_commits_rejects_out_of_range_authority_index() {
-        let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(false);
+        let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let misbehavior_store = MisbehaviorStore::new(&context);
         let peer = AuthorityIndex::new_for_test(1);
         let invalid_author = AuthorityIndex::new_for_test(4);
         let leader = BlockRef::new(1, invalid_author, BlockHeaderDigest::MIN);
         let commit = Commit::new(
-            &context,
             1,
             CommitDigest::MIN,
             0,
@@ -1205,6 +1215,74 @@ pub(crate) mod tests {
                 peer: error_peer,
             }) if index == invalid_author && max == 4 && error_peer == peer
         ));
+        let counts = misbehavior_store.snapshot_totals();
+        assert_eq!(counts[peer.value()].as_v2().faulty_blocks_unprovable, 1);
+    }
+
+    /// Serializes a commit at `index` whose leader is in the committee.
+    fn serialized_commit(index: CommitIndex, previous_digest: CommitDigest) -> Bytes {
+        let leader = BlockRef::new(1, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN);
+        Commit::new(
+            index,
+            previous_digest,
+            0,
+            leader,
+            vec![leader],
+            vec![],
+            vec![],
+            false,
+        )
+        .serialize()
+        .unwrap()
+    }
+
+    /// A rejected commit list charges the serving peer one unprovable fault,
+    /// except an empty one, which an honest peer sends when it has no
+    /// certified commit in the range.
+    #[rstest::rstest]
+    #[case::malformed_commit("MalformedCommit", 1)]
+    #[case::unexpected_start_commit("UnexpectedStartCommit", 1)]
+    #[case::unexpected_commit_sequence("UnexpectedCommitSequence", 1)]
+    #[case::not_enough_commit_votes("NotEnoughCommitVotes", 1)]
+    #[case::no_commit_received("NoCommitReceived", 0)]
+    #[tokio::test]
+    async fn verify_commits_charges_rejected_commit_lists(
+        #[case] expected_error: &'static str,
+        #[case] expected_unprovable: u64,
+    ) {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let misbehavior_store = MisbehaviorStore::new(&context);
+        let peer = AuthorityIndex::new_for_test(1);
+        let serialized_commits = match expected_error {
+            "MalformedCommit" => vec![Bytes::from_static(b"garbage")],
+            "UnexpectedStartCommit" => vec![serialized_commit(2, CommitDigest::MIN)],
+            "UnexpectedCommitSequence" => vec![
+                serialized_commit(1, CommitDigest::MIN),
+                serialized_commit(2, CommitDigest::MIN),
+            ],
+            "NotEnoughCommitVotes" => vec![serialized_commit(1, CommitDigest::MIN)],
+            _ => vec![],
+        };
+
+        let result = verify_commits(
+            &context,
+            &NoopBlockVerifier,
+            &misbehavior_store,
+            peer,
+            CommitRange::new(1..=2),
+            serialized_commits,
+            vec![],
+            10,
+        );
+
+        let error = result.expect_err("the commit list must be rejected");
+        assert_eq!(error.name(), expected_error);
+        let counts = misbehavior_store.snapshot_totals();
+        assert_eq!(
+            counts[peer.value()].as_v2().faulty_blocks_unprovable,
+            expected_unprovable
+        );
     }
 
     #[tokio::test]
@@ -1221,7 +1299,12 @@ pub(crate) mod tests {
         let serialized_transactions =
             BTreeMap::from([(transaction_ref, Bytes::from(vec![0u8; size_limit + 1]))]);
 
-        let result = verify_transactions_commitments(&context, peer, serialized_transactions);
+        let result = verify_transactions_commitments(
+            &context,
+            &MisbehaviorStore::new(&context),
+            peer,
+            serialized_transactions,
+        );
         assert!(matches!(
             result,
             Err(ConsensusError::SerializedTransactionsTooLarge { size, limit })
@@ -1253,7 +1336,12 @@ pub(crate) mod tests {
         let serialized_transactions =
             BTreeMap::from([(transaction_ref, inner_serialized_transactions)]);
 
-        let result = verify_transactions_commitments(&context, peer, serialized_transactions);
+        let result = verify_transactions_commitments(
+            &context,
+            &MisbehaviorStore::new(&context),
+            peer,
+            serialized_transactions,
+        );
         assert!(matches!(
             result,
             Err(ConsensusError::InvalidAuthorityIndexRequested {
@@ -1287,12 +1375,53 @@ pub(crate) mod tests {
         let serialized_transactions =
             BTreeMap::from([(transaction_ref, inner_serialized_transactions)]);
 
-        let result = verify_transactions_commitments(&context, peer, serialized_transactions);
+        let result = verify_transactions_commitments(
+            &context,
+            &MisbehaviorStore::new(&context),
+            peer,
+            serialized_transactions,
+        );
         assert!(matches!(
             result,
             Err(ConsensusError::UnexpectedGenesisRequested { peer: error_peer })
                 if error_peer == peer
         ));
+    }
+
+    #[tokio::test]
+    async fn verify_transactions_commitments_charges_author_for_unparsable_payload() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let misbehavior_store = MisbehaviorStore::new(&context);
+        let peer = AuthorityIndex::new_for_test(1);
+        let author = AuthorityIndex::new_for_test(0);
+        // A length prefix with no transaction after it.
+        let inner_serialized_transactions = Bytes::from(vec![1u8]);
+        let transactions_commitment = TransactionsCommitment::compute_transactions_commitment(
+            &inner_serialized_transactions,
+            &context,
+            &mut create_encoder(&context),
+        )
+        .unwrap();
+        let transaction_ref = TransactionRef {
+            round: 1,
+            author,
+            transactions_commitment,
+        };
+
+        let result = verify_transactions_commitments(
+            &context,
+            &misbehavior_store,
+            peer,
+            BTreeMap::from([(transaction_ref, inner_serialized_transactions)]),
+        );
+        assert!(matches!(
+            result,
+            Err(ConsensusError::MalformedTransactions(_))
+        ));
+        let counts = misbehavior_store.snapshot_totals();
+        assert_eq!(counts[author.value()].as_v2().faulty_blocks_provable, 1);
+        assert_eq!(counts[peer.value()].as_v2().faulty_blocks_unprovable, 1);
     }
 
     #[tokio::test]

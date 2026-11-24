@@ -8,6 +8,7 @@ use iota_grpc_types::{
     v1::{
         bcs::BcsData,
         signatures::{UserSignature, UserSignatures},
+        state_service::ListOwnedObjectsRequest,
         transaction::{ExecutedTransaction, Transaction as ProtoTransaction},
         transaction_execution_service::{
             ExecuteTransactionItem, ExecuteTransactionsRequest, ExecuteTransactionsResponse,
@@ -20,11 +21,10 @@ use iota_macros::sim_test;
 use iota_sdk_types::Address;
 use iota_test_transaction_builder::make_transfer_iota_transaction;
 use prost_types::FieldMask;
-use test_cluster::override_pcool_flow;
 
 use super::build_item;
 use crate::utils::{
-    assert_field_presence, comma_separated_field_mask_to_paths, setup_grpc_test,
+    address_proto, assert_field_presence, comma_separated_field_mask_to_paths, setup_grpc_test,
     setup_grpc_test_with_builder,
 };
 
@@ -443,6 +443,50 @@ async fn execute_transaction_batch_size_exceeded() {
     );
 }
 
+/// A transaction returned with its checkpoint under
+/// `checkpoint_inclusion_timeout_ms` is immediately visible to the
+/// index-backed reads.
+#[sim_test]
+async fn index_backed_reads_see_a_transaction_returned_with_its_checkpoint() {
+    let (test_cluster, client) = setup_grpc_test(None, None).await;
+    let mut exec_client = client.execution_service_client();
+    let mut state_client = client.state_service_client();
+
+    // Repeated, so that the check covers more than one checkpoint.
+    for _ in 0..5 {
+        let recipient = Address::random();
+        let txn =
+            make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(9)).await;
+        let response = exec_client
+            .execute_transactions(
+                ExecuteTransactionsRequest::default()
+                    .with_transactions(vec![build_item(&txn)])
+                    .with_read_mask(FieldMask::from_paths(["checkpoint"]))
+                    .with_checkpoint_inclusion_timeout_ms(30_000),
+            )
+            .await
+            .unwrap()
+            .into_inner();
+        assert!(
+            first_executed_transaction(&response).checkpoint.is_some(),
+            "the transaction must be returned with its checkpoint"
+        );
+
+        let owned = state_client
+            .list_owned_objects(
+                ListOwnedObjectsRequest::default().with_owner(address_proto(recipient)),
+            )
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(
+            owned.objects.len(),
+            1,
+            "the transferred coin must be indexed by the time the checkpoint is reported"
+        );
+    }
+}
+
 #[sim_test]
 async fn execute_transaction_with_checkpoint_inclusion() {
     let (test_cluster, client) = setup_grpc_test(None, None).await;
@@ -614,13 +658,6 @@ async fn execute_transaction_batch_with_checkpoint_inclusion() {
 /// the handler rather than a successful response.
 #[sim_test]
 async fn execute_transaction_v1_skip_cert_rebuilds_from_cache() {
-    let _env_guard = override_pcool_flow(true);
-    let _proto_guard =
-        iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_enable_pcool_flow_for_testing(true);
-            config
-        });
-
     let (test_cluster, client) = setup_grpc_test(None, None).await;
     let mut exec_client = client.execution_service_client();
 
@@ -677,13 +714,6 @@ async fn execute_transaction_v1_skip_cert_rebuilds_from_cache() {
 /// "no successful response with uncertified data and no whole-RPC failure."
 #[sim_test]
 async fn execute_transaction_v1_skip_cert_no_quorum_yields_per_item_error() {
-    let _env_guard = override_pcool_flow(true);
-    let _proto_guard =
-        iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_enable_pcool_flow_for_testing(true);
-            config
-        });
-
     let (test_cluster, client) =
         setup_grpc_test_with_builder(|b| b.with_num_validators(4), None, None).await;
     let mut exec_client = client.execution_service_client();

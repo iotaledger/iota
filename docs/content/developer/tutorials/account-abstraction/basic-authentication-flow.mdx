@@ -94,8 +94,8 @@ iota client switch --env localnet
 # Confirm your active address
 iota client active-address
 
-# Request test tokens from the faucet
-iota client faucet --url http://127.0.0.1:9123/gas
+# Request test tokens from the faucet of the active network
+iota client faucet
 ```
 
 Verify the faucet credited your account:
@@ -259,7 +259,7 @@ From the JSON output, locate two values:
 - **`METADATA_ID`** the `PackageMetadataV1` object ID. Find the entry whose `"objectType"` ends with `::package_metadata::PackageMetadataV1` and copy its `"objectId"`.
 
 :::tip Finding PackageMetadataV1 in the output
-The `PackageMetadataV1` object is created automatically by the protocol when you publish a package. It is an **immutable** object that records every module and every function in your package including whether a function has the `#[authenticator]` attribute. The protocol uses this as a trusted source when you call `create_auth_function_ref_v1`.
+The `PackageMetadataV1` object is created automatically by the protocol when you publish a package. It is an **immutable** object whose dynamic fields record every module and every function in your package, including whether a function has the `#[authenticator]` attribute. The protocol uses this as a trusted source when you call `create_auth_function_ref_v1`.
 :::
 
 Export both values for use in later steps:

@@ -4,6 +4,7 @@
 
 use std::{
     collections::HashMap,
+    ffi::OsString,
     net::SocketAddr,
     num::NonZeroUsize,
     path::PathBuf,
@@ -21,7 +22,8 @@ use iota_config::{
     transaction_deny_config::TransactionDenyConfig,
 };
 use iota_core::{
-    authority_aggregator::AuthorityAggregator, authority_client::NetworkAuthorityClient,
+    authority_aggregator::AuthorityAggregator,
+    authority_client::{NetworkAuthorityClient, validator_v2::ValidatorV2API},
 };
 use iota_grpc_client::read_mask_fields::TransactionField;
 use iota_json_rpc_api::{IndexerApiClient, TransactionBuilderClient, WriteApiClient};
@@ -54,6 +56,7 @@ use iota_swarm_config::{
         SupportedProtocolVersionsCallback,
     },
     node_config_builder::{FullnodeConfigBuilder, ValidatorConfigBuilder},
+    node_config_override::NodeConfigOverride,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -61,12 +64,12 @@ use iota_types::{
     committee::{Committee, CommitteeTrait, EpochId},
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
-    error::IotaResult,
+    error::{IotaError, IotaResult},
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::EpochStartSystemStateTrait,
     },
-    messages_grpc::HandleCertificateRequestV1,
+    messages_grpc::{HandleCertificateRequestV1, TxStatusUpdate},
     object::Object,
     quorum_driver_types::{ExecuteTransactionRequestType, ExecuteTransactionRequestV1},
     supported_protocol_versions::SupportedProtocolVersions,
@@ -124,37 +127,88 @@ pub struct TestCluster {
     faucet: Option<Faucet>,
 }
 
-/// Reverts the P-COOL protocol flag override when dropped.
+/// Sets environment variables while alive, and gives each the value it had
+/// before when dropped. So when guards are dropped in the reverse order of
+/// their creation, as local variables are, dropping one leaves the others in
+/// force.
+///
+/// [`ProtocolConfig::apply_overrides_for_testing()`] is thread-local and does
+/// not reach the tasks a cluster spawns, so tests set protocol config
+/// overrides through these environment variables instead, before the cluster
+/// is built.
 #[must_use = "the override only holds while the guard is alive"]
-pub struct PcoolFlowOverride;
+pub struct ProtocolEnvOverride {
+    /// Each variable set, with the value it had before, in the order set.
+    previous_values: Vec<(&'static str, Option<OsString>)>,
+}
 
-impl Drop for PcoolFlowOverride {
+impl ProtocolEnvOverride {
+    /// Sets each variable of `overrides` to its value.
+    pub fn new(overrides: &[(&'static str, &str)]) -> Self {
+        let previous_values = overrides
+            .iter()
+            .map(|&(key, value)| {
+                let previous_value = std::env::var_os(key);
+                // SAFETY: called before the cluster is built, on the test
+                // thread.
+                unsafe { std::env::set_var(key, value) };
+                (key, previous_value)
+            })
+            .collect();
+
+        Self { previous_values }
+    }
+}
+
+impl Drop for ProtocolEnvOverride {
     fn drop(&mut self) {
-        // SAFETY: paired with `override_pcool_flow`; both run on the test
-        // thread, outside the cluster's lifetime.
-        unsafe {
-            std::env::remove_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE");
-            std::env::remove_var("IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW");
+        // In reverse order, so a variable set twice gets back the value it
+        // had before the first.
+        for (key, previous_value) in self.previous_values.iter().rev() {
+            // SAFETY: runs on the test thread, outside the cluster's lifetime.
+            unsafe {
+                match previous_value {
+                    Some(value) => std::env::set_var(key, value),
+                    None => std::env::remove_var(key),
+                }
+            }
         }
     }
 }
 
 /// Sets the P-COOL protocol flag for every node of a test cluster built while
-/// the returned guard is alive.
-///
-/// `ProtocolConfig::apply_overrides_for_testing` is thread-local and does not
-/// reach the tasks a cluster spawns, so the flag goes through the protocol
-/// config environment overrides instead.
-pub fn override_pcool_flow(enabled: bool) -> PcoolFlowOverride {
-    // SAFETY: called before the cluster is built, on the test thread.
-    unsafe {
-        std::env::set_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE", "1");
-        std::env::set_var(
+/// the returned guard is alive. Turning the flow off also turns validator
+/// attestation off, since attestation cannot run without the flow.
+pub fn override_pcool_flow(enabled: bool) -> ProtocolEnvOverride {
+    let flag = enabled.to_string();
+    let mut overrides = vec![
+        ("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE", "1"),
+        (
             "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW",
-            enabled.to_string(),
-        );
+            flag.as_str(),
+        ),
+    ];
+    if !enabled {
+        overrides.push((
+            "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION",
+            "false",
+        ));
     }
-    PcoolFlowOverride
+
+    ProtocolEnvOverride::new(&overrides)
+}
+
+/// Sets the validator attestation flag for every node of a test cluster built
+/// while the returned guard is alive, leaving the P-COOL flow as the protocol
+/// version has it.
+pub fn override_validator_attestation(enabled: bool) -> ProtocolEnvOverride {
+    ProtocolEnvOverride::new(&[
+        ("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE", "1"),
+        (
+            "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION",
+            &enabled.to_string(),
+        ),
+    ])
 }
 
 impl TestCluster {
@@ -697,14 +751,20 @@ impl TestCluster {
     }
 
     /// Different from `execute_transaction`, this function returns raw
-    /// effects, events and extra objects returned by the validators,
-    /// aggregated manually (without authority aggregator). It also does not
-    /// check whether the transaction is executed successfully. In order to
-    /// keep the fullnode up-to-date so that latter queries can read consistent
-    /// results, it executes the transaction again through the fullnode's gRPC
-    /// API. This is less efficient and verbose, but can be used if more
-    /// details are needed from the execution results, and if the transaction
-    /// is expected to fail.
+    /// effects and events, and does not check whether the transaction is
+    /// executed successfully. It can be used if more details are needed from
+    /// the execution results, and if the transaction is expected to fail.
+    ///
+    /// With the certificate flow, the effects and events are the ones the
+    /// validators returned, aggregated manually (without authority
+    /// aggregator). To keep the fullnode up-to-date so that latter queries
+    /// can read consistent results, the transaction is executed again through
+    /// the fullnode's gRPC API.
+    ///
+    /// With the P-COOL flow there is no certificate to hand to the validators.
+    /// The transaction goes through the fullnode's transaction orchestrator,
+    /// and the effects are the fullnode's own; they are not compared with the
+    /// validators'.
     pub async fn execute_transaction_return_raw_effects(
         &self,
         tx: TransactionEnvelope,
@@ -730,7 +790,7 @@ impl TestCluster {
     /// The P-COOL flow has no certificate to hand to individual validators, so
     /// this is the counterpart of `submit_transaction_to_validators` for
     /// callers that only need the raw execution results.
-    async fn execute_transaction_via_orchestrator(
+    pub async fn execute_transaction_via_orchestrator(
         &self,
         tx: TransactionEnvelope,
     ) -> anyhow::Result<(TransactionEffects, TransactionEvents)> {
@@ -755,6 +815,55 @@ impl TestCluster {
             response.effects.effects,
             response.events.unwrap_or_default(),
         ))
+    }
+
+    /// Sends `tx` to one validator with `submit_tx` and returns the single
+    /// status update it answers with.
+    ///
+    /// Opens a new connection to the validator, so it also reaches one that
+    /// was restarted, unlike the clients of [`Self::authority_aggregator`].
+    pub async fn submit_tx_to_validator(
+        &self,
+        authority: &AuthorityName,
+        tx: TransactionEnvelope,
+    ) -> Result<TxStatusUpdate, IotaError> {
+        let client = {
+            let config = self.swarm.node(authority).unwrap().config();
+            NetworkAuthorityClient::connect_lazy(
+                &config
+                    .network_address
+                    .clone()
+                    .rewrite_udp_to_tcp()
+                    .rewrite_http_to_https(),
+                config.network_private_key().public_key(),
+            )
+        };
+        let mut updates = client
+            .submit_tx(vec![tx], Some(SocketAddr::new([127, 0, 0, 1].into(), 0)))
+            .await?;
+        assert_eq!(
+            updates.len(),
+            1,
+            "one transaction gets one status update, got: {updates:?}"
+        );
+        Ok(updates.remove(0).1)
+    }
+
+    /// Sends `tx` to one validator with `submit_tx`, expects the validator to
+    /// reject it, and returns the error.
+    pub async fn submit_tx_expecting_rejection(
+        &self,
+        authority: &AuthorityName,
+        tx: TransactionEnvelope,
+    ) -> IotaError {
+        let update = self
+            .submit_tx_to_validator(authority, tx)
+            .await
+            .expect("the submit_tx stream should open");
+        let TxStatusUpdate::Rejected { error } = update else {
+            panic!("expected the transaction to be rejected, got: {update:?}");
+        };
+        error
     }
 
     pub fn authority_aggregator(&self) -> Arc<AuthorityAggregator<NetworkAuthorityClient>> {
@@ -1130,6 +1239,7 @@ pub struct TestClusterBuilder {
     execution_cache_config: Option<ExecutionCacheConfig>,
     data_ingestion_dir: Option<PathBuf>,
     fullnode_run_with_range: Option<RunWithRange>,
+    fullnode_num_epochs_to_retain_for_indexes: Option<u64>,
     fullnode_policy_config: Option<PolicyConfig>,
     fullnode_enable_grpc_api: bool,
     fullnode_state_snapshot_config: Option<StateSnapshotConfig>,
@@ -1139,6 +1249,7 @@ pub struct TestClusterBuilder {
     validator_global_state_hash_v1_enabled_config: GlobalStateHashV1EnabledConfig,
     disable_address_verification_cooldown: bool,
     chain_override: Option<Chain>,
+    node_config_overrides: Vec<NodeConfigOverride>,
 }
 
 impl TestClusterBuilder {
@@ -1162,6 +1273,7 @@ impl TestClusterBuilder {
             execution_cache_config: None,
             data_ingestion_dir: None,
             fullnode_run_with_range: None,
+            fullnode_num_epochs_to_retain_for_indexes: None,
             fullnode_policy_config: None,
             fullnode_enable_grpc_api: true,
             fullnode_state_snapshot_config: None,
@@ -1172,7 +1284,13 @@ impl TestClusterBuilder {
                 true,
             ),
             disable_address_verification_cooldown: false,
+            node_config_overrides: vec![],
         }
+    }
+
+    pub fn with_fullnode_num_epochs_to_retain_for_indexes(mut self, epochs: Option<u64>) -> Self {
+        self.fullnode_num_epochs_to_retain_for_indexes = epochs;
+        self
     }
 
     pub fn with_fullnode_run_with_range(mut self, run_with_range: Option<RunWithRange>) -> Self {
@@ -1380,6 +1498,15 @@ impl TestClusterBuilder {
         self
     }
 
+    /// Apply the given overrides to every node config the cluster starts with.
+    pub fn with_node_config_overrides(
+        mut self,
+        node_config_overrides: Vec<NodeConfigOverride>,
+    ) -> Self {
+        self.node_config_overrides = node_config_overrides;
+        self
+    }
+
     pub async fn build(mut self) -> TestCluster {
         // We can add a faucet account to the `GenesisConfig` if there was no
         // `NetworkConfig` provided. Only either a `GenesisConfig` or a
@@ -1461,6 +1588,9 @@ impl TestClusterBuilder {
                     .unwrap_or(self.validator_supported_protocol_versions_config.clone()),
             )
             .with_fullnode_run_with_range(self.fullnode_run_with_range)
+            .with_fullnode_num_epochs_to_retain_for_indexes(
+                self.fullnode_num_epochs_to_retain_for_indexes,
+            )
             .with_fullnode_policy_config(self.fullnode_policy_config.clone());
 
         if let Some(chain) = self.chain_override {
@@ -1527,6 +1657,9 @@ impl TestClusterBuilder {
         if self.disable_address_verification_cooldown {
             builder = builder.with_disabled_address_verification_cooldown();
         }
+        if !self.node_config_overrides.is_empty() {
+            builder = builder.with_node_config_overrides(self.node_config_overrides.clone());
+        }
 
         let mut swarm = builder.build();
         swarm.launch().await?;
@@ -1579,5 +1712,37 @@ impl TestClusterBuilder {
 impl Default for TestClusterBuilder {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{override_pcool_flow, override_validator_attestation};
+
+    /// Dropping an override leaves an older one that is still alive in force,
+    /// also for the variables both of them set.
+    #[test]
+    fn dropped_override_leaves_older_one_in_force() {
+        let read = |key| std::env::var(key).ok();
+        let enable = "IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE";
+        let pcool_flow = "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW";
+        let attestation =
+            "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION";
+        for key in [enable, pcool_flow, attestation] {
+            assert_eq!(read(key), None, "the test needs {key} unset");
+        }
+
+        let older = override_pcool_flow(false);
+        let newer = override_validator_attestation(true);
+        assert_eq!(read(attestation).as_deref(), Some("true"));
+        drop(newer);
+        assert_eq!(read(enable).as_deref(), Some("1"));
+        assert_eq!(read(pcool_flow).as_deref(), Some("false"));
+        assert_eq!(read(attestation).as_deref(), Some("false"));
+
+        drop(older);
+        for key in [enable, pcool_flow, attestation] {
+            assert_eq!(read(key), None, "{key} should be unset again");
+        }
     }
 }

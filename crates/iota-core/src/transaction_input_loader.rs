@@ -2,7 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap, hash_map::Entry},
+    sync::Arc,
+};
 
 use iota_sdk_types::{ObjectReference, TransactionDigest};
 use iota_types::{
@@ -22,6 +25,10 @@ use crate::{
         authority_per_epoch_store::TxLockGuard, shared_object_version_manager::AssignedVersions,
     },
     execution_cache::ObjectCacheRead,
+    post_consensus_input_reader::{
+        InputResolution, OwnedVerdict, PackageVerdict, ReceivingObjectsResolution, SharedVerdict,
+        reader::CommitIndexedReader,
+    },
 };
 
 pub(crate) struct TransactionInputLoader {
@@ -54,6 +61,13 @@ impl TransactionInputLoader {
         let mut input_results = vec![None; input_object_kinds.len()];
         let mut object_refs = Vec::with_capacity(input_object_kinds.len());
         let mut fetch_indices = Vec::with_capacity(input_object_kinds.len());
+        // A transaction and its Move authenticators can name one shared
+        // object with different mutability, so one id can come with two
+        // kinds. Each shared object is read once and every kind of it gets
+        // that read: separate reads can see different versions, while
+        // combining the transaction's inputs with the authenticators' needs
+        // one object per id.
+        let mut shared_objects = HashMap::<_, ObjectReadResultKind>::new();
 
         for (i, kind) in input_object_kinds.iter().enumerate() {
             match kind {
@@ -68,27 +82,15 @@ impl TransactionInputLoader {
                         object: ObjectReadResultKind::Object(package),
                     });
                 }
-                InputObjectKind::SharedMoveObject { id, .. } => match self
-                    .cache
-                    .try_get_object(id)?
-                {
-                    Some(object) => {
-                        input_results[i] = Some(ObjectReadResult::new(*kind, object.into()))
-                    }
-                    None => {
-                        if let Some((version, digest)) = self
-                            .cache
-                            .try_get_last_shared_object_deletion_info(id, epoch_id)?
-                        {
-                            input_results[i] = Some(ObjectReadResult {
-                                input_object_kind: *kind,
-                                object: ObjectReadResultKind::DeletedSharedObject(version, digest),
-                            });
-                        } else {
-                            return Err(IotaError::from(kind.object_not_found_error()));
-                        }
-                    }
-                },
+                InputObjectKind::SharedMoveObject { id, .. } => {
+                    let object = match shared_objects.entry(*id) {
+                        Entry::Occupied(entry) => entry.get().clone(),
+                        Entry::Vacant(entry) => entry
+                            .insert(self.read_shared_object(kind, epoch_id)?)
+                            .clone(),
+                    };
+                    input_results[i] = Some(ObjectReadResult::new(*kind, object));
+                }
                 InputObjectKind::ImmOrOwnedMoveObject(objref) => {
                     object_refs.push(*objref);
                     fetch_indices.push(i);
@@ -107,8 +109,7 @@ impl TransactionInputLoader {
             });
         }
 
-        let receiving_results =
-            self.read_receiving_objects_for_signing(receiving_objects, epoch_id)?;
+        let receiving_results = self.read_receiving_objects(receiving_objects, epoch_id)?;
 
         Ok((
             input_results
@@ -118,6 +119,35 @@ impl TransactionInputLoader {
                 .into(),
             receiving_results,
         ))
+    }
+
+    /// Returns the latest version of the shared object that `kind` names, or,
+    /// when it was deleted in `epoch_id`, the version and the transaction of
+    /// its deletion.
+    ///
+    /// # Errors
+    ///
+    /// [`UserInputError::ObjectNotFound`] when the object neither exists nor
+    /// was deleted in `epoch_id`, and any error reading the cache.
+    fn read_shared_object(
+        &self,
+        kind: &InputObjectKind,
+        epoch_id: EpochId,
+    ) -> IotaResult<ObjectReadResultKind> {
+        let id = kind.object_id();
+        if let Some(object) = self.cache.try_get_object(&id)? {
+            return Ok(ObjectReadResultKind::Object(object));
+        }
+
+        match self
+            .cache
+            .try_get_last_shared_object_deletion_info(&id, epoch_id)?
+        {
+            Some((version, digest)) => {
+                Ok(ObjectReadResultKind::DeletedSharedObject(version, digest))
+            }
+            None => Err(IotaError::from(kind.object_not_found_error())),
+        }
     }
 
     /// Read the inputs for a transaction that is ready to be executed.
@@ -267,9 +297,10 @@ impl TransactionInputLoader {
     }
 }
 
-// private methods
 impl TransactionInputLoader {
-    fn read_receiving_objects_for_signing(
+    /// Load the `ReceivingObjects` for a transaction. Used both at signing time
+    /// (by [`Self::read_objects_for_signing`]) and at execution time.
+    pub(crate) fn read_receiving_objects(
         &self,
         receiving_objects: &[ObjectReference],
         epoch_id: EpochId,
@@ -303,5 +334,357 @@ impl TransactionInputLoader {
             receiving_results.push(ReceivingObjectReadResult::new(*objref, object.into()));
         }
         Ok(receiving_results.into())
+    }
+
+    /// Reads the inputs of a transaction being validated post-consensus, as of
+    /// the commit `reader` was built for. Owned inputs and packages are read
+    /// through the commit-indexed reader. A shared input is decided by the
+    /// reader, but its object is not returned: a live one is listed as an
+    /// `UnreadSharedObject`. Receiving objects are not read. `Err` is a
+    /// storage failure, or `UserInputError::MoveObjectAsPackage` when a package
+    /// input names a Move object. A dropped or missing input is a result, never
+    /// an error.
+    #[instrument(level = "trace", skip_all)]
+    pub(crate) fn read_objects_at_commit(
+        &self,
+        reader: &CommitIndexedReader,
+        input_object_kinds: &[InputObjectKind],
+    ) -> IotaResult<InputResolution> {
+        let mut input_results = Vec::with_capacity(input_object_kinds.len());
+        for kind in input_object_kinds {
+            let object = match kind {
+                InputObjectKind::MovePackage(id) => match reader.read_package(*id)? {
+                    PackageVerdict::Visible(package) => {
+                        ObjectReadResultKind::Object(package.object().clone())
+                    }
+                    PackageVerdict::Missing(reason) => {
+                        return Ok(InputResolution::Missing(*kind, reason));
+                    }
+                },
+                InputObjectKind::SharedMoveObject {
+                    id,
+                    initial_shared_version,
+                    ..
+                } => match reader.read_shared(*id, *initial_shared_version)? {
+                    SharedVerdict::Exists => ObjectReadResultKind::UnreadSharedObject,
+                    SharedVerdict::Deleted(version, digest) => {
+                        ObjectReadResultKind::DeletedSharedObject(version, digest)
+                    }
+                    SharedVerdict::Drop(reason) => return Ok(InputResolution::Drop(*kind, reason)),
+                    SharedVerdict::Missing(reason) => {
+                        return Ok(InputResolution::Missing(*kind, reason));
+                    }
+                },
+                InputObjectKind::ImmOrOwnedMoveObject(reference) => {
+                    match reader.read_owned(*reference)? {
+                        OwnedVerdict::Keep(kept) => {
+                            ObjectReadResultKind::Object(kept.into_object())
+                        }
+                        OwnedVerdict::Drop(reason) => {
+                            return Ok(InputResolution::Drop(*kind, reason));
+                        }
+                        OwnedVerdict::Missing(reason) => {
+                            return Ok(InputResolution::Missing(*kind, reason));
+                        }
+                    }
+                }
+            };
+            input_results.push(ObjectReadResult {
+                input_object_kind: *kind,
+                object,
+            });
+        }
+        Ok(InputResolution::Loaded(input_results.into()))
+    }
+
+    /// Reads the receiving objects of a transaction being validated
+    /// post-consensus, as of the commit `reader` was built for. Each goes
+    /// through the reader as an owned input does, so a kept one was live at
+    /// the declared version on every validator and execution can always run
+    /// it. No lock is taken on it and nothing checks that the sender owns it.
+    /// A drop or a missing is reported under the owned kind of the reference,
+    /// so the caller's error names its id and version.
+    #[instrument(level = "trace", skip_all)]
+    pub fn read_receiving_objects_at_commit(
+        &self,
+        reader: &CommitIndexedReader,
+        receiving_objects: &[ObjectReference],
+    ) -> IotaResult<ReceivingObjectsResolution> {
+        let mut receiving_results = Vec::with_capacity(receiving_objects.len());
+        for reference in receiving_objects {
+            let kind = InputObjectKind::ImmOrOwnedMoveObject(*reference);
+            let object = match reader.read_owned(*reference)? {
+                OwnedVerdict::Keep(kept) => kept.into_object(),
+                OwnedVerdict::Drop(reason) => {
+                    return Ok(ReceivingObjectsResolution::Drop(kind, reason));
+                }
+                OwnedVerdict::Missing(reason) => {
+                    return Ok(ReceivingObjectsResolution::Missing(kind, reason));
+                }
+            };
+            receiving_results.push(ReceivingObjectReadResult::new(*reference, object.into()));
+        }
+        Ok(ReceivingObjectsResolution::Loaded(receiving_results.into()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        collections::HashSet,
+        sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        },
+    };
+
+    use futures::future::BoxFuture;
+    use iota_sdk_types::{ObjectId, ObjectReference, Owner, TransactionDigest, Version};
+    use iota_types::{
+        base_types::EpochId,
+        error::IotaResult,
+        iota_system_state::IotaSystemState,
+        object::Object,
+        storage::{InputKey, MarkerValue, ObjectKey, ObjectOrTombstone, PackageObject},
+        transaction::{InputObjectKind, ObjectReadResultKind},
+    };
+
+    use super::TransactionInputLoader;
+    use crate::{
+        authority::{
+            authority_per_epoch_store::AuthorityPerEpochStore, authority_store::IotaLockResult,
+        },
+        execution_cache::ObjectCacheRead,
+    };
+
+    /// An object cache that holds one shared object and counts the reads of
+    /// it with [`ObjectCacheRead::try_get_object()`]. The first read finds
+    /// `versions[0]` and every later read `versions[1]`, as when a transaction
+    /// that changes the object executes between two reads. It answers only the
+    /// reads that loading shared inputs makes.
+    struct OneSharedObjectCache {
+        /// `None` once the object is deleted.
+        versions: [Option<Object>; 2],
+        /// The version and the transaction of the object's deletion, once it
+        /// is deleted.
+        deletion: Option<(Version, TransactionDigest)>,
+        reads: AtomicUsize,
+    }
+
+    impl ObjectCacheRead for OneSharedObjectCache {
+        fn try_get_object(&self, id: &ObjectId) -> IotaResult<Option<Object>> {
+            let read = self.reads.fetch_add(1, Ordering::Relaxed);
+
+            Ok(self.versions[read.min(1)]
+                .clone()
+                .filter(|object| object.id() == *id))
+        }
+
+        fn try_multi_get_objects_by_key(
+            &self,
+            object_keys: &[ObjectKey],
+        ) -> IotaResult<Vec<Option<Object>>> {
+            assert!(object_keys.is_empty(), "the test names no owned inputs");
+
+            Ok(vec![])
+        }
+
+        fn try_get_package_object(&self, _: &ObjectId) -> IotaResult<Option<PackageObject>> {
+            unreachable!("not read when loading shared inputs")
+        }
+
+        fn force_reload_system_packages(&self, _: &[ObjectId]) {
+            unreachable!("not read when loading shared inputs")
+        }
+
+        fn try_get_latest_object_ref_or_tombstone(
+            &self,
+            _: ObjectId,
+        ) -> IotaResult<Option<ObjectReference>> {
+            unreachable!("not read when loading shared inputs")
+        }
+
+        fn try_get_latest_object_or_tombstone(
+            &self,
+            _: ObjectId,
+        ) -> IotaResult<Option<(ObjectKey, ObjectOrTombstone)>> {
+            unreachable!("not read when loading shared inputs")
+        }
+
+        fn try_get_object_by_key(&self, _: &ObjectId, _: Version) -> IotaResult<Option<Object>> {
+            unreachable!("not read when loading shared inputs")
+        }
+
+        fn try_get_object_by_key_with_historic_fallback(
+            &self,
+            _: &ObjectId,
+            _: Version,
+            _: EpochId,
+        ) -> IotaResult<Option<Object>> {
+            unreachable!("not read when loading shared inputs")
+        }
+
+        fn try_object_exists_by_key(&self, _: &ObjectId, _: Version) -> IotaResult<bool> {
+            unreachable!("not read when loading shared inputs")
+        }
+
+        fn try_multi_object_exists_by_key(&self, _: &[ObjectKey]) -> IotaResult<Vec<bool>> {
+            unreachable!("not read when loading shared inputs")
+        }
+
+        fn multi_input_objects_available_cache_only(&self, _: &[InputKey]) -> Vec<bool> {
+            unreachable!("not read when loading shared inputs")
+        }
+
+        fn try_multi_transactions_executed(
+            &self,
+            _: &[TransactionDigest],
+        ) -> IotaResult<Vec<bool>> {
+            unreachable!("not read when loading shared inputs")
+        }
+
+        fn try_find_object_lt_or_eq_version(
+            &self,
+            _: ObjectId,
+            _: Version,
+        ) -> IotaResult<Option<Object>> {
+            unreachable!("not read when loading shared inputs")
+        }
+
+        fn try_get_lock(&self, _: ObjectReference, _: &AuthorityPerEpochStore) -> IotaLockResult {
+            unreachable!("not read when loading shared inputs")
+        }
+
+        fn _try_get_live_objref(&self, _: ObjectId) -> IotaResult<ObjectReference> {
+            unreachable!("not read when loading shared inputs")
+        }
+
+        fn try_check_owned_objects_are_live(&self, _: &[ObjectReference]) -> IotaResult {
+            unreachable!("not read when loading shared inputs")
+        }
+
+        fn try_get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState> {
+            unreachable!("not read when loading shared inputs")
+        }
+
+        fn try_find_lowest_version_above_in_epoch(
+            &self,
+            _: &ObjectId,
+            _: Version,
+            _: EpochId,
+        ) -> IotaResult<Option<(Version, bool)>> {
+            unreachable!("not read when loading shared inputs")
+        }
+
+        fn try_get_marker_value(
+            &self,
+            _: &ObjectId,
+            _: Version,
+            _: EpochId,
+        ) -> IotaResult<Option<MarkerValue>> {
+            unreachable!("not read when loading shared inputs")
+        }
+
+        fn try_get_latest_marker(
+            &self,
+            _: &ObjectId,
+            _: EpochId,
+        ) -> IotaResult<Option<(Version, MarkerValue)>> {
+            Ok(self
+                .deletion
+                .map(|(version, digest)| (version, MarkerValue::SharedDeleted(digest))))
+        }
+
+        fn notify_read_input_objects<'a>(
+            &'a self,
+            _: &'a [InputKey],
+            _: &'a HashSet<InputKey>,
+            _: EpochId,
+        ) -> BoxFuture<'a, ()> {
+            unreachable!("not read when loading shared inputs")
+        }
+    }
+
+    /// Loads `kinds` from `cache` for signing. Returns the kind and the read
+    /// result of each loaded input, in the loader's order, and the number of
+    /// reads of the object.
+    fn load_for_signing(
+        cache: OneSharedObjectCache,
+        kinds: &[InputObjectKind],
+    ) -> (Vec<(InputObjectKind, ObjectReadResultKind)>, usize) {
+        let cache = Arc::new(cache);
+        let loader = TransactionInputLoader::new(cache.clone());
+        let (input_objects, _) = loader
+            .read_objects_for_signing(None, kinds, &[], 0)
+            .unwrap();
+        let inputs = input_objects
+            .iter()
+            .map(|input| (input.input_object_kind, input.object.clone()))
+            .collect();
+
+        (inputs, cache.reads.load(Ordering::Relaxed))
+    }
+
+    /// A shared object that a transaction takes as mutable and its Move
+    /// authenticator as immutable is read once, so both inputs hold the same
+    /// version even when the object changes right after the first read. The
+    /// inputs keep the kinds they were named with, in the same order.
+    #[test]
+    fn shared_object_named_with_two_kinds_is_read_once() {
+        let id = ObjectId::random();
+        let initial_shared_version = Version::from(1);
+        let kind = |mutable| InputObjectKind::SharedMoveObject {
+            id,
+            initial_shared_version,
+            mutable,
+        };
+        let object_at = |version: u64| {
+            Object::with_id_owner_version_for_testing(
+                id,
+                Version::from(version),
+                Owner::Shared(initial_shared_version),
+            )
+        };
+        let cache = OneSharedObjectCache {
+            versions: [Some(object_at(2)), Some(object_at(3))],
+            deletion: None,
+            reads: AtomicUsize::new(0),
+        };
+
+        let (inputs, reads) = load_for_signing(cache, &[kind(true), kind(false)]);
+
+        let first_read = ObjectReadResultKind::Object(object_at(2));
+        assert_eq!(
+            inputs,
+            [(kind(true), first_read.clone()), (kind(false), first_read)]
+        );
+        assert_eq!(reads, 1);
+    }
+
+    /// Both inputs hold the version and the transaction of the deletion, with
+    /// the kinds they were named with, in the same order.
+    #[test]
+    fn deleted_shared_object_named_with_two_kinds_is_read_once() {
+        let id = ObjectId::random();
+        let kind = |mutable| InputObjectKind::SharedMoveObject {
+            id,
+            initial_shared_version: Version::from(1),
+            mutable,
+        };
+        let (version, digest) = (Version::from(2), TransactionDigest::random());
+        let cache = OneSharedObjectCache {
+            versions: [None, None],
+            deletion: Some((version, digest)),
+            reads: AtomicUsize::new(0),
+        };
+
+        let (inputs, reads) = load_for_signing(cache, &[kind(true), kind(false)]);
+
+        let deleted = ObjectReadResultKind::DeletedSharedObject(version, digest);
+        assert_eq!(
+            inputs,
+            [(kind(true), deleted.clone()), (kind(false), deleted)]
+        );
+        assert_eq!(reads, 1);
     }
 }

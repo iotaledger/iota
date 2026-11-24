@@ -3,7 +3,7 @@
 
 use async_graphql::OneofObject;
 use iota_indexer::models::{events::StoredEvent, transactions::StoredTransaction};
-use iota_json_rpc_types::{Filter, IotaTransactionKind};
+use iota_json_rpc_types::IotaTransactionKind;
 use iota_sdk_types::ObjectId;
 use iota_types::transaction::TransactionAPI;
 
@@ -12,6 +12,12 @@ use crate::types::{
     transaction_block::TransactionBlockKindInput,
     type_filter::{FqNameFilter, ModuleFilter},
 };
+
+/// A subscription filter that decides whether an item is sent to the
+/// subscriber.
+pub(crate) trait Filter<T> {
+    fn matches(&self, item: &T) -> bool;
+}
 
 /// Filter incoming events in a subscription.
 #[derive(OneofObject, Clone, Debug, Eq, PartialEq)]

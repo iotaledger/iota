@@ -44,6 +44,12 @@ RE_PR = re.compile(
     re.MULTILINE,
 )
 
+# The trailer `git cherry-pick -x` adds, naming the commit that was picked.
+RE_CHERRY_PICK = re.compile(
+    r"^\(cherry picked from commit ([0-9a-f]{40})\)$",
+    re.MULTILINE,
+)
+
 RE_HEADING = re.compile(
     r"#+ Release notes(.*)",
     re.DOTALL | re.IGNORECASE,
@@ -113,7 +119,7 @@ ROLLOUT_NETWORKS = ("devnet", "testnet", "mainnet")
 
 # Networks a release can target, keyed off the release tag suffix in
 # release.yml (alpha/beta/rc/none). Used to look up the network's current epoch.
-UPGRADE_NETWORKS = ("alphanet", "devnet", "testnet", "mainnet")
+UPGRADE_NETWORKS = ("devnet", "testnet", "mainnet")
 
 # Public JSON-RPC endpoint of a network's fullnode, used to look up the current
 # epoch when reporting the earliest time a new protocol version can be enabled.
@@ -147,6 +153,36 @@ NOTE_ORDER = [
     "gRPC",
     "REST API",
     "Internal gRPC API",
+]
+
+
+class SdkClientVersionMin(NamedTuple):
+    """Where a service declares the lowest SDK client version able to decode
+    its responses."""
+
+    # The release notes section the minimum is printed in.
+    section: str
+    client_crate: str
+    # Relative to the repository root.
+    file: str
+    # Every name the constant has had in a release, so that older release tags
+    # are read too.
+    constants: tuple
+
+
+SDK_CLIENT_VERSION_MINS = [
+    SdkClientVersionMin(
+        "GraphQL",
+        "iota-sdk-graphql-client",
+        "crates/iota-graphql-rpc/src/server/version.rs",
+        ("IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN", "MIN_SDK_VERSION"),
+    ),
+    SdkClientVersionMin(
+        "gRPC",
+        "iota-sdk-grpc-client",
+        "crates/iota-grpc-server/src/constants.rs",
+        ("IOTA_SDK_GRPC_CLIENT_VERSION_MIN",),
+    ),
 ]
 
 
@@ -315,30 +351,73 @@ def github_api(path, params=None):
 
 
 def fetch_pr(pr_number):
-    """Fetch a PR payload, reusing an earlier fetch of the same PR."""
+    """Fetch a PR payload, reusing an earlier fetch of the same PR.
+
+    Returns `None` when this repository has no PR with that number.
+
+    """
     key = str(pr_number)
     if key not in PR_CACHE:
-        PR_CACHE[key] = github_api(f"/pulls/{key}")
+        try:
+            PR_CACHE[key] = github_api(f"/pulls/{key}")
+        except urllib.error.HTTPError as exc:
+            if exc.code != 404:
+                raise
+            PR_CACHE[key] = None
     return PR_CACHE[key]
 
 
 def extract_notes_from_commit(commit):
-    # we'll need to go one level deeper to find the PR number
-    data = github_api(f"/commits/{commit}/pulls")
-    if len(data) == 0:
-        return None, ""
-    pr = data[0]
-    number = str(pr["number"])
-    PR_CACHE.setdefault(number, pr)
-    pr_notes = pr["body"] if pr["body"] else ""
-    # A string, like the number parsed out of a commit message, so that a PR
-    # reached either way counts as the same PR.
-    return number, pr_notes
+    """The number and description of the PR that merged `commit`.
+
+    The number at the end of the subject is trusted only when that PR was
+    merged as this commit, or as the commit this one was cherry-picked from.
+    A commit merged in another repository keeps that repository's PR number,
+    which here names an unrelated PR or an issue, so the PR is then looked up
+    by commit instead. A commit with no PR in this repository yields `None`
+    and its own message, so notes written into the message still count.
+
+    """
+    commit = git("rev-parse", "--verify", f"{commit}^{{commit}}")
+    message = extract_notes_from_local_commit(commit)
+    match = RE_PR.match(message)
+    if match:
+        number = match.group(1)
+        pr = fetch_pr(number)
+        merged_as = {commit, *RE_CHERRY_PICK.findall(message)}
+        if pr and pr.get("merge_commit_sha") in merged_as:
+            return number, pr["body"] or ""
+
+    try:
+        data = github_api(f"/commits/{commit}/pulls")
+    except urllib.error.HTTPError as exc:
+        # An unknown commit (not pushed yet) has no PR either.
+        if exc.code not in (404, 422):
+            raise
+        data = []
+    if data:
+        pr = data[0]
+        # A string, like the number parsed out of a commit message, so that a
+        # PR reached either way counts as the same PR.
+        number = str(pr["number"])
+        PR_CACHE.setdefault(number, pr)
+        return number, pr["body"] or ""
+
+    subject = message.splitlines()[0] if message else ""
+    print(
+        f"warning: commit {commit[:11]} ({subject}) was not merged through a PR "
+        f"of {GH_REPO}; its release notes can only come from the commit message",
+        file=sys.stderr,
+    )
+    return None, message
+
 
 def extract_notes_from_pr(pr_number):
     pr = fetch_pr(pr_number)
-    pr_notes = pr["body"] if pr["body"] else ""
-    return pr_notes
+    if pr is None:
+        raise ValueError(f"PR #{pr_number} does not exist in {GH_REPO}")
+    return pr["body"] or ""
+
 
 def extract_notes_from_local_commit(commit):
     message = git("show", "-s", "--format=%B", commit)
@@ -398,6 +477,8 @@ def find_sub_prs(pr_number, visited=None):
         visited = set()
 
     pr = fetch_pr(pr_number)
+    if not pr:
+        return []
     head = pr.get("head") or {}
     branch = head.get("ref")
     if not branch or (head.get("repo") or {}).get("full_name") != GH_REPO:
@@ -570,14 +651,7 @@ def extract_notes(commit_or_pr, seen, is_pr, crate_names, is_dry_run):
         pr = None
         notes = extract_notes_from_local_commit(commit_or_pr)
     else:
-        # Try to get the PR number from the commit message or fallback to the
-        # one returned from the Github API
-        match = RE_PR.match(git("show", "-s", "--format=%B", commit_or_pr))
-        if match:
-            pr = match.group(1)
-            notes = extract_notes_from_pr(pr)
-        else:
-            pr, notes = extract_notes_from_commit(commit_or_pr)
+        pr, notes = extract_notes_from_commit(commit_or_pr)
 
     notes = strip_html_comments(notes)
 
@@ -655,6 +729,83 @@ def extract_protocol_version(commit):
             continue
 
         return match[0]
+
+
+def extract_sdk_client_version_min(commit, version_min):
+    """Find the lowest SDK client version declared in `version_min.file` at
+    this commit.
+
+    Returns `None` if neither the file nor any of the constant's names exist
+    at this commit, i.e. the service did not declare a minimum yet.
+
+    Assumes that it is being called from the root of the iota repository."""
+    try:
+        source = subprocess.check_output(
+            ["git", "show", f"{commit}:{version_min.file}"],
+            stderr=subprocess.DEVNULL,
+        ).decode()
+    except subprocess.CalledProcessError:
+        return None
+
+    for constant in version_min.constants:
+        match = re.search(
+            rf'\bconst\s+{re.escape(constant)}\s*:\s*&str\s*=\s*"([^"]+)"',
+            source,
+        )
+        if match:
+            return match[1]
+
+    return None
+
+
+def version_key(version):
+    """A key that orders versions as semantic versioning does."""
+    core, _, pre_release = version.partition("+")[0].partition("-")
+    # A release is newer than its pre-releases, and a numeric pre-release
+    # identifier is older than an alphanumeric one.
+    identifiers = [
+        (0, int(identifier), "") if identifier.isdigit() else (1, 0, identifier)
+        for identifier in pre_release.split(".")
+        if identifier
+    ]
+    return (
+        [int(number) for number in core.split(".")],
+        0 if pre_release else 1,
+        identifiers,
+    )
+
+
+def print_sdk_client_version_min(version_min, version_from, version_to):
+    """Print the lowest SDK client version supported by this release, and
+    whether it changed since `version_from`."""
+    crate = f"`{version_min.client_crate}`"
+
+    if version_from == version_to:
+        print(
+            f"\nThis release does not change the minimum supported {crate} "
+            f"version (current minimum: `{version_to}`)."
+        )
+        return
+
+    if version_from is not None and version_key(version_to) < version_key(version_from):
+        print(
+            f"\nThis release lowers the minimum supported {crate} version "
+            f"to `{version_to}` (previously `{version_from}`)."
+        )
+        return
+
+    if version_from is None:
+        change = f"sets the minimum supported {crate} version to `{version_to}`"
+    else:
+        change = (
+            f"raises the minimum supported {crate} version to `{version_to}` "
+            f"(previously `{version_from}`)"
+        )
+    print(
+        f"\n⚠️ This release {change}. Upgrade your {crate} to at least "
+        f"`{version_to}` before using it with this release: older versions "
+        f"cannot decode its {version_min.section} responses."
+    )
 
 
 def earliest_protocol_upgrade(network):
@@ -801,6 +952,9 @@ def do_generate(from_, to, is_dry_run, network=None):
     introduces a new protocol version, also reports the earliest epoch
     at which that network can enable it, read from its fullnode.
 
+    Likewise injects the lowest supported SDK client version into the
+    "GraphQL" and "gRPC" changelogs, once the service declares one.
+
     """
     results = defaultdict(list)
     rollout_entries = defaultdict(lambda: defaultdict(list))
@@ -811,6 +965,17 @@ def do_generate(from_, to, is_dry_run, network=None):
 
     protocol_version_from = extract_protocol_version(from_) or "XX"
     protocol_version_to = extract_protocol_version(to) or "XX"
+
+    sdk_client_version_mins = {}
+    for version_min in SDK_CLIENT_VERSION_MINS:
+        version_to = extract_sdk_client_version_min(to, version_min)
+        if version_to is not None:
+            version_from = extract_sdk_client_version_min(from_, version_min)
+            sdk_client_version_mins[version_min.section] = (
+                version_min,
+                version_from,
+                version_to,
+            )
 
     commits = git(
         "log",
@@ -866,7 +1031,8 @@ def do_generate(from_, to, is_dry_run, network=None):
     # Print the impact areas we know about first
     for impacted in NOTE_ORDER:
         notes = results.pop(impacted, None)
-        if not notes and impacted != "Protocol":
+        sdk_client_version_min = sdk_client_version_mins.get(impacted)
+        if not notes and impacted != "Protocol" and not sdk_client_version_min:
             continue
 
         print(f"## {impacted}")
@@ -885,6 +1051,8 @@ def do_generate(from_, to, is_dry_run, network=None):
                         f"Please ensure that you update your validators before this epoch change. "
                         f"Otherwise, if the upgrade threshold is reached, the protocol will remove you from the committee, and both you and your delegators will lose rewards."
                     )
+        elif sdk_client_version_min:
+            print_sdk_client_version_min(*sdk_client_version_min)
         print()
 
         if notes:

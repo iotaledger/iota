@@ -18,6 +18,13 @@ use iota_sdk_types::{Address, ObjectId, ObjectReference, Version};
 const PRUNING_WAIT_TIMEOUT: Duration = Duration::from_secs(60);
 const READER_READY_TIMEOUT: Duration = Duration::from_secs(60);
 
+/// How long to wait for a reported watermark to catch up with the pruner.
+///
+/// The reader refreshes its watermarks from the database periodically, so after
+/// pruning it can still report the old checkpoint for up to one refresh
+/// interval.
+pub const WATERMARK_REFRESH_TIMEOUT: Duration = Duration::from_secs(30);
+
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl};
 use iota_config::local_ip_utils::{get_available_port, new_local_tcp_socket_for_testing};
 use iota_grpc_server::GrpcServerHandle;
@@ -34,22 +41,24 @@ use iota_indexer::{
     test_utils::{DBInitHook, IndexerTypeConfig, create_pg_store, db_url, start_test_indexer},
 };
 use iota_json_rpc_api::{
-    CoinReadApiClient, QUERY_MAX_RESULT_LIMIT, ReadApiClient, TransactionBuilderClient,
-    WriteApiClient,
+    CoinReadApiClient, ExtendedApiClient, QUERY_MAX_RESULT_LIMIT, ReadApiClient,
+    TransactionBuilderClient, WriteApiClient,
 };
 use iota_json_rpc_types::{
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
-    TransactionBlockBytes,
+    DataPrunedErrorData, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    ObjectChange, TransactionBlockBytes,
 };
 use iota_metrics::init_metrics;
 use iota_move_build::BuildConfig;
 use iota_sdk_types::{TransactionDigest, crypto::SimpleSignature};
 use iota_types::{
-    quorum_driver_types::ExecuteTransactionRequestType, utils::to_sender_signed_transaction,
+    effects::TransactionEffectsAPI, quorum_driver_types::ExecuteTransactionRequestType,
+    utils::to_sender_signed_transaction,
 };
 use jsonrpsee::{
+    core::ClientError,
     http_client::{HttpClient, HttpClientBuilder},
-    types::ErrorObject,
+    types::{ErrorObject, ErrorObjectOwned},
 };
 use simulacrum::Simulacrum;
 use simulacrum_server::start_simulacrum_grpc_server;
@@ -473,6 +482,87 @@ async fn start_indexer_reader(
     .expect("indexer reader should accept connections before the timeout");
 
     port
+}
+
+/// Reads the oldest available checkpoint `error` reports, when it reports one.
+pub fn oldest_available_cp_in(error: &ErrorObjectOwned) -> Option<u64> {
+    serde_json::from_str::<DataPrunedErrorData>(error.data()?.get())
+        .ok()
+        .map(|data| data.oldest_available_checkpoint.into_inner())
+}
+
+/// Returns the first checkpoint of `epoch`.
+pub async fn first_checkpoint_of_epoch(client: &HttpClient, epoch: u64) -> u64 {
+    let epochs = client
+        .get_epochs(Some((epoch + 1).into()), Some(1), Some(true))
+        .await
+        .expect("epochs are indexed");
+    let epoch_info = epochs
+        .data
+        .first()
+        .unwrap_or_else(|| panic!("epoch {epoch} is indexed"));
+    assert_eq!(epoch_info.epoch, epoch);
+    epoch_info.first_checkpoint_id
+}
+
+/// Asserts that `call` reports its data as pruned below `oldest_available_epoch`.
+///
+/// Retries until the watermark the indexer serves from has moved that far.
+pub async fn assert_reports_data_pruned<F, Fut, T>(
+    client: &HttpClient,
+    method: &str,
+    oldest_available_epoch: u64,
+    mut call: F,
+) where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = Result<T, ClientError>>,
+{
+    let oldest_available_checkpoint =
+        first_checkpoint_of_epoch(client, oldest_available_epoch).await;
+    let error = retry_with_timeout(WATERMARK_REFRESH_TIMEOUT, || {
+        // Called here so the returned future borrows nothing from `call`.
+        let lookup = call();
+        async move {
+            match lookup.await {
+                Err(ClientError::Call(error))
+                    if oldest_available_cp_in(&error) == Some(oldest_available_checkpoint) =>
+                {
+                    Some(error)
+                }
+                _ => None,
+            }
+        }
+    })
+    .await
+    .unwrap_or_else(|_| {
+        panic!(
+            "timeout waiting for {method} to report checkpoint {oldest_available_checkpoint}, the first of epoch {oldest_available_epoch}"
+        )
+    });
+
+    assert!(
+        error.message().contains("Missing data due to pruning"),
+        "expected {method} to report the pruned data as such, got {error}"
+    );
+}
+
+/// Transfers a few IOTA, waits for the indexer and returns the tx digest.
+pub async fn execute_dummy_tx_and_wait_for_indexer(
+    cluster: &TestCluster,
+    store: &PgIndexerStore,
+    client: &HttpClient,
+) -> TransactionDigest {
+    let transfer = cluster
+        .test_transaction_builder()
+        .await
+        .transfer_iota(Some(1_000), Address::random())
+        .build();
+    let digest = *cluster
+        .sign_and_execute_transaction(&transfer)
+        .await
+        .transaction_digest();
+    indexer_wait_for_transaction(digest, store, client).await;
+    digest
 }
 
 /// Check if provided error message does match with

@@ -10,14 +10,14 @@ mod write_store;
 
 use std::{
     cell::RefCell,
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fmt::{Display, Formatter},
     rc::Rc,
     sync::Arc,
 };
 
 use iota_sdk_types::{
-    MovePackage, ObjectId, ObjectReference, SenderSignedTransaction, TransactionDigest,
+    Address, MovePackage, ObjectId, ObjectReference, SenderSignedTransaction, TransactionDigest,
     TransactionEffects, Version, WriteKind,
 };
 use itertools::Itertools;
@@ -27,7 +27,7 @@ pub use object_store_trait::ObjectStore;
 pub use read_store::{
     AccountOwnedObjectInfo, CoinInfo, DynamicFieldIteratorItem, DynamicFieldKey, EpochInfo,
     EpochInfoV1Entry, EpochInfoV2, OwnedObjectCursor, OwnedObjectIteratorItem, PackageVersionInfo,
-    PackageVersionIteratorItem, PackageVersionKey, ReadStore, TransactionInfo,
+    PackageVersionIteratorItem, PackageVersionKey, ReadStore,
 };
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -42,37 +42,58 @@ use crate::{
     error::{ExecutionError, IotaError, IotaResult},
     execution::{DynamicallyLoadedObjectMetadata, ExecutionResults},
     iota_sdk_types_conversions::identifier_core_to_sdk,
-    object::Object,
+    object::{Object, ObjectSet},
     storage::error::Error as StorageError,
     transaction::{SenderSignedTransactionAPI, TransactionAPI},
 };
 
-/// A potential input to a transaction.
+/// A potential input to a transaction: something the execution scheduler
+/// waits for before the transaction can execute.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum InputKey {
-    VersionedObject { id: ObjectId, version: Version },
-    Package { id: ObjectId },
+    VersionedObject {
+        id: ObjectId,
+        version: Version,
+    },
+    Package {
+        id: ObjectId,
+    },
+    /// The transaction named by a transaction dependency input has executed,
+    /// so its effects can be read.
+    ExecutedTransaction {
+        digest: TransactionDigest,
+    },
 }
 
 impl InputKey {
-    pub fn id(&self) -> ObjectId {
+    /// The object this key waits for, or `None` for an executed transaction.
+    pub fn object_id(&self) -> Option<ObjectId> {
         match self {
-            InputKey::VersionedObject { id, .. } => *id,
-            InputKey::Package { id } => *id,
+            InputKey::VersionedObject { id, .. } => Some(*id),
+            InputKey::Package { id } => Some(*id),
+            InputKey::ExecutedTransaction { .. } => None,
+        }
+    }
+
+    /// The transaction this key waits for, or `None` for an object.
+    pub fn transaction_digest(&self) -> Option<TransactionDigest> {
+        match self {
+            InputKey::ExecutedTransaction { digest } => Some(*digest),
+            InputKey::VersionedObject { .. } | InputKey::Package { .. } => None,
         }
     }
 
     pub fn version(&self) -> Option<Version> {
         match self {
             InputKey::VersionedObject { version, .. } => Some(*version),
-            InputKey::Package { .. } => None,
+            InputKey::Package { .. } | InputKey::ExecutedTransaction { .. } => None,
         }
     }
 
     pub fn is_cancelled(&self) -> bool {
         match self {
             InputKey::VersionedObject { version, .. } => version.is_canceled(),
-            InputKey::Package { .. } => false,
+            InputKey::Package { .. } | InputKey::ExecutedTransaction { .. } => false,
         }
     }
 }
@@ -214,6 +235,15 @@ pub trait Storage {
     /// Check coin denylist during execution,
     /// and the number of non-gas-coin owners.
     fn check_coin_deny_list(&self, written_objects: &BTreeMap<ObjectId, Object>) -> DenyListResult;
+
+    /// Fails if `sender` is denied for one of `coin_types`, or one of them is
+    /// paused for every address, reading the deny list as settled before this
+    /// epoch. `coin_types` are the types of the coins the Move code received.
+    fn check_received_coin_deny_list(
+        &self,
+        sender: Address,
+        coin_types: BTreeSet<String>,
+    ) -> Result<(), ExecutionError>;
 
     fn read_auth_context(&self) -> Option<Rc<RefCell<AuthContext>>>;
 }
@@ -522,7 +552,7 @@ pub fn transaction_non_shared_input_object_keys(
 ) -> IotaResult<Vec<ObjectKey>> {
     use crate::transaction::InputObjectKind as I;
     Ok(tx
-        .input_objects()?
+        .input_objects(false)?
         .into_iter()
         .filter_map(|object| match object {
             I::MovePackage(_) | I::SharedMoveObject { .. } => None,
@@ -561,6 +591,97 @@ where
 {
     fn as_object_store(&self) -> &dyn ObjectStore {
         self
+    }
+}
+
+/// A [`BackingStore`] that records every object read through it.
+///
+/// Captures the objects execution loads beyond the declared inputs (dynamic
+/// fields, received objects, system packages), whose superseded versions must
+/// be relocated by value. Wrap the store for a single execution, then take the
+/// recorded objects with [`into_read_objects`](Self::into_read_objects).
+pub struct TrackingBackingStore<'a> {
+    inner: &'a dyn BackingStore,
+    read_objects: RefCell<ObjectSet>,
+}
+
+impl<'a> TrackingBackingStore<'a> {
+    pub fn new(inner: &'a dyn BackingStore) -> Self {
+        Self {
+            inner,
+            read_objects: Default::default(),
+        }
+    }
+
+    pub fn into_read_objects(self) -> ObjectSet {
+        self.read_objects.into_inner()
+    }
+
+    fn track_object(&self, object: &Object) {
+        self.read_objects.borrow_mut().insert(object.clone());
+    }
+}
+
+impl BackingPackageStore for TrackingBackingStore<'_> {
+    fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
+        self.inner.get_package_object(package_id).inspect(|o| {
+            o.as_ref()
+                .inspect(|package| self.track_object(package.object()));
+        })
+    }
+}
+
+impl ChildObjectResolver for TrackingBackingStore<'_> {
+    fn read_child_object(
+        &self,
+        parent: &ObjectId,
+        child: &ObjectId,
+        child_version_upper_bound: Version,
+    ) -> IotaResult<Option<Object>> {
+        self.inner
+            .read_child_object(parent, child, child_version_upper_bound)
+            .inspect(|o| {
+                o.as_ref().inspect(|object| self.track_object(object));
+            })
+    }
+
+    fn get_object_received_at_version(
+        &self,
+        owner: &ObjectId,
+        receiving_object_id: &ObjectId,
+        receive_object_at_version: Version,
+        epoch_id: EpochId,
+    ) -> IotaResult<Option<Object>> {
+        self.inner
+            .get_object_received_at_version(
+                owner,
+                receiving_object_id,
+                receive_object_at_version,
+                epoch_id,
+            )
+            .inspect(|o| {
+                o.as_ref().inspect(|object| self.track_object(object));
+            })
+    }
+}
+
+impl ObjectStore for TrackingBackingStore<'_> {
+    fn try_get_object(&self, object_id: &ObjectId) -> error::Result<Option<Object>> {
+        self.inner.try_get_object(object_id).inspect(|o| {
+            o.as_ref().inspect(|object| self.track_object(object));
+        })
+    }
+
+    fn try_get_object_by_key(
+        &self,
+        object_id: &ObjectId,
+        version: VersionNumber,
+    ) -> error::Result<Option<Object>> {
+        self.inner
+            .try_get_object_by_key(object_id, version)
+            .inspect(|o| {
+                o.as_ref().inspect(|object| self.track_object(object));
+            })
     }
 }
 

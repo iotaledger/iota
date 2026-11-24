@@ -61,6 +61,7 @@ use iota_sdk_types::{
     TransactionEffectsDigest, TransactionEvents, Version,
 };
 use iota_types::{
+    attestation::AttestationRecord,
     base_types::{EpochId, VerifiedExecutionData},
     error::{IotaError, IotaResult, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
@@ -79,6 +80,7 @@ use moka::sync::SegmentedCache as MokaCache;
 use parking_lot::Mutex;
 use tap::TapOptional;
 use tracing::{debug, info, instrument, trace, warn};
+use typed_store::DbIterator;
 
 use super::{
     Batch, CheckpointCache, ExecutionCacheAPI, ExecutionCacheCommit, ExecutionCacheMetrics,
@@ -348,7 +350,6 @@ impl CachedCommittedData {
                 config.marker_cache_size(),
             ))
             .build();
-
         let transactions = MonotonicCache::new(randomize_cache_capacity_in_tests(
             config.transaction_cache_size(),
         ));
@@ -379,7 +380,7 @@ impl CachedCommittedData {
         }
     }
 
-    fn clear_and_assert_empty(&self) {
+    fn clear(&self) {
         self.object_cache.invalidate_all();
         self.marker_cache.invalidate_all();
         self.transactions.invalidate_all();
@@ -387,6 +388,10 @@ impl CachedCommittedData {
         self.transaction_events.invalidate_all();
         self.executed_effects_digests.invalidate_all();
         self._transaction_objects.invalidate_all();
+    }
+
+    fn clear_and_assert_empty(&self) {
+        self.clear();
 
         assert_empty(&self.object_cache);
         assert_empty(&self.marker_cache);
@@ -825,27 +830,26 @@ impl WritebackCache {
                 ObjectEntry::Deleted | ObjectEntry::Wrapped => Ok(None),
             },
             CacheResult::NegativeHit => Ok(None),
-            CacheResult::Miss => {
-                let obj = self.store.get_latest_object_or_tombstone(*id);
-                match obj {
-                    Ok(Some((key, obj))) => {
-                        self.cache_latest_object_by_id(
-                            id,
-                            LatestObjectCacheEntry::Object(key.1, obj.clone().into()),
-                            ticket,
-                        );
-                        match obj {
-                            ObjectOrTombstone::Object(object) => Ok(Some(object)),
-                            ObjectOrTombstone::Tombstone(_) => Ok(None),
-                        }
+            // The store's error is returned as is: post-consensus validation
+            // stops the commit on a storage error and drops the transaction
+            // on any other.
+            CacheResult::Miss => match self.store.get_latest_object_or_tombstone(*id)? {
+                Some((key, obj)) => {
+                    self.cache_latest_object_by_id(
+                        id,
+                        LatestObjectCacheEntry::Object(key.1, obj.clone().into()),
+                        ticket,
+                    );
+                    match obj {
+                        ObjectOrTombstone::Object(object) => Ok(Some(object)),
+                        ObjectOrTombstone::Tombstone(_) => Ok(None),
                     }
-                    Ok(None) => {
-                        self.cache_object_not_found(id, ticket);
-                        Ok(None)
-                    }
-                    Err(e) => Err(format!("failed to get latest object or tomebstone: {e}").into()),
                 }
-            }
+                None => {
+                    self.cache_object_not_found(id, ticket);
+                    Ok(None)
+                }
+            },
         }
     }
 
@@ -858,6 +862,224 @@ impl WritebackCache {
         self.metrics
             .record_cache_multi_request(request_type, "db", count);
         &self.store
+    }
+
+    /// The transactions `digests` name, from the in-memory layers, asking
+    /// `read_db` for the ones they do not have. With `cache_misses`, a
+    /// transaction `read_db` does not find is remembered as absent.
+    fn transaction_blocks_with_fallback(
+        &self,
+        digests: &[TransactionDigest],
+        read_db: impl Fn(
+            &AuthorityStore,
+            &[TransactionDigest],
+        ) -> IotaResult<Vec<Option<VerifiedTransaction>>>,
+        cache_misses: bool,
+    ) -> IotaResult<Vec<Option<Arc<VerifiedTransaction>>>> {
+        let digests_and_tickets: Vec<_> = digests
+            .iter()
+            .map(|d| (*d, self.cached.transactions.get_ticket_for_read(d)))
+            .collect();
+        try_do_fallback_lookup(
+            &digests_and_tickets,
+            |(digest, _)| {
+                self.metrics
+                    .record_cache_request("transaction_block", "uncommitted");
+                if let Some(tx) = self.dirty.pending_transaction_writes.get(digest) {
+                    self.metrics
+                        .record_cache_hit("transaction_block", "uncommitted");
+                    return Ok(CacheResult::Hit(Some(tx.transaction.clone())));
+                }
+                self.metrics
+                    .record_cache_miss("transaction_block", "uncommitted");
+
+                self.metrics
+                    .record_cache_request("transaction_block", "committed");
+                match self
+                    .cached
+                    .transactions
+                    .get(digest)
+                    .map(|l| l.lock().clone())
+                {
+                    Some(PointCacheItem::Some(tx)) => {
+                        self.metrics
+                            .record_cache_hit("transaction_block", "committed");
+                        Ok(CacheResult::Hit(Some(tx)))
+                    }
+                    Some(PointCacheItem::None) => Ok(CacheResult::NegativeHit),
+                    None => {
+                        self.metrics
+                            .record_cache_miss("transaction_block", "committed");
+
+                        Ok(CacheResult::Miss)
+                    }
+                }
+            },
+            |remaining| {
+                let remaining_digests: Vec<_> = remaining.iter().map(|(d, _)| *d).collect();
+                let results: Vec<_> = read_db(
+                    self.record_db_multi_get("transaction_block", remaining.len()),
+                    &remaining_digests,
+                )
+                .map(|v| v.into_iter().map(|o| o.map(Arc::new)).collect())?;
+                for ((digest, ticket), result) in remaining.iter().zip(results.iter()) {
+                    if cache_misses && result.is_none() {
+                        self.cached.transactions.insert(digest, None, *ticket).ok();
+                    }
+                }
+                Ok(results)
+            },
+        )
+    }
+
+    /// The effects `digests` name, from the in-memory layers, asking
+    /// `read_db` for the ones they do not have. With `cache_misses`, effects
+    /// `read_db` does not find are remembered as absent.
+    fn effects_with_fallback(
+        &self,
+        digests: &[TransactionEffectsDigest],
+        read_db: impl Fn(
+            &AuthorityStore,
+            &[TransactionEffectsDigest],
+        ) -> IotaResult<Vec<Option<TransactionEffects>>>,
+        cache_misses: bool,
+    ) -> IotaResult<Vec<Option<TransactionEffects>>> {
+        let digests_and_tickets: Vec<_> = digests
+            .iter()
+            .map(|d| (*d, self.cached.transaction_effects.get_ticket_for_read(d)))
+            .collect();
+        try_do_fallback_lookup(
+            &digests_and_tickets,
+            |(digest, _)| {
+                self.metrics
+                    .record_cache_request("transaction_effects", "uncommitted");
+                if let Some(effects) = self.dirty.transaction_effects.get(digest) {
+                    self.metrics
+                        .record_cache_hit("transaction_effects", "uncommitted");
+                    return Ok(CacheResult::Hit(Some(effects.clone())));
+                }
+                self.metrics
+                    .record_cache_miss("transaction_effects", "uncommitted");
+
+                self.metrics
+                    .record_cache_request("transaction_effects", "committed");
+                match self
+                    .cached
+                    .transaction_effects
+                    .get(digest)
+                    .map(|l| l.lock().clone())
+                {
+                    Some(PointCacheItem::Some(effects)) => {
+                        self.metrics
+                            .record_cache_hit("transaction_effects", "committed");
+                        Ok(CacheResult::Hit(Some((*effects).clone())))
+                    }
+                    Some(PointCacheItem::None) => Ok(CacheResult::NegativeHit),
+                    None => {
+                        self.metrics
+                            .record_cache_miss("transaction_effects", "committed");
+                        Ok(CacheResult::Miss)
+                    }
+                }
+            },
+            |remaining| {
+                let remaining_digests: Vec<_> = remaining.iter().map(|(d, _)| *d).collect();
+                let results = read_db(
+                    self.record_db_multi_get("transaction_effects", remaining.len()),
+                    &remaining_digests,
+                )?;
+                for ((digest, ticket), result) in remaining.iter().zip(results.iter()) {
+                    if cache_misses && result.is_none() {
+                        self.cached
+                            .transaction_effects
+                            .insert(digest, None, *ticket)
+                            .ok();
+                    }
+                }
+                Ok(results)
+            },
+        )
+    }
+
+    /// The effects digest of each of `digests` from the in-memory layers,
+    /// asking `read_db` for the ones they do not have. With `cache_misses`, a
+    /// digest `read_db` does not find is remembered as not executed.
+    fn executed_effects_digests_with_fallback(
+        &self,
+        digests: &[TransactionDigest],
+        read_db: impl Fn(
+            &AuthorityStore,
+            &[TransactionDigest],
+        ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>>,
+        cache_misses: bool,
+    ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
+        let digests_and_tickets: Vec<_> = digests
+            .iter()
+            .map(|d| {
+                (
+                    *d,
+                    self.cached.executed_effects_digests.get_ticket_for_read(d),
+                )
+            })
+            .collect();
+        try_do_fallback_lookup(
+            &digests_and_tickets,
+            |(digest, _)| Ok(self.executed_effects_digest_from_memory(digest)),
+            |remaining| {
+                let remaining_digests: Vec<_> = remaining.iter().map(|(d, _)| *d).collect();
+                let results = read_db(
+                    self.record_db_multi_get("executed_effects_digests", remaining.len()),
+                    &remaining_digests,
+                )?;
+                for ((digest, ticket), result) in remaining.iter().zip(results.iter()) {
+                    if cache_misses && result.is_none() {
+                        self.cached
+                            .executed_effects_digests
+                            .insert(digest, None, *ticket)
+                            .ok();
+                    }
+                }
+                Ok(results)
+            },
+        )
+    }
+
+    /// The effects digest recorded for `digest` by the in-memory layers alone.
+    /// [`CacheResult::Miss`] means the store has to be asked for it.
+    fn executed_effects_digest_from_memory(
+        &self,
+        digest: &TransactionDigest,
+    ) -> CacheResult<Option<TransactionEffectsDigest>> {
+        self.metrics
+            .record_cache_request("executed_effects_digests", "uncommitted");
+        if let Some(digest) = self.dirty.executed_effects_digests.get(digest) {
+            self.metrics
+                .record_cache_hit("executed_effects_digests", "uncommitted");
+            return CacheResult::Hit(Some(*digest));
+        }
+        self.metrics
+            .record_cache_miss("executed_effects_digests", "uncommitted");
+
+        self.metrics
+            .record_cache_request("executed_effects_digests", "committed");
+        match self
+            .cached
+            .executed_effects_digests
+            .get(digest)
+            .map(|l| *l.lock())
+        {
+            Some(PointCacheItem::Some(digest)) => {
+                self.metrics
+                    .record_cache_hit("executed_effects_digests", "committed");
+                CacheResult::Hit(Some(digest))
+            }
+            Some(PointCacheItem::None) => CacheResult::NegativeHit,
+            None => {
+                self.metrics
+                    .record_cache_miss("executed_effects_digests", "committed");
+                CacheResult::Miss
+            }
+        }
     }
 
     #[instrument(level = "debug", skip_all)]
@@ -915,6 +1137,9 @@ impl WritebackCache {
             }
         }
 
+        // The objects above are readable before the effects below are. The
+        // attestation judge waits for the effects of a version it can read,
+        // so both must stay in this one synchronous call.
         let tx_digest = *transaction.digest();
         let effects_digest = effects.digest();
 
@@ -997,7 +1222,15 @@ impl WritebackCache {
 
         let batch = self
             .store
-            .build_db_batch(epoch, checkpoint_sequence_number, &all_outputs)
+            .build_db_batch(
+                epoch,
+                checkpoint_sequence_number,
+                &all_outputs,
+                &|key| match self.get_object_by_key_cache_only(&key.0, key.1) {
+                    CacheResult::Hit(object) => Some(object),
+                    CacheResult::Miss | CacheResult::NegativeHit => None,
+                },
+            )
             .expect("db error");
         (all_outputs, batch)
     }
@@ -1007,32 +1240,33 @@ impl WritebackCache {
     fn commit_transaction_outputs(
         &self,
         epoch: EpochId,
-        (all_outputs, db_batch): Batch,
+        batch: Batch,
         digests: &[TransactionDigest],
     ) -> IotaResult {
         let _metrics_guard =
             iota_metrics::monitored_scope("WritebackCache::commit_transaction_outputs");
+        let all_outputs = self.write_transaction_outputs_batch(batch, digests);
+        self.flush_committed_transaction_outputs(epoch, &all_outputs);
+        Ok(())
+    }
+
+    // Writes the batch to the db and returns the outputs to flush.
+    fn write_transaction_outputs_batch(
+        &self,
+        (all_outputs, db_batch): Batch,
+        digests: &[TransactionDigest],
+    ) -> Vec<Arc<TransactionOutputs>> {
         fail_point!("writeback-cache-commit");
         trace!(?digests);
 
-        // Flush writes to disk before removing anything from dirty set. otherwise,
-        // a cache eviction could cause a value to disappear briefly, even if we insert
-        // to the cache before removing from the dirty set.
-        db_batch.write().expect("db error");
-
-        let _metrics_guard =
-            iota_metrics::monitored_scope("WritebackCache::commit_transaction_outputs::flush");
-        for outputs in all_outputs.iter() {
-            let tx_digest = outputs.transaction.digest();
-            assert!(
-                self.dirty
-                    .pending_transaction_writes
-                    .remove(tx_digest)
-                    .is_some()
-            );
-            self.flush_transactions_from_dirty_to_cached(epoch, *tx_digest, outputs);
+        {
+            let _metrics_guard =
+                iota_metrics::monitored_scope("WritebackCache::commit_transaction_outputs::write");
+            db_batch.write().expect("db error");
         }
 
+        // Counted here and not at the flush, so the pending count that load
+        // shedding reads does not depend on when the flush runs.
         let num_outputs = all_outputs.len() as u64;
         let num_commits = self
             .dirty
@@ -1048,7 +1282,32 @@ impl WritebackCache {
 
         self.set_backpressure(pending_count);
 
-        Ok(())
+        all_outputs
+    }
+
+    // Moves the outputs from the dirty set to the cache. Only after they are
+    // written to the db: otherwise a cache eviction could make a value
+    // disappear briefly, even if it is inserted into the cache before it is
+    // removed from the dirty set.
+    fn flush_committed_transaction_outputs(
+        &self,
+        epoch: EpochId,
+        all_outputs: &[Arc<TransactionOutputs>],
+    ) {
+        let _metrics_guard =
+            iota_metrics::monitored_scope("WritebackCache::commit_transaction_outputs::flush");
+        for outputs in all_outputs {
+            let tx_digest = outputs.transaction.digest();
+            self.flush_transactions_from_dirty_to_cached(epoch, *tx_digest, outputs);
+            // Last: the cache may hold a remembered miss for this transaction,
+            // which a reader takes as absent without asking the database.
+            assert!(
+                self.dirty
+                    .pending_transaction_writes
+                    .remove(tx_digest)
+                    .is_some()
+            );
+        }
     }
 
     fn approximate_pending_transaction_count(&self) -> u64 {
@@ -1252,7 +1511,7 @@ impl WritebackCache {
         self.cache_latest_object_by_id(object_id, LatestObjectCacheEntry::NonExistent, ticket);
     }
 
-    fn clear_state_end_of_epoch_impl(&self, execution_guard: &ExecutionLockWriteGuard<'_>) {
+    fn clear_state_end_of_epoch_impl(&self, _execution_guard: &ExecutionLockWriteGuard<'_>) {
         info!("clearing state at end of epoch");
         assert!(
             self.dirty.pending_transaction_writes.is_empty(),
@@ -1261,10 +1520,6 @@ impl WritebackCache {
         self.dirty.clear();
         info!("clearing old transaction locks");
         self.object_locks.clear();
-        info!("clearing object per epoch marker table");
-        self.store
-            .clear_object_per_epoch_marker_table(execution_guard)
-            .expect("db error");
     }
 
     fn revert_state_update_impl(&self, tx: &TransactionDigest) -> IotaResult {
@@ -1318,6 +1573,18 @@ impl WritebackCache {
         self.store.insert_genesis_object(object)
     }
 
+    /// Drops everything held for committed data, leaving the uncommitted
+    /// `dirty` set alone, so reads answer from the store as after a restart.
+    ///
+    /// Unlike `clear_caches_and_assert_empty`, this asserts nothing and is safe
+    /// to call while the node keeps executing.
+    pub fn clear_caches(&self) {
+        info!("clearing caches");
+        self.cached.clear();
+        self.object_by_id_cache.invalidate_all();
+        self.packages.invalidate_all();
+    }
+
     pub fn clear_caches_and_assert_empty(&self) {
         info!("clearing caches");
         self.cached.clear_and_assert_empty();
@@ -1347,6 +1614,22 @@ impl ExecutionCacheCommit for WritebackCache {
         digests: &[TransactionDigest],
     ) -> IotaResult {
         WritebackCache::commit_transaction_outputs(self, epoch, batch, digests)
+    }
+
+    fn write_transaction_outputs_batch(
+        &self,
+        batch: Batch,
+        digests: &[TransactionDigest],
+    ) -> Vec<Arc<TransactionOutputs>> {
+        WritebackCache::write_transaction_outputs_batch(self, batch, digests)
+    }
+
+    fn flush_committed_transaction_outputs(
+        &self,
+        epoch: EpochId,
+        outputs: &[Arc<TransactionOutputs>],
+    ) {
+        WritebackCache::flush_committed_transaction_outputs(self, epoch, outputs)
     }
 
     fn try_persist_transaction(&self, tx: &VerifiedExecutableTransaction) -> IotaResult {
@@ -1436,6 +1719,44 @@ impl ObjectCacheRead for WritebackCache {
                 .record_db_get("object_by_version")
                 .try_get_object_by_key(object_id, version)?),
         }
+    }
+
+    fn try_get_object_by_key_with_historic_fallback(
+        &self,
+        object_id: &ObjectId,
+        version: Version,
+        epoch: EpochId,
+    ) -> IotaResult<Option<Object>> {
+        // The commit moves a version out of the live table and into the
+        // bucket in one batch, and drops it from the cache only after that
+        // batch is written, so one of the two reads finds it.
+        if let Some(object) = ObjectCacheRead::try_get_object_by_key(self, object_id, version)? {
+            return Ok(Some(object));
+        }
+        self.store
+            .get_historic_objects()
+            .get_in_epoch(epoch, &ObjectKey(*object_id, version))
+    }
+
+    fn try_find_lowest_version_above_in_epoch(
+        &self,
+        object_id: &ObjectId,
+        version: Version,
+        epoch: EpochId,
+    ) -> IotaResult<Option<(Version, bool)>> {
+        // Uncommitted first: the commit writes the store before it drops the
+        // uncommitted copy, so a racing commit cannot hide the version.
+        let uncommitted = self.dirty.objects.get(object_id).and_then(|versions| {
+            versions
+                .get_least_above(&version)
+                .map(|(version, _)| *version)
+        });
+        let committed = self
+            .record_db_get("lowest_version_above")
+            .find_lowest_version_above_in_epoch(object_id, version, epoch)?;
+        let lowest = uncommitted.into_iter().chain(committed).min();
+        // A version the store holds was written with its writer's effects.
+        Ok(lowest.map(|lowest| (lowest, committed != Some(lowest))))
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -1563,12 +1884,12 @@ impl ObjectCacheRead for WritebackCache {
                         if let ObjectEntry::Object(object) = object {
                             self.metrics
                                 .record_cache_hit("object_lt_or_eq_version", $level);
-                            return Ok(Some(object.clone()));
+                            return Ok(Some(Some(object.clone())));
                         } else {
                             // if we find a tombstone, the object does not exist
                             self.metrics
                                 .record_cache_negative_hit("object_lt_or_eq_version", $level);
-                            return Ok(None);
+                            return Ok(Some(None));
                         }
                     } else {
                         self.metrics
@@ -1614,7 +1935,9 @@ impl ObjectCacheRead for WritebackCache {
         self.metrics
             .record_cache_miss("object_lt_or_eq_version", "object_by_id");
 
-        Self::with_locked_cache_entries(
+        // `None` when the database has to be scanned, after the locks are
+        // released.
+        let scan: IotaResult<Option<Option<Object>>> = Self::with_locked_cache_entries(
             &self.dirty.objects,
             &self.cached.object_cache,
             &object_id,
@@ -1678,15 +2001,14 @@ impl ObjectCacheRead for WritebackCache {
 
                     if obj_version <= version_bound {
                         match obj_entry {
-                            ObjectEntry::Object(object) => Ok(Some(object)),
-                            ObjectEntry::Deleted | ObjectEntry::Wrapped => Ok(None),
+                            ObjectEntry::Object(object) => Ok(Some(Some(object))),
+                            ObjectEntry::Deleted | ObjectEntry::Wrapped => Ok(Some(None)),
                         }
                     } else {
                         // The latest object exceeded the bound, so now we have to do a scan
                         // But we already know there is no dirty entry within the bound,
-                        // so we go to the db.
-                        self.record_db_get("object_lt_or_eq_version_scan")
-                            .find_object_lt_or_eq_version(object_id, version_bound)
+                        // so we go to the db, after the locks are released.
+                        Ok(None)
                     }
 
                 // no object found in dirty set or db, object does not exist
@@ -1698,7 +2020,7 @@ impl ObjectCacheRead for WritebackCache {
                 } else if let Some(latest_cache_entry) = latest_cache_entry {
                     // If there is a latest cache entry, it had better not be a live object!
                     assert!(!latest_cache_entry.lock().is_alive());
-                    Ok(None)
+                    Ok(Some(None))
                 } else {
                     // If there is no latest cache entry, we can insert one.
                     let highest = cached_entry.and_then(|c| c.get_highest());
@@ -1708,10 +2030,21 @@ impl ObjectCacheRead for WritebackCache {
                         // okay to get ticket at last second - see above
                         self.object_by_id_cache.get_ticket_for_read(&object_id),
                     );
-                    Ok(None)
+                    Ok(Some(None))
                 }
             },
-        )
+        );
+        match scan? {
+            Some(found) => Ok(found),
+            // Outside the locks: the scan can walk every historic bucket, and
+            // the dirty entry's lock is that of a whole shard of objects that
+            // execution writes. Dirty and cached versions are all above the
+            // bound, and a version that moves to the historic store meanwhile
+            // is found there, since the scan reads the live table first.
+            None => self
+                .record_db_get("object_lt_or_eq_version_scan")
+                .find_object_lt_or_eq_version_with_historic_fallback(object_id, version_bound),
+        }
     }
 
     fn try_get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState> {
@@ -1832,13 +2165,6 @@ impl ObjectCacheRead for WritebackCache {
         Ok(())
     }
 
-    fn try_get_highest_pruned_checkpoint(&self) -> IotaResult<Option<CheckpointSequenceNumber>> {
-        self.store
-            .perpetual_tables
-            .get_highest_pruned_checkpoint()
-            .map_err(IotaError::from)
-    }
-
     fn notify_read_input_objects<'a>(
         &'a self,
         input_and_receiving_keys: &'a [InputKey],
@@ -1865,6 +2191,17 @@ impl ObjectCacheRead for WritebackCache {
             .boxed()
     }
 
+    fn try_multi_transactions_executed(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<bool>> {
+        Ok(self
+            .try_multi_get_executed_effects_digests(digests)?
+            .into_iter()
+            .map(|effects_digest| effects_digest.is_some())
+            .collect())
+    }
+
     fn multi_input_objects_available_cache_only(&self, keys: &[InputKey]) -> Vec<bool> {
         keys.iter()
             .map(|key| {
@@ -1877,6 +2214,10 @@ impl ObjectCacheRead for WritebackCache {
                             CacheResult::Hit(_)
                         ),
                         InputKey::Package { id } => self.packages.contains_key(id),
+                        InputKey::ExecutedTransaction { digest } => matches!(
+                            self.executed_effects_digest_from_memory(digest),
+                            CacheResult::Hit(Some(_))
+                        ),
                     }
                 }
             })
@@ -1890,57 +2231,54 @@ impl TransactionCacheRead for WritebackCache {
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<Arc<VerifiedTransaction>>>> {
-        let digests_and_tickets: Vec<_> = digests
-            .iter()
-            .map(|d| (*d, self.cached.transactions.get_ticket_for_read(d)))
-            .collect();
-        try_do_fallback_lookup(
-            &digests_and_tickets,
-            |(digest, _)| {
-                self.metrics
-                    .record_cache_request("transaction_block", "uncommitted");
-                if let Some(tx) = self.dirty.pending_transaction_writes.get(digest) {
-                    self.metrics
-                        .record_cache_hit("transaction_block", "uncommitted");
-                    return Ok(CacheResult::Hit(Some(tx.transaction.clone())));
-                }
-                self.metrics
-                    .record_cache_miss("transaction_block", "uncommitted");
+        self.transaction_blocks_with_fallback(
+            digests,
+            |store, digests| store.multi_get_transaction_blocks(digests),
+            true,
+        )
+    }
 
+    #[instrument(level = "trace", skip_all)]
+    fn try_multi_get_transaction_blocks_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<Arc<VerifiedTransaction>>>> {
+        // A miss only means "not in this epoch", so it is not remembered.
+        self.transaction_blocks_with_fallback(
+            digests,
+            |store, digests| store.multi_get_transaction_blocks_in_epoch(epoch, digests),
+            false,
+        )
+    }
+
+    fn try_multi_get_attestation_records_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<AttestationRecord>>> {
+        try_do_fallback_lookup(
+            digests,
+            |digest| {
                 self.metrics
-                    .record_cache_request("transaction_block", "committed");
-                match self
-                    .cached
-                    .transactions
-                    .get(digest)
-                    .map(|l| l.lock().clone())
-                {
-                    Some(PointCacheItem::Some(tx)) => {
+                    .record_cache_request("attestation_record", "uncommitted");
+                // Pending outputs are authoritative: `None` there means unattested.
+                match self.dirty.pending_transaction_writes.get(digest) {
+                    Some(outputs) => {
                         self.metrics
-                            .record_cache_hit("transaction_block", "committed");
-                        Ok(CacheResult::Hit(Some(tx)))
+                            .record_cache_hit("attestation_record", "uncommitted");
+                        Ok(CacheResult::Hit(outputs.attestation_record))
                     }
-                    Some(PointCacheItem::None) => Ok(CacheResult::NegativeHit),
                     None => {
                         self.metrics
-                            .record_cache_miss("transaction_block", "committed");
-
+                            .record_cache_miss("attestation_record", "uncommitted");
                         Ok(CacheResult::Miss)
                     }
                 }
             },
             |remaining| {
-                let remaining_digests: Vec<_> = remaining.iter().map(|(d, _)| *d).collect();
-                let results: Vec<_> = self
-                    .record_db_multi_get("transaction_block", remaining.len())
-                    .multi_get_transaction_blocks(&remaining_digests)
-                    .map(|v| v.into_iter().map(|o| o.map(Arc::new)).collect())?;
-                for ((digest, ticket), result) in remaining.iter().zip(results.iter()) {
-                    if result.is_none() {
-                        self.cached.transactions.insert(digest, None, *ticket).ok();
-                    }
-                }
-                Ok(results)
+                self.record_db_multi_get("attestation_record", remaining.len())
+                    .multi_get_attestation_records_in_epoch(epoch, remaining)
             },
         )
     }
@@ -1950,64 +2288,24 @@ impl TransactionCacheRead for WritebackCache {
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
-        let digests_and_tickets: Vec<_> = digests
-            .iter()
-            .map(|d| {
-                (
-                    *d,
-                    self.cached.executed_effects_digests.get_ticket_for_read(d),
-                )
-            })
-            .collect();
-        try_do_fallback_lookup(
-            &digests_and_tickets,
-            |(digest, _)| {
-                self.metrics
-                    .record_cache_request("executed_effects_digests", "uncommitted");
-                if let Some(digest) = self.dirty.executed_effects_digests.get(digest) {
-                    self.metrics
-                        .record_cache_hit("executed_effects_digests", "uncommitted");
-                    return Ok(CacheResult::Hit(Some(*digest)));
-                }
-                self.metrics
-                    .record_cache_miss("executed_effects_digests", "uncommitted");
+        self.executed_effects_digests_with_fallback(
+            digests,
+            |store, digests| store.multi_get_executed_effects_digests(digests),
+            true,
+        )
+    }
 
-                self.metrics
-                    .record_cache_request("executed_effects_digests", "committed");
-                match self
-                    .cached
-                    .executed_effects_digests
-                    .get(digest)
-                    .map(|l| *l.lock())
-                {
-                    Some(PointCacheItem::Some(digest)) => {
-                        self.metrics
-                            .record_cache_hit("executed_effects_digests", "committed");
-                        Ok(CacheResult::Hit(Some(digest)))
-                    }
-                    Some(PointCacheItem::None) => Ok(CacheResult::NegativeHit),
-                    None => {
-                        self.metrics
-                            .record_cache_miss("executed_effects_digests", "committed");
-                        Ok(CacheResult::Miss)
-                    }
-                }
-            },
-            |remaining| {
-                let remaining_digests: Vec<_> = remaining.iter().map(|(d, _)| *d).collect();
-                let results = self
-                    .record_db_multi_get("executed_effects_digests", remaining.len())
-                    .multi_get_executed_effects_digests(&remaining_digests)?;
-                for ((digest, ticket), result) in remaining.iter().zip(results.iter()) {
-                    if result.is_none() {
-                        self.cached
-                            .executed_effects_digests
-                            .insert(digest, None, *ticket)
-                            .ok();
-                    }
-                }
-                Ok(results)
-            },
+    #[instrument(level = "trace", skip_all)]
+    fn try_multi_get_executed_effects_digests_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
+        // A miss only means "not in this epoch", so it is not remembered.
+        self.executed_effects_digests_with_fallback(
+            digests,
+            |store, digests| store.multi_get_executed_effects_digests_in_epoch(epoch, digests),
+            false,
         )
     }
 
@@ -2016,61 +2314,125 @@ impl TransactionCacheRead for WritebackCache {
         &self,
         digests: &[TransactionEffectsDigest],
     ) -> IotaResult<Vec<Option<TransactionEffects>>> {
-        let digests_and_tickets: Vec<_> = digests
-            .iter()
-            .map(|d| (*d, self.cached.transaction_effects.get_ticket_for_read(d)))
-            .collect();
-        try_do_fallback_lookup(
-            &digests_and_tickets,
-            |(digest, _)| {
-                self.metrics
-                    .record_cache_request("transaction_effects", "uncommitted");
-                if let Some(effects) = self.dirty.transaction_effects.get(digest) {
-                    self.metrics
-                        .record_cache_hit("transaction_effects", "uncommitted");
-                    return Ok(CacheResult::Hit(Some(effects.clone())));
-                }
-                self.metrics
-                    .record_cache_miss("transaction_effects", "uncommitted");
-
-                self.metrics
-                    .record_cache_request("transaction_effects", "committed");
-                match self
-                    .cached
-                    .transaction_effects
-                    .get(digest)
-                    .map(|l| l.lock().clone())
-                {
-                    Some(PointCacheItem::Some(effects)) => {
-                        self.metrics
-                            .record_cache_hit("transaction_effects", "committed");
-                        Ok(CacheResult::Hit(Some((*effects).clone())))
-                    }
-                    Some(PointCacheItem::None) => Ok(CacheResult::NegativeHit),
-                    None => {
-                        self.metrics
-                            .record_cache_miss("transaction_effects", "committed");
-                        Ok(CacheResult::Miss)
-                    }
-                }
-            },
-            |remaining| {
-                let remaining_digests: Vec<_> = remaining.iter().map(|(d, _)| *d).collect();
-                let results = self
-                    .record_db_multi_get("transaction_effects", remaining.len())
-                    .multi_get_effects(remaining_digests.iter())
-                    .expect("db error");
-                for ((digest, ticket), result) in remaining.iter().zip(results.iter()) {
-                    if result.is_none() {
-                        self.cached
-                            .transaction_effects
-                            .insert(digest, None, *ticket)
-                            .ok();
-                    }
-                }
-                Ok(results)
-            },
+        self.effects_with_fallback(
+            digests,
+            |store, digests| store.multi_get_effects(digests.iter()),
+            true,
         )
+    }
+
+    #[instrument(level = "trace", skip_all)]
+    fn try_multi_get_effects_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionEffectsDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffects>>> {
+        // A miss only means "not in this epoch", so it is not remembered.
+        self.effects_with_fallback(
+            digests,
+            |store, digests| store.multi_get_effects_in_epoch(epoch, digests),
+            false,
+        )
+    }
+
+    /// Overrides the default so that a transaction whose effects digest is not
+    /// in memory is resolved by the store in one walk over the ledger buckets
+    /// instead of two.
+    ///
+    /// A transaction whose effects digest is in memory still goes through
+    /// [`Self::try_multi_get_effects`]: caching its absent effects under the
+    /// transaction digest would overwrite a `Some` entry with `None`, which
+    /// `MonotonicCache::insert` reports
+    /// as an invariant violation.
+    #[instrument(level = "trace", skip_all)]
+    fn try_multi_get_executed_effects(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffects>>> {
+        let mut results = vec![None; digests.len()];
+        let mut known_digest = Vec::with_capacity(digests.len());
+        let mut unknown_digest = Vec::with_capacity(digests.len());
+
+        for (index, digest) in digests.iter().enumerate() {
+            let ticket = self
+                .cached
+                .executed_effects_digests
+                .get_ticket_for_read(digest);
+            match self.executed_effects_digest_from_memory(digest) {
+                CacheResult::Hit(Some(effects_digest)) => {
+                    known_digest.push((index, effects_digest))
+                }
+                CacheResult::Hit(None) | CacheResult::NegativeHit => (),
+                CacheResult::Miss => unknown_digest.push((index, *digest, ticket)),
+            }
+        }
+
+        if !known_digest.is_empty() {
+            let effects_digests: Vec<_> = known_digest.iter().map(|(_, d)| *d).collect();
+            let effects = self.try_multi_get_effects(&effects_digests)?;
+            for ((index, _), effects) in known_digest.into_iter().zip(effects) {
+                results[index] = effects;
+            }
+        }
+
+        if !unknown_digest.is_empty() {
+            let tx_digests: Vec<_> = unknown_digest.iter().map(|(_, d, _)| *d).collect();
+            let effects = self
+                .record_db_multi_get("executed_effects", tx_digests.len())
+                .multi_get_executed_effects(&tx_digests)?;
+            for ((index, digest, ticket), effects) in unknown_digest.into_iter().zip(effects) {
+                if effects.is_none() {
+                    self.cached
+                        .executed_effects_digests
+                        .insert(&digest, None, ticket)
+                        .ok();
+                }
+                results[index] = effects;
+            }
+        }
+
+        Ok(results)
+    }
+
+    /// Overrides the default for the same reason as
+    /// [`Self::try_multi_get_executed_effects`]: effects already in the store
+    /// are read in one walk, and only unexecuted transactions are waited for.
+    ///
+    /// Reading before registering loses no wakeup, because the wait registers
+    /// its waiters before reading again.
+    fn try_notify_read_executed_effects<'a>(
+        &'a self,
+        task_name: &'static str,
+        digests: &'a [TransactionDigest],
+    ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffects>>> {
+        async move {
+            let mut results = self.try_multi_get_executed_effects(digests)?;
+            let pending: Vec<(usize, TransactionDigest)> = results
+                .iter()
+                .zip(digests)
+                .enumerate()
+                .filter(|(_, (effects, _))| effects.is_none())
+                .map(|(index, (_, digest))| (index, *digest))
+                .collect();
+
+            if !pending.is_empty() {
+                let pending_digests: Vec<_> = pending.iter().map(|(_, digest)| *digest).collect();
+                let effects_digests = self
+                    .try_notify_read_executed_effects_digests(task_name, &pending_digests)
+                    .await?;
+                let effects = self.try_multi_get_effects(&effects_digests)?;
+                for ((index, digest), effects) in pending.into_iter().zip(effects) {
+                    results[index] =
+                        Some(effects.ok_or(IotaError::TransactionEffectsNotFound { digest })?);
+                }
+            }
+
+            Ok(results
+                .into_iter()
+                .map(|effects| effects.expect("every digest is resolved or waited for"))
+                .collect())
+        }
+        .boxed()
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -2251,6 +2613,14 @@ impl ExecutionCacheReconfigAPI for WritebackCache {
         self.clear_state_end_of_epoch_impl(execution_guard)
     }
 
+    fn expire_epoch_markers(
+        &self,
+        new_epoch: EpochId,
+        execution_guard: &ExecutionLockWriteGuard<'_>,
+    ) -> IotaResult<()> {
+        self.store.expire_epoch_markers(new_epoch, execution_guard)
+    }
+
     fn try_expensive_check_iota_conservation(
         &self,
         old_epoch_store: &AuthorityPerEpochStore,
@@ -2265,6 +2635,25 @@ impl TestingAPI for WritebackCache {
     fn database_for_testing(&self) -> Arc<AuthorityStore> {
         self.store.clone()
     }
+
+    #[cfg(test)]
+    fn evict_committed_object_for_testing(&self, id: &ObjectId) {
+        self.cached.object_cache.invalidate(id);
+        self.object_by_id_cache.invalidate(id);
+    }
+
+    #[cfg(test)]
+    fn uncommitted_transactions_for_testing(&self) -> Vec<TransactionDigest> {
+        self.dirty
+            .pending_transaction_writes
+            .iter()
+            .map(|entry| *entry.key())
+            .collect()
+    }
+
+    fn clear_caches_for_testing(&self) {
+        self.clear_caches();
+    }
 }
 
 impl ObjectStore for WritebackCache {
@@ -2278,6 +2667,16 @@ impl ObjectStore for WritebackCache {
         version: iota_types::base_types::VersionNumber,
     ) -> StorageResult<Option<Object>> {
         ObjectCacheRead::try_get_object_by_key(self, object_id, version)
+            .map_err(StorageError::custom)
+    }
+
+    /// Forwarded so that cache misses are read from the database in one batch,
+    /// not one key at a time as the trait's default does.
+    fn try_multi_get_objects_by_key(
+        &self,
+        object_keys: &[ObjectKey],
+    ) -> StorageResult<Vec<Option<Object>>> {
+        ObjectCacheRead::try_multi_get_objects_by_key(self, object_keys)
             .map_err(StorageError::custom)
     }
 }
@@ -2357,12 +2756,6 @@ impl GlobalStateHashStore for WritebackCache {
         self.store.get_root_state_hash_for_epoch(epoch)
     }
 
-    fn get_root_state_hash_for_highest_epoch(
-        &self,
-    ) -> IotaResult<Option<(EpochId, (CheckpointSequenceNumber, GlobalStateHash))>> {
-        self.store.get_root_state_hash_for_highest_epoch()
-    }
-
     fn insert_state_hash_for_epoch(
         &self,
         epoch: EpochId,
@@ -2373,7 +2766,7 @@ impl GlobalStateHashStore for WritebackCache {
             .insert_state_hash_for_epoch(epoch, checkpoint_seq_num, acc)
     }
 
-    fn iter_live_object_set(&self) -> Box<dyn Iterator<Item = LiveObject> + '_> {
+    fn iter_live_object_set(&self) -> DbIterator<'_, LiveObject> {
         // The only time it is safe to iterate the live object set is at an epoch
         // boundary, at which point the db is consistent and the dirty cache is
         // empty. So this does read the cache
@@ -2387,13 +2780,17 @@ impl GlobalStateHashStore for WritebackCache {
     // A version of iter_live_object_set that reads the cache. Only use for testing.
     // If used on a live validator, can cause the server to block for as long as
     // it takes to iterate the entire live object set.
-    fn iter_cached_live_object_set_for_testing(&self) -> Box<dyn Iterator<Item = LiveObject> + '_> {
+    fn iter_cached_live_object_set_for_testing(&self) -> DbIterator<'_, LiveObject> {
         // hold iter until we are finished to prevent any concurrent inserts/deletes
         let iter = self.dirty.objects.iter();
         let mut dirty_objects = BTreeMap::new();
 
         // add everything from the store
         for obj in self.store.iter_live_object_set() {
+            let obj = match obj {
+                Ok(obj) => obj,
+                Err(err) => return Box::new(std::iter::once(Err(err))),
+            };
             dirty_objects.insert(obj.object_id(), obj);
         }
 
@@ -2423,7 +2820,7 @@ impl GlobalStateHashStore for WritebackCache {
             }
         }
 
-        Box::new(dirty_objects.into_values())
+        Box::new(dirty_objects.into_values().map(Ok))
     }
 }
 

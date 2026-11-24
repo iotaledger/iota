@@ -2,16 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_move_types::iota_framework::object::{ID, UID};
 use iota_sdk_types::{Identifier, ObjectId};
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    balance::Balance,
-    committee::EpochId,
-    error::IotaError,
-    id::{ID, UID},
-    object::Object,
-};
+use crate::{balance::Balance, committee::EpochId, error::IotaError, object::Object};
 
 pub const ADD_STAKE_MUL_COIN_FUN_NAME: Identifier =
     Identifier::from_static("request_add_stake_mul_coin");

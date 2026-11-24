@@ -4,7 +4,6 @@
 use iota_ledger::{Ledger, SignedTransaction};
 use iota_sdk::{IotaClient, types::crypto::PublicKey};
 use iota_sdk_types::{Address, Intent, SignatureScheme, Transaction};
-use tracing::warn;
 
 mod errors;
 pub use errors::LedgerSignerError;
@@ -47,19 +46,16 @@ impl LedgerSigner {
         Ok(public_key.public_key)
     }
 
+    /// With a client, the transaction's owned and immutable input objects are
+    /// sent to the device for clear signing, and signing fails if any of them
+    /// cannot be loaded. Without a client, the device blind-signs.
     pub async fn sign_transaction(
         &self,
         transaction: &Transaction,
         address: &Address,
     ) -> Result<SignedTransaction, LedgerSignerError> {
         let objects = if let Some(client) = &self.client {
-            match utils::load_objects_with_client(client, transaction).await {
-                Ok(objects) => objects,
-                Err(e) => {
-                    warn!("Failed to load objects: {e}. Falling back to blind-signing.");
-                    vec![]
-                }
-            }
+            utils::load_objects_with_client(client, transaction).await?
         } else {
             vec![]
         };

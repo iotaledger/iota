@@ -64,21 +64,31 @@ impl WatermarkCache {
     /// Gets the lowest checkpoint that is available for all specified tables.
     /// Returns `None` if no watermarks are available for any of the tables.
     pub fn get_lowest_available_cp_for_tables(&self, tables: &[CommitterTables]) -> Option<i64> {
-        let cache = self.inner.load();
-        tables
-            .iter()
-            .filter_map(|table| cache.get(table.as_ref()).map(|wm| wm.min_available_cp))
-            .max()
+        self.get_lowest_available_cp_and_tx_for_tables(tables)
+            .map(|(cp, _tx)| cp)
     }
 
     /// Gets the lowest transaction that is available for all specified tables.
     /// Returns `None` if no watermarks are available for any of the tables.
     pub fn get_lowest_available_tx_for_tables(&self, tables: &[CommitterTables]) -> Option<i64> {
+        self.get_lowest_available_cp_and_tx_for_tables(tables)
+            .map(|(_cp, tx)| tx)
+    }
+
+    /// Gets the lowest checkpoint and transaction that are available for all
+    /// specified tables, read from a single view of the cache.
+    ///
+    /// Returns `None` if no watermarks are available for any of the tables.
+    pub fn get_lowest_available_cp_and_tx_for_tables(
+        &self,
+        tables: &[CommitterTables],
+    ) -> Option<(i64, i64)> {
         let cache = self.inner.load();
         tables
             .iter()
-            .filter_map(|table| cache.get(table.as_ref()).map(|wm| wm.min_available_tx))
-            .max()
+            .filter_map(|table| cache.get(table.as_ref()))
+            .map(|watermark| (watermark.min_available_cp, watermark.min_available_tx))
+            .reduce(|(cp, tx), (next_cp, next_tx)| (cp.max(next_cp), tx.max(next_tx)))
     }
 
     /// Updates the cache with fresh watermarks from the database
@@ -112,11 +122,21 @@ impl WatermarkTask {
         }
     }
 
-    /// Starts the background task that updates watermarks
-    pub fn start(self, cancel: CancellationToken) {
+    /// Starts the background task that keeps the cache updated.
+    ///
+    /// The cache is filled once before the task is spawned, so that it is never
+    /// read empty: an empty cache is indistinguishable from one where nothing
+    /// has ever been ingested or pruned.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the first read of the watermarks from the database fails.
+    pub async fn start(self, cancel: CancellationToken) -> Result<(), IndexerError> {
+        self.update_watermarks().await?;
         spawn_monitored_task!(async move {
             self.run(cancel).await;
         });
+        Ok(())
     }
 
     /// Runs the watermark update loop

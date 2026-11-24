@@ -10,9 +10,8 @@ use iota_names::{
     IotaNamesNft, config::IotaNamesConfig, error::IotaNamesError, name::Name as NativeName,
     registry::NameRecord,
 };
-use iota_sdk_move_types::iota_framework::dynamic_field::Field;
+use iota_sdk_move_types::iota_framework::{dynamic_field::Field, object::UID};
 use iota_sdk_types::{Address, StructTag};
-use iota_types::id::UID;
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -32,14 +31,15 @@ use super::{
     owner::OwnerImpl,
     stake::StakedIota,
     string_input::impl_string_input,
-    transaction_block::{self, TransactionBlock, TransactionBlockFilter},
+    transaction_block::{
+        self, TransactionBlock, TransactionBlockConnection, TransactionBlockFilter,
+    },
     type_filter::ExactTypeFilter,
     uint53::UInt53,
 };
 use crate::{
     backward_view::consistent,
     config::DEFAULT_PAGE_SIZE,
-    connection::ScanConnection,
     data::{Db, DbConnection, QueryExecutor},
     error::Error,
     types::object::{ObjectOwner, StoredBackwardObject},
@@ -291,7 +291,7 @@ impl NameRegistration {
             deprecation = "`scanLimit` will be removed with v1.38, along with the support for combining complex filters."
         )]
         scan_limit: Option<u64>,
-    ) -> Result<ScanConnection<String, TransactionBlock>> {
+    ) -> Result<TransactionBlockConnection> {
         ObjectImpl(&self.super_.super_)
             .received_transaction_blocks(ctx, first, after, last, before, filter, scan_limit)
             .await

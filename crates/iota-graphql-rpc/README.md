@@ -148,19 +148,20 @@ Without `--fallback-kv-url` (the default), no fallback is performed and pruned d
 
 The remaining options tune batching, concurrency, and caching of the fallback requests:
 
-| Flag                                   | Env var                              | Default  | Description                                                  |
-| -------------------------------------- | ------------------------------------ | -------- | ------------------------------------------------------------ |
-| `--fallback-kv-url`                    | —                                    | _(none)_ | REST KV store URL. Enables the fallback when set.            |
-| `--fallback-kv-multi-fetch-batch-size` | `FALLBACK_KV_MULTI_FETCH_BATCH_SIZE` | `100`    | Maximum number of keys per batch request to the KV store.    |
-| `--fallback-kv-concurrent-fetches`     | `FALLBACK_KV_CONCURRENT_FETCHES`     | `10`     | Maximum number of concurrent batch requests to the KV store. |
-| `--fallback-kv-cache-size`             | `FALLBACK_KV_CACHE_SIZE`             | `100000` | Number of entries cached from the KV store.                  |
+| Flag                                    | Env var                               | Default    | Description                                                                           |
+| --------------------------------------- | ------------------------------------- | ---------- | ------------------------------------------------------------------------------------- |
+| `--fallback-kv-url`                     | —                                     | _(none)_   | REST KV store URL. Enables the fallback when set.                                     |
+| `--fallback-kv-multi-fetch-batch-size`  | `FALLBACK_KV_MULTI_FETCH_BATCH_SIZE`  | `100`      | Maximum number of keys per batch request to the KV store.                             |
+| `--fallback-kv-concurrent-fetches`      | `FALLBACK_KV_CONCURRENT_FETCHES`      | `10`       | Maximum number of concurrent batch requests to the KV store.                          |
+| `--fallback-kv-cache-size`              | `FALLBACK_KV_CACHE_SIZE`              | `100000`   | Number of entries cached from the KV store.                                           |
+| `--fallback-kv-max-response-size-bytes` | `FALLBACK_KV_MAX_RESPONSE_SIZE_BYTES` | `~ 134 MB` | Maximum size in bytes of a single response body accepted from the KV store (128 MiB). |
 
 ### Queries with fallback
 
 These queries use the fallback when the requested data has been pruned from Postgres:
 
 - Checkpoints: `checkpoint(id)` (by sequence number or digest), `checkpoints`, `Epoch.checkpoints`
-- Transactions by digest: `transactionBlock(digest)`, `transactionBlocksByDigests`
+- Transactions by digest: `transactionBlock(digest)`, `transactionsByDigests`
 - Transactions by filter: `transactionBlocks(filter: { atCheckpoint })` and `Checkpoint.transactionBlocks`; `transactionBlocks(filter: { affectedAddress })` and `Address.transactionBlocks(relation: AFFECTED)`; `transactionBlocks(filter: { transactionIds })`
 - Events of a transaction: `events(filter: { transactionDigest })`
 - Objects at a past version: `object(address, version)`, including dynamic fields resolved at a parent object's version

@@ -112,8 +112,42 @@ pub mod checked {
             self.gas_status
         }
 
+        /// Runs `f` with the gas left lowered to what `gas_budget` buys, when
+        /// given and that is not more, and gives the rest back once `f`
+        /// returns. Gas `f` uses stays used. Returns the result of `f` and
+        /// whether `gas_budget` bounded the gas `f` could use, also when it
+        /// buys exactly the gas left: then running out of gas in `f` means
+        /// running out of `gas_budget`, which more gas left would not change.
+        pub fn with_gas_limit<T>(
+            &mut self,
+            gas_budget: Option<u64>,
+            f: impl FnOnce(&mut Self) -> T,
+        ) -> (T, bool) {
+            let Some(gas_budget) = gas_budget else {
+                return (f(self), false);
+            };
+            let taken = self.move_gas_status_mut().limit_gas_left(gas_budget);
+            let result = f(self);
+            if let Some(taken) = taken {
+                self.move_gas_status_mut().add_gas_left(taken);
+            }
+            (result, taken.is_some())
+        }
+
         pub fn summary(&self) -> GasCostSummary {
             self.gas_status.summary()
+        }
+
+        /// Sets the first gas coin as the transaction's gas coin without merging
+        /// the other gas coins into it, for a transaction that charges nobody.
+        /// After this call, `gas_coin` returns its id, so the effects name it
+        /// as the gas object.
+        pub(crate) fn set_gas_coin_without_smashing(&mut self) {
+            self.smashed_gas_coin = self
+                .gas_coins
+                .first()
+                .map(|gas_coin| gas_coin.object_id)
+                .filter(|gas_coin_id| *gas_coin_id != ObjectId::ZERO);
         }
 
         // This function is called when the transaction is about to be executed.
@@ -360,5 +394,145 @@ pub mod checked {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_protocol_config::ProtocolConfig;
+    use iota_sdk_types::TransactionDigest;
+    use iota_types::{gas::IotaGasStatus, gas_model::units_types::Gas};
+    use move_binary_format::errors::PartialVMResult;
+    use move_core_types::{gas_algebra::InternalGas, vm_status::StatusCode};
+
+    use super::GasCharger;
+
+    const GAS_PRICE: u64 = 1000;
+
+    /// A metered charger with `units` gas units left at [`GAS_PRICE`].
+    fn gas_charger(units: u64) -> GasCharger {
+        let config = ProtocolConfig::get_for_max_version_UNSAFE();
+        let gas_status = IotaGasStatus::new(units * GAS_PRICE, GAS_PRICE, GAS_PRICE, &config)
+            .expect("the reference gas price is within the gas price bounds");
+        GasCharger::new(TransactionDigest::ZERO, vec![], gas_status, &config)
+    }
+
+    /// Charges `units` gas units.
+    fn charge(gas_charger: &mut GasCharger, units: u64) -> PartialVMResult<()> {
+        let gas: InternalGas = Gas::new(units).to_unit();
+        gas_charger.move_gas_status_mut().deduct_gas(gas)
+    }
+
+    fn remaining_gas(gas_charger: &GasCharger) -> Gas {
+        gas_charger.move_gas_status().remaining_gas()
+    }
+
+    /// Without a budget, `f` runs on all the gas left, and the gas is not
+    /// reported as bounded.
+    #[test]
+    fn with_gas_limit_runs_on_all_the_gas_left_without_a_budget() {
+        let mut gas_charger = gas_charger(100);
+
+        let (seen, bounded) = gas_charger.with_gas_limit(None, |gas_charger| {
+            let seen = remaining_gas(gas_charger);
+            charge(gas_charger, 10).expect("100 gas units cover 10");
+            seen
+        });
+
+        assert_eq!(seen, Gas::new(100));
+        assert!(!bounded);
+        assert_eq!(remaining_gas(&gas_charger), Gas::new(90));
+    }
+
+    /// With a budget below the gas left, `f` runs on what the budget buys, and
+    /// the rest is there again once it returns, less what `f` used.
+    #[test]
+    fn with_gas_limit_runs_on_a_budget_below_the_gas_left_and_gives_the_rest_back() {
+        let mut gas_charger = gas_charger(100);
+
+        let (seen, bounded) = gas_charger.with_gas_limit(Some(30 * GAS_PRICE), |gas_charger| {
+            let seen = remaining_gas(gas_charger);
+            charge(gas_charger, 10).expect("the limit covers 10 gas units");
+            seen
+        });
+
+        assert_eq!(seen, Gas::new(30));
+        assert!(bounded);
+        assert_eq!(remaining_gas(&gas_charger), Gas::new(90));
+        assert_eq!(gas_charger.move_gas_status().gas_used_pre_gas_price(), 10);
+    }
+
+    /// A budget that buys exactly the gas left bounds the gas `f` can use, as
+    /// a smaller one does, so the gas is reported as bounded.
+    #[test]
+    fn with_gas_limit_reports_a_budget_that_buys_exactly_the_gas_left_as_bounding() {
+        let mut gas_charger = gas_charger(100);
+
+        let (seen, bounded) = gas_charger.with_gas_limit(Some(100 * GAS_PRICE), |gas_charger| {
+            remaining_gas(gas_charger)
+        });
+
+        assert_eq!(seen, Gas::new(100));
+        assert!(bounded);
+        assert_eq!(remaining_gas(&gas_charger), Gas::new(100));
+    }
+
+    /// A budget that buys more than the gas left leaves the gas left as it is,
+    /// so the gas is not reported as bounded.
+    #[test]
+    fn with_gas_limit_ignores_a_budget_that_buys_more_than_the_gas_left() {
+        let mut gas_charger = gas_charger(100);
+
+        let (seen, bounded) = gas_charger.with_gas_limit(Some(101 * GAS_PRICE), |gas_charger| {
+            remaining_gas(gas_charger)
+        });
+
+        assert_eq!(seen, Gas::new(100));
+        assert!(!bounded);
+        assert_eq!(remaining_gas(&gas_charger), Gas::new(100));
+    }
+
+    /// When `f` runs out of the budget, the whole budget is used and the rest
+    /// is there again, though it would have covered the charge.
+    #[test]
+    fn with_gas_limit_uses_the_whole_budget_when_f_runs_out_of_it() {
+        let mut gas_charger = gas_charger(100);
+
+        let (result, bounded) =
+            gas_charger.with_gas_limit(Some(30 * GAS_PRICE), |gas_charger| charge(gas_charger, 31));
+
+        let error = result.expect_err("a charge above the limit must fail");
+        assert_eq!(error.major_status(), StatusCode::OUT_OF_GAS);
+        assert!(bounded);
+        assert_eq!(remaining_gas(&gas_charger), Gas::new(70));
+        assert_eq!(gas_charger.move_gas_status().gas_used_pre_gas_price(), 30);
+    }
+
+    /// With a budget below one gas unit, `f` has no gas, and the gas left is
+    /// all there again once it returns.
+    #[test]
+    fn with_gas_limit_leaves_no_gas_for_a_budget_below_one_gas_unit() {
+        let mut gas_charger = gas_charger(100);
+
+        let (result, bounded) =
+            gas_charger.with_gas_limit(Some(GAS_PRICE - 1), |gas_charger| charge(gas_charger, 1));
+
+        let error = result.expect_err("no gas must be left under the limit");
+        assert_eq!(error.major_status(), StatusCode::OUT_OF_GAS);
+        assert!(bounded);
+        assert_eq!(remaining_gas(&gas_charger), Gas::new(100));
+    }
+
+    /// An unmetered charger is not limited, so the gas is not reported as
+    /// bounded, not even by a budget of zero.
+    #[test]
+    fn with_gas_limit_does_not_bound_an_unmetered_charger() {
+        let mut gas_charger = GasCharger::new_unmetered(TransactionDigest::ZERO);
+
+        let (result, bounded) =
+            gas_charger.with_gas_limit(Some(0), |gas_charger| charge(gas_charger, 10));
+
+        result.expect("an unmetered charger charges nothing");
+        assert!(!bounded);
     }
 }

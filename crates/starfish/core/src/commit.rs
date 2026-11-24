@@ -16,22 +16,17 @@ use enum_dispatch::enum_dispatch;
 use fastcrypto::hash::{Digest, HashFunction as _};
 use serde::{Deserialize, Serialize};
 use starfish_config::{AuthorityIndex, DIGEST_LENGTH, DefaultHashFunction};
-use tracing::debug;
 
 use crate::{
     block_header::{
         BlockHeaderAPI, BlockRef, BlockTimestampMs, CommitmentVerifiedTransactions, Round,
         SERIALIZED_BLOCK_REF_BYTES, Slot, VerifiedBlockHeader, format_block_digests, uleb128_len,
     },
-    context::Context,
     error::{ConsensusError, ConsensusResult},
     leader_scoring::ReputationScores,
     misbehavior_store::MisbehaviorCounts,
     storage::Store,
-    transaction_ref::{
-        GenericTransactionRef, GenericTransactionRefAPI as _, SERIALIZED_TRANSACTION_REF_BYTES,
-        TransactionRef,
-    },
+    transaction_ref::{SERIALIZED_TRANSACTION_REF_BYTES, TransactionRef},
 };
 
 /// Index of a commit among all consensus commits.
@@ -48,13 +43,17 @@ pub(crate) const WAVE_LENGTH: Round = 3;
 pub(crate) type WaveNumber = u32;
 
 /// Upper bound on the BCS-serialized size of a [`Commit`] for a committee of
-/// `committee_size` authorities and a GC depth of `gc_depth` rounds.
+/// `committee_size` authorities and a GC depth of `gc_depth` rounds. It holds
+/// when no validator is Byzantine.
 ///
-/// `CommitV3` is the largest variant. Its two variable-length vectors span the
-/// committed sub-DAG, which garbage collection bounds to `gc_depth *
-/// committee_size` blocks (at most one block per authority per uncollected
-/// round); `committed_transactions` carries at most one [`TransactionRef`] per
-/// such block, and `reputation_scores_desc` at most one entry per authority.
+/// `CommitV3` is the largest variant. Its sub-DAG holds the leader and at most
+/// one block per authority in each of the `gc_depth` rounds below it.
+/// `committed_transactions` holds one [`TransactionRef`] per block whose
+/// acknowledgments reach a quorum in this commit, or that this commit
+/// traverses after its quorum was reached earlier; a block acknowledges blocks
+/// at most `gc_depth` rounds below it, so these span the `2 * gc_depth` rounds
+/// below the leader, plus the leader itself in an optimistic commit.
+/// `reputation_scores_desc` holds at most one entry per authority.
 ///
 /// Returns [`usize::MAX`] when `gc_depth` or `committee_size` is zero (GC
 /// disabled implies no finite sub-DAG bound), matching the convention that a
@@ -67,11 +66,16 @@ pub(crate) fn max_commit_bytes(committee_size: usize, gc_depth: usize) -> usize 
     // leader BlockRef (37) + is_optimistic (1).
     const FIXED_COMMIT_BYTES: usize = 1 + 4 + 32 + 8 + SERIALIZED_BLOCK_REF_BYTES + 1;
 
-    let max_subdag_blocks = gc_depth.saturating_mul(committee_size);
+    let max_subdag_blocks = gc_depth.saturating_mul(committee_size).saturating_add(1);
+    let max_committed_transactions = gc_depth
+        .saturating_mul(2)
+        .saturating_mul(committee_size)
+        .saturating_add(1);
     let block_headers = uleb128_len(max_subdag_blocks)
         .saturating_add(max_subdag_blocks.saturating_mul(SERIALIZED_BLOCK_REF_BYTES));
-    let committed_transactions = uleb128_len(max_subdag_blocks)
-        .saturating_add(max_subdag_blocks.saturating_mul(SERIALIZED_TRANSACTION_REF_BYTES));
+    let committed_transactions = uleb128_len(max_committed_transactions).saturating_add(
+        max_committed_transactions.saturating_mul(SERIALIZED_TRANSACTION_REF_BYTES),
+    );
     // reputation_scores_desc: Vec<(AuthorityIndex (1), u64 (8))>.
     let reputation_scores =
         uleb128_len(committee_size).saturating_add(committee_size.saturating_mul(1 + 8));
@@ -105,66 +109,26 @@ pub(crate) enum Commit {
 }
 
 impl Commit {
-    /// Create a new commit. The variant (V2 or V3) is determined by the
-    /// consensus_starfish_speed protocol flag.
     pub(crate) fn new(
-        context: &Arc<Context>,
         index: CommitIndex,
         previous_digest: CommitDigest,
         timestamp_ms: BlockTimestampMs,
         leader: BlockRef,
         blocks: Vec<BlockRef>,
-        committed_transactions: Vec<GenericTransactionRef>,
+        committed_transactions: Vec<TransactionRef>,
         reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
         is_optimistic: bool,
     ) -> Self {
-        if context.protocol_config.consensus_starfish_speed() {
-            debug!("Creating CommitV3 as consensus_starfish_speed is enabled");
-            // consensus_starfish_speed implies consensus_fast_commit_sync (asserted in
-            // protocol config), so all committed transactions are TransactionRefs.
-            let transaction_refs: Vec<TransactionRef> = committed_transactions
-                .into_iter()
-                .map(|gen_ref| match gen_ref {
-                    GenericTransactionRef::TransactionRef(tr) => tr,
-                    GenericTransactionRef::BlockRef(_) => {
-                        panic!("Expected TransactionRef when consensus_starfish_speed is enabled")
-                    }
-                })
-                .collect();
-
-            Commit::V3(CommitV3 {
-                index,
-                previous_digest,
-                timestamp_ms,
-                leader,
-                block_headers: blocks,
-                committed_transactions: transaction_refs,
-                reputation_scores_desc,
-                is_optimistic,
-            })
-        } else {
-            debug!("Creating CommitV2");
-            // Extract TransactionRefs from GenericTransactionRef
-            let transaction_refs: Vec<TransactionRef> = committed_transactions
-                .into_iter()
-                .map(|gen_ref| match gen_ref {
-                    GenericTransactionRef::TransactionRef(tr) => tr,
-                    GenericTransactionRef::BlockRef(_) => {
-                        panic!("Expected TransactionRef")
-                    }
-                })
-                .collect();
-
-            Commit::V2(CommitV2 {
-                index,
-                previous_digest,
-                timestamp_ms,
-                leader,
-                block_headers: blocks,
-                committed_transactions: transaction_refs,
-                reputation_scores_desc,
-            })
-        }
+        Commit::V3(CommitV3 {
+            index,
+            previous_digest,
+            timestamp_ms,
+            leader,
+            block_headers: blocks,
+            committed_transactions,
+            reputation_scores_desc,
+            is_optimistic,
+        })
     }
 
     pub(crate) fn serialize(&self) -> Result<Bytes, bcs::Error> {
@@ -182,7 +146,7 @@ pub(crate) trait CommitAPI {
     fn timestamp_ms(&self) -> BlockTimestampMs;
     fn leader(&self) -> BlockRef;
     fn block_headers(&self) -> &[BlockRef];
-    fn committed_transactions(&self) -> Vec<GenericTransactionRef>;
+    fn committed_transactions(&self) -> &[TransactionRef];
     fn reputation_scores(&self) -> &[(AuthorityIndex, u64)];
     fn is_optimistic(&self) -> bool;
 }
@@ -236,11 +200,10 @@ impl CommitAPI for CommitV1 {
         &self.blocks
     }
 
-    fn committed_transactions(&self) -> Vec<GenericTransactionRef> {
-        self.committed_transactions
-            .iter()
-            .map(|b| GenericTransactionRef::BlockRef(*b))
-            .collect()
+    fn committed_transactions(&self) -> &[TransactionRef] {
+        // CommitV1 refers to transactions by block ref only; V1 commits are
+        // never created and are rejected when received.
+        &[]
     }
 
     fn reputation_scores(&self) -> &[(AuthorityIndex, u64)] {
@@ -306,11 +269,8 @@ impl CommitAPI for CommitV2 {
         &self.block_headers
     }
 
-    fn committed_transactions(&self) -> Vec<GenericTransactionRef> {
-        self.committed_transactions
-            .iter()
-            .map(|t| GenericTransactionRef::TransactionRef(*t))
-            .collect()
+    fn committed_transactions(&self) -> &[TransactionRef] {
+        &self.committed_transactions
     }
 
     fn reputation_scores(&self) -> &[(AuthorityIndex, u64)] {
@@ -378,11 +338,8 @@ impl CommitAPI for CommitV3 {
         &self.block_headers
     }
 
-    fn committed_transactions(&self) -> Vec<GenericTransactionRef> {
-        self.committed_transactions
-            .iter()
-            .map(|t| GenericTransactionRef::TransactionRef(*t))
-            .collect()
+    fn committed_transactions(&self) -> &[TransactionRef] {
+        &self.committed_transactions
     }
 
     fn reputation_scores(&self) -> &[(AuthorityIndex, u64)] {
@@ -420,16 +377,14 @@ impl TrustedCommit {
 
     #[cfg(test)]
     pub(crate) fn new_for_test(
-        context: &Arc<Context>,
         index: CommitIndex,
         previous_digest: CommitDigest,
         timestamp_ms: BlockTimestampMs,
         leader: BlockRef,
         blocks: Vec<BlockRef>,
-        committed_transactions: Vec<GenericTransactionRef>,
+        committed_transactions: Vec<TransactionRef>,
     ) -> Self {
         let commit = Commit::new(
-            context,
             index,
             previous_digest,
             timestamp_ms,
@@ -744,7 +699,7 @@ impl CommittedSubDag {
             &self
                 .transactions
                 .iter()
-                .map(|t| GenericTransactionRef::TransactionRef(t.transaction_ref()))
+                .map(|t| t.transaction_ref())
                 .collect::<Vec<_>>(),
         )
     }
@@ -797,7 +752,7 @@ pub struct PendingSubDag {
     pub base: SubDagBase,
     /// References to blocks whose transactions were committed as part of this
     /// SubDag.
-    pub committed_transaction_refs: Vec<GenericTransactionRef>,
+    pub committed_transaction_refs: Vec<TransactionRef>,
 }
 
 impl PendingSubDag {
@@ -806,7 +761,7 @@ impl PendingSubDag {
         leader: BlockRef,
         headers: Vec<VerifiedBlockHeader>,
         committed_header_refs: Vec<BlockRef>,
-        committed_transaction_refs: Vec<GenericTransactionRef>,
+        committed_transaction_refs: Vec<TransactionRef>,
         timestamp_ms: BlockTimestampMs,
         commit_ref: CommitRef,
         reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
@@ -901,22 +856,22 @@ pub(crate) fn load_pending_subdag_from_store(
         leader_block_ref,
         block_headers,
         commit.block_headers().to_vec(),
-        commit.committed_transactions(),
+        commit.committed_transactions().to_vec(),
         commit.timestamp_ms(),
         commit.reference(),
         reputation_scores_desc,
     ))
 }
 
-fn format_transaction_ref_digests(transaction_refs: &[GenericTransactionRef]) -> String {
+fn format_transaction_ref_digests(transaction_refs: &[TransactionRef]) -> String {
     let mut result = String::new();
     for (idx, block) in transaction_refs.iter().enumerate() {
         if idx > 0 {
             result.push_str(", ");
         }
-        result.push_str(&block.digest().to_string());
+        result.push_str(&Digest::<DIGEST_LENGTH>::from(block.transactions_commitment).to_string());
         result.push('@');
-        result.push_str(&block.round().to_string());
+        result.push_str(&block.round.to_string());
     }
     result
 }
@@ -950,17 +905,13 @@ pub(crate) enum Decision {
 ///
 /// `Undecided` is none of these: the slot has no commit-vs-skip decision yet.
 ///
-/// `Commit(_, Some(Optimistic), strong_voters)` carries the r+1 authorities
+/// `Commit(_, Optimistic, strong_voters)` carries the r+1 authorities
 /// whose strong votes attest data availability for the leader and its
 /// acknowledgments; the linearizer feeds them to the per-ref ack tracker.
 /// Empty for every other case.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum LeaderStatus {
-    Commit(
-        VerifiedBlockHeader,
-        Option<CommitMetastate>,
-        Vec<AuthorityIndex>,
-    ),
+    Commit(VerifiedBlockHeader, CommitMetastate, Vec<AuthorityIndex>),
     Skip(Slot),
     Undecided(Slot),
 }
@@ -988,7 +939,7 @@ impl LeaderStatus {
     /// yet resolved; `Undecided` is neither.
     pub(crate) fn is_resolved(&self) -> bool {
         match self {
-            Self::Commit(_, Some(CommitMetastate::Pending), _) => false,
+            Self::Commit(_, CommitMetastate::Pending, _) => false,
             Self::Commit(..) | Self::Skip(_) => true,
             Self::Undecided(_) => false,
         }
@@ -1008,8 +959,7 @@ impl LeaderStatus {
 impl Display for LeaderStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Commit(block, None, _) => write!(f, "Commit({})", block.reference()),
-            Self::Commit(block, Some(metastate), _) => {
+            Self::Commit(block, metastate, _) => {
                 write!(f, "Commit({},{metastate})", block.reference())
             }
             Self::Skip(slot) => write!(f, "Skip({slot})"),
@@ -1021,11 +971,7 @@ impl Display for LeaderStatus {
 /// Decision of each leader slot.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum DecidedLeader {
-    Commit(
-        VerifiedBlockHeader,
-        Option<CommitMetastate>,
-        Vec<AuthorityIndex>,
-    ),
+    Commit(VerifiedBlockHeader, CommitMetastate, Vec<AuthorityIndex>),
     Skip(Slot),
 }
 
@@ -1042,11 +988,7 @@ impl DecidedLeader {
     // strong-voter authority set. Returns None for Skip.
     pub(crate) fn into_committed_block(
         self,
-    ) -> Option<(
-        VerifiedBlockHeader,
-        Option<CommitMetastate>,
-        Vec<AuthorityIndex>,
-    )> {
+    ) -> Option<(VerifiedBlockHeader, CommitMetastate, Vec<AuthorityIndex>)> {
         match self {
             Self::Commit(block, metastate, strong_voters) => {
                 Some((block, metastate, strong_voters))
@@ -1075,8 +1017,7 @@ impl DecidedLeader {
 impl Display for DecidedLeader {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Commit(block, None, _) => write!(f, "Commit({})", block.reference()),
-            Self::Commit(block, Some(metastate), _) => {
+            Self::Commit(block, metastate, _) => {
                 write!(f, "Commit({},{metastate})", block.reference())
             }
             Self::Skip(slot) => write!(f, "Skip({slot})"),
@@ -1109,17 +1050,16 @@ impl Display for CommitMetastate {
     }
 }
 
-/// Test helper: pair each leader with `None` metastate and an empty
+/// Test helper: pair each leader with `Standard` metastate and an empty
 /// strong-voter set.
 #[cfg(test)]
-pub(crate) fn with_no_metastate(
+pub(crate) fn with_standard_metastate(
     blocks: Vec<VerifiedBlockHeader>,
-) -> Vec<(
-    VerifiedBlockHeader,
-    Option<CommitMetastate>,
-    Vec<AuthorityIndex>,
-)> {
-    blocks.into_iter().map(|b| (b, None, Vec::new())).collect()
+) -> Vec<(VerifiedBlockHeader, CommitMetastate, Vec<AuthorityIndex>)> {
+    blocks
+        .into_iter()
+        .map(|b| (b, CommitMetastate::Standard, Vec::new()))
+        .collect()
 }
 
 /// Per-commit properties that can be regenerated from past values, and do not
@@ -1227,23 +1167,22 @@ mod tests {
         context::Context,
         encoder::create_encoder,
         storage::{Store, WriteBatch, mem_store::MemStore},
-        transaction_ref::{TransactionRef, convert_block_refs_to_generic_transaction_refs},
+        transaction_ref::{TransactionRef, convert_block_refs_to_transaction_refs},
     };
 
     /// Pins the `CommitV3` wire layout that `max_commit_bytes` is derived from:
-    /// a commit whose sub-DAG vectors are filled to the GC bound
-    /// (`gc_depth * committee_size`) with one reputation score per authority
-    /// must serialize to exactly the computed bound. Also checks that a zero GC
-    /// depth or committee size disables the bound.
+    /// a commit holding the leader and `gc_depth * committee_size` blocks,
+    /// `2 * gc_depth * committee_size + 1` transaction refs and one reputation
+    /// score per authority must serialize to exactly the computed bound. Also
+    /// checks that a zero GC depth or committee size disables the bound.
     #[tokio::test]
     async fn max_commit_bytes_bounds_maximal_commit() {
         let n = 4usize;
         let gc_depth = 5usize;
-        let max_subdag_blocks = gc_depth * n;
 
         let commit = Commit::V3(CommitV3 {
-            block_headers: vec![BlockRef::MAX; max_subdag_blocks],
-            committed_transactions: vec![TransactionRef::default(); max_subdag_blocks],
+            block_headers: vec![BlockRef::MAX; gc_depth * n + 1],
+            committed_transactions: vec![TransactionRef::default(); 2 * gc_depth * n + 1],
             reputation_scores_desc: vec![(AuthorityIndex::MAX, u64::MAX); n],
             ..Default::default()
         });
@@ -1328,7 +1267,7 @@ mod tests {
                 // only write one block for the final round, which is the leader
                 // of the committed subdag.
                 if round == first_wave_rounds {
-                    leader = Some(block.clone());
+                    leader = Some(block);
                     break;
                 }
             }
@@ -1339,18 +1278,17 @@ mod tests {
         let leader_ref = leader_block.reference();
         let commit_index = 1;
 
-        // Convert BlockRefs to GenericTransactionRefs.
-        let generic_committed_transactions =
-            convert_block_refs_to_generic_transaction_refs(store.as_ref(), &first_round_references);
+        // Convert BlockRefs to TransactionRefs.
+        let committed_transactions =
+            convert_block_refs_to_transaction_refs(store.as_ref(), &first_round_references);
 
         let commit = TrustedCommit::new_for_test(
-            &context,
             commit_index,
             CommitDigest::MIN,
             leader_block.timestamp_ms(),
             leader_ref,
             blocks.clone(),
-            generic_committed_transactions.clone(),
+            committed_transactions.clone(),
         );
 
         let subdag =
@@ -1362,10 +1300,7 @@ mod tests {
             (num_authorities as u32 * WAVE_LENGTH) as usize + 1
         );
         assert_eq!(subdag.commit_ref, commit.reference());
-        assert_eq!(
-            subdag.committed_transaction_refs,
-            generic_committed_transactions
-        );
+        assert_eq!(subdag.committed_transaction_refs, committed_transactions);
         assert_eq!(subdag.reputation_scores_desc, vec![]);
         let transactions = store
             .read_verified_transactions(&subdag.committed_transaction_refs)
@@ -1422,7 +1357,7 @@ mod tests {
                 // only write one block for the final round, which is the leader
                 // of the committed subdag.
                 if round == first_wave_rounds {
-                    leader = Some(block.clone());
+                    leader = Some(block);
                     break;
                 }
             }
@@ -1433,18 +1368,17 @@ mod tests {
         let leader_ref = leader_block.reference();
         let commit_index = 1;
 
-        // Convert BlockRefs to GenericTransactionRefs.
-        let generic_committed_transactions =
-            convert_block_refs_to_generic_transaction_refs(store.as_ref(), &first_round_references);
+        // Convert BlockRefs to TransactionRefs.
+        let committed_transactions =
+            convert_block_refs_to_transaction_refs(store.as_ref(), &first_round_references);
 
         let commit = TrustedCommit::new_for_test(
-            &context,
             commit_index,
             CommitDigest::MIN,
             leader_block.timestamp_ms(),
             leader_ref,
             blocks.clone(),
-            generic_committed_transactions.clone(),
+            committed_transactions.clone(),
         );
 
         let pending_subdag =
@@ -1458,7 +1392,7 @@ mod tests {
         assert_eq!(pending_subdag.commit_ref, commit.reference());
         assert_eq!(
             pending_subdag.committed_transaction_refs,
-            generic_committed_transactions
+            committed_transactions
         );
         assert_eq!(pending_subdag.reputation_scores_desc, vec![]);
     }

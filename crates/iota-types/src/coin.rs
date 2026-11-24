@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_move_types::iota_framework::object::UID;
 use iota_sdk_types::{Identifier, ObjectData, ObjectId, StructTag, TypeTag};
 use move_core_types::{
     account_address::AccountAddress,
@@ -14,8 +15,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     balance::{Balance, Supply},
     error::{ExecutionError, ExecutionErrorKind, IotaError},
-    id::UID,
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
+    move_layout::MoveLayout,
     object::Object,
 };
 

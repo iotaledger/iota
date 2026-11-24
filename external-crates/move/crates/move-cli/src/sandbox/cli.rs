@@ -112,6 +112,11 @@ pub enum SandboxCommand {
         /// disk.
         #[clap(long = "dry-run", short = 'n')]
         dry_run: bool,
+        /// If set, traces execution and writes compressed trace files to the
+        /// `traces/` directory. Requires the binary to be compiled with
+        /// the `tracing` feature.
+        #[clap(long = "trace")]
+        trace: bool,
     },
     /// Run expected value tests using the given batch file.
     #[clap(name = "exp-test")]
@@ -243,6 +248,7 @@ impl SandboxCommand {
                 type_args,
                 gas_budget,
                 dry_run,
+                trace,
             } => {
                 let context =
                     PackageContext::new(&move_args.package_path, &move_args.build_config)?;
@@ -260,6 +266,7 @@ impl SandboxCommand {
                     *gas_budget,
                     *dry_run,
                     move_args.verbose,
+                    *trace,
                 )
             }
             SandboxCommand::Test {

@@ -3,9 +3,9 @@
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use iota_sdk_move_types::iota_framework::{dynamic_field::Field, vec_map::VecMap};
+use iota_sdk_move_types::iota_framework::{dynamic_field::Field, object::ID, vec_map::VecMap};
 use iota_sdk_types::{Address, MoveStruct, ObjectId};
-use iota_types::{id::ID, object::Object};
+use iota_types::object::Object;
 use serde::{Deserialize, Serialize};
 
 use crate::{constants::IOTA_NAMES_LEAF_EXPIRATION_TIMESTAMP, error::IotaNamesError, name::Name};
@@ -117,7 +117,7 @@ mod tests {
         let system_time: u64 = 100;
 
         let mut name = NameRecord {
-            nft_id: iota_types::id::ID::new(ObjectId::random()),
+            nft_id: ID::new(ObjectId::random()),
             data: VecMap { contents: vec![] },
             target_address: Some(Address::random()),
             expiration_timestamp_ms: system_time + 10,

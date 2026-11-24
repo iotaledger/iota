@@ -4,7 +4,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use async_graphql::{connection::Connection, dataloader::Loader, *};
+use async_graphql::{dataloader::Loader, *};
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, SelectableHelper};
 use fastcrypto::encoding::{Base58, Encoding};
 use iota_indexer::{models::epoch::QueryableEpochInfo, schema::epochs};
@@ -12,19 +12,21 @@ use iota_sdk_types::CheckpointCommitment as EpochCommitment;
 
 use crate::{
     config::DEFAULT_PAGE_SIZE,
-    connection::ScanConnection,
     context_data::db_data_provider::PgManager,
     data::{DataLoader, Db, DbConnection, QueryExecutor},
     error::Error,
     server::watermark_task::Watermark,
     types::{
         big_int::BigInt,
-        checkpoint::{self, Checkpoint},
+        chain_identifier::ChainIdentifierCache,
+        checkpoint::{self, Checkpoint, CheckpointConnection},
         cursor::Page,
         date_time::DateTime,
         protocol_config::ProtocolConfigs,
         system_state_summary::{NativeStateValidatorInfo, SystemStateSummary},
-        transaction_block::{self, TransactionBlock, TransactionBlockFilter},
+        transaction_block::{
+            self, TransactionBlock, TransactionBlockConnection, TransactionBlockFilter,
+        },
         uint53::UInt53,
         validator_set::ValidatorSet,
     },
@@ -173,10 +175,18 @@ impl Epoch {
 
     #[graphql(flatten)]
     async fn system_state_summary(&self, ctx: &Context<'_>) -> Result<SystemStateSummary> {
-        let state = ctx
+        let mut state = ctx
             .data_unchecked::<PgManager>()
             .fetch_iota_system_state(Some(self.stored.epoch as u64))
             .await?;
+        let chain = ctx
+            .data_unchecked::<ChainIdentifierCache>()
+            .read(ctx.data_unchecked(), ctx.data_unchecked())
+            .await
+            .extend()?
+            .into_inner()
+            .chain();
+        state.apply_protocol_config_validator_parameters(chain);
         Ok(SystemStateSummary { native: state })
     }
 
@@ -209,7 +219,7 @@ impl Epoch {
         after: Option<checkpoint::Cursor>,
         last: Option<u64>,
         before: Option<checkpoint::Cursor>,
-    ) -> Result<Connection<String, Checkpoint>> {
+    ) -> Result<CheckpointConnection> {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
         let epoch = self.stored.epoch as u64;
         Checkpoint::paginate(
@@ -265,7 +275,7 @@ impl Epoch {
             deprecation = "`scanLimit` will be removed with v1.38, along with the support for combining complex filters."
         )]
         scan_limit: Option<u64>,
-    ) -> Result<ScanConnection<String, TransactionBlock>> {
+    ) -> Result<TransactionBlockConnection> {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
 
         let Some(filter) = filter
@@ -285,7 +295,7 @@ impl Epoch {
                 ..Default::default()
             })
         else {
-            return Ok(ScanConnection::new(false, false));
+            return Ok(TransactionBlockConnection::new(false, false));
         };
 
         TransactionBlock::paginate(ctx, page, filter, self.checkpoint_viewed_at, scan_limit)

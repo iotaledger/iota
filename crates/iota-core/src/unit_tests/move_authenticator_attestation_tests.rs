@@ -1,0 +1,758 @@
+// Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+//! Direct-execution tests for the attestation misbehavior routing: a
+//! Move-authentication failure that reaches execution must resolve to a
+//! failure effect instead of panicking the validator, and the object versions
+//! the attestor recorded decide who is charged for it.
+
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
+
+use futures::future::BoxFuture;
+use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{
+    Address, Command, ExecutionError, ExecutionStatus, MoveAuthenticator, MoveAuthenticatorV1,
+    ObjectId, Owner, SharedObjectReference, Transaction, TransactionDigest, TransactionEffects,
+    TransactionEffectsDigest, TransactionEvents, UserSignature, Version, VersionAssignment,
+};
+use iota_types::{
+    attestation::AttestationRecord,
+    base_types::EpochId,
+    crypto::{AccountPrivateKey, get_key_pair},
+    effects::TransactionEffectsAPI,
+    error::IotaResult,
+    executable_transaction::VerifiedExecutableTransaction,
+    object::Object,
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    transaction::{
+        CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope,
+        VerifiedTransaction,
+    },
+    utils::to_sender_signed_transaction,
+};
+
+use super::attestation_verdict::{AttestedObjectVersions, SupersededAt};
+use crate::{
+    authority::{
+        ExecutionEnv, authority_per_epoch_store::ExecutionIndices,
+        test_authority_builder::TestAuthorityBuilder,
+    },
+    execution_cache::TransactionCacheRead,
+};
+
+/// A transaction whose Move authenticator points at an object that is not an
+/// abstract account — here an immutable object with no
+/// authenticator-function-ref field — fails authentication structurally at
+/// execution (`AuthenticatorFunctionNotFound`). Under the attestation flow this
+/// must resolve to a failure effect (the no-charge effect, validator does not
+/// panic) rather than the previous `.expect()` halt, generalizing iota#12375.
+/// With no attestation to judge, the failure is the issuer's and is reported
+/// as a Move authentication error whose cause is the unresolved function.
+///
+/// The transaction is executed directly, bypassing the attestor's own
+/// authentication check, to reproduce a transaction that reached execution
+/// despite failing authentication.
+#[tokio::test]
+async fn structural_move_auth_failure_resolves_to_failure_effect() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(true);
+        config.set_checkpoint_summary_version_specific_data_for_testing(2);
+        config
+    });
+
+    // The object being authenticated is a plain shared object without an
+    // authenticator function field, so `check_move_account` fails with
+    // `MoveAuthenticatorNotFound` at execution. The transaction's sender is
+    // the object's id, since `verify_claims` requires the author to equal the
+    // authenticator's address.
+    let account = Object::shared_for_testing();
+    let account_id = account.id();
+    let sender: Address = account_id.into();
+
+    let transfer_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let objects = vec![
+        account,
+        Object::with_id_owner_for_testing(transfer_id, sender),
+        Object::with_id_owner_for_testing(gas_id, sender),
+    ];
+    let authority = TestAuthorityBuilder::new()
+        .with_starting_objects(&objects)
+        .build()
+        .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let account_ref = authority.get_object(&account_id).unwrap().object_ref();
+    let transfer_ref = authority.get_object(&transfer_id).unwrap().object_ref();
+    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
+
+    // A transfer body that never runs: authentication fails first.
+    let (recipient, _): (_, AccountPrivateKey) = get_key_pair();
+    let tx_data = Transaction::new_transfer(
+        recipient,
+        transfer_ref,
+        sender,
+        gas_ref,
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER * 10,
+        rgp,
+    );
+
+    // Sign with a Move authenticator over the shared object. `verify_claims`
+    // accepts it (author == authenticator address); the account check fails at
+    // execution.
+    let authenticator =
+        UserSignature::MoveAuthenticator(MoveAuthenticator::V1(MoveAuthenticatorV1::new(
+            vec![],
+            vec![],
+            SharedObjectReference::new(account_ref.object_id, account_ref.version, false),
+        )));
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![authenticator]);
+
+    let verified_tx = epoch_store.verify_transaction(tx).unwrap();
+    let executable =
+        VerifiedExecutableTransaction::new_from_checkpoint(verified_tx, epoch_store.epoch(), 1);
+
+    // The shared object is read at the version consensus would assign.
+    let execution_env = ExecutionEnv::new().with_assigned_versions(vec![VersionAssignment::new(
+        account_id,
+        account_ref.version,
+    )]);
+    epoch_store.assign_to_a_new_commit_for_testing(&[executable.key()]);
+    let (effects, _execution_error) = authority
+        .try_execute_immediately(&executable, execution_env, &epoch_store)
+        .unwrap();
+
+    let ExecutionStatus::Failure { error, .. } = effects.status() else {
+        panic!("expected an execution failure, got {:?}", effects.status());
+    };
+    assert!(
+        matches!(
+            error,
+            ExecutionError::MoveAuthentication { error }
+                if matches!(**error, ExecutionError::AuthenticatorFunctionNotFound { .. })
+        ),
+        "an unattested structural Move-authentication failure must be the issuer's, got {error:?}"
+    );
+    assert_eq!(
+        effects.gas_cost_summary().gas_used(),
+        0,
+        "a failed authentication of the gas owner is not charged under deterministic validation"
+    );
+}
+
+/// Deciding whether an attested version can be re-run at comes down to the
+/// commit it stopped being current at. Exercised against a real store, with the
+/// supersession committed so the answer comes from the database.
+#[tokio::test]
+async fn attested_object_version_state_follows_the_superseding_transaction() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(true);
+        config.set_checkpoint_summary_version_specific_data_for_testing(2);
+        config
+    });
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let (recipient, _): (_, AccountPrivateKey) = get_key_pair();
+
+    let attested_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    // The gas coin starts above the object, so the transfer's output version
+    // skips the ones in between.
+    let objects = vec![
+        Object::with_id_owner_for_testing(attested_id, sender),
+        Object::with_id_owner_version_for_testing(
+            gas_id,
+            Version::from_u64(10),
+            Owner::Address(sender),
+        ),
+    ];
+    let authority = TestAuthorityBuilder::new()
+        .with_starting_objects(&objects)
+        .build()
+        .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let epoch = epoch_store.epoch();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let attested_ref = authority.get_object(&attested_id).unwrap().object_ref();
+    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
+
+    // Transferring the object writes a new version of it, so the attested
+    // version stops being current and gets recorded as superseded this epoch.
+    let tx_data = Transaction::new_transfer(
+        recipient,
+        attested_ref,
+        sender,
+        gas_ref,
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER * 10,
+        rgp,
+    );
+    let tx = to_sender_signed_transaction(tx_data, &sender_key);
+    let verified_tx = epoch_store.verify_transaction(tx).unwrap();
+    let executable = VerifiedExecutableTransaction::new_from_checkpoint(verified_tx, epoch, 1);
+    epoch_store.assign_to_a_new_commit_for_testing(&[executable.key()]);
+    let commit = epoch_store
+        .handler_object_state_for_testing()
+        .commit_index_of(&executable.key())
+        .expect("the test assigned the transaction a commit");
+    let (effects, _execution_error) = authority
+        .try_execute_immediately(&executable, ExecutionEnv::new(), &epoch_store)
+        .unwrap();
+    assert!(
+        effects.status().is_success(),
+        "the transfer must succeed, got {:?}",
+        effects.status()
+    );
+
+    // Commit so the lookup is served from the database rather than the cache.
+    let digests = [*effects.transaction_digest()];
+    let cache_commit = authority.get_cache_commit();
+    let batch = cache_commit.build_db_batch(epoch, 0, &digests);
+    cache_commit.commit_transaction_outputs(epoch, batch, &digests);
+
+    let current_version = authority.get_object(&attested_id).unwrap().version();
+    assert_ne!(
+        current_version,
+        attested_ref.version(),
+        "the transfer must have superseded the attested version"
+    );
+
+    let versions = AttestedObjectVersions {
+        object_cache: authority.get_object_cache_reader().as_ref(),
+        transaction_cache: authority.get_transaction_cache_reader().as_ref(),
+        epoch_store: &epoch_store,
+        sequenced_at: ExecutionIndices::default(),
+        window: Some(u64::MAX),
+    };
+
+    assert_eq!(
+        versions.superseded_within_window(&attested_id, current_version),
+        None,
+        "the version the object is still at has not been superseded"
+    );
+    assert_eq!(
+        versions.superseded_within_window(&attested_id, attested_ref.version()),
+        Some(SupersededAt::Commit(commit)),
+        "a version this epoch superseded carries the superseding commit"
+    );
+    assert_eq!(
+        AttestedObjectVersions {
+            window: None,
+            ..versions
+        }
+        .superseded_within_window(&attested_id, attested_ref.version()),
+        Some(SupersededAt::Epoch),
+        "without a window, only the epoch is asked"
+    );
+    assert_eq!(
+        versions.superseded_within_window(&ObjectId::random(), attested_ref.version()),
+        None,
+        "an unknown object has no version above the recorded one"
+    );
+    let never_a_version = Version::from_u64(attested_ref.version().as_u64() + 1);
+    assert!(
+        never_a_version < current_version,
+        "the transfer must have skipped a version"
+    );
+    assert_eq!(
+        versions.superseded_within_window(&attested_id, never_a_version),
+        None,
+        "a version the object never had was not superseded"
+    );
+
+    // With a window, the supersession counts only for a transaction sequenced
+    // at most that many commits after it.
+    let with_window = |sequenced_commit| {
+        AttestedObjectVersions {
+            sequenced_at: ExecutionIndices {
+                sub_dag_index: sequenced_commit,
+                ..Default::default()
+            },
+            window: Some(10),
+            ..versions
+        }
+        .superseded_within_window(&attested_id, attested_ref.version())
+    };
+    assert_eq!(
+        with_window(commit + 10),
+        Some(SupersededAt::Commit(commit)),
+        "a supersession at the start of the window still counts"
+    );
+    assert_eq!(
+        with_window(commit + 11),
+        None,
+        "a supersession before the window is too old to re-run at"
+    );
+}
+
+/// Validators flush to the database on their own schedule, so a verdict that
+/// depended on whether the supersession had been written back would differ
+/// between honest validators and fork the checkpoint. Each version of a coin
+/// that paid for three transactions in a row must resolve to the commit of
+/// the transaction that replaced it, read from the cache and from the
+/// database alike.
+#[tokio::test]
+async fn attested_object_version_state_does_not_depend_on_flush_state() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(true);
+        config.set_checkpoint_summary_version_specific_data_for_testing(2);
+        config
+    });
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let (recipient, _): (_, AccountPrivateKey) = get_key_pair();
+
+    let transferred: Vec<ObjectId> = (0..3).map(|_| ObjectId::random()).collect();
+    let gas_id = ObjectId::random();
+    let objects: Vec<Object> = transferred
+        .iter()
+        .chain([&gas_id])
+        .map(|id| Object::with_id_owner_for_testing(*id, sender))
+        .collect();
+    let authority = TestAuthorityBuilder::new()
+        .with_starting_objects(&objects)
+        .build()
+        .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let epoch = epoch_store.epoch();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let mut gas_versions = vec![authority.get_object(&gas_id).unwrap().version()];
+    let (mut commits, mut digests) = (Vec::new(), Vec::new());
+    for id in &transferred {
+        let tx_data = Transaction::new_transfer(
+            recipient,
+            authority.get_object(id).unwrap().object_ref(),
+            sender,
+            authority.get_object(&gas_id).unwrap().object_ref(),
+            rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER * 10,
+            rgp,
+        );
+        let tx = to_sender_signed_transaction(tx_data, &sender_key);
+        let verified_tx = epoch_store.verify_transaction(tx).unwrap();
+        let executable = VerifiedExecutableTransaction::new_from_checkpoint(verified_tx, epoch, 1);
+        epoch_store.assign_to_a_new_commit_for_testing(&[executable.key()]);
+        commits.push(
+            epoch_store
+                .handler_object_state_for_testing()
+                .commit_index_of(&executable.key())
+                .expect("the test assigned the transaction a commit"),
+        );
+        let (effects, _execution_error) = authority
+            .try_execute_immediately(&executable, ExecutionEnv::new(), &epoch_store)
+            .unwrap();
+        assert!(effects.status().is_success());
+        digests.push(*effects.transaction_digest());
+        gas_versions.push(authority.get_object(&gas_id).unwrap().version());
+    }
+
+    let versions = AttestedObjectVersions {
+        object_cache: authority.get_object_cache_reader().as_ref(),
+        transaction_cache: authority.get_transaction_cache_reader().as_ref(),
+        epoch_store: &epoch_store,
+        sequenced_at: ExecutionIndices::default(),
+        window: Some(u64::MAX),
+    };
+    let resolved = || {
+        gas_versions
+            .iter()
+            .map(|version| versions.superseded_within_window(&gas_id, *version))
+            .collect::<Vec<_>>()
+    };
+    let expected: Vec<_> = commits
+        .iter()
+        .map(|commit| Some(SupersededAt::Commit(*commit)))
+        .chain([None])
+        .collect();
+
+    // Nothing has been written back yet, so this is answered from the cache.
+    assert_eq!(
+        resolved(),
+        expected,
+        "supersessions still in the cache must already count"
+    );
+
+    let cache_commit = authority.get_cache_commit();
+    let batch = cache_commit.build_db_batch(epoch, 0, &digests);
+    cache_commit.commit_transaction_outputs(epoch, batch, &digests);
+
+    assert_eq!(
+        resolved(),
+        expected,
+        "the verdict must not change when the supersessions reach the database"
+    );
+}
+
+/// Deleting the object supersedes the attested version just like overwriting
+/// it: the object can no longer be read, but the version it held was superseded
+/// this epoch and is still re-runnable rather than being written off as stale.
+/// From the next epoch on it is stale.
+#[tokio::test]
+async fn attested_object_version_state_judges_a_deleted_object() {
+    let config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(true);
+        config.set_checkpoint_summary_version_specific_data_for_testing(2);
+        config
+    });
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+
+    let attested_id = ObjectId::random();
+    let sink_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let objects = vec![
+        Object::with_id_owner_for_testing(attested_id, sender),
+        Object::with_id_owner_for_testing(sink_id, sender),
+        Object::with_id_owner_for_testing(gas_id, sender),
+    ];
+    let authority = TestAuthorityBuilder::new()
+        .with_starting_objects(&objects)
+        .build()
+        .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let epoch = epoch_store.epoch();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let attested_ref = authority.get_object(&attested_id).unwrap().object_ref();
+    let sink_ref = authority.get_object(&sink_id).unwrap().object_ref();
+    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
+
+    // Merging the coin into another deletes it, so the attested version stops
+    // being current and is recorded as superseded this epoch.
+    let pt = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let sink = builder.obj(CallArg::ImmutableOrOwned(sink_ref)).unwrap();
+        let merged = builder
+            .obj(CallArg::ImmutableOrOwned(attested_ref))
+            .unwrap();
+        builder.command(Command::new_merge_coins(sink, vec![merged]));
+        builder.finish()
+    };
+    let tx_data = Transaction::new_programmable(
+        sender,
+        vec![gas_ref],
+        pt,
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER * 10,
+        rgp,
+    );
+    let tx = to_sender_signed_transaction(tx_data, &sender_key);
+    let verified_tx = epoch_store.verify_transaction(tx).unwrap();
+    let executable = VerifiedExecutableTransaction::new_from_checkpoint(verified_tx, epoch, 1);
+    epoch_store.assign_to_a_new_commit_for_testing(&[executable.key()]);
+    let commit = epoch_store
+        .handler_object_state_for_testing()
+        .commit_index_of(&executable.key())
+        .expect("the test assigned the transaction a commit");
+    let (effects, _execution_error) = authority
+        .try_execute_immediately(&executable, ExecutionEnv::new(), &epoch_store)
+        .unwrap();
+    assert!(
+        effects.status().is_success(),
+        "the merge must succeed, got {:?}",
+        effects.status()
+    );
+
+    // Commit so the lookup is served from the database rather than the cache.
+    let digests = [*effects.transaction_digest()];
+    let cache_commit = authority.get_cache_commit();
+    let batch = cache_commit.build_db_batch(epoch, 0, &digests);
+    cache_commit.commit_transaction_outputs(epoch, batch, &digests);
+
+    assert!(
+        authority.get_object(&attested_id).is_none(),
+        "the merge must have deleted the attested object"
+    );
+
+    let versions = AttestedObjectVersions {
+        object_cache: authority.get_object_cache_reader().as_ref(),
+        transaction_cache: authority.get_transaction_cache_reader().as_ref(),
+        epoch_store: &epoch_store,
+        sequenced_at: ExecutionIndices::default(),
+        window: Some(u64::MAX),
+    };
+    assert_eq!(
+        versions.superseded_within_window(&attested_id, attested_ref.version()),
+        Some(SupersededAt::Commit(commit)),
+        "a version a deletion superseded this epoch carries the deleting commit"
+    );
+
+    // The override goes with the epoch: reconfiguration installs its own.
+    drop(config_guard);
+    authority.reconfigure_for_testing().await;
+    let epoch_store = authority.epoch_store_for_testing();
+    assert_eq!(
+        AttestedObjectVersions {
+            epoch_store: &epoch_store,
+            ..versions
+        }
+        .superseded_within_window(&attested_id, attested_ref.version()),
+        None,
+        "a version a deletion superseded in an earlier epoch is stale"
+    );
+}
+
+/// A recorded version superseded in an earlier epoch is stale with or without
+/// the effects of the transaction that superseded it: while the caches still
+/// hold them, and once they are gone from the ledger and from the caches, as
+/// on a node that has pruned them.
+#[tokio::test]
+async fn attested_version_superseded_in_an_earlier_epoch_is_stale() {
+    let config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(true);
+        config.set_checkpoint_summary_version_specific_data_for_testing(2);
+        config
+    });
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let (recipient, _): (_, AccountPrivateKey) = get_key_pair();
+
+    let attested_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let objects = vec![
+        Object::with_id_owner_for_testing(attested_id, sender),
+        Object::with_id_owner_for_testing(gas_id, sender),
+    ];
+    let authority = TestAuthorityBuilder::new()
+        .with_starting_objects(&objects)
+        .build()
+        .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let epoch = epoch_store.epoch();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let attested_ref = authority.get_object(&attested_id).unwrap().object_ref();
+    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
+
+    let tx_data = Transaction::new_transfer(
+        recipient,
+        attested_ref,
+        sender,
+        gas_ref,
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER * 10,
+        rgp,
+    );
+    let tx = to_sender_signed_transaction(tx_data, &sender_key);
+    let verified_tx = epoch_store.verify_transaction(tx).unwrap();
+    let executable = VerifiedExecutableTransaction::new_from_checkpoint(verified_tx, epoch, 1);
+    epoch_store.assign_to_a_new_commit_for_testing(&[executable.key()]);
+    let (effects, _execution_error) = authority
+        .try_execute_immediately(&executable, ExecutionEnv::new(), &epoch_store)
+        .unwrap();
+    assert!(effects.status().is_success());
+
+    let digests = [*effects.transaction_digest()];
+    let cache_commit = authority.get_cache_commit();
+    let batch = cache_commit.build_db_batch(epoch, 0, &digests);
+    cache_commit.commit_transaction_outputs(epoch, batch, &digests);
+
+    // The override goes with the epoch: reconfiguration installs its own.
+    drop(config_guard);
+    authority.reconfigure_for_testing().await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let versions = AttestedObjectVersions {
+        object_cache: authority.get_object_cache_reader().as_ref(),
+        transaction_cache: authority.get_transaction_cache_reader().as_ref(),
+        epoch_store: &epoch_store,
+        sequenced_at: ExecutionIndices::default(),
+        window: None,
+    };
+    assert_eq!(
+        versions.superseded_within_window(&attested_id, attested_ref.version()),
+        None,
+        "stale while the caches still hold the earlier epoch's effects"
+    );
+
+    // Epoch 0's ledger bucket is gone, and so are the cached effects, as on a
+    // node whose retention has passed them.
+    authority
+        .get_historic_ledger()
+        .prune(epoch + 1, 0, &|| {})
+        .unwrap();
+    authority.clear_execution_caches_for_testing();
+    assert_eq!(
+        versions.superseded_within_window(&attested_id, attested_ref.version()),
+        None,
+        "a version superseded in an earlier epoch is stale, whatever the node retains"
+    );
+}
+
+/// Reads through to `inner`, except that `hidden` is not executed yet on the
+/// first read of this epoch's records: what a judge reads while `hidden` is
+/// still writing its outputs.
+struct EffectsHiddenOnce<'a> {
+    inner: &'a dyn TransactionCacheRead,
+    hidden: TransactionDigest,
+    reads: AtomicUsize,
+}
+
+impl TransactionCacheRead for EffectsHiddenOnce<'_> {
+    fn try_multi_get_transaction_blocks(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<Arc<VerifiedTransaction>>>> {
+        self.inner.try_multi_get_transaction_blocks(digests)
+    }
+
+    fn try_multi_get_transaction_blocks_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<Arc<VerifiedTransaction>>>> {
+        self.inner
+            .try_multi_get_transaction_blocks_in_epoch(epoch, digests)
+    }
+
+    fn try_multi_get_executed_effects_digests(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
+        self.inner.try_multi_get_executed_effects_digests(digests)
+    }
+
+    fn try_multi_get_executed_effects_digests_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
+        if digests == [self.hidden] && self.reads.fetch_add(1, Ordering::Relaxed) == 0 {
+            return Ok(vec![None]);
+        }
+        self.inner
+            .try_multi_get_executed_effects_digests_in_epoch(epoch, digests)
+    }
+
+    fn try_multi_get_effects(
+        &self,
+        digests: &[TransactionEffectsDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffects>>> {
+        self.inner.try_multi_get_effects(digests)
+    }
+
+    fn try_multi_get_effects_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionEffectsDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffects>>> {
+        self.inner.try_multi_get_effects_in_epoch(epoch, digests)
+    }
+
+    fn try_multi_get_attestation_records_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<AttestationRecord>>> {
+        self.inner
+            .try_multi_get_attestation_records_in_epoch(epoch, digests)
+    }
+
+    fn try_multi_get_events(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEvents>>> {
+        self.inner.try_multi_get_events(digests)
+    }
+
+    fn try_notify_read_executed_effects_digests<'a>(
+        &'a self,
+        task_name: &'static str,
+        digests: &'a [TransactionDigest],
+    ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffectsDigest>>> {
+        self.inner
+            .try_notify_read_executed_effects_digests(task_name, digests)
+    }
+}
+
+/// A version is readable before its writer has recorded its effects, so a
+/// judge reading in between must wait for them: taking the version for one
+/// superseded in an earlier epoch would refute on this validator alone.
+#[tokio::test]
+async fn attested_version_superseded_by_a_transaction_still_writing_waits_for_its_effects() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(true);
+        config.set_checkpoint_summary_version_specific_data_for_testing(2);
+        config
+    });
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let (recipient, _): (_, AccountPrivateKey) = get_key_pair();
+
+    let attested_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let objects = vec![
+        Object::with_id_owner_for_testing(attested_id, sender),
+        Object::with_id_owner_for_testing(gas_id, sender),
+    ];
+    let authority = TestAuthorityBuilder::new()
+        .with_starting_objects(&objects)
+        .build()
+        .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let epoch = epoch_store.epoch();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let attested_ref = authority.get_object(&attested_id).unwrap().object_ref();
+    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
+
+    let tx_data = Transaction::new_transfer(
+        recipient,
+        attested_ref,
+        sender,
+        gas_ref,
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER * 10,
+        rgp,
+    );
+    let tx = to_sender_signed_transaction(tx_data, &sender_key);
+    let verified_tx = epoch_store.verify_transaction(tx).unwrap();
+    let executable = VerifiedExecutableTransaction::new_from_checkpoint(verified_tx, epoch, 1);
+    epoch_store.assign_to_a_new_commit_for_testing(&[executable.key()]);
+    let commit = epoch_store
+        .handler_object_state_for_testing()
+        .commit_index_of(&executable.key())
+        .expect("the test assigned the transaction a commit");
+    // Left uncommitted, as the outputs of a transaction still writing are.
+    let (effects, _execution_error) = authority
+        .try_execute_immediately(&executable, ExecutionEnv::new(), &epoch_store)
+        .unwrap();
+    assert!(effects.status().is_success());
+
+    let transaction_cache = EffectsHiddenOnce {
+        inner: authority.get_transaction_cache_reader().as_ref(),
+        hidden: *effects.transaction_digest(),
+        reads: AtomicUsize::new(0),
+    };
+    let versions = AttestedObjectVersions {
+        object_cache: authority.get_object_cache_reader().as_ref(),
+        transaction_cache: &transaction_cache,
+        epoch_store: &epoch_store,
+        sequenced_at: ExecutionIndices::default(),
+        window: Some(u64::MAX),
+    };
+
+    assert_eq!(
+        versions.superseded_within_window(&attested_id, attested_ref.version()),
+        Some(SupersededAt::Commit(commit)),
+        "a version whose writer has not recorded its effects yet is not a stale one"
+    );
+    assert_eq!(
+        transaction_cache.reads.load(Ordering::Relaxed),
+        2,
+        "the judge must read again after the read that found no effects"
+    );
+}

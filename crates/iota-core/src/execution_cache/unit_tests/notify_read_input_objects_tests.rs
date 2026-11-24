@@ -22,10 +22,14 @@ use crate::authority::{AuthorityStore, authority_store_tables::AuthorityPerpetua
 
 async fn create_store() -> Arc<AuthorityStore> {
     let path = tempdir().unwrap();
-    let tables = Arc::new(AuthorityPerpetualTables::open(path.path(), None));
+    let (tables, historic_objects, historic_ledger, epoch_markers) =
+        AuthorityPerpetualTables::open_with_historic_objects(path.path(), None).unwrap();
     let config = ConfigBuilder::new_with_temp_dir().build();
     AuthorityStore::open_with_committee_for_testing(
-        tables,
+        Arc::new(tables),
+        Arc::new(historic_objects),
+        Arc::new(historic_ledger),
+        Arc::new(epoch_markers),
         config.committee_with_network().committee(),
         &config.genesis,
     )
@@ -483,5 +487,32 @@ async fn cache_only_availability_ignores_store_but_full_path_falls_back() {
             cancelled_key,
         ]),
         vec![true, false, true],
+    );
+}
+
+/// A transaction that depends on a transaction this node has not executed
+/// waits: the key is not available, in memory or in the store.
+#[tokio::test]
+async fn test_writeback_waits_for_unexecuted_transaction() {
+    let cache = create_writeback_cache().await;
+    let receiving_keys = HashSet::new();
+    let epoch = 0;
+    let unknown = InputKey::ExecutedTransaction {
+        digest: TransactionDigest::random(),
+    };
+
+    assert_eq!(
+        cache.multi_input_objects_available_cache_only(&[unknown]),
+        vec![false]
+    );
+    assert_eq!(
+        cache.multi_input_objects_available(&[unknown], &receiving_keys, epoch),
+        vec![false]
+    );
+    assert!(
+        cache
+            .notify_read_input_objects(&[unknown], &receiving_keys, epoch)
+            .now_or_never()
+            .is_none()
     );
 }

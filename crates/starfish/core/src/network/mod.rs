@@ -19,7 +19,7 @@
 //! network outside of this module, so they can be reused easily across network
 //! implementations.
 
-use std::{collections::BTreeSet, fmt, pin::Pin, time::Duration};
+use std::{collections::BTreeSet, fmt, pin::Pin, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -36,6 +36,7 @@ use crate::{
     block_header::{BlockHeaderDigest, BlockRef, VerifiedBlock},
     commit::{CommitRange, TrustedCommit},
     error::{ConsensusError, ConsensusResult},
+    network::admission::AdmissionGuard,
 };
 
 // Tonic generated RPC stubs.
@@ -43,7 +44,8 @@ mod tonic_gen {
     include!(concat!(env!("OUT_DIR"), "/consensus.ConsensusService.rs"));
 }
 
-mod admission;
+pub(crate) mod admission;
+mod bounded_codec;
 pub(crate) mod metrics;
 mod metrics_layer;
 #[cfg(all(test, not(msim)))]
@@ -68,17 +70,16 @@ use crate::{
 pub(crate) struct FetchedCommitsAndTransactions {
     pub(crate) commits: Vec<Bytes>,
     pub(crate) certifier_block_headers: Vec<Bytes>,
-    pub(crate) transactions: TransactionChunkStream,
+    pub(crate) transactions: ChunkStream,
 }
 
 /// A stream of serialized blocks with additional information such as headers or
 /// shards.
 pub(crate) type BlockBundleStream = Pin<Box<dyn Stream<Item = SerializedBlockBundle> + Send>>;
 
-/// Transaction entries of a fast commit-sync response, one response message per
-/// item. An error item is the last one.
-pub(crate) type TransactionChunkStream =
-    Pin<Box<dyn Stream<Item = ConsensusResult<Vec<Bytes>>> + Send>>;
+/// Entries of a fetch response, one response message per item. An error item
+/// is the last one.
+pub(crate) type ChunkStream = Pin<Box<dyn Stream<Item = ConsensusResult<Vec<Bytes>>> + Send>>;
 
 /// Network client for communicating with peers.
 ///
@@ -174,6 +175,22 @@ impl From<BlockRef> for StreamPosition {
     }
 }
 
+/// What happened to a valid streamed bundle.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum BlockBundleOutcome {
+    /// The block was sent to the core with the bundled headers.
+    ForwardedToCore,
+    /// The block's round is above the far-future ceiling; only the bundled
+    /// headers were used.
+    DroppedFarFuture,
+    /// The last commit lags the quorum commit too far; the whole bundle was
+    /// refused.
+    RejectedCommitLag,
+    /// The last solid commit lags the last commit too far; the whole bundle
+    /// was refused.
+    RejectedSolidCommitLag,
+}
+
 /// Network service for handling requests from peers.
 #[async_trait]
 pub(crate) trait NetworkService: Send + Sync + 'static {
@@ -182,14 +199,15 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     /// serialized_block must be verified before its contents are trusted.
     /// `last_streamed_block` is the highest round of the peer's own blocks the
     /// receiver holds, from the subscription request or from this connection;
-    /// the caller keeps it per connection.
+    /// the caller keeps it per connection. Returns an error only for invalid
+    /// data from the peer or a local failure.
     async fn handle_subscribed_block_bundle(
         &self,
         peer: AuthorityIndex,
         serialized_block_bundle: SerializedBlockBundle,
         encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
         last_streamed_block: &mut StreamPosition,
-    ) -> ConsensusResult<()>;
+    ) -> ConsensusResult<BlockBundleOutcome>;
 
     /// Handles the subscription request from the peer.
     /// A stream of newly proposed blocks with additional data (headers or
@@ -202,12 +220,15 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     ) -> ConsensusResult<BlockBundleStream>;
 
     /// Handles the request to fetch block headers by references from the peer.
+    /// Headers asked for by commit sync are read one response message at a
+    /// time, as the messages are sent, each read holding `admission_guard`.
     async fn handle_fetch_headers(
         &self,
         peer: AuthorityIndex,
         block_refs: Vec<BlockRef>,
         highest_accepted_rounds: Vec<Round>,
-    ) -> ConsensusResult<Vec<Bytes>>;
+        admission_guard: Option<Arc<AdmissionGuard>>,
+    ) -> ConsensusResult<ChunkStream>;
 
     /// Handles the request to fetch commits by index range from the peer.
     /// Batch size limit depends on the sync type.
@@ -219,11 +240,13 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlockHeader>)>;
 
     /// Handles the request to fetch commits and transactions by index range
-    /// from the peer. Used in fast commit sync.
+    /// from the peer. Used in fast commit sync. The transactions are read one
+    /// response message at a time, each read holding `admission_guard`.
     async fn handle_fetch_commits_and_transactions(
         &self,
         peer: AuthorityIndex,
         commit_range: CommitRange,
+        admission_guard: Option<Arc<AdmissionGuard>>,
     ) -> ConsensusResult<FetchedCommitsAndTransactions>;
 
     /// Handles the request to fetch the latest block headers for the provided
@@ -235,12 +258,15 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     ) -> ConsensusResult<Vec<Bytes>>;
 
     /// Handles the request to fetch transactions by references from the peer.
-    /// Results are truncated to the per-fetch transaction count cap.
+    /// Results are truncated to the per-fetch transaction count cap, and are
+    /// read one response message at a time, as the messages are sent, each
+    /// read holding `admission_guard`.
     async fn handle_fetch_transactions(
         &self,
         peer: AuthorityIndex,
         transactions_refs: Vec<TransactionRef>,
-    ) -> ConsensusResult<Vec<Bytes>>;
+        admission_guard: Option<Arc<AdmissionGuard>>,
+    ) -> ConsensusResult<ChunkStream>;
 }
 
 #[derive(Clone, Debug, PartialEq)]

@@ -21,6 +21,7 @@ fn main() -> Result<()> {
 
 fn build_tonic_services(out_dir: &Path) {
     let codec_path = "tonic_prost::ProstCodec";
+    let bounded_codec_path = "crate::network::bounded_codec::BoundedProstCodec";
 
     let service = tonic_build::manual::Service::builder()
         .name("ConsensusService")
@@ -43,7 +44,7 @@ fn build_tonic_services(out_dir: &Path) {
                 .route_name("FetchBlockHeaders")
                 .input_type("crate::network::tonic_network::FetchBlockHeadersRequest")
                 .output_type("crate::network::tonic_network::FetchBlockHeadersResponse")
-                .codec_path(codec_path)
+                .codec_path(bounded_codec_path)
                 .server_streaming()
                 .build(),
         )
@@ -53,7 +54,7 @@ fn build_tonic_services(out_dir: &Path) {
                 .route_name("FetchCommits")
                 .input_type("crate::network::tonic_network::FetchCommitsRequest")
                 .output_type("crate::network::tonic_network::FetchCommitsResponse")
-                .codec_path(codec_path)
+                .codec_path(bounded_codec_path)
                 .build(),
         )
         .method(
@@ -62,7 +63,7 @@ fn build_tonic_services(out_dir: &Path) {
                 .route_name("FetchCommitsAndTransactions")
                 .input_type("crate::network::tonic_network::FetchCommitsAndTransactionsRequest")
                 .output_type("crate::network::tonic_network::FetchCommitsAndTransactionsResponse")
-                .codec_path(codec_path)
+                .codec_path(bounded_codec_path)
                 .server_streaming()
                 .build(),
         )
@@ -72,7 +73,7 @@ fn build_tonic_services(out_dir: &Path) {
                 .route_name("FetchLatestBlockHeaders")
                 .input_type("crate::network::tonic_network::FetchLatestBlockHeadersRequest")
                 .output_type("crate::network::tonic_network::FetchLatestBlockHeadersResponse")
-                .codec_path(codec_path)
+                .codec_path(bounded_codec_path)
                 .server_streaming()
                 .build(),
         )
@@ -91,7 +92,7 @@ fn build_tonic_services(out_dir: &Path) {
                 .route_name("FetchTransactions")
                 .input_type("crate::network::tonic_network::FetchTransactionsRequest")
                 .output_type("crate::network::tonic_network::FetchTransactionsResponse")
-                .codec_path(codec_path)
+                .codec_path(bounded_codec_path)
                 .server_streaming()
                 .build(),
         )

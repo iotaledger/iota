@@ -94,6 +94,78 @@ fn input_object_version_validity_check(version: Version) -> UserInputResult {
     Ok(())
 }
 
+/// Rejects an identifier that move-core rejects. The SDK `Identifier` also
+/// accepts `<SELF>`, which no module or type can be named.
+pub fn move_core_identifier_validity_check(identifier: &Identifier) -> UserInputResult {
+    fp_ensure!(
+        move_core_types::identifier::Identifier::is_valid(identifier.as_str()),
+        UserInputError::InvalidIdentifier {
+            error: identifier.to_string()
+        }
+    );
+    Ok(())
+}
+
+/// Rejects an identifier that move-core rejects in the module or name of any
+/// struct type in `type_tags`, nested type parameters included.
+pub fn type_tags_identifiers_validity_check<'a>(
+    type_tags: impl IntoIterator<Item = &'a TypeTag>,
+) -> UserInputResult {
+    let mut stack: Vec<&TypeTag> = type_tags.into_iter().collect();
+    while let Some(type_tag) = stack.pop() {
+        match type_tag {
+            TypeTag::Vector(inner) => stack.push(inner.as_ref()),
+            TypeTag::Struct(s) => {
+                move_core_identifier_validity_check(s.module())?;
+                move_core_identifier_validity_check(s.name())?;
+                stack.extend(s.type_params());
+            }
+            TypeTag::Bool
+            | TypeTag::U8
+            | TypeTag::U16
+            | TypeTag::U32
+            | TypeTag::U64
+            | TypeTag::U128
+            | TypeTag::U256
+            | TypeTag::Address
+            | TypeTag::Signer => {}
+        }
+    }
+    Ok(())
+}
+
+/// Rejects an identifier that move-core rejects in a command: the module and
+/// function names and the type arguments of a Move call, or the element type
+/// of a `MakeMoveVector`.
+fn command_identifiers_validity_check(command: &Command) -> UserInputResult {
+    match command {
+        Command::MoveCall(call) => {
+            move_core_identifier_validity_check(&call.module)?;
+            move_core_identifier_validity_check(&call.function)?;
+            type_tags_identifiers_validity_check(&call.type_arguments)
+        }
+        Command::MakeMoveVector(MakeMoveVector {
+            type_tag: Some(type_tag),
+            ..
+        }) => type_tags_identifiers_validity_check([type_tag]),
+        Command::MakeMoveVector(MakeMoveVector { type_tag: None, .. })
+        | Command::TransferObjects(_)
+        | Command::SplitCoins(_)
+        | Command::MergeCoins(_)
+        | Command::Publish(_)
+        | Command::Upgrade(_) => Ok(()),
+        _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
+    }
+}
+
+/// Rejects an identifier that move-core rejects in the type arguments of a
+/// Move authenticator.
+pub(crate) fn move_authenticator_identifiers_validity_check(
+    authenticator: &impl MoveAuthenticatorExt,
+) -> UserInputResult {
+    type_tags_identifiers_validity_check(authenticator.type_args())
+}
+
 pub fn type_tag_validity_check(
     tag: &TypeTag,
     config: &ProtocolConfig,
@@ -268,7 +340,7 @@ impl EndOfEpochTransactionKindExt for EndOfEpochTransactionKind {
                 }
             }
             Self::TransactionDenyRulesCreate => {
-                if !config.deny_rule_governance_on_chain() {
+                if !config.enable_pcool_flow() {
                     return Err(UserInputError::Unsupported(
                         "on-chain deny rule governance not supported at current protocol version"
                             .to_string(),
@@ -313,13 +385,21 @@ impl CallArgExt for CallArg {
                 initial_shared_version: *initial_shared_version,
                 mutable: *mutable,
             }),
-            CallArg::Pure(_) | CallArg::Receiving(_) => None,
+            CallArg::Pure(_) | CallArg::Receiving(_) | CallArg::TransactionDependency(_) => None,
             _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         }
     }
 
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
         match self {
+            CallArg::TransactionDependency(_) => {
+                fp_ensure!(
+                    config.enable_transaction_dependencies(),
+                    UserInputError::Unsupported(
+                        "transaction dependency inputs are not enabled".to_string()
+                    )
+                );
+            }
             CallArg::Pure(bytes) => {
                 fp_ensure!(
                     bytes.len() < config.max_pure_argument_size() as usize,
@@ -346,7 +426,7 @@ impl CallArgExt for CallArg {
 }
 
 // Add package IDs, `ObjectId`, for types defined in modules.
-fn add_type_tag_packages(packages: &mut BTreeSet<ObjectId>, type_argument: &TypeTag) {
+pub(crate) fn add_type_tag_packages(packages: &mut BTreeSet<ObjectId>, type_argument: &TypeTag) {
     let mut stack = vec![type_argument];
     while let Some(cur) = stack.pop() {
         match cur {
@@ -550,6 +630,9 @@ impl CommandExt for Command {
             }
             _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
         };
+        if config.disallow_self_identifier_in_transactions() {
+            command_identifiers_validity_check(self)?;
+        }
 
         Ok(())
     }
@@ -627,6 +710,13 @@ pub trait ProgrammableTransactionExt: Sized + programmable_transaction_ext::Seal
     fn receiving_objects(&self) -> Vec<ObjectReference>;
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
     fn validate_argument_indices(&self) -> UserInputResult;
+    /// The index and digest of the first transaction dependency input, if any.
+    fn dependency_input(&self) -> Option<(usize, TransactionDigest)>;
+    /// The digest named by the transaction dependency input, if any.
+    fn transaction_dependency(&self) -> Option<TransactionDigest>;
+    /// Checks that at most one input is a transaction dependency and that no
+    /// command uses it.
+    fn validate_transaction_dependency_inputs(&self) -> UserInputResult;
     fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectReference>;
     fn move_calls(&self) -> Vec<(&ObjectId, &str, &str)>;
     fn non_system_packages_to_be_published(&self) -> impl Iterator<Item = &Vec<Vec<u8>>>;
@@ -692,6 +782,7 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
         for input in inputs {
             input.validity_check(config)?
         }
+        self.validate_transaction_dependency_inputs()?;
         if let Some(max_publish_commands) = config.max_publish_or_upgrade_per_ptb_as_option() {
             let publish_count = commands
                 .iter()
@@ -734,6 +825,52 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
         Ok(())
     }
 
+    fn dependency_input(&self) -> Option<(usize, TransactionDigest)> {
+        self.inputs
+            .iter()
+            .enumerate()
+            .find_map(|(index, input)| match input {
+                CallArg::TransactionDependency(digest) => Some((index, *digest)),
+                _ => None,
+            })
+    }
+
+    fn transaction_dependency(&self) -> Option<TransactionDigest> {
+        self.dependency_input().map(|(_, digest)| digest)
+    }
+
+    fn validate_transaction_dependency_inputs(&self) -> UserInputResult {
+        let dep_index = match self.dependency_input() {
+            Some((index, _)) => index,
+            None => return Ok(()),
+        };
+        // At most one dependency input.
+        fp_ensure!(
+            self.inputs[dep_index + 1..]
+                .iter()
+                .all(|input| !matches!(input, CallArg::TransactionDependency(_))),
+            UserInputError::SizeLimitExceeded {
+                limit: "maximum transaction dependency inputs in a programmable transaction"
+                    .to_string(),
+                value: "1".to_string(),
+            }
+        );
+        // No command may use it.
+        for (command_idx, command) in self.commands.iter().enumerate() {
+            for (argument_idx, argument) in command_arguments(command).enumerate() {
+                if let Argument::Input(index) = argument {
+                    if *index as usize == dep_index {
+                        return Err(UserInputError::TransactionDependencyInputUsed {
+                            command_idx,
+                            argument_idx,
+                        });
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn validate_argument_indices(&self) -> UserInputResult {
         for (command_idx, command) in self.commands.iter().enumerate() {
             for (argument_idx, argument) in command_arguments(command).enumerate() {
@@ -765,7 +902,10 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
     fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectReference> {
         self.inputs.iter().filter_map(|arg| match arg {
             CallArg::Shared(shared) => Some(*shared),
-            CallArg::Pure(_) | CallArg::Receiving(_) | CallArg::ImmutableOrOwned(_) => None,
+            CallArg::Pure(_)
+            | CallArg::Receiving(_)
+            | CallArg::ImmutableOrOwned(_)
+            | CallArg::TransactionDependency(_) => None,
             _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         })
     }
@@ -1024,7 +1164,7 @@ impl TransactionKindExt for TransactionKind {
             }
             TransactionKind::RandomnessStateUpdate(_) => (),
             TransactionKind::TransactionDenyRulesUpdate(_) => {
-                if !config.deny_rule_governance_on_chain() {
+                if !config.enable_pcool_flow() {
                     return Err(UserInputError::Unsupported(
                         "on-chain deny rule governance not supported at current protocol version"
                             .to_string(),
@@ -1107,6 +1247,11 @@ pub trait TransactionAPI {
 
     /// Returns the transaction expiration.
     fn expiration(&self) -> &TransactionExpiration;
+
+    /// Returns the digest of the transaction this transaction depends on, if
+    /// it carries a transaction dependency input: it executes after that
+    /// transaction, and fails if that transaction failed.
+    fn transaction_dependency(&self) -> Option<TransactionDigest>;
 
     /// Returns a list of the transaction data shared input objects.
     ///
@@ -1519,7 +1664,20 @@ impl TransactionAPI for Transaction {
     #[instrument(level = "trace", skip_all)]
     fn validity_check_no_gas_check(&self, config: &ProtocolConfig) -> UserInputResult {
         self.kind().validity_check(config)?;
+        if self.transaction_dependency().is_some() {
+            fp_ensure!(
+                matches!(self.expiration(), TransactionExpiration::Epoch(_)),
+                UserInputError::TransactionDependencyRequiresExpiration
+            );
+        }
         self.check_sponsorship()
+    }
+
+    fn transaction_dependency(&self) -> Option<TransactionDigest> {
+        match self.kind() {
+            TransactionKind::Programmable(ptb) => ptb.transaction_dependency(),
+            _ => None,
+        }
     }
 
     fn check_gas_payment_size(&self, config: &ProtocolConfig) -> UserInputResult {
@@ -1987,18 +2145,27 @@ pub struct TxValidityCheckContext<'a> {
     pub epoch: EpochId,
 }
 
-/// Merge every [`MoveAuthenticator`]'s input objects into `input_objects`.
+/// Merge every [`MoveAuthenticator`]'s input objects into `input_objects`,
+/// with the packages named by its type arguments if
+/// `include_type_arg_packages` is set.
 ///
 /// Objects not yet present are appended; for an object that appears in both
 /// sets the kinds are checked for consistency and unioned via
 /// [`InputObjectKind::left_union_with_checks`] (in particular, a shared object
 /// may differ in mutability but not in initial shared version).
+///
+/// The packages named by the type arguments are appended after every
+/// authenticator's objects, each only if its id is not present yet, so they
+/// never fail the merge. A type argument that names an object's id is rejected
+/// by the validity check, or when the id is read as a package.
 pub fn merge_authenticator_input_objects<'a>(
     move_authenticators: impl IntoIterator<Item = &'a MoveAuthenticator>,
+    include_type_arg_packages: bool,
     input_objects: &mut Vec<InputObjectKind>,
 ) -> UserInputResult<()> {
+    let mut type_arg_packages = Vec::new();
     for move_authenticator in move_authenticators {
-        for auth_object in move_authenticator.input_objects() {
+        for auth_object in move_authenticator.input_objects(false) {
             let entry = input_objects
                 .iter_mut()
                 .find(|o| o.object_id() == auth_object.object_id());
@@ -2007,6 +2174,14 @@ pub fn merge_authenticator_input_objects<'a>(
                 None => input_objects.push(auth_object),
                 Some(existing) => existing.left_union_with_checks(&auth_object)?,
             }
+        }
+        if include_type_arg_packages {
+            type_arg_packages.extend(move_authenticator.type_arg_packages());
+        }
+    }
+    for package_id in type_arg_packages {
+        if input_objects.iter().all(|o| o.object_id() != package_id) {
+            input_objects.push(InputObjectKind::MovePackage(package_id));
         }
     }
     Ok(())
@@ -2052,19 +2227,29 @@ pub trait SenderSignedTransactionAPI {
     fn validity_check(&self, context: &TxValidityCheckContext<'_>) -> Result<usize, IotaError>;
 
     /// Returns all unique input objects including those from
-    /// `MoveAuthenticator`s if any for reading.
+    /// `MoveAuthenticator`s if any for reading, with the packages named by
+    /// their type arguments if `include_type_arg_packages` is set, in the
+    /// order the transaction and then each authenticator name them.
     ///
-    /// Although some shared objects(with a different mutability flag, for
-    /// example) can be duplicated in the transaction and authenticators, we
-    /// load them independently to make it possible to analyze the inputs in
-    /// the transaction checkers.
-    fn collect_all_input_object_kind_for_reading(&self) -> IotaResult<Vec<InputObjectKind>>;
+    /// Although some shared objects (with a different mutability flag, for
+    /// example) can be duplicated in the transaction and authenticators, each
+    /// of their distinct kinds is returned, to make it possible to analyze the
+    /// inputs in the transaction checkers. A caller that reads the inputs must
+    /// read such an object once for all its kinds: the checkers assert that
+    /// all kinds of one object got the same read result.
+    fn collect_all_input_object_kind_for_reading(
+        &self,
+        include_type_arg_packages: bool,
+    ) -> IotaResult<Vec<InputObjectKind>>;
 
-    /// Splits the provided input objects into groups:
+    /// Splits the provided input objects, read for the kinds
+    /// [`Self::collect_all_input_object_kind_for_reading`] returns, into
+    /// groups:
     /// 1. Input objects required by the transaction itself; may contain duplicates if an IOTA coin
     ///    is used both as an input and a gas coin.
-    /// 2. A list of input objects required by each `MoveAuthenticator`( including the object to
-    ///    authenticate) + the object to authenticate.
+    /// 2. A list of input objects required by each `MoveAuthenticator` (including the object to
+    ///    authenticate, and the packages named by its type arguments that were read and that the
+    ///    transaction does not name itself) + the object to authenticate.
     fn split_input_objects_into_groups_for_reading(
         &self,
         input_objects: InputObjects,
@@ -2073,6 +2258,10 @@ pub trait SenderSignedTransactionAPI {
     /// Checks if [`SenderSignedTransaction`] contains at least one shared
     /// object. This function checks shared objects from the
     /// `MoveAuthenticator`s if any.
+    ///
+    /// Unlike [`Self::shared_input_objects`], it does not combine the shared
+    /// objects of the transaction and its authenticators, so it does not panic
+    /// when two of them name the same object with different initial versions.
     fn contains_shared_object(&self) -> bool;
 
     /// Returns an iterator over all shared input objects related to this
@@ -2096,7 +2285,11 @@ pub trait SenderSignedTransactionAPI {
     /// returned.
     ///
     /// Shared objects with the same ID but different versions are not allowed.
-    fn input_objects(&self) -> IotaResult<Vec<InputObjectKind>>;
+    ///
+    /// The packages named by the `MoveAuthenticator`s' type arguments are
+    /// included if `include_type_arg_packages` is set, each only if no other
+    /// input has its id.
+    fn input_objects(&self, include_type_arg_packages: bool) -> IotaResult<Vec<InputObjectKind>>;
 
     /// Checks if [`SenderSignedTransaction`] contains the `Random` object as an
     /// input.
@@ -2178,25 +2371,41 @@ impl SenderSignedTransactionAPI for SenderSignedTransaction {
         tx.validity_check(context.config)
             .map_err(Into::<IotaError>::into)?;
 
+        // A dependency can only be satisfied within one epoch, so a dependent
+        // has to expire with the current one. An earlier epoch was refused
+        // above as expired.
+        if tx.transaction_dependency().is_some() {
+            fp_ensure!(
+                matches!(tx.expiration(), TransactionExpiration::Epoch(epoch) if *epoch == context.epoch),
+                IotaError::UserInput {
+                    error: UserInputError::TransactionDependencyRequiresExpiration
+                }
+            );
+        }
+
         move_authenticators_validity_check(self, context.config)?;
 
         Ok(tx_size)
     }
 
-    fn collect_all_input_object_kind_for_reading(&self) -> IotaResult<Vec<InputObjectKind>> {
-        let mut input_objects_set = self
+    fn collect_all_input_object_kind_for_reading(
+        &self,
+        include_type_arg_packages: bool,
+    ) -> IotaResult<Vec<InputObjectKind>> {
+        let mut seen = HashSet::new();
+        Ok(self
             .transaction()
             .input_objects()?
             .into_iter()
-            .collect::<HashSet<_>>();
-
-        self.move_authenticators()
-            .into_iter()
-            .for_each(|authenticator| {
-                input_objects_set.extend(authenticator.input_objects());
-            });
-
-        Ok(input_objects_set.into_iter().collect::<Vec<_>>())
+            .chain(
+                self.move_authenticators()
+                    .into_iter()
+                    .flat_map(|authenticator| {
+                        authenticator.input_objects(include_type_arg_packages)
+                    }),
+            )
+            .filter(|kind| seen.insert(*kind))
+            .collect())
     }
 
     fn split_input_objects_into_groups_for_reading(
@@ -2208,9 +2417,8 @@ impl SenderSignedTransactionAPI for SenderSignedTransaction {
             .map(|o| (&o.input_object_kind, o))
             .collect::<HashMap<_, _>>();
 
-        let mut tx_input_objects: InputObjects = self
-            .transaction()
-            .input_objects()?
+        let tx_input_object_kinds = self.transaction().input_objects()?;
+        let mut tx_input_objects: InputObjects = tx_input_object_kinds
             .iter()
             .map(|k| {
                 input_objects_map
@@ -2223,19 +2431,32 @@ impl SenderSignedTransactionAPI for SenderSignedTransaction {
         if let Some((gas_object_id, version)) = input_objects.gas_object_cancellation() {
             tx_input_objects.set_gas_object_cancellation(gas_object_id, version);
         }
+        if let Some(dependency) = input_objects.transaction_dependency() {
+            tx_input_objects.set_transaction_dependency(dependency);
+        }
 
         let per_authenticator_inputs =
             self.move_authenticators()
                 .into_iter()
                 .map(|move_authenticator| {
+                    // The packages named by the type arguments were read only
+                    // if the protocol config makes them inputs. A package the
+                    // transaction names itself goes only to the transaction's group.
+                    let type_arg_packages = move_authenticator
+                        .type_arg_packages()
+                        .into_iter()
+                        .map(InputObjectKind::MovePackage)
+                        .filter(|k| !tx_input_object_kinds.contains(k))
+                        .filter_map(|k| input_objects_map.get(&k).map(|&r| r.clone()));
                     let authenticator_input_objects = move_authenticator
-                        .input_objects()
+                        .input_objects(false)
                         .iter()
                         .map(|k| {
                             input_objects_map.get(k).map(|&r| r.clone()).expect(
                                 "All authenticator input objects are expected to be present",
                             )
                         })
+                        .chain(type_arg_packages)
                         .collect::<Vec<_>>()
                         .into();
 
@@ -2270,7 +2491,11 @@ impl SenderSignedTransactionAPI for SenderSignedTransaction {
     }
 
     fn contains_shared_object(&self) -> bool {
-        !self.shared_input_objects().is_empty()
+        self.transaction().kind().contains_shared_object()
+            || self
+                .move_authenticators()
+                .iter()
+                .any(|move_authenticator| !move_authenticator.shared_objects().is_empty())
     }
 
     fn shared_input_objects(&self) -> Vec<SharedObjectReference> {
@@ -2299,13 +2524,17 @@ impl SenderSignedTransactionAPI for SenderSignedTransaction {
         input_objects
     }
 
-    fn input_objects(&self) -> IotaResult<Vec<InputObjectKind>> {
+    fn input_objects(&self, include_type_arg_packages: bool) -> IotaResult<Vec<InputObjectKind>> {
         // Can contain duplicates in case of using the same IOTA coin as an input and as
         // a gas coin.
         let mut input_objects = self.transaction().input_objects()?;
 
         // Add the `MoveAuthenticator` shared objects if any.
-        merge_authenticator_input_objects(self.move_authenticators(), &mut input_objects)?;
+        merge_authenticator_input_objects(
+            self.move_authenticators(),
+            include_type_arg_packages,
+            &mut input_objects,
+        )?;
 
         Ok(input_objects)
     }
@@ -2349,6 +2578,36 @@ fn check_user_signature_protocol_compatibility(
     }
 
     Ok(())
+}
+
+/// Rejects a signed transaction that carries a system transaction kind, or an
+/// identifier move-core rejects: in Move call module and function names, and in
+/// the type arguments of Move calls, `MakeMoveVector` commands and Move
+/// authenticators.
+///
+/// Independent of the protocol config, so the caller gates it; the consensus
+/// block verifier uses it to reject exactly the blocks a decoder that follows
+/// the move-core rules would fail to decode.
+pub fn transaction_identifiers_validity_check(
+    signed_tx: &SenderSignedTransaction,
+) -> UserInputResult {
+    // A system transaction needs no signature and can carry identifiers in
+    // genesis objects and events, so it is rejected instead of walked.
+    fp_ensure!(
+        !signed_tx.transaction().is_system_tx(),
+        UserInputError::Unsupported(
+            "SenderSignedTransaction must not contain system transaction".to_string()
+        )
+    );
+    if let TransactionKind::Programmable(pt) = signed_tx.transaction().kind() {
+        pt.commands
+            .iter()
+            .try_for_each(command_identifiers_validity_check)?;
+    }
+    signed_tx
+        .move_authenticators()
+        .into_iter()
+        .try_for_each(move_authenticator_identifiers_validity_check)
 }
 
 fn move_authenticators_validity_check(
@@ -2396,7 +2655,11 @@ fn move_authenticators_validity_check(
             );
         }
 
-        check_move_authenticators_input_consistency(tx, &authenticators)?;
+        check_move_authenticators_input_consistency(
+            tx,
+            &authenticators,
+            config.move_authenticator_type_arg_packages_as_inputs(),
+        )?;
     }
 
     Ok(())
@@ -2405,6 +2668,7 @@ fn move_authenticators_validity_check(
 fn check_move_authenticators_input_consistency(
     tx: &Transaction,
     authenticators: &[&MoveAuthenticator],
+    include_type_arg_packages: bool,
 ) -> IotaResult {
     // Get the input objects from the transaction data kind to skip the gas coins.
     let mut checked_inputs = tx
@@ -2416,7 +2680,7 @@ fn check_move_authenticators_input_consistency(
 
     authenticators.iter().try_for_each(|authenticator| {
         authenticator
-            .input_objects()
+            .input_objects(include_type_arg_packages)
             .iter()
             .try_for_each(|auth_input_object| {
                 match checked_inputs.get(&auth_input_object.object_id()) {
@@ -2761,6 +3025,20 @@ impl InputObjectKind {
         }
     }
 
+    /// The error for an input that a validator drops at the consensus commit
+    /// for good: every validator drops it there, and it cannot become
+    /// available later.
+    pub fn not_available_at_commit_error(&self) -> UserInputError {
+        let (object_id, version) = match *self {
+            Self::MovePackage(package_id) => (package_id, None),
+            Self::ImmOrOwnedMoveObject(object_ref) => {
+                (object_ref.object_id, Some(object_ref.version))
+            }
+            Self::SharedMoveObject { id, .. } => (id, None),
+        };
+        UserInputError::InputObjectNotAvailableAtCommit { object_id, version }
+    }
+
     pub fn is_shared_object(&self) -> bool {
         matches!(self, Self::SharedMoveObject { .. })
     }
@@ -2881,6 +3159,11 @@ pub enum ObjectReadResultKind {
     DeletedSharedObject(Version, TransactionDigest),
     // A shared object in a cancelled transaction. The sequence number embeds cancellation reason.
     CancelledTransactionObject(Version),
+    // A shared object that exists and is shared at the declared initial version, whose contents
+    // were not read. Only post-consensus validation lists it: the version and contents a
+    // validator holds there differ between validators, and execution reads the object at the
+    // version consensus assigned.
+    UnreadSharedObject,
 }
 
 impl std::fmt::Debug for ObjectReadResultKind {
@@ -2895,6 +3178,7 @@ impl std::fmt::Debug for ObjectReadResultKind {
             ObjectReadResultKind::CancelledTransactionObject(seq) => {
                 write!(f, "CancelledTransactionObject({seq})")
             }
+            ObjectReadResultKind::UnreadSharedObject => write!(f, "UnreadSharedObject"),
         }
     }
 }
@@ -2923,6 +3207,14 @@ impl ObjectReadResult {
             panic!("only shared objects can be CancelledTransactionObject");
         }
 
+        if let (
+            InputObjectKind::ImmOrOwnedMoveObject(_),
+            ObjectReadResultKind::UnreadSharedObject,
+        ) = (&input_object_kind, &object)
+        {
+            panic!("only shared objects can be UnreadSharedObject");
+        }
+
         Self {
             input_object_kind,
             object,
@@ -2938,6 +3230,20 @@ impl ObjectReadResult {
             ObjectReadResultKind::Object(object) => Some(object),
             ObjectReadResultKind::DeletedSharedObject(_, _) => None,
             ObjectReadResultKind::CancelledTransactionObject(_) => None,
+            ObjectReadResultKind::UnreadSharedObject => None,
+        }
+    }
+
+    /// The version this read resolved to, including deletion and cancellation
+    /// markers.
+    pub fn version(&self) -> Version {
+        match &self.object {
+            ObjectReadResultKind::Object(object) => object.version(),
+            ObjectReadResultKind::DeletedSharedObject(version, _) => *version,
+            ObjectReadResultKind::CancelledTransactionObject(version) => *version,
+            ObjectReadResultKind::UnreadSharedObject => {
+                unreachable!("an unread shared object has no version to execute at")
+            }
         }
     }
 
@@ -2962,6 +3268,10 @@ impl ObjectReadResult {
             (
                 InputObjectKind::ImmOrOwnedMoveObject(_),
                 ObjectReadResultKind::CancelledTransactionObject(_),
+            ) => unreachable!(),
+            (
+                InputObjectKind::ImmOrOwnedMoveObject(_),
+                ObjectReadResultKind::UnreadSharedObject,
             ) => unreachable!(),
             (InputObjectKind::SharedMoveObject { mutable, .. }, _) => *mutable,
         }
@@ -3005,6 +3315,10 @@ impl ObjectReadResult {
                 InputObjectKind::ImmOrOwnedMoveObject(_),
                 ObjectReadResultKind::CancelledTransactionObject(_),
             ) => unreachable!(),
+            (
+                InputObjectKind::ImmOrOwnedMoveObject(_),
+                ObjectReadResultKind::UnreadSharedObject,
+            ) => unreachable!(),
             (InputObjectKind::SharedMoveObject { .. }, _) => None,
         }
     }
@@ -3025,6 +3339,9 @@ impl ObjectReadResult {
                 ObjectReadResultKind::CancelledTransactionObject(seq) => {
                     SharedInput::Cancelled((id, *seq))
                 }
+                ObjectReadResultKind::UnreadSharedObject => {
+                    unreachable!("an unread shared object has no version to execute at")
+                }
             }),
         }
     }
@@ -3034,6 +3351,7 @@ impl ObjectReadResult {
             ObjectReadResultKind::Object(obj) => Some(obj.previous_transaction),
             ObjectReadResultKind::DeletedSharedObject(_, digest) => Some(*digest),
             ObjectReadResultKind::CancelledTransactionObject(_) => None,
+            ObjectReadResultKind::UnreadSharedObject => None,
         }
     }
 }
@@ -3061,16 +3379,30 @@ pub struct InputObjects {
     /// the gas object itself is still read normally, because the cancelled
     /// execution must charge gas to it.
     gas_object_cancellation: Option<(ObjectId, Version)>,
+    /// The transaction named by the transaction dependency input, with
+    /// whether it executed successfully. Set when the input objects are read
+    /// for execution; absent when the transaction has no dependency or is
+    /// cancelled at sequencing, which never waits for the dependency.
+    transaction_dependency: Option<TransactionDependencyReadResult>,
+}
+
+/// The outcome of the transaction named by a transaction dependency input, as
+/// read when the dependent is executed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TransactionDependencyReadResult {
+    pub digest: TransactionDigest,
+    pub succeeded: bool,
 }
 
 impl std::fmt::Debug for InputObjects {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match &self.gas_object_cancellation {
-            None => f.debug_list().entries(self.objects.iter()).finish(),
-            Some(gas_object_cancellation) => f
+        match (&self.gas_object_cancellation, &self.transaction_dependency) {
+            (None, None) => f.debug_list().entries(self.objects.iter()).finish(),
+            (gas_object_cancellation, transaction_dependency) => f
                 .debug_struct("InputObjects")
                 .field("objects", &self.objects)
                 .field("gas_object_cancellation", gas_object_cancellation)
+                .field("transaction_dependency", transaction_dependency)
                 .finish(),
         }
     }
@@ -3121,6 +3453,7 @@ impl InputObjects {
         Self {
             objects,
             gas_object_cancellation: None,
+            transaction_dependency: None,
         }
     }
 
@@ -3222,7 +3555,28 @@ impl InputObjects {
         self.objects
             .iter()
             .filter_map(|obj| obj.get_previous_transaction())
+            .chain(
+                self.transaction_dependency
+                    .map(|dependency| dependency.digest),
+            )
             .collect()
+    }
+
+    pub fn set_transaction_dependency(&mut self, dependency: TransactionDependencyReadResult) {
+        self.transaction_dependency = Some(dependency);
+    }
+
+    pub fn transaction_dependency(&self) -> Option<TransactionDependencyReadResult> {
+        self.transaction_dependency
+    }
+
+    /// The transaction named by the dependency input when it did not execute
+    /// successfully. This transaction then fails with
+    /// `TransactionDependencyFailed` without running its commands.
+    pub fn failed_transaction_dependency(&self) -> Option<TransactionDigest> {
+        self.transaction_dependency
+            .filter(|dependency| !dependency.succeeded)
+            .map(|dependency| dependency.digest)
     }
 
     pub fn mutable_inputs(&self) -> BTreeMap<ObjectId, (VersionDigest, Owner)> {
@@ -3278,6 +3632,18 @@ impl InputObjects {
                         InputObjectKind::SharedMoveObject { .. },
                         ObjectReadResultKind::CancelledTransactionObject(_),
                     ) => None,
+                    (
+                        InputObjectKind::ImmOrOwnedMoveObject(_),
+                        ObjectReadResultKind::UnreadSharedObject,
+                    ) => {
+                        unreachable!()
+                    }
+                    (
+                        InputObjectKind::SharedMoveObject { .. },
+                        ObjectReadResultKind::UnreadSharedObject,
+                    ) => {
+                        unreachable!("an unread shared object has no version, digest or owner")
+                    }
                 },
             )
             .collect()
@@ -3296,6 +3662,9 @@ impl InputObjects {
                 }
                 ObjectReadResultKind::DeletedSharedObject(v, _) => Some(*v),
                 ObjectReadResultKind::CancelledTransactionObject(_) => None,
+                ObjectReadResultKind::UnreadSharedObject => {
+                    unreachable!("an unread shared object has no version to exceed")
+                }
             })
             .chain(
                 receiving_objects

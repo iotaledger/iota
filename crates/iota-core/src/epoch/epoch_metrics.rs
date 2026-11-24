@@ -2,11 +2,17 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
+use std::{
+    sync::Arc,
+    time::{Instant, SystemTime, UNIX_EPOCH},
+};
 
+use iota_types::committee::EpochId;
+use parking_lot::Mutex;
 use prometheus_filtered::{
-    IntCounter, IntGauge, MetricLevel, Registry, register_int_counter_with_registry,
-    register_int_gauge_with_registry,
+    IntCounter, IntCounterVec, IntGauge, IntGaugeVec, MetricLevel, Registry,
+    register_int_counter_vec_with_registry, register_int_counter_with_registry,
+    register_int_gauge_vec_with_registry, register_int_gauge_with_registry,
 };
 
 pub struct EpochMetrics {
@@ -126,6 +132,19 @@ pub struct EpochMetrics {
     /// The number of consensus output items in the quarantine.
     pub consensus_quarantine_queue_size: IntGauge,
 
+    /// The highest commit index such that it and every commit below it is
+    /// fully executed. Its lag behind consensus is `last_commit_index` minus
+    /// this.
+    pub handler_object_state_highest_fully_executed_commit: IntGauge,
+
+    /// The number of handler-processed rows held in memory, not yet durable.
+    pub handler_object_state_handler_processed_overlay_entries: IntGauge,
+
+    /// The number of shared inputs, package inputs, dynamic fields and coin
+    /// types of shared inputs post-consensus validation answered from an
+    /// earlier read at the same commit, by kind.
+    pub consensus_handler_validation_reader_reused_verdicts: IntCounterVec,
+
     /// The number of consensus commits that injected deny-rule update
     /// transactions.
     pub deny_rule_updates_injected: IntCounter,
@@ -134,10 +153,6 @@ pub struct EpochMetrics {
     /// of the delta).
     pub deny_rule_update_transactions_injected: IntCounter,
 
-    /// Whether deny-rule removals are unlocked: enough announced stake this
-    /// epoch and the grace round floor passed.
-    pub deny_rule_removals_unlocked: IntGauge,
-
     /// Set to 1, and never cleared, when the `TransactionDenyRules` object
     /// diverged from the mirrored state at an epoch boundary.
     pub deny_rule_mirror_divergence: IntGauge,
@@ -145,6 +160,15 @@ pub struct EpochMetrics {
     /// The number of injected deny-rule update transactions whose execution
     /// failed — always an invariant violation.
     pub deny_rule_update_execution_failures: IntCounter,
+
+    /// Milliseconds from the start of the last epoch change to each stage.
+    pub epoch_change_stage_ms: IntGaugeVec,
+
+    /// Unix time in milliseconds at which the last epoch change started.
+    pub epoch_change_start_timestamp_ms: IntGauge,
+
+    /// The epoch entered by the change being recorded, and when it started.
+    epoch_change: Mutex<Option<(EpochId, Instant)>>,
 }
 
 impl EpochMetrics {
@@ -281,6 +305,25 @@ impl EpochMetrics {
                 MetricLevel::Warn,
             )
             .unwrap(),
+            handler_object_state_highest_fully_executed_commit: register_int_gauge_with_registry!(
+                "handler_object_state_highest_fully_executed_commit",
+                "The highest commit index such that it and every commit below it is fully executed",
+                registry
+            )
+            .unwrap(),
+            handler_object_state_handler_processed_overlay_entries: register_int_gauge_with_registry!(
+                "handler_object_state_handler_processed_overlay_entries",
+                "The number of handler-processed rows held in memory, not yet durable",
+                registry
+            )
+            .unwrap(),
+            consensus_handler_validation_reader_reused_verdicts: register_int_counter_vec_with_registry!(
+                "consensus_handler_validation_reader_reused_verdicts",
+                "The number of shared inputs, package inputs, dynamic fields and coin types of shared inputs post-consensus validation answered from an earlier read at the same commit, by kind",
+                &["kind"],
+                registry
+            )
+            .unwrap(),
             deny_rule_updates_injected: register_int_counter_with_registry!(
                 "deny_rule_updates_injected",
                 "The number of consensus commits that injected deny-rule update transactions",
@@ -290,12 +333,6 @@ impl EpochMetrics {
             deny_rule_update_transactions_injected: register_int_counter_with_registry!(
                 "deny_rule_update_transactions_injected",
                 "The number of injected deny-rule update transactions",
-                registry
-            )
-            .unwrap(),
-            deny_rule_removals_unlocked: register_int_gauge_with_registry!(
-                "deny_rule_removals_unlocked",
-                "Whether deny-rule removals are currently unlocked",
                 registry
             )
             .unwrap(),
@@ -312,7 +349,101 @@ impl EpochMetrics {
                 registry
             )
             .unwrap(),
+            epoch_change_stage_ms: register_int_gauge_vec_with_registry!(
+                "epoch_change_stage_ms",
+                "Milliseconds from the execution of the last checkpoint of the epoch to each stage of the epoch change",
+                &["stage"],
+                registry;
+                MetricLevel::Warn,
+            )
+            .unwrap(),
+            epoch_change_start_timestamp_ms: register_int_gauge_with_registry!(
+                "epoch_change_start_timestamp_ms",
+                "Unix time in milliseconds at which the last epoch change started",
+                registry;
+                MetricLevel::Warn,
+            )
+            .unwrap(),
+            epoch_change: Mutex::new(None),
         };
         Arc::new(this)
+    }
+
+    /// Starts recording the stages of the change to `target_epoch`, measured
+    /// from now, and clears the stages of the previous change. Call it once
+    /// the last checkpoint of the previous epoch has been executed.
+    pub fn begin_epoch_change(&self, target_epoch: EpochId) {
+        let start_unix_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis();
+        let mut epoch_change = self.epoch_change.lock();
+        self.epoch_change_stage_ms.reset();
+        self.epoch_change_start_timestamp_ms
+            .set(start_unix_ms as i64);
+        *epoch_change = Some((target_epoch, Instant::now()));
+    }
+
+    /// Records that the change to `target_epoch` reached `stage` at `at`.
+    /// Ignored unless that change was begun in this process, so a restart or
+    /// a later call from an older epoch never overwrites a newer value.
+    pub(crate) fn record_epoch_change_stage(
+        &self,
+        target_epoch: EpochId,
+        stage: &'static str,
+        at: Instant,
+    ) {
+        let epoch_change = self.epoch_change.lock();
+        let Some((_, start)) = epoch_change
+            .as_ref()
+            .filter(|(epoch, _)| *epoch == target_epoch)
+        else {
+            return;
+        };
+        self.epoch_change_stage_ms
+            .with_label_values(&[stage])
+            .set(at.saturating_duration_since(*start).as_millis() as i64);
+    }
+
+    /// Records that the change to `target_epoch` reached `stage` now.
+    pub fn record_epoch_change_stage_now(&self, target_epoch: EpochId, stage: &'static str) {
+        self.record_epoch_change_stage(target_epoch, stage, Instant::now());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::*;
+
+    #[test]
+    fn epoch_change_stages_need_a_begun_change_of_the_same_epoch() {
+        let metrics = EpochMetrics::new(&Registry::new());
+        let stage = |name| {
+            metrics
+                .epoch_change_stage_ms
+                .with_label_values(&[name])
+                .get()
+        };
+        metrics.record_epoch_change_stage_now(5, "no_change");
+        metrics.begin_epoch_change(4);
+        metrics.record_epoch_change_stage(
+            4,
+            "previous_change",
+            Instant::now() + Duration::from_millis(1),
+        );
+        assert!(stage("previous_change") >= 1);
+
+        metrics.begin_epoch_change(5);
+        metrics.record_epoch_change_stage_now(4, "other_epoch");
+        metrics.record_epoch_change_stage(5, "stage", Instant::now() + Duration::from_millis(30));
+
+        assert!(stage("stage") >= 30);
+        assert!(metrics.epoch_change_start_timestamp_ms.get() > 0);
+        // Beginning a change clears the stages of the previous one.
+        for ignored in ["no_change", "previous_change", "other_epoch"] {
+            assert_eq!(stage(ignored), 0);
+        }
     }
 }

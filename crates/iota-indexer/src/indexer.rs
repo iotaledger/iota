@@ -139,6 +139,7 @@ impl Indexer {
             fallback_kv_multi_fetch_batch_size,
             fallback_kv_concurrent_fetches,
             fallback_kv_cache_size,
+            fallback_kv_max_response_size_bytes,
         } = config.historic_fallback_options
         {
             let historic_fallback_reader = HistoricalFallbackReader::new(
@@ -147,6 +148,7 @@ impl Indexer {
                 read.package_resolver().clone(),
                 fallback_kv_multi_fetch_batch_size,
                 fallback_kv_concurrent_fetches,
+                fallback_kv_max_response_size_bytes,
                 registry,
             )?;
             info!("HistoricalFallbackReader initialized with URL: {url}");
@@ -155,8 +157,15 @@ impl Indexer {
             info!("No config for HistoricalFallbackReader provided, skipping...");
         }
 
+        // Fill the cache before the server accepts requests, so that read requests
+        // don't have to deal with not filled cache.
+        tracing::info!("Starting watermark background task to track pruning state");
+        WatermarkTask::new(store.clone(), watermark_cache)
+            .start(cancel.clone())
+            .await?;
+
         let handle = build_json_rpc_server(
-            store.clone(),
+            store,
             registry,
             read.clone(),
             config,
@@ -165,10 +174,6 @@ impl Indexer {
         )
         .await
         .expect("json rpc server should not run into errors upon start.");
-
-        tracing::info!("Starting watermark background task to track pruning state");
-        let watermark_task = WatermarkTask::new(store, watermark_cache);
-        watermark_task.start(cancel.clone());
 
         tracing::info!("Starting system package task");
         let system_package_task =

@@ -3,7 +3,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeSet, sync::Arc};
+use std::{collections::BTreeSet, sync::Arc, time::Duration};
 
 use iota_macros::{register_fail_point_arg, sim_test};
 use iota_protocol_config::{
@@ -14,7 +14,9 @@ use iota_sdk_types::{
     ObjectReference, ObjectVersion, RandomnessRound, SharedObjectReference, Transaction,
     TransactionDigest, TransactionEffects, TransactionKind, Version,
 };
+use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
+    attestation::AttestedTransaction,
     base_types::dbg_addr,
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
@@ -38,7 +40,9 @@ use crate::{
             consensus_quarantine::ConsensusCommitOutput,
         },
         authority_test_utils::{
-            init_state_with_ids, init_state_with_objects, init_transfer_transaction,
+            drop_attestations, init_state_with_ids, init_state_with_objects,
+            init_transfer_transaction, send_batch_user_transactions_no_execution,
+            send_user_transaction_and_execute,
         },
         authority_tests::{
             build_programmable_transaction, certify_shared_obj_transaction_no_execution,
@@ -49,13 +53,17 @@ use crate::{
             CongestionPerObjectDebt,
             shared_object_test_utils::new_congestion_tracker_with_initial_value_for_test,
         },
-        shared_object_version_manager::Schedulable,
+        shared_object_version_manager::{AssignedTxAndVersions, Schedulable},
         suggested_gas_price_calculator::suggested_gas_price_calculator_test_utils::new_suggested_gas_price_calculator_with_initial_values_for_test,
         test_authority_builder::TestAuthorityBuilder,
+        transaction_deferral::DeferralKey,
     },
     checkpoints::CheckpointServiceNoop,
     consensus_handler::{
         ConsensusCommitInfo, SequencedConsensusTransaction, VerifiedSequencedConsensusTransaction,
+    },
+    execution_scheduler::{
+        ExecutionSchedulerAPI, transaction_manager::SchedulableAttestedTransaction,
     },
     move_call,
     test_utils::set_scheduler_env,
@@ -67,6 +75,7 @@ pub const TEST_ONLY_GAS_UNIT: u64 = 10_000;
 // Note that TestSetup is currently purposely created for
 // test_congestion_control_execution_cancellation.
 struct TestSetup {
+    pcool: bool,
     setup_authority_state: Arc<AuthorityState>,
     protocol_config: ProtocolConfig,
     sender: Address,
@@ -77,6 +86,7 @@ struct TestSetup {
 
 impl TestSetup {
     async fn new(
+        pcool: bool,
         max_execution_duration_per_commit: u64,
         max_congestion_limit_overshoot_per_commit: u64,
     ) -> Self {
@@ -84,6 +94,12 @@ impl TestSetup {
 
         let mut protocol_config =
             ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        protocol_config.set_enable_pcool_flow_for_testing(pcool);
+        if pcool {
+            // Consecutive commits here reuse the objects the previous commit
+            // executed, so validation must see that commit's results.
+            protocol_config.set_pcool_deterministic_validation_horizon_distance_for_testing(1);
+        }
         protocol_config.set_per_object_congestion_control_mode_for_testing(
             PerObjectCongestionControlMode::TotalGasBudget,
         );
@@ -120,6 +136,7 @@ impl TestSetup {
         .await;
 
         Self {
+            pcool,
             setup_authority_state,
             protocol_config,
             sender,
@@ -289,8 +306,11 @@ async fn build_test_transaction(
 
 // Creates a transaction that touches the shared objects provided and the owned
 // object provided. The transaction is passed through a fake consensus and then
-// the congestion control before being executed.
+// the congestion control before being executed, as a certificate or, with
+// `pcool`, as a `UserTransactionV1` that goes through post-consensus
+// validation.
 async fn commit_and_execute_transaction(
+    pcool: bool,
     authority_state: &AuthorityState,
     package: &ObjectReference,
     sender: &Address,
@@ -312,12 +332,17 @@ async fn commit_and_execute_transaction(
     )
     .await;
 
-    let execution_effects =
+    let execution_effects = if pcool {
+        send_user_transaction_and_execute(authority_state, transaction.clone())
+            .await
+            .1
+    } else {
         send_and_confirm_transaction_(authority_state, None, transaction.clone(), true)
             .await
             .unwrap()
             .1
-            .into_data();
+            .into_data()
+    };
     (transaction, execution_effects)
 }
 
@@ -333,15 +358,25 @@ async fn commit_and_execute_transaction(
 // in the scheduler instead of executing them to cancelled effects.
 #[sim_test]
 async fn test_congestion_control_execution_cancellation_transaction_manager() {
-    congestion_control_execution_cancellation(false).await;
+    congestion_control_execution_cancellation(false, false).await;
 }
 
 #[sim_test]
 async fn test_congestion_control_execution_cancellation_execution_scheduler() {
-    congestion_control_execution_cancellation(true).await;
+    congestion_control_execution_cancellation(true, false).await;
 }
 
-async fn congestion_control_execution_cancellation(use_execution_scheduler: bool) {
+#[sim_test]
+async fn test_congestion_control_execution_cancellation_transaction_manager_pcool_flow() {
+    congestion_control_execution_cancellation(false, true).await;
+}
+
+#[sim_test]
+async fn test_congestion_control_execution_cancellation_execution_scheduler_pcool_flow() {
+    congestion_control_execution_cancellation(true, true).await;
+}
+
+async fn congestion_control_execution_cancellation(use_execution_scheduler: bool, pcool: bool) {
     telemetry_subscribers::init_for_testing();
     // Select the scheduler before the authorities are built (the env vars are
     // read by ExecutionSchedulerWrapper::new).
@@ -351,7 +386,7 @@ async fn congestion_control_execution_cancellation(use_execution_scheduler: bool
     // limit is equal to one default transaction's gas budget, and the overshoot
     // allowed is also equal to one default transaction's gas budget.
     let default_tx_gas_budget = TEST_ONLY_GAS_UNIT * TEST_ONLY_GAS_PRICE;
-    let test_setup = TestSetup::new(default_tx_gas_budget, default_tx_gas_budget).await;
+    let test_setup = TestSetup::new(pcool, default_tx_gas_budget, default_tx_gas_budget).await;
 
     // Creates 2 shared objects and 1 owned object.
     let shared_object_1 = test_setup.create_shared_object().await;
@@ -440,6 +475,7 @@ async fn congestion_control_execution_cancellation(use_execution_scheduler: bool
     // Runs a transaction that touches shared_object_1, shared_object_2 and a owned
     // object.
     let (congested_tx, effects) = commit_and_execute_transaction(
+        test_setup.pcool,
         &authority_state,
         &test_setup.package,
         &test_setup.sender,
@@ -488,21 +524,48 @@ async fn congestion_control_execution_cancellation(use_execution_scheduler: bool
 
     // Run the same transaction in `authority_state_2`, but using the above effects
     // for the execution.
-    let (cert, _) = certify_shared_obj_transaction_no_execution(&authority_state_2, congested_tx)
-        .await
-        .unwrap();
-    let assigned_versions = authority_state_2
-        .epoch_store_for_testing()
-        .acquire_shared_version_assignments_from_effects(
-            &VerifiedExecutableTransaction::new_from_certificate(cert.clone()),
-            &effects,
-            authority_state_2.get_object_cache_reader().as_ref(),
-        )
-        .unwrap();
-    let (effects_2, execution_error) = authority_state_2.execute_for_test(
-        &cert,
-        ExecutionEnv::new().with_assigned_versions(assigned_versions),
-    );
+    let (effects_2, execution_error) = if pcool {
+        let (scheduled, _) =
+            send_batch_user_transactions_no_execution(&authority_state_2, &[congested_tx], true)
+                .await;
+        let congested_tx = scheduled
+            .iter()
+            .find_map(|schedulable| schedulable.as_tx().cloned())
+            .expect("the second authority sequences the transaction");
+        let assigned_versions = authority_state_2
+            .epoch_store_for_testing()
+            .acquire_shared_version_assignments_from_effects(
+                &congested_tx,
+                &effects,
+                authority_state_2.get_object_cache_reader().as_ref(),
+            )
+            .unwrap();
+        authority_state_2
+            .try_execute_immediately(
+                &congested_tx,
+                ExecutionEnv::new().with_assigned_versions(assigned_versions),
+                &authority_state_2.epoch_store_for_testing(),
+            )
+            .unwrap()
+    } else {
+        let (cert, _) =
+            certify_shared_obj_transaction_no_execution(&authority_state_2, congested_tx)
+                .await
+                .unwrap();
+        let assigned_versions = authority_state_2
+            .epoch_store_for_testing()
+            .acquire_shared_version_assignments_from_effects(
+                &VerifiedExecutableTransaction::new_from_certificate(cert.clone()),
+                &effects,
+                authority_state_2.get_object_cache_reader().as_ref(),
+            )
+            .unwrap();
+        let (effects_2, execution_error) = authority_state_2.execute_for_test(
+            &cert,
+            ExecutionEnv::new().with_assigned_versions(assigned_versions),
+        );
+        (effects_2.data().clone(), execution_error)
+    };
 
     // Should result in the same cancellation.
     assert_eq!(
@@ -512,20 +575,29 @@ async fn congestion_control_execution_cancellation(use_execution_scheduler: bool
             suggested_gas_price,
         }
     );
-    assert_eq!(&effects, effects_2.data())
+    assert_eq!(effects, effects_2)
 }
 
 // Tests that congestion control and debt tracking work as expected when there
 // is a burst of traffic and overshoot is allowed.
 #[sim_test]
 async fn test_congestion_control_debt_tracking() {
+    congestion_control_debt_tracking(false).await;
+}
+
+#[sim_test]
+async fn test_congestion_control_debt_tracking_pcool_flow() {
+    congestion_control_debt_tracking(true).await;
+}
+
+async fn congestion_control_debt_tracking(pcool: bool) {
     telemetry_subscribers::init_for_testing();
 
     // Creates a test setup with a protocol config such that the the congestion
     // limit is equal to one default transaction's gas budget, and the overshoot
     // allowed is twice the default transaction's gas budget.
     let default_tx_gas_budget = TEST_ONLY_GAS_UNIT * TEST_ONLY_GAS_PRICE;
-    let test_setup = TestSetup::new(default_tx_gas_budget, 2 * default_tx_gas_budget).await;
+    let test_setup = TestSetup::new(pcool, default_tx_gas_budget, 2 * default_tx_gas_budget).await;
 
     // Creates 2 shared objects and 1 owned object.
     let shared_object_1 = test_setup.create_shared_object().await;
@@ -554,6 +626,7 @@ async fn test_congestion_control_debt_tracking() {
     // This will result in an overshoot of 2*default_tx_gas_budget, but should be
     // executed successfully.
     let (_, effects) = commit_and_execute_transaction(
+        test_setup.pcool,
         &authority_state,
         &test_setup.package,
         &test_setup.sender,
@@ -602,6 +675,7 @@ async fn test_congestion_control_debt_tracking() {
     // default_gas_budget from existing debt, and an extra 0.5*default_gas_budget
     // from this tx), and should be executed successfully.
     let (_, effects) = commit_and_execute_transaction(
+        test_setup.pcool,
         &authority_state,
         &test_setup.package,
         &test_setup.sender,
@@ -658,6 +732,7 @@ async fn test_congestion_control_debt_tracking() {
     // [default_gas_budget]) which exceeds the allowed
     // overshoot, and should be cancelled.
     let (_, effects) = commit_and_execute_transaction(
+        test_setup.pcool,
         &authority_state,
         &test_setup.package,
         &test_setup.sender,
@@ -741,6 +816,7 @@ async fn test_congestion_control_debt_tracking() {
     // + transaction [2.5*default_gas_budget] - congestion limit
     // [default_gas_budget]).
     let (_, effects) = commit_and_execute_transaction(
+        test_setup.pcool,
         &authority_state,
         &test_setup.package,
         &test_setup.sender,
@@ -795,6 +871,7 @@ async fn test_congestion_control_debt_tracking() {
     // shared object 1, resulting in a total overshoot of
     // 2.5*default_tx_gas_budget.
     let (_, effects) = commit_and_execute_transaction(
+        test_setup.pcool,
         &authority_state,
         &test_setup.package,
         &test_setup.sender,
@@ -883,6 +960,7 @@ async fn test_congestion_control_debt_tracking() {
     // only an owned object. The shared object debt from commit 5 should not have
     // any impact so this transaction should be executed successfully.
     let (_, effects) = commit_and_execute_transaction(
+        test_setup.pcool,
         &authority_state,
         &test_setup.package,
         &test_setup.sender,
@@ -933,6 +1011,7 @@ async fn test_congestion_control_debt_tracking() {
     // with gas budget of 3*default_tx_gas_budget that touches both of them
     // and an owned object should be executed successfully.
     let (_, effects) = commit_and_execute_transaction(
+        test_setup.pcool,
         &authority_state,
         &test_setup.package,
         &test_setup.sender,
@@ -997,7 +1076,6 @@ async fn test_combined_tracker_schedules_randomness_with_regular_transactions() 
     // costs one unit under TotalTxCount), so exactly one transaction per
     // commit is scheduled and the other is deferred.
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
         config.set_per_object_congestion_control_mode_for_testing(
             PerObjectCongestionControlMode::TotalTxCount,
         );
@@ -1069,7 +1147,10 @@ async fn test_combined_tracker_schedules_randomness_with_regular_transactions() 
     };
     let seq = |tx: &VerifiedTransaction| {
         VerifiedSequencedConsensusTransaction::new_test(ConsensusTransaction {
-            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx.clone().into())),
+            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+                tx.clone().into(),
+                None,
+            ))),
             tracking_id: Default::default(),
         })
     };
@@ -1081,7 +1162,7 @@ async fn test_combined_tracker_schedules_randomness_with_regular_transactions() 
         let epoch_store = epoch_store.clone();
         let authority = &authority;
         async move {
-            let mut output = ConsensusCommitOutput::new(round);
+            let mut output = ConsensusCommitOutput::new(round, round);
             // Roots are prefilled per transaction by randomness use, as the
             // commit boundary does; scheduling filters out deferred ones.
             let mut non_randomness_roots = BTreeSet::new();
@@ -1125,7 +1206,7 @@ async fn test_combined_tracker_schedules_randomness_with_regular_transactions() 
                     &[],
                     &Arc::new(CheckpointServiceNoop {}),
                     authority.get_object_cache_reader().as_ref(),
-                    &ConsensusCommitInfo::new_for_test(round, 0, true),
+                    &ConsensusCommitInfo::new_for_test(round, round, 0, true),
                     &mut non_randomness_roots,
                     &mut randomness_roots,
                     PreviouslyDeferredTransactions::default(),
@@ -1233,6 +1314,165 @@ async fn test_combined_tracker_schedules_randomness_with_regular_transactions() 
     );
 }
 
+/// A transaction running past the commit's budget leaves a debt for its
+/// dependents, and each root its commit in `root_commits`, only when the
+/// epoch enables transaction dependencies.
+#[tokio::test]
+async fn test_transaction_dependency_bookkeeping_follows_the_protocol_flag() {
+    telemetry_subscribers::init_for_testing();
+    let default_tx_gas_budget = TEST_ONLY_GAS_UNIT * TEST_ONLY_GAS_PRICE;
+    for enabled in [true, false] {
+        let test_setup =
+            TestSetup::new(true, default_tx_gas_budget, 2 * default_tx_gas_budget).await;
+        let shared_object = test_setup.create_shared_object().await;
+        let owned_object = test_setup.create_owned_object().await;
+        let genesis_objects = test_setup
+            .create_genesis_objects_for_new_authority_state(&[
+                shared_object.object_id,
+                owned_object.object_id,
+            ])
+            .await;
+        let mut protocol_config = test_setup.protocol_config.clone();
+        protocol_config.set_enable_transaction_dependencies_for_testing(enabled);
+        let authority_state = TestAuthorityBuilder::new()
+            .with_reference_gas_price(TEST_ONLY_GAS_PRICE)
+            .with_protocol_config(protocol_config)
+            .build()
+            .await;
+        authority_state.insert_genesis_objects(&genesis_objects);
+
+        // Ends at three times the budget, within the allowed overshoot.
+        let (transaction, effects) = commit_and_execute_transaction(
+            test_setup.pcool,
+            &authority_state,
+            &test_setup.package,
+            &test_setup.sender,
+            &test_setup.sender_key,
+            &test_setup.gas_object_id,
+            &[(shared_object.object_id, shared_object.version)],
+            &authority_state
+                .get_object(&owned_object.object_id)
+                .unwrap()
+                .object_ref(),
+            3 * TEST_ONLY_GAS_UNIT,
+        )
+        .await;
+        assert!(effects.status().is_success());
+
+        let epoch_store = authority_state.epoch_store_for_testing();
+        let root_commit = epoch_store.root_commit_of(transaction.digest()).unwrap();
+        let debt = epoch_store.load_stored_transaction_debts_for_testing(&[*transaction.digest()]);
+        if enabled {
+            assert!(root_commit.is_some());
+            assert_eq!(debt, vec![Some((1, 2 * default_tx_gas_budget))]);
+        } else {
+            assert_eq!(root_commit, None);
+            assert_eq!(debt, vec![None]);
+        }
+    }
+}
+
+/// A transaction running past its commit's budget makes a dependent at a later
+/// commit start when the debt it left runs out, aged by the budget of every
+/// commit in between.
+#[tokio::test]
+async fn test_dependent_at_a_later_commit_starts_after_its_dependency_ends() {
+    telemetry_subscribers::init_for_testing();
+    let budget = TEST_ONLY_GAS_UNIT * TEST_ONLY_GAS_PRICE;
+    let test_setup = TestSetup::new(true, budget, 3 * budget).await;
+    let dependency_object = test_setup.create_shared_object().await;
+    let dependent_object = test_setup.create_shared_object().await;
+    let owned_object = test_setup.create_owned_object().await;
+    let genesis_objects = test_setup
+        .create_genesis_objects_for_new_authority_state(&[
+            dependency_object.object_id,
+            dependent_object.object_id,
+            owned_object.object_id,
+        ])
+        .await;
+    let mut protocol_config = test_setup.protocol_config.clone();
+    protocol_config.set_enable_transaction_dependencies_for_testing(true);
+    let authority_state = TestAuthorityBuilder::new()
+        .with_reference_gas_price(TEST_ONLY_GAS_PRICE)
+        .with_protocol_config(protocol_config)
+        .build()
+        .await;
+    authority_state.insert_genesis_objects(&genesis_objects);
+    let epoch_store = authority_state.epoch_store_for_testing();
+    let owned_object_ref = || {
+        authority_state
+            .get_object(&owned_object.object_id)
+            .unwrap()
+            .object_ref()
+    };
+
+    // Commit 1: ends at four budgets.
+    let (dependency, effects) = commit_and_execute_transaction(
+        test_setup.pcool,
+        &authority_state,
+        &test_setup.package,
+        &test_setup.sender,
+        &test_setup.sender_key,
+        &test_setup.gas_object_id,
+        &[(dependency_object.object_id, dependency_object.version)],
+        &owned_object_ref(),
+        4 * TEST_ONLY_GAS_UNIT,
+    )
+    .await;
+    assert!(effects.status().is_success());
+    assert_eq!(
+        epoch_store.load_stored_transaction_debts_for_testing(&[*dependency.digest()]),
+        vec![Some((1, 3 * budget))]
+    );
+
+    // Commit 2.
+    let (_, effects) = commit_and_execute_transaction(
+        test_setup.pcool,
+        &authority_state,
+        &test_setup.package,
+        &test_setup.sender,
+        &test_setup.sender_key,
+        &test_setup.gas_object_id,
+        &[],
+        &owned_object_ref(),
+        TEST_ONLY_GAS_UNIT,
+    )
+    .await;
+    assert!(effects.status().is_success());
+
+    // Commit 3: the dependent starts at two budgets and ends at three.
+    let mut builder = ProgrammableTransactionBuilder::new();
+    let shared = builder
+        .obj(CallArg::Shared(SharedObjectReference::new(
+            dependent_object.object_id,
+            dependent_object.version,
+            true,
+        )))
+        .unwrap();
+    let owned = builder
+        .obj(CallArg::ImmutableOrOwned(owned_object_ref()))
+        .unwrap();
+    move_call! {
+        builder,
+        (test_setup.package.object_id)::congestion_control::increment_two(owned, shared)
+    };
+    let gas = authority_state
+        .get_object(&test_setup.gas_object_id)
+        .unwrap();
+    let dependent =
+        TestTransactionBuilder::new(test_setup.sender, gas.object_ref(), TEST_ONLY_GAS_PRICE)
+            .with_gas_budget(budget)
+            .programmable(builder.finish())
+            .with_transaction_dependency(*dependency.digest(), epoch_store.epoch())
+            .build_and_sign(&test_setup.sender_key);
+    let (_, effects) = send_user_transaction_and_execute(&authority_state, dependent.clone()).await;
+    assert!(effects.status().is_success());
+    assert_eq!(
+        epoch_store.load_stored_transaction_debts_for_testing(&[*dependent.digest()]),
+        vec![Some((3, 2 * budget))]
+    );
+}
+
 // An owned-object-only transaction that cannot be scheduled within the
 // execution-worker limit is deferred and, once past the deferral limit,
 // cancelled: it is still executed, charged gas, and produces failure effects
@@ -1248,7 +1488,6 @@ async fn test_execution_worker_congestion_cancels_owned_object_only_tx() {
     // one transaction can be scheduled per commit; no deferral allowance, so
     // the transaction that does not fit is cancelled immediately.
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
         config.set_per_object_congestion_control_mode_for_testing(
             PerObjectCongestionControlMode::TotalTxCount,
         );
@@ -1306,7 +1545,9 @@ async fn test_execution_worker_congestion_cancels_owned_object_only_tx() {
         .iter()
         .map(|tx| {
             SequencedConsensusTransaction::new_test(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx.clone().into())),
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(
+                    AttestedTransaction::new(tx.clone().into(), None),
+                )),
                 tracking_id: Default::default(),
             })
         })
@@ -1395,6 +1636,9 @@ async fn test_execution_worker_congestion_cancels_owned_object_only_tx() {
             authority_2.get_object_cache_reader().as_ref(),
         )
         .unwrap();
+    // The second authority executes the transaction outside the consensus
+    // handler, so it is assigned a commit first, as the handler would.
+    epoch_store_2.assign_to_a_new_commit_for_testing(&[cancelled_tx.key()]);
     let (effects_2, _) = authority_2
         .try_execute_immediately(
             &cancelled_tx,
@@ -1419,10 +1663,7 @@ async fn test_execution_worker_congestion_cancels_shared_object_tx() {
     // touching disjoint objects, one is scheduled and the other is deferred
     // by the worker limit alone and then cancelled (no deferral allowance).
     let default_tx_gas_budget = TEST_ONLY_GAS_UNIT * TEST_ONLY_GAS_PRICE;
-    let mut test_setup = TestSetup::new(default_tx_gas_budget, 0).await;
-    test_setup
-        .protocol_config
-        .set_enable_pcool_flow_for_testing(true);
+    let mut test_setup = TestSetup::new(true, default_tx_gas_budget, 0).await;
     test_setup
         .protocol_config
         .set_max_concurrent_execution_workers_for_testing(1);
@@ -1496,7 +1737,9 @@ async fn test_execution_worker_congestion_cancels_shared_object_tx() {
         .iter()
         .map(|tx| {
             SequencedConsensusTransaction::new_test(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx.clone())),
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(
+                    AttestedTransaction::new(tx.clone(), None),
+                )),
                 tracking_id: Default::default(),
             })
         })
@@ -1586,7 +1829,6 @@ async fn test_execution_worker_congestion_cancels_tx_with_multiple_gas_coins() {
     // Same setup as the owned-object-only cancellation test: one execution
     // worker, one transaction per commit, no deferral allowance.
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
         config.set_per_object_congestion_control_mode_for_testing(
             PerObjectCongestionControlMode::TotalTxCount,
         );
@@ -1651,7 +1893,9 @@ async fn test_execution_worker_congestion_cancels_tx_with_multiple_gas_coins() {
         .iter()
         .map(|tx| {
             SequencedConsensusTransaction::new_test(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx.clone())),
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(
+                    AttestedTransaction::new(tx.clone(), None),
+                )),
                 tracking_id: Default::default(),
             })
         })
@@ -1739,6 +1983,9 @@ async fn test_execution_worker_congestion_cancels_tx_with_multiple_gas_coins() {
             authority_2.get_object_cache_reader().as_ref(),
         )
         .unwrap();
+    // The second authority executes the transaction outside the consensus
+    // handler, so it is assigned a commit first, as the handler would.
+    epoch_store_2.assign_to_a_new_commit_for_testing(&[cancelled_tx.key()]);
     let (effects_2, _) = authority_2
         .try_execute_immediately(
             &cancelled_tx,
@@ -1747,4 +1994,1031 @@ async fn test_execution_worker_congestion_cancels_tx_with_multiple_gas_coins() {
         )
         .unwrap();
     assert_eq!(effects, effects_2);
+}
+
+// A transaction is scheduled only once the transaction it depends on is: it
+// is deferred while its dependency is deferred at the same commit, and the
+// congestion tracker defers it again while its dependency's execution ends
+// past the commit's budget. Two execution workers and a budget of one
+// transaction per worker per commit make every step deterministic.
+#[tokio::test]
+async fn test_dependent_is_deferred_until_its_dependency_is_scheduled() {
+    telemetry_subscribers::init_for_testing();
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_per_object_congestion_control_mode_for_testing(
+            PerObjectCongestionControlMode::TotalTxCount,
+        );
+        config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(1);
+        config.set_max_congestion_limit_overshoot_per_commit_for_testing(0);
+        config.set_max_concurrent_execution_workers_for_testing(2);
+        config.set_separate_gas_price_feedback_mechanism_for_randomness_for_testing(false);
+        config.set_max_deferral_rounds_for_congestion_control_for_testing(10);
+        config.set_enable_transaction_dependencies_for_testing(true);
+        config
+    });
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas_ids: Vec<ObjectId> = (0..4).map(|_| ObjectId::random()).collect();
+    let authority = init_state_with_ids(gas_ids.iter().map(|id| (sender, *id))).await;
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let transfer = |gas_id: &ObjectId, gas_price: u64, dependency: Option<TransactionDigest>| {
+        let gas = authority.get_object(gas_id).unwrap();
+        let mut builder = TestTransactionBuilder::new(sender, gas.object_ref(), gas_price)
+            .transfer_iota(Some(1), dbg_addr(2));
+        if let Some(dependency) = dependency {
+            builder = builder.with_transaction_dependency(dependency, epoch_store.epoch());
+        }
+        epoch_store
+            .verify_transaction(builder.build_and_sign(&sender_key))
+            .unwrap()
+    };
+    let seq = |tx: &VerifiedTransaction| {
+        VerifiedSequencedConsensusTransaction::new_test(ConsensusTransaction {
+            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+                tx.clone().into(),
+                None,
+            ))),
+            tracking_id: Default::default(),
+        })
+    };
+
+    // Runs one commit's scheduling and returns the scheduled digests.
+    let schedule = |transactions: Vec<VerifiedSequencedConsensusTransaction>,
+                    previously_deferred: PreviouslyDeferredTransactions,
+                    round: u64| {
+        let epoch_store = epoch_store.clone();
+        let authority = &authority;
+        async move {
+            let mut output = ConsensusCommitOutput::new(round, round);
+            let mut non_randomness_roots: BTreeSet<_> = transactions
+                .iter()
+                .map(|tx| {
+                    TransactionKey::Digest(
+                        tx.0.transaction.executable_transaction_digest().unwrap(),
+                    )
+                })
+                .collect();
+            let mut randomness_roots = BTreeSet::new();
+            let protocol_config = epoch_store.protocol_config();
+            let mut congestion_control_parameters = CongestionControlParameters::new_for_test(
+                PerObjectCongestionControlMode::TotalTxCount,
+                protocol_config.congestion_control_min_free_execution_slot(),
+                protocol_config.max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option(),
+                protocol_config.max_congestion_limit_overshoot_per_commit_as_option(),
+                protocol_config.max_gas_price(),
+                protocol_config.congestion_limit_overshoot_in_gas_price_feedback_mechanism(),
+                protocol_config.separate_gas_price_feedback_mechanism_for_randomness(),
+            );
+            congestion_control_parameters.set_max_concurrent_execution_workers_for_test(2);
+            let tracker = new_congestion_tracker_with_initial_value_for_test(
+                &[],
+                congestion_control_parameters,
+            );
+            let (
+                non_randomness,
+                _randomness,
+                _notifications,
+                _reconfig,
+                _final_round,
+                _root,
+                _assigned,
+            ) = epoch_store
+                .process_consensus_transactions(
+                    &mut output,
+                    &transactions,
+                    &[],
+                    &[],
+                    &Arc::new(CheckpointServiceNoop {}),
+                    authority.get_object_cache_reader().as_ref(),
+                    &ConsensusCommitInfo::new_for_test(round, round, 0, true),
+                    &mut non_randomness_roots,
+                    &mut randomness_roots,
+                    previously_deferred,
+                    None,
+                    false,
+                    None,
+                    &authority.metrics,
+                    tracker,
+                    None,
+                )
+                .await
+                .unwrap();
+            non_randomness
+                .iter()
+                .map(|schedulable| *schedulable.as_tx().unwrap().digest())
+                .collect::<Vec<_>>()
+        }
+    };
+    let dependency_deferrals = || {
+        authority
+            .metrics
+            .consensus_handler_dependency_deferred_transactions
+            .get()
+    };
+
+    // Commit 1: the two highest-priced transactions take both workers, the
+    // dependency is deferred by congestion, and its dependent is deferred
+    // with it.
+    let first = transfer(&gas_ids[0], 4 * rgp, None);
+    let second = transfer(&gas_ids[1], 3 * rgp, None);
+    let dependency = transfer(&gas_ids[2], 2 * rgp, None);
+    let dependent = transfer(&gas_ids[3], rgp, Some(*dependency.digest()));
+    let scheduled = schedule(
+        vec![seq(&first), seq(&second), seq(&dependency), seq(&dependent)],
+        PreviouslyDeferredTransactions::default(),
+        1,
+    )
+    .await;
+    assert_eq!(scheduled, vec![*first.digest(), *second.digest()]);
+    assert_eq!(dependency_deferrals(), 1);
+
+    // Commit 2: the dependency takes a worker. A worker is free for its
+    // dependent, but the dependent could start only when the dependency
+    // ends, past the budget, so it is deferred for the dependency again.
+    let deferred_key = DeferralKey::new_for_consensus_round(2, 1);
+    let previously_deferred: PreviouslyDeferredTransactions = [
+        (*dependency.digest(), (deferred_key, None)),
+        (*dependent.digest(), (deferred_key, None)),
+    ]
+    .into_iter()
+    .collect();
+    let scheduled = schedule(
+        vec![seq(&dependency), seq(&dependent)],
+        previously_deferred,
+        2,
+    )
+    .await;
+    assert_eq!(scheduled, vec![*dependency.digest()]);
+    assert_eq!(dependency_deferrals(), 2);
+
+    // Commit 3: the dependency ended within the previous commit's budget, so
+    // the dependent is scheduled.
+    let previously_deferred: PreviouslyDeferredTransactions = [(
+        *dependent.digest(),
+        (DeferralKey::new_for_consensus_round(3, 1), None),
+    )]
+    .into_iter()
+    .collect();
+    let scheduled = schedule(vec![seq(&dependent)], previously_deferred, 3).await;
+    assert_eq!(scheduled, vec![*dependent.digest()]);
+    assert_eq!(dependency_deferrals(), 2);
+}
+
+/// Sequencing of transactions on shared objects with transaction dependencies
+/// enabled and per-object congestion control counting transactions, at most
+/// `limit` per object and commit, and the lowest free slot taken across
+/// resources, as on every chain. With `workers`, the combined tracker
+/// schedules regular and randomness-using transactions from one list; without,
+/// each phase has its own tracker.
+struct SharedObjectSequencing {
+    authority: Arc<AuthorityState>,
+    sender: Address,
+    sender_key: AccountPrivateKey,
+    gas_ids: Vec<ObjectId>,
+    workers: Option<u16>,
+}
+
+impl SharedObjectSequencing {
+    async fn new(limit: u64, gas_objects: usize, workers: Option<u16>) -> Self {
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+        let mut protocol_config =
+            ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        protocol_config.set_per_object_congestion_control_mode_for_testing(
+            PerObjectCongestionControlMode::TotalTxCount,
+        );
+        protocol_config
+            .set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(limit);
+        protocol_config.set_max_congestion_limit_overshoot_per_commit_for_testing(0);
+        protocol_config.set_congestion_control_min_free_execution_slot_for_testing(true);
+        protocol_config.set_max_deferral_rounds_for_congestion_control_for_testing(10);
+        protocol_config.set_enable_transaction_dependencies_for_testing(true);
+        if let Some(workers) = workers {
+            protocol_config.set_max_concurrent_execution_workers_for_testing(workers);
+            protocol_config
+                .set_separate_gas_price_feedback_mechanism_for_randomness_for_testing(false);
+        }
+        let authority = TestAuthorityBuilder::new()
+            .with_reference_gas_price(TEST_ONLY_GAS_PRICE)
+            .with_protocol_config(protocol_config)
+            .build()
+            .await;
+        let gas_ids: Vec<ObjectId> = (0..gas_objects).map(|_| ObjectId::random()).collect();
+        for gas_id in &gas_ids {
+            authority.insert_genesis_object(Object::with_id_owner_for_testing(*gas_id, sender));
+        }
+        Self {
+            authority,
+            sender,
+            sender_key,
+            gas_ids,
+            workers,
+        }
+    }
+
+    fn shared_object(&self) -> Object {
+        let object = Object::shared_for_testing();
+        self.authority.insert_genesis_object(object.clone());
+        object
+    }
+
+    /// A transaction mutating `shared_objects` at `gas_price`, paying with
+    /// the gas object at `gas_index`, depending on `dependency` when given,
+    /// and reading the randomness state when `uses_randomness`.
+    fn transaction(
+        &self,
+        gas_index: usize,
+        shared_objects: &[&Object],
+        gas_price: u64,
+        dependency: Option<TransactionDigest>,
+        uses_randomness: bool,
+    ) -> VerifiedTransaction {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let mut args: Vec<_> = shared_objects
+            .iter()
+            .map(|object| {
+                builder
+                    .obj(CallArg::Shared(SharedObjectReference::new(
+                        object.id(),
+                        object.version(),
+                        true,
+                    )))
+                    .unwrap()
+            })
+            .collect();
+        if uses_randomness {
+            let randomness_version =
+                get_randomness_state_obj_initial_shared_version(self.authority.get_object_store())
+                    .unwrap();
+            args.push(
+                builder
+                    .obj(CallArg::Shared(SharedObjectReference::new(
+                        ObjectId::RANDOMNESS_STATE,
+                        randomness_version,
+                        false,
+                    )))
+                    .unwrap(),
+            );
+        }
+        builder.programmable_move_call(
+            ObjectId::random(),
+            Identifier::from_static("congestion_control"),
+            Identifier::from_static("increment"),
+            vec![],
+            args,
+        );
+        let gas = self.authority.get_object(&self.gas_ids[gas_index]).unwrap();
+        let mut test_builder =
+            TestTransactionBuilder::new(self.sender, gas.object_ref(), gas_price)
+                .with_gas_budget(gas_price * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS)
+                .programmable(builder.finish());
+        if let Some(dependency) = dependency {
+            let epoch = self.authority.epoch_store_for_testing().epoch();
+            test_builder = test_builder.with_transaction_dependency(dependency, epoch);
+        }
+        self.authority
+            .epoch_store_for_testing()
+            .verify_transaction(test_builder.build_and_sign(&self.sender_key))
+            .unwrap()
+    }
+
+    /// A transfer without shared inputs at `gas_price`, paying with the gas
+    /// object at `gas_index`, depending on `dependency`.
+    fn transfer(
+        &self,
+        gas_index: usize,
+        gas_price: u64,
+        dependency: TransactionDigest,
+    ) -> VerifiedTransaction {
+        let gas = self.authority.get_object(&self.gas_ids[gas_index]).unwrap();
+        let epoch_store = self.authority.epoch_store_for_testing();
+        let transaction = TestTransactionBuilder::new(self.sender, gas.object_ref(), gas_price)
+            .transfer_iota(Some(1_000), Address::random())
+            .with_transaction_dependency(dependency, epoch_store.epoch())
+            .build_and_sign(&self.sender_key);
+        epoch_store.verify_transaction(transaction).unwrap()
+    }
+
+    /// Sequences one commit, `regular` and `randomness` being the two lists
+    /// in the order `process_consensus_transactions_and_commit_boundary` sorts
+    /// them (with the combined tracker, everything is in `regular`), and
+    /// returns the scheduled digests of both phases in scheduling order with
+    /// the assigned shared-object versions.
+    async fn sequence(
+        &self,
+        regular: Vec<VerifiedSequencedConsensusTransaction>,
+        randomness: Vec<VerifiedSequencedConsensusTransaction>,
+        previously_deferred: PreviouslyDeferredTransactions,
+        round: u64,
+        randomness_round: Option<RandomnessRound>,
+    ) -> (Vec<TransactionDigest>, AssignedTxAndVersions) {
+        let (scheduled, assigned) = self
+            .sequence_for_execution(
+                regular,
+                randomness,
+                previously_deferred,
+                round,
+                randomness_round,
+            )
+            .await;
+        let scheduled = scheduled
+            .iter()
+            .filter_map(|schedulable| schedulable.as_tx().map(|tx| *tx.digest()))
+            .collect();
+        (scheduled, assigned)
+    }
+
+    /// Like [`Self::sequence`], but returns the scheduled transactions as the
+    /// consensus handler hands them to execution.
+    async fn sequence_for_execution(
+        &self,
+        regular: Vec<VerifiedSequencedConsensusTransaction>,
+        randomness: Vec<VerifiedSequencedConsensusTransaction>,
+        previously_deferred: PreviouslyDeferredTransactions,
+        round: u64,
+        randomness_round: Option<RandomnessRound>,
+    ) -> (Vec<SchedulableAttestedTransaction>, AssignedTxAndVersions) {
+        let epoch_store = self.authority.epoch_store_for_testing();
+        let mut output = ConsensusCommitOutput::new(round, round);
+        let roots = |transactions: &[VerifiedSequencedConsensusTransaction]| {
+            transactions
+                .iter()
+                .map(|tx| {
+                    TransactionKey::Digest(
+                        tx.0.transaction.executable_transaction_digest().unwrap(),
+                    )
+                })
+                .collect::<BTreeSet<_>>()
+        };
+        let mut non_randomness_roots = roots(&regular);
+        let mut randomness_roots = roots(&randomness);
+        let protocol_config = epoch_store.protocol_config();
+        let mut parameters = CongestionControlParameters::new_for_test(
+            PerObjectCongestionControlMode::TotalTxCount,
+            true,
+            protocol_config.max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option(),
+            protocol_config.max_congestion_limit_overshoot_per_commit_as_option(),
+            protocol_config.max_gas_price(),
+            protocol_config.congestion_limit_overshoot_in_gas_price_feedback_mechanism(),
+            protocol_config.separate_gas_price_feedback_mechanism_for_randomness(),
+        );
+        if let Some(workers) = self.workers {
+            parameters.set_max_concurrent_execution_workers_for_test(workers);
+        }
+        let tracker = new_congestion_tracker_with_initial_value_for_test(&[], parameters.clone());
+        let randomness_tracker = self
+            .workers
+            .is_none()
+            .then(|| new_congestion_tracker_with_initial_value_for_test(&[], parameters));
+        let (
+            scheduled,
+            scheduled_randomness,
+            _notifications,
+            _reconfig,
+            _final_round,
+            _root,
+            assigned,
+        ) = epoch_store
+            .process_consensus_transactions(
+                &mut output,
+                &regular,
+                &randomness,
+                &[],
+                &Arc::new(CheckpointServiceNoop {}),
+                self.authority.get_object_cache_reader().as_ref(),
+                &ConsensusCommitInfo::new_for_test(round, round, 0, true),
+                &mut non_randomness_roots,
+                &mut randomness_roots,
+                previously_deferred,
+                None,
+                false,
+                randomness_round,
+                &self.authority.metrics,
+                tracker,
+                randomness_tracker,
+            )
+            .await
+            .unwrap();
+        (
+            scheduled.into_iter().chain(scheduled_randomness).collect(),
+            assigned,
+        )
+    }
+
+    /// Hands `scheduled` to the execution scheduler with the versions in
+    /// `assigned`, as the consensus handler does, and returns the effects in
+    /// the same order.
+    async fn execute(
+        &self,
+        scheduled: Vec<SchedulableAttestedTransaction>,
+        assigned: AssignedTxAndVersions,
+    ) -> Vec<TransactionEffects> {
+        let epoch_store = self.authority.epoch_store_for_testing();
+        let assigned = assigned.into_map();
+        let scheduled = drop_attestations(scheduled);
+        let digests: Vec<_> = scheduled
+            .iter()
+            .map(|schedulable| *schedulable.as_tx().unwrap().digest())
+            .collect();
+        let keys: Vec<_> = scheduled.iter().map(Schedulable::key).collect();
+        epoch_store.assign_to_a_new_commit_for_testing(&keys);
+        let transactions = scheduled
+            .into_iter()
+            .map(|schedulable| {
+                let versions = assigned
+                    .get(&schedulable.key())
+                    .cloned()
+                    .unwrap_or_default();
+                (
+                    schedulable,
+                    ExecutionEnv::new().with_assigned_versions(versions),
+                )
+            })
+            .collect();
+        self.authority
+            .execution_scheduler()
+            .enqueue(transactions, &epoch_store);
+        tokio::time::timeout(
+            Duration::from_secs(10),
+            self.authority
+                .get_transaction_cache_reader()
+                .notify_read_executed_effects_for_testing("", &digests),
+        )
+        .await
+        .expect("the scheduled transactions must execute")
+    }
+
+    fn dependency_deferrals(&self) -> u64 {
+        self.authority
+            .metrics
+            .consensus_handler_dependency_deferred_transactions
+            .get()
+    }
+}
+
+fn sequenced(transaction: &VerifiedTransaction) -> VerifiedSequencedConsensusTransaction {
+    VerifiedSequencedConsensusTransaction::new_test(ConsensusTransaction {
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            transaction.clone().into(),
+            None,
+        ))),
+        tracking_id: Default::default(),
+    })
+}
+
+/// The version of `object` assigned to `transaction`, when it was scheduled.
+fn assigned_version(
+    assigned: &AssignedTxAndVersions,
+    transaction: &VerifiedTransaction,
+    object: ObjectId,
+) -> Option<Version> {
+    assigned
+        .0
+        .iter()
+        .find(|(key, _)| *key == TransactionKey::Digest(*transaction.digest()))
+        .and_then(|(_, versions)| {
+            versions
+                .iter()
+                .find(|assignment| assignment.object_id == object)
+                .map(|assignment| assignment.version)
+        })
+}
+
+/// A dependency deferred by congestion on an object its dependent does not
+/// touch takes the dependent with it, so the dependent is assigned no version
+/// of their common object. At the next commit both are scheduled, the
+/// dependent after the dependency's end and with the higher version.
+#[tokio::test]
+async fn test_dependent_is_deferred_with_a_dependency_deferred_for_another_object() {
+    telemetry_subscribers::init_for_testing();
+    let sequencing = SharedObjectSequencing::new(2, 5, None).await;
+    let rgp = TEST_ONLY_GAS_PRICE;
+    let common = sequencing.shared_object();
+    let congested = sequencing.shared_object();
+    let first = sequencing.transaction(0, &[&congested], 5 * rgp, None, false);
+    let second = sequencing.transaction(1, &[&congested], 4 * rgp, None, false);
+    let dependency = sequencing.transaction(2, &[&common, &congested], 3 * rgp, None, false);
+    let dependent =
+        sequencing.transaction(3, &[&common], 2 * rgp, Some(*dependency.digest()), false);
+    let unrelated = sequencing.transaction(4, &[&common], rgp, None, false);
+
+    // Commit 1: `first` and `second` take the commit's two slots on
+    // `congested` while `common` stays free.
+    let (scheduled, assigned) = sequencing
+        .sequence(
+            vec![
+                sequenced(&first),
+                sequenced(&second),
+                sequenced(&dependency),
+                sequenced(&dependent),
+                sequenced(&unrelated),
+            ],
+            vec![],
+            PreviouslyDeferredTransactions::default(),
+            1,
+            None,
+        )
+        .await;
+    assert_eq!(
+        scheduled,
+        vec![*first.digest(), *unrelated.digest(), *second.digest()]
+    );
+    assert_eq!(assigned_version(&assigned, &dependent, common.id()), None);
+    assert_eq!(sequencing.dependency_deferrals(), 1);
+
+    // Commit 2: both are reloaded, the dependency first.
+    let deferred_key = DeferralKey::new_for_consensus_round(2, 1);
+    let previously_deferred = [
+        (*dependency.digest(), (deferred_key, None)),
+        (*dependent.digest(), (deferred_key, None)),
+    ]
+    .into_iter()
+    .collect();
+    let (scheduled, assigned) = sequencing
+        .sequence(
+            vec![sequenced(&dependency), sequenced(&dependent)],
+            vec![],
+            previously_deferred,
+            2,
+            None,
+        )
+        .await;
+    assert_eq!(scheduled, vec![*dependency.digest(), *dependent.digest()]);
+    assert!(
+        assigned_version(&assigned, &dependency, common.id()).unwrap()
+            < assigned_version(&assigned, &dependent, common.id()).unwrap()
+    );
+    assert_eq!(sequencing.dependency_deferrals(), 1);
+}
+
+/// With the lowest free slot taken across resources, a transaction processed
+/// later can be placed in a gap before the slot of one processed earlier. A
+/// dependent is never placed before its dependency's end, so its version of
+/// their common object stays above the dependency's.
+#[tokio::test]
+async fn test_dependent_takes_no_free_gap_before_its_dependency() {
+    telemetry_subscribers::init_for_testing();
+    let sequencing = SharedObjectSequencing::new(3, 4, None).await;
+    let rgp = TEST_ONLY_GAS_PRICE;
+    let common = sequencing.shared_object();
+    let busy = sequencing.shared_object();
+    let first = sequencing.transaction(0, &[&busy], 4 * rgp, None, false);
+    let dependency = sequencing.transaction(1, &[&common, &busy], 3 * rgp, None, false);
+    let dependent =
+        sequencing.transaction(2, &[&common], 2 * rgp, Some(*dependency.digest()), false);
+    let unrelated = sequencing.transaction(3, &[&common], rgp, None, false);
+
+    // `first` occupies `busy` until 1, so the dependency starts at 1 and
+    // leaves a gap on `common` before its slot. `unrelated` takes the gap;
+    // the dependent starts when the dependency ends, at 2.
+    let (scheduled, assigned) = sequencing
+        .sequence(
+            vec![
+                sequenced(&first),
+                sequenced(&dependency),
+                sequenced(&dependent),
+                sequenced(&unrelated),
+            ],
+            vec![],
+            PreviouslyDeferredTransactions::default(),
+            1,
+            None,
+        )
+        .await;
+    assert_eq!(
+        scheduled,
+        vec![
+            *first.digest(),
+            *unrelated.digest(),
+            *dependency.digest(),
+            *dependent.digest()
+        ]
+    );
+    let version = |transaction| assigned_version(&assigned, transaction, common.id()).unwrap();
+    assert!(version(&unrelated) < version(&dependency));
+    assert!(version(&dependency) < version(&dependent));
+    assert_eq!(sequencing.dependency_deferrals(), 0);
+}
+
+/// A transaction on owned objects only, between two transactions on a common
+/// object in a chain of dependencies, starts when its dependency ends, so the
+/// last transaction takes no free gap on the common object before the first
+/// one. Otherwise the last one would hold the lower version of the common
+/// object while the first one, which it waits for, needs it.
+async fn chain_through_an_owned_object_transaction_takes_no_free_gap(workers: Option<u16>) {
+    let sequencing = SharedObjectSequencing::new(4, 4, workers).await;
+    let rgp = TEST_ONLY_GAS_PRICE;
+    let common = sequencing.shared_object();
+    let busy = sequencing.shared_object();
+    let first = sequencing.transaction(0, &[&busy], 4 * rgp, None, false);
+    let head = sequencing.transaction(1, &[&common, &busy], 3 * rgp, None, false);
+    let owned = sequencing.transaction(2, &[], 2 * rgp, Some(*head.digest()), false);
+    let tail = sequencing.transaction(3, &[&common], rgp, Some(*owned.digest()), false);
+
+    // `first` occupies `busy` until 1, so `head` runs from 1 to 2 and leaves a
+    // gap on `common` before its slot. `owned` runs from 2 to 3 and `tail`
+    // from 3 to 4.
+    let (scheduled, assigned) = sequencing
+        .sequence(
+            vec![
+                sequenced(&first),
+                sequenced(&head),
+                sequenced(&owned),
+                sequenced(&tail),
+            ],
+            vec![],
+            PreviouslyDeferredTransactions::default(),
+            1,
+            None,
+        )
+        .await;
+    assert_eq!(
+        scheduled,
+        vec![
+            *first.digest(),
+            *head.digest(),
+            *owned.digest(),
+            *tail.digest()
+        ]
+    );
+    assert!(
+        assigned_version(&assigned, &head, common.id()).unwrap()
+            < assigned_version(&assigned, &tail, common.id()).unwrap()
+    );
+    assert_eq!(sequencing.dependency_deferrals(), 0);
+}
+
+#[tokio::test]
+async fn test_chain_through_an_owned_object_transaction_takes_no_free_gap() {
+    telemetry_subscribers::init_for_testing();
+    chain_through_an_owned_object_transaction_takes_no_free_gap(None).await;
+}
+
+#[tokio::test]
+async fn test_chain_through_an_owned_object_transaction_takes_no_free_gap_with_workers() {
+    telemetry_subscribers::init_for_testing();
+    chain_through_an_owned_object_transaction_takes_no_free_gap(Some(4)).await;
+}
+
+/// A chain of dependencies, each on its own object, advances one transaction
+/// per commit when the budget per object is one transaction. Waiting for a
+/// dependency is a deferral for congestion, so once the chain has waited past
+/// the deferral limit, none of it stays deferred: each transaction deferred
+/// for its dependency's end is cancelled, and a transaction depending on a
+/// cancelled one is scheduled.
+#[tokio::test]
+async fn test_dependency_chain_waits_no_longer_than_the_deferral_limit() {
+    telemetry_subscribers::init_for_testing();
+    const LENGTH: usize = 15;
+    let sequencing = SharedObjectSequencing::new(1, LENGTH, None).await;
+    let max_deferral_rounds = sequencing
+        .authority
+        .epoch_store_for_testing()
+        .protocol_config()
+        .max_deferral_rounds_for_congestion_control();
+    let rgp = TEST_ONLY_GAS_PRICE;
+    let objects: Vec<Object> = (0..LENGTH).map(|_| sequencing.shared_object()).collect();
+    let mut chain: Vec<VerifiedTransaction> = Vec::with_capacity(LENGTH);
+    for (index, object) in objects.iter().enumerate() {
+        let dependency = chain.last().map(|previous| *previous.digest());
+        chain.push(sequencing.transaction(index, &[object], rgp, dependency, false));
+    }
+    // Every transaction left after the first commit was first deferred there.
+    let deferred_since_round_1 =
+        |round, remaining: &[VerifiedTransaction]| -> PreviouslyDeferredTransactions {
+            remaining
+                .iter()
+                .map(|tx| {
+                    (
+                        *tx.digest(),
+                        (DeferralKey::new_for_consensus_round(round, 1), None),
+                    )
+                })
+                .collect()
+        };
+
+    let mut next = 0;
+    for round in 1..=max_deferral_rounds {
+        let previously_deferred = if round == 1 {
+            PreviouslyDeferredTransactions::default()
+        } else {
+            deferred_since_round_1(round, &chain[next..])
+        };
+        let (scheduled, _) = sequencing
+            .sequence(
+                chain[next..].iter().map(sequenced).collect(),
+                vec![],
+                previously_deferred,
+                round,
+                None,
+            )
+            .await;
+        assert_eq!(scheduled, vec![*chain[next].digest()]);
+        next += 1;
+    }
+
+    let round = max_deferral_rounds + 1;
+    let dependency_deferrals = sequencing.dependency_deferrals();
+    let (scheduled, assigned) = sequencing
+        .sequence(
+            chain[next..].iter().map(sequenced).collect(),
+            vec![],
+            deferred_since_round_1(round, &chain[next..]),
+            round,
+            None,
+        )
+        .await;
+    assert_eq!(
+        scheduled.into_iter().collect::<BTreeSet<_>>(),
+        chain[next..].iter().map(|tx| *tx.digest()).collect()
+    );
+    assert_eq!(sequencing.dependency_deferrals(), dependency_deferrals);
+    for index in next..LENGTH {
+        let version = assigned_version(&assigned, &chain[index], objects[index].id()).unwrap();
+        let cancelled = (index - next) % 2 == 1;
+        assert_eq!(version.is_congested(), cancelled, "transaction {index}");
+        if cancelled {
+            assert_eq!(
+                version.get_congested_version_suggested_gas_price().unwrap(),
+                rgp
+            );
+        }
+    }
+}
+
+/// A transaction waiting for a dependency that is still deferred is cancelled
+/// once its own deferral would pass the limit, like any deferral for
+/// congestion: through its shared inputs, or through its gas object when it
+/// has none. The dependency, deferred until randomness is available, stays
+/// deferred.
+#[tokio::test]
+async fn test_dependent_of_a_deferred_dependency_is_cancelled_past_the_deferral_limit() {
+    telemetry_subscribers::init_for_testing();
+    let sequencing = SharedObjectSequencing::new(2, 3, None).await;
+    let max_deferral_rounds = sequencing
+        .authority
+        .epoch_store_for_testing()
+        .protocol_config()
+        .max_deferral_rounds_for_congestion_control();
+    let rgp = TEST_ONLY_GAS_PRICE;
+    let common = sequencing.shared_object();
+    let other = sequencing.shared_object();
+    let dependency = sequencing.transaction(0, &[&common], rgp, None, true);
+    let shared_dependent =
+        sequencing.transaction(1, &[&other], rgp, Some(*dependency.digest()), false);
+    let owned_dependent = sequencing.transaction(2, &[], rgp, Some(*dependency.digest()), false);
+
+    // All three were first deferred at round 1.
+    let round = max_deferral_rounds + 1;
+    let previously_deferred = [
+        (
+            *dependency.digest(),
+            (DeferralKey::new_for_randomness(1), None),
+        ),
+        (
+            *shared_dependent.digest(),
+            (DeferralKey::new_for_consensus_round(round, 1), None),
+        ),
+        (
+            *owned_dependent.digest(),
+            (DeferralKey::new_for_consensus_round(round, 1), None),
+        ),
+    ]
+    .into_iter()
+    .collect();
+    let (scheduled, assigned) = sequencing
+        .sequence(
+            vec![sequenced(&shared_dependent), sequenced(&owned_dependent)],
+            vec![sequenced(&dependency)],
+            previously_deferred,
+            round,
+            None,
+        )
+        .await;
+
+    assert_eq!(
+        scheduled.into_iter().collect::<BTreeSet<_>>(),
+        BTreeSet::from([*shared_dependent.digest(), *owned_dependent.digest()])
+    );
+    assert_eq!(sequencing.dependency_deferrals(), 0);
+    for (transaction, cancelled_object) in [
+        (&shared_dependent, other.id()),
+        (&owned_dependent, sequencing.gas_ids[2]),
+    ] {
+        let version = assigned_version(&assigned, transaction, cancelled_object).unwrap();
+        assert!(version.is_congested(), "{version:?}");
+        assert_eq!(
+            version.get_congested_version_suggested_gas_price().unwrap(),
+            rgp
+        );
+    }
+}
+
+/// A transaction without shared inputs, cancelled through its gas object once
+/// its deferral for a still deferred dependency would pass the limit, executes
+/// as cancelled while the dependency stays pending: it does not wait for the
+/// dependency and does not list it in its effects.
+#[tokio::test]
+async fn test_owned_object_only_dependent_cancelled_past_the_deferral_limit_executes() {
+    telemetry_subscribers::init_for_testing();
+    let sequencing = SharedObjectSequencing::new(2, 2, None).await;
+    let max_deferral_rounds = sequencing
+        .authority
+        .epoch_store_for_testing()
+        .protocol_config()
+        .max_deferral_rounds_for_congestion_control();
+    let rgp = TEST_ONLY_GAS_PRICE;
+    let shared = sequencing.shared_object();
+    let dependency = sequencing.transaction(0, &[&shared], rgp, None, true);
+    let dependent = sequencing.transfer(1, rgp, *dependency.digest());
+    let dependent_gas = dependent.data().transaction().gas()[0];
+
+    // Both were first deferred at round 1.
+    let round = max_deferral_rounds + 1;
+    let previously_deferred = [
+        (
+            *dependency.digest(),
+            (DeferralKey::new_for_randomness(1), None),
+        ),
+        (
+            *dependent.digest(),
+            (DeferralKey::new_for_consensus_round(round, 1), None),
+        ),
+    ]
+    .into_iter()
+    .collect();
+    let (scheduled, assigned) = sequencing
+        .sequence_for_execution(
+            vec![sequenced(&dependent)],
+            vec![sequenced(&dependency)],
+            previously_deferred,
+            round,
+            None,
+        )
+        .await;
+    let version = assigned_version(&assigned, &dependent, dependent_gas.object_id).unwrap();
+    assert!(version.is_congested(), "{version:?}");
+
+    let effects = sequencing.execute(scheduled, assigned).await;
+
+    let [effects] = effects.as_slice() else {
+        panic!("expected only the dependent to be scheduled: {effects:?}");
+    };
+    assert_eq!(effects.transaction_digest(), dependent.digest());
+    assert_eq!(
+        effects.status(),
+        &ExecutionStatus::Failure {
+            error: ExecutionError::ExecutionCanceledDueToExecutionWorkerCongestion {
+                suggested_gas_price: rgp
+            },
+            command: None,
+        }
+    );
+    assert!(!effects.dependencies().contains(dependency.digest()));
+    assert!(effects.gas_object().reference().version > dependent_gas.version);
+    assert!(
+        !sequencing
+            .authority
+            .is_tx_already_executed(dependency.digest())
+    );
+}
+
+/// With the combined tracker, a dependent outside the randomness phase is
+/// deferred when its dependency is a root of that phase at the same commit:
+/// the regular phase is assigned versions first, so the dependent would
+/// otherwise hold the lower version of their common object while waiting
+/// for the higher one. It is scheduled at the next commit.
+#[tokio::test]
+async fn test_regular_dependent_of_a_randomness_phase_root_is_deferred_with_the_combined_tracker() {
+    telemetry_subscribers::init_for_testing();
+    let sequencing = SharedObjectSequencing::new(2, 2, Some(2)).await;
+    let rgp = TEST_ONLY_GAS_PRICE;
+    let common = sequencing.shared_object();
+    let dependency = sequencing.transaction(0, &[&common], 2 * rgp, None, true);
+    let dependent = sequencing.transaction(1, &[&common], rgp, Some(*dependency.digest()), false);
+
+    let (scheduled, assigned) = sequencing
+        .sequence(
+            vec![sequenced(&dependency), sequenced(&dependent)],
+            vec![],
+            PreviouslyDeferredTransactions::default(),
+            1,
+            Some(RandomnessRound::new(0)),
+        )
+        .await;
+    assert_eq!(scheduled, vec![*dependency.digest()]);
+    assert_eq!(assigned_version(&assigned, &dependent, common.id()), None);
+    assert_eq!(sequencing.dependency_deferrals(), 1);
+
+    let previously_deferred = [(
+        *dependent.digest(),
+        (DeferralKey::new_for_consensus_round(2, 1), None),
+    )]
+    .into_iter()
+    .collect();
+    let (scheduled, _) = sequencing
+        .sequence(
+            vec![sequenced(&dependent)],
+            vec![],
+            previously_deferred,
+            2,
+            None,
+        )
+        .await;
+    assert_eq!(scheduled, vec![*dependent.digest()]);
+    assert_eq!(sequencing.dependency_deferrals(), 1);
+}
+
+/// The other direction needs no deferral: a randomness-using dependent of a
+/// regular root is scheduled at the same commit, into the randomness phase,
+/// with the higher version of their common object.
+#[tokio::test]
+async fn test_randomness_dependent_of_a_regular_root_is_scheduled_with_the_combined_tracker() {
+    telemetry_subscribers::init_for_testing();
+    let sequencing = SharedObjectSequencing::new(2, 2, Some(2)).await;
+    let rgp = TEST_ONLY_GAS_PRICE;
+    let common = sequencing.shared_object();
+    let dependency = sequencing.transaction(0, &[&common], 2 * rgp, None, false);
+    let dependent = sequencing.transaction(1, &[&common], rgp, Some(*dependency.digest()), true);
+
+    let (scheduled, assigned) = sequencing
+        .sequence(
+            vec![sequenced(&dependency), sequenced(&dependent)],
+            vec![],
+            PreviouslyDeferredTransactions::default(),
+            1,
+            Some(RandomnessRound::new(0)),
+        )
+        .await;
+    assert_eq!(scheduled, vec![*dependency.digest(), *dependent.digest()]);
+    assert!(
+        assigned_version(&assigned, &dependency, common.id()).unwrap()
+            < assigned_version(&assigned, &dependent, common.id()).unwrap()
+    );
+    assert_eq!(sequencing.dependency_deferrals(), 0);
+}
+
+/// With one tracker per phase, the regular list is processed first, so a
+/// regular dependent of a randomness-using dependency at the same commit is
+/// deferred before the dependency is a root.
+#[tokio::test]
+async fn test_regular_dependent_of_a_randomness_dependency_is_deferred_with_two_trackers() {
+    telemetry_subscribers::init_for_testing();
+    let sequencing = SharedObjectSequencing::new(2, 2, None).await;
+    let rgp = TEST_ONLY_GAS_PRICE;
+    let common = sequencing.shared_object();
+    let dependency = sequencing.transaction(0, &[&common], 2 * rgp, None, true);
+    let dependent = sequencing.transaction(1, &[&common], rgp, Some(*dependency.digest()), false);
+
+    let (scheduled, assigned) = sequencing
+        .sequence(
+            vec![sequenced(&dependent)],
+            vec![sequenced(&dependency)],
+            PreviouslyDeferredTransactions::default(),
+            1,
+            Some(RandomnessRound::new(0)),
+        )
+        .await;
+    assert_eq!(scheduled, vec![*dependency.digest()]);
+    assert_eq!(assigned_version(&assigned, &dependent, common.id()), None);
+    assert_eq!(sequencing.dependency_deferrals(), 1);
+}
+
+/// A transaction that waits for its dependency records no suggested gas
+/// price: its own objects are not congested.
+#[tokio::test]
+async fn test_dependency_wait_records_no_suggested_gas_price() {
+    telemetry_subscribers::init_for_testing();
+    let sequencing = SharedObjectSequencing::new(2, 2, None).await;
+    let epoch_store = sequencing.authority.epoch_store_for_testing();
+    let rgp = TEST_ONLY_GAS_PRICE;
+    let common = sequencing.shared_object();
+    let other = sequencing.shared_object();
+    let dependency = sequencing.transaction(0, &[&common], rgp, None, true);
+    let dependent = sequencing.transaction(1, &[&other], rgp, Some(*dependency.digest()), false);
+
+    // The dependency uses randomness, which this commit does not generate, so
+    // it is deferred and the dependent waits for it.
+    sequencing
+        .sequence(
+            vec![sequenced(&dependent)],
+            vec![sequenced(&dependency)],
+            PreviouslyDeferredTransactions::default(),
+            1,
+            None,
+        )
+        .await;
+    assert_eq!(sequencing.dependency_deferrals(), 1);
+    let next_key = DeferralKey::new_for_consensus_round(2, 1);
+    let deferred = epoch_store.get_all_deferred_transactions_for_test();
+    let (_, deferred_dependent) = deferred.iter().find(|(key, _)| *key == next_key).unwrap();
+    assert_eq!(
+        deferred_dependent
+            .iter()
+            .map(|tx| tx.suggested_gas_price())
+            .collect::<Vec<_>>(),
+        vec![None]
+    );
 }

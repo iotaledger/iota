@@ -352,6 +352,15 @@ pub struct DiscoveryConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub peers_to_query: Option<usize>,
 
+    /// Maximum number of peers kept in the discovery table of known peers.
+    ///
+    /// When the table grows past this number, the peers with the oldest
+    /// timestamps are removed first.
+    ///
+    /// If unspecified, this will default to `10,000`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_known_peers: Option<usize>,
+
     /// Timeout for individual peer query requests in discovery protocol.
     ///
     /// If unspecified, this will default to `1` second.
@@ -440,6 +449,12 @@ impl DiscoveryConfig {
         const PEERS_TO_QUERY: usize = 1;
 
         self.peers_to_query.unwrap_or(PEERS_TO_QUERY)
+    }
+
+    pub fn max_known_peers(&self) -> usize {
+        const MAX_KNOWN_PEERS: usize = 10_000;
+
+        self.max_known_peers.unwrap_or(MAX_KNOWN_PEERS)
     }
 
     pub fn peer_query_timeout(&self) -> Duration {
@@ -537,12 +552,29 @@ pub struct RandomnessConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub partial_signature_retry_interval_ms: Option<u64>,
 
-    /// Size of the Randomness actor's mailbox. This should be set large enough
-    /// to never overflow unless a bug is encountered.
+    /// Size of the Randomness actor's mailbox for the node's own messages. This
+    /// should be set large enough to never overflow unless a bug is
+    /// encountered.
     ///
     /// If unspecified, this will default to `1,000,000`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mailbox_capacity: Option<usize>,
+
+    /// Size of the Randomness actor's mailbox for signatures received from
+    /// peers. Requests that arrive while it is full are rejected, and the peer
+    /// retries them.
+    ///
+    /// If unspecified, this will default to `10,000`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub peer_mailbox_capacity: Option<usize>,
+
+    /// Maximum number of requests from one peer that may wait in the peer
+    /// mailbox. Further requests from that peer are rejected, and the peer
+    /// retries them.
+    ///
+    /// If unspecified, this will default to 40.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_queued_requests_per_peer: Option<usize>,
 
     /// Per-peer inflight limit for the SendPartialSignatures RPC.
     ///
@@ -585,6 +617,19 @@ impl RandomnessConfig {
         const MAILBOX_CAPACITY: usize = 1_000_000;
 
         self.mailbox_capacity.unwrap_or(MAILBOX_CAPACITY)
+    }
+
+    pub fn peer_mailbox_capacity(&self) -> usize {
+        const PEER_MAILBOX_CAPACITY: usize = 10_000;
+
+        self.peer_mailbox_capacity.unwrap_or(PEER_MAILBOX_CAPACITY)
+    }
+
+    pub fn max_queued_requests_per_peer(&self) -> usize {
+        const MAX_QUEUED_REQUESTS_PER_PEER: usize = 40;
+
+        self.max_queued_requests_per_peer
+            .unwrap_or(MAX_QUEUED_REQUESTS_PER_PEER)
     }
 
     pub fn send_partial_signatures_inflight_limit(&self) -> usize {

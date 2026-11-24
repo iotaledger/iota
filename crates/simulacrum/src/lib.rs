@@ -17,7 +17,6 @@ pub mod store;
 pub mod transaction_executor;
 
 use std::{
-    collections::HashMap,
     num::NonZeroUsize,
     path::PathBuf,
     sync::{Arc, RwLock},
@@ -56,7 +55,8 @@ use iota_types::{
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::VerifyParams,
-    storage::{EpochInfoV2, ObjectStore, ReadStore, TransactionInfo},
+    storage::{EpochInfoV2, ObjectStore, ReadStore},
+    supported_protocol_versions::SupportedProtocolVersions,
     transaction::{TransactionAPI, TransactionEnvelope, VerifiedTransaction},
 };
 use rand::{rand_core::UnwrapErr, rngs::SysRng};
@@ -141,6 +141,12 @@ where
             .with_chain_start_timestamp_ms(chain_start_timestamp_ms)
             .deterministic_committee_size(NonZeroUsize::new(1).unwrap())
             .with_protocol_version(protocol_version)
+            // The protocol version never changes, so validators only need the stake it
+            // requires.
+            .with_supported_protocol_versions(SupportedProtocolVersions::new_for_testing(
+                protocol_version.as_u64(),
+                protocol_version.as_u64(),
+            ))
             .with_accounts(account_configs)
             .build();
         Self::new_with_network_config_in_mem(&config, rng)
@@ -193,7 +199,9 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         transaction: TransactionEnvelope,
     ) -> anyhow::Result<(TransactionEffects, Option<ExecutionError>)> {
         let mut inner = self.inner.write().unwrap();
-        let transaction = transaction.try_into_verified_for_testing(&VerifyParams::default())?;
+        let transaction = transaction.try_into_verified_for_testing(
+            &VerifyParams::from_protocol_config(inner.epoch_state.protocol_config()),
+        )?;
 
         let (inner_temporary_store, _, effects, execution_error_opt) =
             inner.epoch_state.execute_transaction(
@@ -245,7 +253,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         let (checkpoint, contents) = {
             let mut inner = self.inner.write().unwrap();
             let committee = CommitteeWithKeys::new(&inner.keystore, inner.epoch_state.committee());
-            let timestamp_ms = inner.store.get_clock().timestamp_ms();
+            let timestamp_ms = inner.store.get_clock().timestamp_ms;
             let (checkpoint, contents, _) =
                 inner.checkpoint_builder.build(&committee, timestamp_ms);
             inner.store.insert_checkpoint(checkpoint.clone());
@@ -266,7 +274,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         let mut inner = self.inner.write().unwrap();
         let epoch = inner.epoch_state.epoch();
         let round = inner.epoch_state.next_consensus_round();
-        let timestamp_ms = inner.store.get_clock().timestamp_ms() + duration.as_millis() as u64;
+        let timestamp_ms = inner.store.get_clock().timestamp_ms + duration.as_millis() as u64;
         drop(inner);
 
         let consensus_commit_prologue_transaction =
@@ -295,7 +303,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
     ///
     /// With `create_deny_rules_object`, the end-of-epoch transaction also
     /// creates the `TransactionDenyRules` object (requires the
-    /// `deny_rule_governance_on_chain` feature flag).
+    /// `enable_pcool_flow` feature flag).
     ///
     /// Returns the effects of the end-of-epoch transaction.
     ///
@@ -311,7 +319,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
             .checkpoint_builder
             .epoch_rolling_gas_cost_summary()
             .clone();
-        let epoch_start_timestamp_ms = inner.store.get_clock().timestamp_ms();
+        let epoch_start_timestamp_ms = inner.store.get_clock().timestamp_ms;
         let pass_validator_scores = inner
             .epoch_state
             .protocol_config()
@@ -398,7 +406,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
             let (checkpoint, contents, _) = {
                 let committee =
                     CommitteeWithKeys::new(&inner.keystore, inner.epoch_state.committee());
-                let timestamp_ms = inner.store.get_clock().timestamp_ms();
+                let timestamp_ms = inner.store.get_clock().timestamp_ms;
                 inner.checkpoint_builder.build_end_of_epoch(
                     &committee,
                     timestamp_ms,
@@ -818,6 +826,33 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcStateReader for
         Some(self)
     }
 
+    fn get_transaction_checkpoint(
+        &self,
+        digest: &TransactionDigest,
+    ) -> iota_types::storage::error::Result<Option<CheckpointSequenceNumber>> {
+        Ok(self.with_store(|store| {
+            let highest_seq = store
+                .get_highest_checkpoint()
+                .map(|cp| cp.sequence_number())?;
+
+            for seq in (0..=highest_seq).rev() {
+                if let Some(checkpoint) = store.get_checkpoint_by_sequence_number(seq) {
+                    if let Some(contents) =
+                        store.get_checkpoint_contents_by_digest(&checkpoint.contents_digest)
+                    {
+                        if contents
+                            .iter()
+                            .any(|exec_digests| exec_digests.transaction == *digest)
+                        {
+                            return Some(checkpoint.sequence_number());
+                        }
+                    }
+                }
+            }
+            None
+        }))
+    }
+
     fn get_struct_layout(
         &self,
         _: &StructTag,
@@ -843,39 +878,6 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> Simulacrum<T, V> {
 }
 
 impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Simulacrum<T, V> {
-    fn get_transaction_info(
-        &self,
-        digest: &TransactionDigest,
-    ) -> iota_types::storage::error::Result<Option<TransactionInfo>> {
-        Ok(self.with_store(|store| {
-            let highest_seq = store
-                .get_highest_checkpoint()
-                .map(|cp| cp.sequence_number())?;
-
-            for seq in (0..=highest_seq).rev() {
-                if let Some(checkpoint) = store.get_checkpoint_by_sequence_number(seq) {
-                    if let Some(contents) =
-                        store.get_checkpoint_contents_by_digest(&checkpoint.contents_digest)
-                    {
-                        if contents
-                            .iter()
-                            .any(|exec_digests| exec_digests.transaction == *digest)
-                        {
-                            // object_types left empty — production GrpcIndexesStore
-                            // populates this from input/output objects but that is
-                            // not needed for the simulacrum test harness.
-                            return Some(TransactionInfo {
-                                checkpoint: checkpoint.sequence_number(),
-                                object_types: HashMap::new(),
-                            });
-                        }
-                    }
-                }
-            }
-            None
-        }))
-    }
-
     fn account_owned_objects_info_iter(
         &self,
         _owner: Address,
@@ -1011,7 +1013,7 @@ mod tests {
         let start_time_ms = sim.with_store(|store| {
             let clock = store.get_clock();
             println!("clock: {clock:#?}");
-            clock.timestamp_ms()
+            clock.timestamp_ms
         });
 
         for _ in 0..steps {
@@ -1022,7 +1024,7 @@ mod tests {
                 println!("clock: {clock:#?}");
             });
         }
-        let end_time_ms = sim.with_store(|store| store.get_clock().timestamp_ms());
+        let end_time_ms = sim.with_store(|store| store.get_clock().timestamp_ms);
         assert_eq!(end_time_ms - start_time_ms, steps);
         sim.with_store(|store| {
             dbg!(store.get_highest_checkpoint());
@@ -1031,14 +1033,6 @@ mod tests {
 
     #[test]
     fn advance_epoch_creates_deny_rules_object() {
-        let _guard =
-            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.set_deny_rule_governance_for_testing(true);
-                config.set_deny_rule_governance_on_chain_for_testing(true);
-                config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
-                config.set_deny_rule_removal_grace_round_floor_for_testing(0);
-                config
-            });
         let sim = Simulacrum::new();
 
         assert!(sim.with_store(|store| {
@@ -1070,14 +1064,6 @@ mod tests {
             get_transaction_deny_rules, get_transaction_deny_rules_obj_initial_shared_version,
         };
 
-        let _guard =
-            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.set_deny_rule_governance_for_testing(true);
-                config.set_deny_rule_governance_on_chain_for_testing(true);
-                config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
-                config.set_deny_rule_removal_grace_round_floor_for_testing(0);
-                config
-            });
         let sim = Simulacrum::new();
         sim.advance_epoch(true);
 
@@ -1149,10 +1135,7 @@ mod tests {
 
         let _guard =
             iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.set_deny_rule_governance_for_testing(true);
-                config.set_deny_rule_governance_on_chain_for_testing(true);
                 config.set_deny_rule_update_max_entries_per_tx_for_testing(CEILING);
-                config.set_deny_rule_removal_grace_round_floor_for_testing(0);
                 config
             });
         let sim = Simulacrum::new();
@@ -1265,6 +1248,194 @@ mod tests {
 
         assert_eq!(&checkpoint.epoch_rolling_gas_cost_summary, gas_summary);
         assert_eq!(checkpoint.network_total_transactions, 2); // genesis + 1 txn
+    }
+
+    /// A dependent of a failed transaction executes without running any
+    /// command. A dependent of a transaction that has not executed is
+    /// simulated as if that transaction succeeded, and rejected at execution.
+    #[test]
+    fn transaction_dependency() {
+        use iota_protocol_config::ProtocolConfig;
+        use iota_sdk_types::{ExecutionStatus, TransactionExpiration};
+        use iota_types::error::UserInputError;
+
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_transaction_dependencies_for_testing(true);
+            config
+        });
+        let sim = Simulacrum::new();
+        let (sender, key) = sim.with_keystore(|keystore| {
+            let (sender, key) = keystore.accounts().next().unwrap();
+            (*sender, key.clone())
+        });
+        let transfer = |amount: u64, dependency: Option<TransactionDigest>| {
+            let gas = sim.with_store(|store| {
+                store
+                    .owned_objects(sender)
+                    .find(|object| object.is_gas_coin())
+                    .unwrap()
+                    .object_ref()
+            });
+            let mut builder = ProgrammableTransactionBuilder::new();
+            builder.transfer_iota(Address::random(), Some(amount));
+            if let Some(dependency) = dependency {
+                builder.transaction_dependency(dependency);
+            }
+            let gas_data = GasPayment {
+                objects: vec![gas],
+                owner: sender,
+                price: sim.reference_gas_price(),
+                budget: 1_000_000_000,
+            };
+            let mut transaction = Transaction::new_with_gas_data(
+                TransactionKind::Programmable(builder.finish()),
+                sender,
+                gas_data,
+            );
+            if let (Some(_), Transaction::V1(transaction)) = (dependency, &mut transaction) {
+                transaction.expiration = TransactionExpiration::Epoch(0);
+            }
+            TransactionEnvelope::from_data_and_signer(transaction, vec![&key])
+        };
+
+        let failing = transfer(u64::MAX, None);
+        let failing_digest = *failing.digest();
+        let (effects, _) = sim.execute_transaction(failing).unwrap();
+        assert!(!effects.status().is_success(), "{effects:?}");
+
+        let (effects, _) = sim
+            .execute_transaction(transfer(1, Some(failing_digest)))
+            .unwrap();
+        assert_eq!(
+            effects.status(),
+            &ExecutionStatus::Failure {
+                error: iota_sdk_types::ExecutionError::TransactionDependencyFailed {
+                    dependency: failing_digest
+                },
+                command: None,
+            }
+        );
+        assert!(effects.dependencies().contains(&failing_digest));
+
+        let unknown = TransactionDigest::random();
+        let simulated = sim
+            .simulate_transaction(
+                transfer(1, Some(unknown)).data().transaction().clone(),
+                VmChecks::Enabled,
+            )
+            .unwrap();
+        assert!(
+            simulated.effects.status().is_success(),
+            "{:?}",
+            simulated.effects
+        );
+        let error = sim
+            .execute_transaction(transfer(1, Some(unknown)))
+            .unwrap_err();
+        assert!(
+            matches!(
+                error.downcast_ref::<IotaError>(),
+                Some(IotaError::UserInput {
+                    error: UserInputError::TransactionDependencyNotFound { digest }
+                }) if *digest == unknown
+            ),
+            "{error:?}"
+        );
+    }
+
+    /// A system transaction kind is rejected under both check modes.
+    ///
+    /// Simulating one would run it outside the sequencing that gives it
+    /// meaning, and the shared input checks treat a system transaction as
+    /// exempt from the gas and object rules rather than rejecting it, so the
+    /// entry point is where this belongs — as it is on the node and in the SDK.
+    #[test]
+    fn simulate_rejects_system_transactions() {
+        use iota_types::{error::IotaError, transaction_executor::VmChecks};
+
+        let sim = Simulacrum::new();
+        let (tx, _) = sim.transfer_txn(Address::random());
+        let mut transaction = tx.data().transaction().clone();
+        *transaction.kind_mut() = TransactionKind::EndOfEpoch(vec![]);
+
+        for checks in [VmChecks::Enabled, VmChecks::Disabled] {
+            let Err(error) = sim.simulate_transaction(transaction.clone(), checks) else {
+                panic!("{checks:?} must not simulate a system transaction");
+            };
+            assert!(
+                matches!(error, IotaError::UnsupportedFeature { .. }),
+                "unexpected error for {checks:?}: {error:?}"
+            );
+        }
+    }
+
+    /// An owned input object whose owner is not the sender is rejected under
+    /// [`VmChecks::Enabled`] and accepted under [`VmChecks::Disabled`].
+    #[test]
+    fn simulate_distinguishes_owned_input_owner_by_check_mode() {
+        use iota_sdk_types::ExecutionStatus;
+        use iota_types::{
+            error::{IotaError, UserInputError},
+            transaction::CallArg,
+            transaction_executor::VmChecks,
+        };
+
+        let sim = Simulacrum::new();
+        let (sender, other) = sim.with_keystore(|keystore| {
+            let mut accounts = keystore.accounts();
+            let (sender, _) = accounts.next().unwrap();
+            let (other, _) = accounts.next().unwrap();
+            (*sender, *other)
+        });
+
+        let (foreign_object, gas_object) = sim.with_store(|store| {
+            let foreign = store
+                .owned_objects(other)
+                .find(|object| object.is_gas_coin())
+                .unwrap()
+                .clone();
+            let gas = store
+                .owned_objects(sender)
+                .find(|object| object.is_gas_coin())
+                .unwrap()
+                .clone();
+            (foreign, gas)
+        });
+
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            builder
+                .input(CallArg::ImmutableOrOwned(foreign_object.object_ref()))
+                .unwrap();
+            builder.transfer_iota(Address::random(), Some(1000));
+            builder.finish()
+        };
+        let kind = TransactionKind::Programmable(pt);
+        let gas_data = GasPayment {
+            objects: vec![gas_object.object_ref()],
+            owner: sender,
+            price: sim.reference_gas_price(),
+            budget: 1_000_000_000,
+        };
+        let transaction = Transaction::new_with_gas_data(kind, sender, gas_data);
+
+        let Err(error) = sim.simulate_transaction(transaction.clone(), VmChecks::Enabled) else {
+            panic!("a dry run must reject an owned input owned by a different address");
+        };
+        assert!(
+            matches!(
+                error,
+                IotaError::UserInput {
+                    error: UserInputError::IncorrectUserSignature { .. }
+                }
+            ),
+            "unexpected error: {error:?}"
+        );
+
+        let result = sim
+            .simulate_transaction(transaction, VmChecks::Disabled)
+            .expect("a dev inspect must accept an owned input owned by a different address");
+        assert_eq!(result.effects.status(), &ExecutionStatus::Success);
     }
 
     #[test]

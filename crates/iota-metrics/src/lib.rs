@@ -279,6 +279,15 @@ pub fn get_server_timing() -> Option<Arc<Mutex<Timer>>> {
     SERVER_TIMING.try_with(|timer| timer.clone()).ok()
 }
 
+/// Runs `f` within the ServerTiming context `timer`, if there is one.
+#[doc(hidden)]
+pub fn run_with_server_timing<T>(timer: Option<Arc<Mutex<Timer>>>, f: impl FnOnce() -> T) -> T {
+    match timer {
+        Some(timer) => SERVER_TIMING.sync_scope(timer, f),
+        None => f(),
+    }
+}
+
 /// Add a new entry to the ServerTiming header.
 /// If the caller is not currently in a ServerTiming context (created with
 /// `with_new_server_timing`), an error is logged.
@@ -357,6 +366,27 @@ macro_rules! spawn_monitored_task {
             tasks, $fut, "", INFO, false
         ))
     };
+}
+
+/// Runs a blocking closure on tokio's blocking thread pool, like
+/// `tokio::task::spawn_blocking`, counting it in the `tasks` metric and
+/// keeping the caller's ServerTiming context, like [`spawn_monitored_task`].
+#[macro_export]
+macro_rules! spawn_monitored_blocking {
+    ($f: expr) => {{
+        let location: &'static str = concat!(file!(), ':', line!());
+        let timing = $crate::get_server_timing();
+        let f = $f;
+        tokio::task::spawn_blocking(move || {
+            let _metrics_guard = $crate::get_metrics().map(|m| {
+                m.tasks.with_label_values(&[location]).inc();
+                $crate::scopeguard::guard(m, move |m| {
+                    m.tasks.with_label_values(&[location]).dec();
+                })
+            });
+            $crate::run_with_server_timing(timing, f)
+        })
+    }};
 }
 
 #[macro_export]
@@ -762,9 +792,33 @@ pub async fn metrics(
 
 #[cfg(test)]
 mod tests {
-    use prometheus_filtered::{IntCounter, Registry};
+    use prometheus_filtered::{IntCounter, Registry, core::Collector};
 
     use crate::RegistryService;
+
+    fn running_tasks() -> f64 {
+        crate::get_metrics()
+            .unwrap()
+            .tasks
+            .collect()
+            .iter()
+            .flat_map(|family| family.get_metric())
+            .map(|metric| metric.get_gauge().value())
+            .sum()
+    }
+
+    #[tokio::test]
+    async fn spawn_monitored_blocking_counts_the_task_and_keeps_server_timing() {
+        crate::init_metrics(&Registry::new());
+        let inside = crate::with_new_server_timing(async {
+            spawn_monitored_blocking!(|| (running_tasks(), crate::get_server_timing().is_some()))
+                .await
+        })
+        .await
+        .unwrap();
+        assert_eq!(inside, (1.0, true));
+        assert_eq!(running_tasks(), 0.0);
+    }
 
     #[test]
     fn registry_service() {

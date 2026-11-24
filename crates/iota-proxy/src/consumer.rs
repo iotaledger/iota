@@ -7,7 +7,7 @@ use std::io::Read;
 use anyhow::Result;
 use axum::{body::Bytes, http::StatusCode};
 use bytes::buf::Reader;
-use fastcrypto::ed25519::Ed25519PublicKey;
+use iota_sdk_types::Ed25519PublicKey;
 use multiaddr::Multiaddr;
 use once_cell::sync::Lazy;
 use prometheus_filtered::{

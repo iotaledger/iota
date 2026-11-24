@@ -25,7 +25,7 @@ use iota_types::{
         SubmitCertificateResponse, SystemStateRequest, TransactionInfoRequest,
         TransactionInfoResponse,
     },
-    traffic_control::{ClientIdSource, Weight},
+    traffic_control::Weight,
     transaction::*,
 };
 use nonempty::{NonEmpty, nonempty};
@@ -110,8 +110,6 @@ impl ValidatorService {
             &consensus_adapter,
             transaction.data(),
             state.check_system_overload_at_signing(),
-            // `false` means P-COOL flow is disabled - ensured by `fp_ensure!` above
-            false,
         );
         if let Err(error) = overload_check_res {
             metrics
@@ -276,8 +274,6 @@ impl ValidatorService {
                 &self.consensus_adapter,
                 certificate.data(),
                 self.state.check_system_overload_at_execution(),
-                // `false` means P-COOL flow is disabled - ensured by `fp_ensure!` in callers
-                false,
             );
             if let Err(error) = overload_check_res {
                 self.metrics
@@ -644,14 +640,11 @@ impl ValidatorService {
             .into()
         );
 
-        let client_addr = if let Some(client_id_source) = &self.client_id_source {
-            ValidatorService::get_client_ip_addr(&self.metrics, &request, client_id_source)
-        } else {
-            ValidatorService::get_client_ip_addr(
-                &self.metrics,
-                &request,
-                &ClientIdSource::SocketAddr,
-            )
+        let client_addr = match &self.client_id_source {
+            Some(client_id_source) => {
+                ValidatorService::get_client_ip_addr(&self.metrics, &request, client_id_source)?
+            }
+            None => request.remote_addr().map(|addr| addr.ip()),
         };
 
         let request = request.into_inner();

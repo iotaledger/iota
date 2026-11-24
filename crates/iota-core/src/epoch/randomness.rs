@@ -16,7 +16,7 @@ use fastcrypto::{
     serde_helpers::ToFromByteArray,
     traits::{KeyPair, ToFromBytes},
 };
-use fastcrypto_tbls::{dkg_v1, dkg_v1::Output, nodes, nodes::PartyId};
+use fastcrypto_threshold::{dkg_v1, dkg_v1::Output, nodes, nodes::PartyId};
 use futures::{StreamExt, stream::FuturesUnordered};
 use iota_common::{debug_fatal, fatal};
 use iota_macros::{fail_point, fail_point_if};
@@ -25,8 +25,8 @@ use iota_sdk_types::RandomnessRound;
 use iota_types::{
     base_types::{AuthorityName, CommitRound},
     committee::{Committee, EpochId, StakeUnit},
-    crypto::AuthorityKeyPair,
-    error::{IotaError, IotaResult},
+    crypto::{AuthorityKeyPair, RandomnessSignature},
+    error::{IotaError, IotaResult, UserInputError},
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
     messages_consensus::{ConsensusTransaction, VersionedDkgConfirmation, VersionedDkgMessage},
 };
@@ -130,6 +130,23 @@ impl VersionedUsedProcessedMessages {
                 .collect::<Vec<_>>(),
             rng,
         )
+    }
+}
+
+/// Error from advancing DKG. Runtime shutdown is a separate variant so that a
+/// cancelled blocking task is never handled like a failed DKG step.
+#[derive(Debug)]
+pub(crate) enum AdvanceDkgError {
+    Iota(IotaError),
+    /// The runtime is shutting down and cancelled DKG message processing. The
+    /// commit being processed must be abandoned without persisting its
+    /// output.
+    RuntimeShutdown,
+}
+
+impl From<IotaError> for AdvanceDkgError {
+    fn from(e: IotaError) -> Self {
+        Self::Iota(e)
     }
 }
 
@@ -268,12 +285,12 @@ impl RandomnessManager {
         )
         .expect("should work to convert BLS key to Scalar");
         let party = dkg_v1::Party::<PkG, EncG>::new(
-            fastcrypto_tbls::ecies_v1::PrivateKey::<bls12381::G2Element>::from(
+            fastcrypto_threshold::ecies_v1::PrivateKey::<bls12381::G2Element>::from(
                 randomness_private_key,
             ),
             nodes,
             t,
-            fastcrypto_tbls::random_oracle::RandomOracle::new(prefix_str.as_str()),
+            fastcrypto_threshold::random_oracle::RandomOracle::new(prefix_str.as_str()),
             &mut rand08::thread_rng(),
         )
         .map_err(|err| IotaError::Unknown(format!("error while initializing Party: {err:?}")))?;
@@ -467,8 +484,7 @@ impl RandomnessManager {
             fail_point_skip_sending = true;
         });
         if !fail_point_skip_sending {
-            self.consensus_adapter
-                .submit_to_consensus(&[transaction], &epoch_store)?;
+            self.submit_dkg_transaction(transaction, &epoch_store)?;
         }
 
         epoch_store
@@ -491,7 +507,7 @@ impl RandomnessManager {
         &mut self,
         consensus_output: &mut ConsensusCommitOutput,
         round: CommitRound,
-    ) -> IotaResult {
+    ) -> Result<(), AdvanceDkgError> {
         let epoch_store = self.epoch_store()?;
 
         // Once we have enough Messages, send a Confirmation.
@@ -501,7 +517,14 @@ impl RandomnessManager {
                 .into_values()
                 .collect();
             while let Some(res) = handles.next().await {
-                if let Ok(Some(processed)) = res {
+                let processed = match res {
+                    Ok(processed) => processed,
+                    Err(e) if e.is_panic() => std::panic::resume_unwind(e.into_panic()),
+                    // Only runtime shutdown cancels the task. Treating it like an invalid
+                    // message would persist DKG state that is missing this message.
+                    Err(_) => return Err(AdvanceDkgError::RuntimeShutdown),
+                };
+                if let Some(processed) = processed {
                     self.processed_messages
                         .insert(processed.sender(), processed.clone());
                     consensus_output.insert_dkg_processed_message(processed);
@@ -538,8 +561,7 @@ impl RandomnessManager {
                         fail_point_skip_sending = true;
                     });
                     if !fail_point_skip_sending {
-                        self.consensus_adapter
-                            .submit_to_consensus(&[transaction], &epoch_store)?;
+                        self.submit_dkg_transaction(transaction, &epoch_store)?;
                     }
 
                     let elapsed = self.dkg_start_time.get().map(|t| t.elapsed().as_millis());
@@ -859,12 +881,49 @@ impl RandomnessManager {
             .ok_or(IotaError::EpochEnded(self.epoch))
     }
 
+    /// Submits the DKG Message or Confirmation `transaction` to consensus.
+    ///
+    /// When `transaction` is refused as larger than consensus accepts, the
+    /// function logs the refusal and returns `Ok(())` instead of the error.
+    /// DKG then goes on without the transaction, as it does without the
+    /// Messages and Confirmations other parties do not send.
+    ///
+    /// # Errors
+    ///
+    /// Any other error from [`SubmitToConsensus::submit_to_consensus()`].
+    fn submit_dkg_transaction(
+        &self,
+        transaction: ConsensusTransaction,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) -> IotaResult {
+        let key = transaction.key();
+
+        match self
+            .consensus_adapter
+            .submit_to_consensus(&[transaction], epoch_store)
+        {
+            Err(
+                error @ IotaError::UserInput {
+                    error: UserInputError::SizeLimitExceeded { .. },
+                },
+            ) => {
+                error!(
+                    "random beacon: {key:?} is refused as larger than consensus accepts, so DKG \
+                        goes on without it: {error:?}"
+                );
+
+                Ok(())
+            }
+            result => result,
+        }
+    }
+
     fn randomness_dkg_info_from_committee(
         committee: &Committee,
     ) -> Vec<(
         u16,
         AuthorityName,
-        fastcrypto_tbls::ecies_v1::PublicKey<bls12381::G2Element>,
+        fastcrypto_threshold::ecies_v1::PublicKey<bls12381::G2Element>,
         StakeUnit,
     )> {
         committee
@@ -887,7 +946,7 @@ impl RandomnessManager {
                 (
                     index,
                     *name,
-                    fastcrypto_tbls::ecies_v1::PublicKey::from(pk),
+                    fastcrypto_threshold::ecies_v1::PublicKey::from(pk),
                     *stake,
                 )
             })
@@ -926,6 +985,20 @@ impl RandomnessReporter {
         }
         Ok(())
     }
+
+    /// Passes the randomness for `round` found in a certified checkpoint to
+    /// the randomness event loop, so a round this node missed completes
+    /// without peers resending it.
+    pub fn forward_randomness_from_checkpoint(&self, round: RandomnessRound, random_bytes: &[u8]) {
+        match bcs::from_bytes::<RandomnessSignature>(random_bytes) {
+            Ok(sig) => self
+                .network_handle
+                .receive_full_signature_from_checkpoint(self.epoch, round, sig),
+            Err(e) => error!(
+                "random beacon: cannot decode randomness for round {round} from a certified checkpoint: {e:?}"
+            ),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -943,7 +1016,7 @@ mod tests {
 
     use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
     use iota_types::{crypto::AuthorityKeyPair, messages_consensus::ConsensusTransactionKind};
-    use starfish_core::{BlockRef, BlockStatus};
+    use starfish_core::BlockStatus;
     use tokio::sync::mpsc;
 
     use crate::{
@@ -996,7 +1069,7 @@ mod tests {
                 })
                 .returning(|_, _| {
                     Ok(with_block_status(BlockStatus::Sequenced(
-                        starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+                        starfish_core::TransactionRef::default(),
                     )))
                 });
 
@@ -1047,8 +1120,25 @@ mod tests {
                 _ => panic!("wrong type of message sent"),
             }
         }
+
+        // A DKG message task cancelled by runtime shutdown must abandon the
+        // commit instead of being skipped like an invalid message.
+        let shutdown_runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let shutdown_handle = shutdown_runtime.handle().clone();
+        shutdown_runtime.shutdown_background();
+        randomness_managers[0]
+            .enqueued_messages
+            .insert(0, shutdown_handle.spawn_blocking(|| None));
+        let result = randomness_managers[0]
+            .advance_dkg(&mut ConsensusCommitOutput::new(0, 0), 0)
+            .await;
+        assert!(matches!(result, Err(AdvanceDkgError::RuntimeShutdown)));
+        assert!(randomness_managers[0].processed_messages.is_empty());
+
         for i in 0..randomness_managers.len() {
-            let mut output = ConsensusCommitOutput::new(0);
+            let mut output = ConsensusCommitOutput::new(0, 0);
             output.record_consensus_commit_stats(ExecutionIndicesWithStats {
                 index: ExecutionIndices {
                     last_committed_round: 0,
@@ -1085,7 +1175,7 @@ mod tests {
             }
         }
         for i in 0..randomness_managers.len() {
-            let mut output = ConsensusCommitOutput::new(0);
+            let mut output = ConsensusCommitOutput::new(0, 0);
             output.record_consensus_commit_stats(ExecutionIndicesWithStats {
                 index: ExecutionIndices {
                     last_committed_round: 1,
@@ -1148,7 +1238,7 @@ mod tests {
                 })
                 .returning(|_, _| {
                     Ok(with_block_status(starfish_core::BlockStatus::Sequenced(
-                        starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+                        starfish_core::TransactionRef::default(),
                     )))
                 });
 
@@ -1210,7 +1300,7 @@ mod tests {
         );
 
         for i in 0..randomness_managers.len() {
-            let mut output = ConsensusCommitOutput::new(0);
+            let mut output = ConsensusCommitOutput::new(0, 0);
             output.record_consensus_commit_stats(ExecutionIndicesWithStats {
                 index: ExecutionIndices {
                     last_committed_round: 0,
@@ -1277,7 +1367,7 @@ mod tests {
             })
             .returning(|_, _| {
                 Ok(with_block_status(BlockStatus::Sequenced(
-                    starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+                    starfish_core::TransactionRef::default(),
                 )))
             });
         let consensus_adapter = Arc::new(ConsensusAdapter::new(
@@ -1340,7 +1430,7 @@ mod tests {
                 })
                 .returning(|_, _| {
                     Ok(with_block_status(BlockStatus::Sequenced(
-                        starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+                        starfish_core::TransactionRef::default(),
                     )))
                 });
 
@@ -1396,7 +1486,7 @@ mod tests {
             }
         }
         for i in 0..randomness_managers.len() {
-            let mut output = ConsensusCommitOutput::new(0);
+            let mut output = ConsensusCommitOutput::new(0, 0);
             output.record_consensus_commit_stats(ExecutionIndicesWithStats {
                 index: ExecutionIndices {
                     last_committed_round: 0,
@@ -1479,7 +1569,7 @@ mod tests {
 
         // DKG completes after its timeout once the confirmations are sequenced.
         for i in 0..recovered_managers.len() {
-            let mut output = ConsensusCommitOutput::new(0);
+            let mut output = ConsensusCommitOutput::new(0, 0);
             output.record_consensus_commit_stats(ExecutionIndicesWithStats {
                 index: ExecutionIndices {
                     last_committed_round: 1,
@@ -1613,7 +1703,7 @@ mod tests {
                 })
                 .returning(|_, _| {
                     Ok(with_block_status(BlockStatus::Sequenced(
-                        starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+                        starfish_core::TransactionRef::default(),
                     )))
                 });
 
@@ -1677,7 +1767,7 @@ mod tests {
 
         // The other managers process the Messages and send their Confirmations.
         for randomness_manager in peer_managers.iter_mut() {
-            let mut output = ConsensusCommitOutput::new(0);
+            let mut output = ConsensusCommitOutput::new(0, 0);
             for (j, dkg_message) in dkg_messages.iter().cloned().enumerate() {
                 randomness_manager
                     .add_message(&epoch_stores[j].name, dkg_message)
@@ -1704,7 +1794,7 @@ mod tests {
 
         // Three of four Confirmations are enough for completion to run, and
         // the empty set of used messages leaves it nothing to aggregate.
-        let mut output = ConsensusCommitOutput::new(0);
+        let mut output = ConsensusCommitOutput::new(0, 0);
         for (dkg_confirmation, epoch_store) in dkg_confirmations.into_iter().zip(&epoch_stores[1..])
         {
             faulty_manager
@@ -1713,5 +1803,106 @@ mod tests {
         }
         assert_eq!(DkgStatus::Pending, faulty_manager.dkg_status());
         let _ = faulty_manager.advance_dkg(&mut output, 0).await;
+    }
+
+    /// DKG goes on when its Message and its Confirmation are refused as larger
+    /// than consensus accepts: neither is stored or handed to consensus, and
+    /// the manager still merges the Messages it receives.
+    #[tokio::test]
+    async fn dkg_goes_on_without_transactions_larger_than_consensus_accepts() {
+        telemetry_subscribers::init_for_testing();
+
+        let network_config =
+            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+                .committee_size(NonZeroUsize::new(4).unwrap())
+                .with_reference_gas_price(500)
+                .build();
+
+        let mut protocol_config =
+            ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        protocol_config.set_random_beacon_dkg_version_for_testing(1);
+        // Smaller than any DKG Message or Confirmation, since the authority
+        // name in each is longer.
+        protocol_config.set_consensus_max_transaction_size_bytes_for_testing(32);
+
+        let mut epoch_stores = Vec::new();
+        let mut randomness_managers = Vec::new();
+        for validator in network_config.validator_configs.iter() {
+            let mut mock_consensus_client = MockConsensusClient::new();
+            mock_consensus_client.expect_submit().never();
+
+            let state = TestAuthorityBuilder::new()
+                .with_protocol_config(protocol_config.clone())
+                .with_genesis_and_keypair(&network_config.genesis, validator.authority_key_pair())
+                .build()
+                .await;
+            let consensus_adapter = Arc::new(ConsensusAdapter::new(
+                Arc::new(mock_consensus_client),
+                CheckpointStore::new_for_tests(),
+                state.name,
+                Arc::new(ConnectionMonitorStatusForTests {}),
+                100_000,
+                100_000,
+                None,
+                None,
+                ConsensusAdapterMetrics::new_test(),
+                50,
+            ));
+            let epoch_store = state.epoch_store_for_testing();
+            let randomness_manager = RandomnessManager::try_new(
+                Arc::downgrade(&epoch_store),
+                Box::new(consensus_adapter),
+                iota_network::randomness::Handle::new_stub(),
+                validator.authority_key_pair(),
+            )
+            .await
+            .unwrap();
+
+            epoch_stores.push(epoch_store);
+            randomness_managers.push(randomness_manager);
+        }
+
+        // Every manager starts DKG, and its Message is refused. Each Message
+        // is built a second time to deliver it as consensus would.
+        let mut dkg_messages = Vec::new();
+        for (randomness_manager, epoch_store) in randomness_managers.iter_mut().zip(&epoch_stores) {
+            randomness_manager.start_dkg().await.unwrap();
+
+            let dkg_message = VersionedDkgMessage::create(
+                protocol_config.dkg_version(),
+                randomness_manager.party.clone(),
+            )
+            .unwrap();
+            let transaction =
+                ConsensusTransaction::new_randomness_dkg_message(epoch_store.name, &dkg_message);
+            assert!(
+                bcs::serialized_size(&transaction).unwrap() as u64
+                    > protocol_config.max_transaction_size_bytes()
+            );
+            dkg_messages.push(dkg_message);
+        }
+
+        // Every manager merges the Messages, and its Confirmation is refused.
+        for randomness_manager in randomness_managers.iter_mut() {
+            for (epoch_store, dkg_message) in epoch_stores.iter().zip(&dkg_messages) {
+                randomness_manager
+                    .add_message(&epoch_store.name, dkg_message.clone())
+                    .unwrap();
+            }
+            randomness_manager
+                .advance_dkg(&mut ConsensusCommitOutput::new(0, 0), 0)
+                .await
+                .unwrap();
+            assert!(randomness_manager.used_messages.initialized());
+            assert_eq!(DkgStatus::Pending, randomness_manager.dkg_status());
+        }
+
+        for epoch_store in &epoch_stores {
+            assert!(
+                epoch_store
+                    .get_all_pending_consensus_transactions()
+                    .is_empty()
+            );
+        }
     }
 }

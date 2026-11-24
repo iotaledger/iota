@@ -119,13 +119,15 @@ mod checked {
         }
     }
 
+    /// The flat fee charged for every transaction.
+    pub(crate) fn min_transaction_cost(config: &ProtocolConfig, gas_price: u64) -> u64 {
+        config.base_tx_cost_fixed() * gas_price
+    }
+
     impl IotaCostTable {
         pub(crate) fn new(c: &ProtocolConfig, gas_price: u64) -> Self {
-            // gas_price here is the Reference Gas Price, however we may decide
-            // to change it to be the price passed in the transaction
-            let min_transaction_cost = c.base_tx_cost_fixed() * gas_price;
             Self {
-                min_transaction_cost,
+                min_transaction_cost: min_transaction_cost(c, gas_price),
                 max_gas_budget: c.max_tx_gas(),
                 package_publish_per_byte_cost: c.package_publish_cost_per_byte(),
                 object_read_per_byte_cost: c.obj_access_cost_read_per_byte(),
@@ -301,15 +303,23 @@ mod checked {
 
         // Check whether gas arguments are legit:
         // 1. Gas object has an address owner.
-        // 2. Gas budget is between min and max budget allowed
+        // 2. Gas budget is between min and max budget allowed, when `bounded_budget` is set.
         // 3. Gas balance (all gas coins together) is bigger or equal to budget
         //
         // Keep the three checks together: it is only sound because step 1 has already
         // rejected every gas object that `as_object` returns `None` for.
+        //
+        // Step 3 sums the balances of `gas_objs` as given, so an object listed twice
+        // is counted twice and the balance it reports is too high. Nothing here
+        // rejects that; `check_transaction_input` rejects it afterwards, in
+        // `check_objects`, as `MutableObjectUsedMoreThanOnce`. So an inflated
+        // balance can pass this function but not the call it is part of. A caller
+        // reaching this directly has to reject duplicate gas references itself.
         pub(crate) fn check_gas_balance(
             &self,
             gas_objs: &[&ObjectReadResult],
             gas_budget: u64,
+            bounded_budget: bool,
         ) -> UserInputResult {
             // 1. All gas objects have an address owner
             for gas_object in gas_objs {
@@ -326,18 +336,13 @@ mod checked {
                 }
             }
 
-            // 2. Gas budget is between min and max budget allowed
-            if gas_budget > self.cost_table.max_gas_budget {
-                return Err(UserInputError::GasBudgetTooHigh {
+            if bounded_budget {
+                // 2. Gas budget is between min and max budget allowed
+                gas::check_gas_budget_bounds(
                     gas_budget,
-                    max_budget: self.cost_table.max_gas_budget,
-                });
-            }
-            if gas_budget < self.cost_table.min_transaction_cost {
-                return Err(UserInputError::GasBudgetTooLow {
-                    gas_budget,
-                    min_budget: self.cost_table.min_transaction_cost,
-                });
+                    self.cost_table.min_transaction_cost,
+                    self.cost_table.max_gas_budget,
+                )?;
             }
 
             // 3. Gas balance (all gas coins together) is bigger or equal to budget

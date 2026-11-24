@@ -4,16 +4,16 @@
 use std::collections::{BTreeMap, HashMap};
 
 use iota_sdk_types::ObjectId;
-use iota_types::{
-    executable_transaction::VerifiedExecutableTransaction,
-    transaction::{SenderSignedTransactionAPI, TransactionAPI},
-};
+use iota_types::transaction::{SenderSignedTransactionAPI, TransactionAPI};
 use tracing::instrument;
 
 use super::shared_object_congestion_tracker::ExecutionTime;
-use crate::authority::{
-    authority_per_epoch_store::CongestionControlParameters,
-    shared_object_congestion_tracker::BumpObjectExecutionSlotsResult,
+use crate::{
+    authority::{
+        authority_per_epoch_store::CongestionControlParameters,
+        shared_object_congestion_tracker::BumpObjectExecutionSlotsResult,
+    },
+    execution_scheduler::transaction_manager::VerifiedExecutableAttestedTransaction,
 };
 
 /// Holds shared object congestion info for a single scheduled shared-object
@@ -131,9 +131,9 @@ impl SuggestedGasPriceCalculator {
         }
     }
 
-    /// Update per-commit congestion info for a single transaction. This should
-    /// only be called for scheduled transactions that contain shared object(s);
-    /// otherwise, the calculator might wrongly calculate suggested gas price.
+    /// Update per-commit congestion info for a single scheduled transaction.
+    /// A transaction without shared objects changes only the execution-worker
+    /// info, and only when execution-worker congestion control is active.
     /// `bump_object_execution_slots_result` is the outcome of the
     /// `bump_object_execution_slots` of `SharedObjectCongestionTracker`.
     pub(super) fn update_congestion_info(
@@ -196,7 +196,7 @@ impl SuggestedGasPriceCalculator {
     #[instrument(level = "trace", skip_all)]
     pub(super) fn calculate_suggested_gas_price(
         &self,
-        transaction: &VerifiedExecutableTransaction,
+        transaction: &VerifiedExecutableAttestedTransaction,
     ) -> u64 {
         if let Some(congestion_limit_per_commit) = self.get_effective_congestion_limit_per_commit()
         {
@@ -226,11 +226,13 @@ impl SuggestedGasPriceCalculator {
                     // Transactions are processed in descending gas-price order and the
                     // congestion info only holds transactions scheduled before the shed
                     // one, so any clearing price is at least the shed transaction's own
-                    // price.
+                    // price. A transaction with a transaction dependency is processed
+                    // after its dependency instead, so it may follow cheaper ones.
                     debug_assert!(
                         self.congestion_control_parameters
                             .max_concurrent_execution_workers()
                             .is_none()
+                            || transaction.transaction().transaction_dependency().is_some()
                             || clearing_gas_price >= transaction.transaction().gas_price(),
                         "clearing gas price below the shed transaction's own price"
                     );
@@ -290,7 +292,7 @@ impl SuggestedGasPriceCalculator {
     /// imaginary start time computed in `calculate_suggested_gas_price`.
     fn find_object_clearing_gas_price(
         &self,
-        transaction: &VerifiedExecutableTransaction,
+        transaction: &VerifiedExecutableAttestedTransaction,
         start_time_of_shed_tx: ExecutionTime,
     ) -> Option<u64> {
         transaction
@@ -396,6 +398,7 @@ pub mod suggested_gas_price_calculator_test_utils {
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             vec![],
             Vec::new(),
+            vec![],
             congestion_control_parameters.clone(),
         );
 
@@ -407,7 +410,8 @@ pub mod suggested_gas_price_calculator_test_utils {
         for (object_id, duration, gas_price) in init_values {
             match congestion_control_parameters.per_object_congestion_control_mode_for_test() {
                 PerObjectCongestionControlMode::None => {}
-                PerObjectCongestionControlMode::TotalGasBudget => {
+                PerObjectCongestionControlMode::TotalGasBudget
+                | PerObjectCongestionControlMode::TotalComputationUnits => {
                     let transaction =
                         build_transaction(&[(*object_id, true)], *duration, *gas_price);
 
@@ -461,22 +465,23 @@ mod tests {
 
     use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
     use iota_sdk_types::ObjectId;
-    use iota_types::{
-        executable_transaction::VerifiedExecutableTransaction,
-        transaction::SenderSignedTransactionAPI,
-    };
+    use iota_types::transaction::SenderSignedTransactionAPI;
     use rstest::rstest;
 
     use super::SuggestedGasPriceCalculator;
-    use crate::authority::{
-        authority_per_epoch_store::CongestionControlParameters,
-        shared_object_congestion_tracker::{
-            BumpObjectExecutionSlotsResult, ExecutionTime, SequencingResult,
-            SharedObjectCongestionTracker, shared_object_test_utils::build_transaction,
+    use crate::{
+        authority::{
+            authority_per_epoch_store::CongestionControlParameters,
+            shared_object_congestion_tracker::{
+                BumpObjectExecutionSlotsResult, ExecutionTime, SequencingResult,
+                SharedObjectCongestionTracker, shared_object_test_utils::build_transaction,
+            },
+            suggested_gas_price_calculator::{
+                PerCommitCongestionInfo, PerObjectCongestionInfo,
+                ScheduledTransactionCongestionInfo,
+            },
         },
-        suggested_gas_price_calculator::{
-            PerCommitCongestionInfo, PerObjectCongestionInfo, ScheduledTransactionCongestionInfo,
-        },
+        execution_scheduler::transaction_manager::VerifiedExecutableAttestedTransaction,
     };
 
     const REFERENCE_GAS_PRICE: u64 = 1_000;
@@ -531,7 +536,7 @@ mod tests {
     fn build_and_try_sequencing_transaction(
         tx: &Transaction,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
-    ) -> (VerifiedExecutableTransaction, SequencingResult) {
+    ) -> (VerifiedExecutableAttestedTransaction, SequencingResult) {
         let transaction = build_transaction(&tx.input_shared_objects, tx.gas_budget, tx.gas_price);
         let shared_input_objects = transaction.shared_input_objects();
         shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects);
@@ -550,7 +555,7 @@ mod tests {
     /// `shared_object_congestion_tracker` and `suggested_gas_price_calculator`
     /// for a `transaction` scheduled at `execution_start_time`.
     fn update_data_for_scheduled_transaction(
-        transaction: &VerifiedExecutableTransaction,
+        transaction: &VerifiedExecutableAttestedTransaction,
         execution_start_time: ExecutionTime,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
         suggested_gas_price_calculator: &mut SuggestedGasPriceCalculator,
@@ -844,6 +849,7 @@ mod tests {
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             [],         // initial_object_debts
             Vec::new(), // initial_worker_debt
+            [],         // initial_transaction_debts
             congestion_control_parameters.clone(),
         );
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new_for_test(
@@ -1123,6 +1129,7 @@ mod tests {
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             [],         // initial_object_debts
             Vec::new(), // initial_worker_debt
+            [],         // initial_transaction_debts
             congestion_control_parameters.clone(),
         );
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new_for_test(
@@ -1565,6 +1572,7 @@ mod tests {
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             [(object_1, 1), (object_2, 2)], // initial_object_debts
             Vec::new(),                     // initial_worker_debt
+            [],                             // initial_transaction_debts
             congestion_control_parameters.clone(),
         );
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new_for_test(
@@ -1899,6 +1907,7 @@ mod tests {
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             [(object_1, 2_000_000), (object_2, 1_000_000)], // initial_object_debts
             Vec::new(),                                     // initial_worker_debt
+            [],                                             // initial_transaction_debts
             congestion_control_parameters.clone(),
         );
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new_for_test(
@@ -2375,7 +2384,8 @@ mod tests {
         let max_execution_duration_per_commit = match per_object_congestion_control_mode {
             PerObjectCongestionControlMode::None => unreachable!(),
             PerObjectCongestionControlMode::TotalTxCount => 0,
-            PerObjectCongestionControlMode::TotalGasBudget => 2_999_999,
+            PerObjectCongestionControlMode::TotalGasBudget
+            | PerObjectCongestionControlMode::TotalComputationUnits => 2_999_999,
         };
         let congestion_control_parameters = CongestionControlParameters::new_for_test(
             per_object_congestion_control_mode,
@@ -2391,6 +2401,7 @@ mod tests {
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             [],         // initial_object_debts
             Vec::new(), // initial_worker_debt
+            [],         // initial_transaction_debts
             congestion_control_parameters.clone(),
         );
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new_for_test(
@@ -2459,7 +2470,8 @@ mod tests {
             match per_object_congestion_control_mode {
                 PerObjectCongestionControlMode::None => unreachable!(),
                 PerObjectCongestionControlMode::TotalTxCount => (1, 2),
-                PerObjectCongestionControlMode::TotalGasBudget => (1_000_000, 2_000_000),
+                PerObjectCongestionControlMode::TotalGasBudget
+                | PerObjectCongestionControlMode::TotalComputationUnits => (1_000_000, 2_000_000),
             };
         let congestion_control_parameters = CongestionControlParameters::new_for_test(
             per_object_congestion_control_mode,
@@ -2475,6 +2487,7 @@ mod tests {
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             [(object_1, 3), (object_2, 3)], // initial_object_debts
             Vec::new(),                     // initial_worker_debt
+            [],                             // initial_transaction_debts
             congestion_control_parameters.clone(),
         );
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new_for_test(
@@ -2552,6 +2565,7 @@ mod tests {
                 calculator.update_congestion_info(bump_result);
             }
             SequencingResult::Defer(..) => panic!("transaction should have been scheduled"),
+            SequencingResult::DeferForDependency(..) => panic!("no transaction has a dependency"),
         }
     }
 
@@ -2561,7 +2575,7 @@ mod tests {
     fn worker_clearing_with_single_worker() {
         let parameters = worker_test_parameters(1, 1);
         let mut tracker =
-            SharedObjectCongestionTracker::new(vec![], Vec::new(), parameters.clone());
+            SharedObjectCongestionTracker::new(vec![], Vec::new(), vec![], parameters.clone());
         let mut calculator = SuggestedGasPriceCalculator::new(parameters, REFERENCE_GAS_PRICE);
 
         schedule_transaction(&mut tracker, &mut calculator, &[], 2_000);
@@ -2577,7 +2591,7 @@ mod tests {
     fn worker_clearing_takes_nth_largest_gas_price() {
         let parameters = worker_test_parameters(1, 2);
         let mut tracker =
-            SharedObjectCongestionTracker::new(vec![], Vec::new(), parameters.clone());
+            SharedObjectCongestionTracker::new(vec![], Vec::new(), vec![], parameters.clone());
         let mut calculator = SuggestedGasPriceCalculator::new(parameters, REFERENCE_GAS_PRICE);
 
         schedule_transaction(&mut tracker, &mut calculator, &[], 3_000);
@@ -2601,7 +2615,7 @@ mod tests {
     fn worker_clearing_ignores_transactions_outside_tail_window() {
         let parameters = worker_test_parameters(3, 1);
         let mut tracker =
-            SharedObjectCongestionTracker::new(vec![], Vec::new(), parameters.clone());
+            SharedObjectCongestionTracker::new(vec![], Vec::new(), vec![], parameters.clone());
         let mut calculator = SuggestedGasPriceCalculator::new(parameters, REFERENCE_GAS_PRICE);
 
         // Occupies [0, 1); the shed transaction's imaginary start is
@@ -2622,7 +2636,7 @@ mod tests {
         let object = ObjectId::random();
         let parameters = worker_test_parameters(2, 2);
         let mut tracker =
-            SharedObjectCongestionTracker::new(vec![], Vec::new(), parameters.clone());
+            SharedObjectCongestionTracker::new(vec![], Vec::new(), vec![], parameters.clone());
         let mut calculator = SuggestedGasPriceCalculator::new(parameters, REFERENCE_GAS_PRICE);
 
         // Descending gas-price order, as in the consensus handler.
@@ -2652,7 +2666,7 @@ mod tests {
     fn worker_clearing_with_tied_gas_price_suggests_one_more() {
         let parameters = worker_test_parameters(1, 1);
         let mut tracker =
-            SharedObjectCongestionTracker::new(vec![], Vec::new(), parameters.clone());
+            SharedObjectCongestionTracker::new(vec![], Vec::new(), vec![], parameters.clone());
         let mut calculator = SuggestedGasPriceCalculator::new(parameters, REFERENCE_GAS_PRICE);
 
         schedule_transaction(&mut tracker, &mut calculator, &[], REFERENCE_GAS_PRICE);
@@ -2713,7 +2727,7 @@ mod tests {
         let object = ObjectId::random();
         let parameters = worker_test_parameters(1, 2);
         let mut tracker =
-            SharedObjectCongestionTracker::new(vec![], Vec::new(), parameters.clone());
+            SharedObjectCongestionTracker::new(vec![], Vec::new(), vec![], parameters.clone());
         let mut calculator = SuggestedGasPriceCalculator::new(parameters, REFERENCE_GAS_PRICE);
         schedule_transaction(&mut tracker, &mut calculator, &[(object, true)], 3_000);
         schedule_transaction(&mut tracker, &mut calculator, &[], 2_500);
@@ -2725,6 +2739,7 @@ mod tests {
                 assert_eq!(congested_objects, vec![object]);
             }
             SequencingResult::Schedule(_) => panic!("should defer"),
+            SequencingResult::DeferForDependency(..) => panic!("no transaction has a dependency"),
         }
         assert_eq!(calculator.calculate_suggested_gas_price(&shed), 3_001);
 
@@ -2747,7 +2762,7 @@ mod tests {
         );
         parameters.set_max_concurrent_execution_workers_for_test(1);
         let mut tracker =
-            SharedObjectCongestionTracker::new(vec![], Vec::new(), parameters.clone());
+            SharedObjectCongestionTracker::new(vec![], Vec::new(), vec![], parameters.clone());
         let mut calculator = SuggestedGasPriceCalculator::new(parameters, REFERENCE_GAS_PRICE);
 
         // Descending price order; gas budget = duration in this mode.
@@ -2767,6 +2782,9 @@ mod tests {
                         calculator.update_congestion_info(bump_result);
                     }
                     SequencingResult::Defer(..) => panic!("should schedule"),
+                    SequencingResult::DeferForDependency(..) => {
+                        panic!("no transaction has a dependency")
+                    }
                 }
             }
         }
@@ -2778,6 +2796,7 @@ mod tests {
                 assert_eq!(congested_objects, vec![object]);
             }
             SequencingResult::Schedule(_) => panic!("should defer"),
+            SequencingResult::DeferForDependency(..) => panic!("no transaction has a dependency"),
         }
         assert_eq!(calculator.calculate_suggested_gas_price(&shed), 3_001);
     }

@@ -19,6 +19,7 @@ use iota_types::{
 };
 use prometheus_filtered::{IntGauge, Registry, register_int_gauge_with_registry};
 use tracing::debug;
+use typed_store::DbIterator;
 
 use crate::authority::{
     authority_per_epoch_store::AuthorityPerEpochStore, authority_store_tables::LiveObject,
@@ -53,10 +54,6 @@ pub trait GlobalStateHashStore: ObjectStore + Send + Sync {
         epoch: EpochId,
     ) -> IotaResult<Option<(CheckpointSequenceNumber, GlobalStateHash)>>;
 
-    fn get_root_state_hash_for_highest_epoch(
-        &self,
-    ) -> IotaResult<Option<(EpochId, (CheckpointSequenceNumber, GlobalStateHash))>>;
-
     fn insert_state_hash_for_epoch(
         &self,
         epoch: EpochId,
@@ -64,9 +61,9 @@ pub trait GlobalStateHashStore: ObjectStore + Send + Sync {
         acc: &GlobalStateHash,
     ) -> IotaResult;
 
-    fn iter_live_object_set(&self) -> Box<dyn Iterator<Item = LiveObject> + '_>;
+    fn iter_live_object_set(&self) -> DbIterator<'_, LiveObject>;
 
-    fn iter_cached_live_object_set_for_testing(&self) -> Box<dyn Iterator<Item = LiveObject> + '_> {
+    fn iter_cached_live_object_set_for_testing(&self) -> DbIterator<'_, LiveObject> {
         self.iter_live_object_set()
     }
 }
@@ -79,12 +76,6 @@ impl GlobalStateHashStore for InMemoryStorage {
         unreachable!("not used for testing")
     }
 
-    fn get_root_state_hash_for_highest_epoch(
-        &self,
-    ) -> IotaResult<Option<(EpochId, (CheckpointSequenceNumber, GlobalStateHash))>> {
-        unreachable!("not used for testing")
-    }
-
     fn insert_state_hash_for_epoch(
         &self,
         _epoch: EpochId,
@@ -94,7 +85,7 @@ impl GlobalStateHashStore for InMemoryStorage {
         unreachable!("not used for testing")
     }
 
-    fn iter_live_object_set(&self) -> Box<dyn Iterator<Item = LiveObject> + '_> {
+    fn iter_live_object_set(&self) -> DbIterator<'_, LiveObject> {
         unreachable!("not used for testing")
     }
 }
@@ -173,31 +164,33 @@ impl GlobalStateHasher {
         Ok(acc)
     }
 
-    pub fn accumulate_cached_live_object_set_for_testing(&self) -> GlobalStateHash {
+    pub fn accumulate_cached_live_object_set_for_testing(&self) -> IotaResult<GlobalStateHash> {
         Self::accumulate_live_object_set_impl(self.store.iter_cached_live_object_set_for_testing())
     }
 
     /// Returns the result of accumulating the live object set, without side
     /// effects
-    pub fn accumulate_live_object_set(&self) -> GlobalStateHash {
+    pub fn accumulate_live_object_set(&self) -> IotaResult<GlobalStateHash> {
         Self::accumulate_live_object_set_impl(self.store.iter_live_object_set())
     }
 
-    fn accumulate_live_object_set_impl(iter: impl Iterator<Item = LiveObject>) -> GlobalStateHash {
+    fn accumulate_live_object_set_impl(
+        iter: DbIterator<'_, LiveObject>,
+    ) -> IotaResult<GlobalStateHash> {
         let mut acc = GlobalStateHash::default();
-        iter.for_each(|live_object| {
-            Self::accumulate_live_object(&mut acc, &live_object);
-        });
-        acc
+        for live_object in iter {
+            Self::accumulate_live_object(&mut acc, &live_object?);
+        }
+        Ok(acc)
     }
 
     pub fn accumulate_live_object(acc: &mut GlobalStateHash, live_object: &LiveObject) {
         acc.insert(live_object.object.object_ref().digest);
     }
 
-    pub fn digest_live_object_set(&self) -> ECMHLiveObjectSetDigest {
-        let acc = self.accumulate_live_object_set();
-        acc.digest().into()
+    pub fn digest_live_object_set(&self) -> IotaResult<ECMHLiveObjectSetDigest> {
+        let acc = self.accumulate_live_object_set()?;
+        Ok(acc.digest().into())
     }
 
     pub async fn digest_epoch(
@@ -219,14 +212,18 @@ impl GlobalStateHasher {
         assert!(checkpoint_seq_num > 0);
 
         // Check if this is the first checkpoint of the new epoch, in which case
-        // there is nothing to wait for.
-        if self
-            .store
-            .get_root_state_hash_for_highest_epoch()?
-            .map(|(_, (last_checkpoint_prev_epoch, _))| last_checkpoint_prev_epoch)
-            == Some(checkpoint_seq_num - 1)
-        {
-            return Ok(());
+        // there is nothing to wait for. Look up the previous epoch explicitly: when
+        // this checkpoint is rebuilt after a restart, the root of the current epoch
+        // may already be stored.
+        if let Some(prev_epoch) = epoch_store.epoch().checked_sub(1) {
+            if self
+                .store
+                .get_root_state_hash_for_epoch(prev_epoch)?
+                .map(|(last_checkpoint_prev_epoch, _)| last_checkpoint_prev_epoch)
+                == Some(checkpoint_seq_num - 1)
+            {
+                return Ok(());
+            }
         }
 
         // There is an edge case here where checkpoint_seq_num is 1. This means the
@@ -248,25 +245,26 @@ impl GlobalStateHasher {
             return Ok(GlobalStateHash::default());
         }
 
-        if let Some((prev_epoch, (last_checkpoint_prev_epoch, prev_acc))) =
-            self.store.get_root_state_hash_for_highest_epoch()?
+        if let Some(prior_running_root) =
+            epoch_store.get_running_root_state_hash(checkpoint_seq_num - 1)?
         {
-            assert_eq!(prev_epoch + 1, epoch_store.epoch());
-            if last_checkpoint_prev_epoch == checkpoint_seq_num - 1 {
-                return Ok(prev_acc);
+            return Ok(prior_running_root);
+        }
+
+        if let Some(prev_epoch) = epoch_store.epoch().checked_sub(1) {
+            if let Some((last_checkpoint_prev_epoch, prev_acc)) =
+                self.store.get_root_state_hash_for_epoch(prev_epoch)?
+            {
+                if last_checkpoint_prev_epoch == checkpoint_seq_num - 1 {
+                    return Ok(prev_acc);
+                }
             }
         }
 
-        let Some(prior_running_root) =
-            epoch_store.get_running_root_state_hash(checkpoint_seq_num - 1)?
-        else {
-            fatal!(
-                "Running root state hasher must exist for checkpoint {}",
-                checkpoint_seq_num - 1
-            );
-        };
-
-        Ok(prior_running_root)
+        fatal!(
+            "Running root state hasher must exist for checkpoint {}",
+            checkpoint_seq_num - 1
+        );
     }
 
     // Accumulate the running root.

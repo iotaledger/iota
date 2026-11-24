@@ -13,12 +13,15 @@ use diesel::{
     query_dsl::LoadQuery, sql_types::Untyped,
 };
 use fastcrypto::encoding::{Base64, Encoding};
+use iota_indexer::pruning::{
+    CommitterTables, oldest_available_checkpoint::OldestAvailableCheckpoint,
+};
 use serde::{Serialize, de::DeserializeOwned};
 
 use crate::{
     config::ServiceConfig,
-    consistency::{Checkpointed, ConsistentIndexCursor},
-    data::{Conn, DbConnection, DieselBackend, DieselConn, Query},
+    consistency::{Checkpointed, ConsistentIndexCursor, TransactionCursor},
+    data::{Conn, Db, DbConnection, DieselBackend, DieselConn, Query},
     error::Error,
     raw_query::RawQuery,
     types::uint53::UInt53,
@@ -240,6 +243,99 @@ where
             (Some(cursor), None) | (None, Some(cursor)) => Ok(Some(cursor.checkpoint_viewed_at())),
             (None, None) => Ok(None),
         }
+    }
+
+    /// Fails with `DATA_PRUNED` when the cursors of the page were issued at a
+    /// checkpoint that has been pruned from the `checkpoints` table, or that is
+    /// below `oldest_available_checkpoint`. The error reports
+    /// `oldest_available_checkpoint`, the bound of the data the page reads.
+    pub(crate) fn check_cursor_not_expired(
+        &self,
+        db: &Db,
+        oldest_available_checkpoint: OldestAvailableCheckpoint,
+    ) -> Result<(), Error> {
+        let Some(cursor_viewed_at) = self.validate_cursor_consistency()? else {
+            return Ok(());
+        };
+        let oldest_viewable_checkpoint = oldest_viewable_checkpoint(db);
+        if cursor_viewed_at < oldest_viewable_checkpoint {
+            return Err(pruned_checkpoint_viewed_at_error(
+                oldest_viewable_checkpoint,
+                cursor_viewed_at,
+                oldest_available_checkpoint,
+            ));
+        }
+        let data_available_from = u64::from(oldest_available_checkpoint);
+        if cursor_viewed_at < data_available_from {
+            return Err(Error::DataPruned {
+                message: format!(
+                    "all data up to checkpoint {cursor_viewed_at} the query is viewed at has \
+                     been pruned, data is available from checkpoint {data_available_from}"
+                ),
+                oldest_available_checkpoint,
+            });
+        }
+        Ok(())
+    }
+}
+
+/// The oldest checkpoint a query can still be viewed at, which defines how
+/// long cursors stay valid.
+pub(crate) fn oldest_viewable_checkpoint(db: &Db) -> u64 {
+    db.inner
+        .watermark_cache()
+        .get_lowest_available_cp_for_tables(&[CommitterTables::Checkpoints])
+        .unwrap_or(0) as u64
+}
+
+impl<C> Page<C>
+where
+    C: TransactionCursor,
+{
+    /// Fails with `DATA_PRUNED` when a cursor of the page points at a pruned
+    /// transaction.
+    pub(crate) fn check_cursors_not_pruned(
+        &self,
+        oldest_available_checkpoint: OldestAvailableCheckpoint,
+    ) -> Result<(), Error> {
+        let oldest_available_tx = oldest_available_checkpoint.served_tx() as u64;
+        for (name, cursor) in [("after", self.after()), ("before", self.before())] {
+            let Some(tx_seq) = cursor.map(TransactionCursor::tx_sequence_number) else {
+                continue;
+            };
+            if tx_seq < oldest_available_tx {
+                return Err(Error::DataPruned {
+                    message: format!(
+                        "`{name}` cursor (transaction {tx_seq}) is below the oldest available \
+                         transaction {oldest_available_tx}"
+                    ),
+                    oldest_available_checkpoint,
+                });
+            }
+        }
+        Ok(())
+    }
+}
+
+/// The `DATA_PRUNED` error for a query viewed at `checkpoint_viewed_at`, when
+/// that checkpoint has been pruned from the `checkpoints` table.
+///
+/// The error reports two values: `oldest_available_checkpoint`, the lower bound
+/// of the data the query reads, and `oldest_viewable_checkpoint`, see
+/// [`oldest_viewable_checkpoint`].
+pub(crate) fn pruned_checkpoint_viewed_at_error(
+    oldest_viewable_checkpoint: u64,
+    checkpoint_viewed_at: u64,
+    oldest_available_checkpoint: OldestAvailableCheckpoint,
+) -> Error {
+    let data_available_from = u64::from(oldest_available_checkpoint);
+    Error::DataPruned {
+        message: format!(
+            "checkpoint {checkpoint_viewed_at} the query is viewed at has been pruned, queries \
+             viewed at checkpoint {oldest_viewable_checkpoint} or later are served, data is \
+             available from checkpoint {data_available_from}"
+        ),
+        oldest_available_checkpoint,
     }
 }
 

@@ -99,6 +99,8 @@ impl MockTxStore {
             None,
             0,
             Vec::new(),
+            Vec::new(),
+            Default::default(),
         );
 
         let signed = SignedCheckpointSummary::new(
@@ -406,6 +408,7 @@ mod simtests {
     use iota_sdk_types::{Address, Event, Identifier, StructTag};
     use iota_simulator::configs::constant_latency_ms;
     use iota_storage::http_key_value_store::*;
+    use iota_types::error::IotaError;
     use rustls::crypto::{CryptoProvider, ring};
     use tracing::info;
 
@@ -413,21 +416,42 @@ mod simtests {
 
     type Storage = HashMap<String, Vec<u8>>;
 
-    async fn svc(State(state): State<Arc<Mutex<Storage>>>, request: Request<Body>) -> Response {
+    async fn svc(
+        State((state, missing, delay)): State<(Arc<Mutex<Storage>>, hyper::StatusCode, Duration)>,
+        request: Request<Body>,
+    ) -> Response {
         let path = request.uri().path().to_string();
         let key = path.trim_start_matches('/');
         let value = state.lock().unwrap().get(key).cloned();
         info!("Got request for key: {:?}, value: {:?}", key, value);
         match value {
-            Some(v) => Response::new(Body::from(v)),
+            Some(v) => {
+                tokio::time::sleep(delay).await;
+                Response::new(Body::from(v))
+            }
             None => Response::builder()
-                .status(hyper::StatusCode::NOT_FOUND)
+                .status(missing)
                 .body(Body::empty())
                 .unwrap(),
         }
     }
 
     async fn test_server(data: Arc<Mutex<Storage>>) {
+        test_server_with(data, hyper::StatusCode::NOT_FOUND, Duration::ZERO).await
+    }
+
+    /// Serves `data`, each key after `delay`, and answers `missing` at once for
+    /// a key it does not hold.
+    async fn test_server_with(
+        data: Arc<Mutex<Storage>>,
+        missing: hyper::StatusCode,
+        delay: Duration,
+    ) {
+        serve(get(svc).with_state((data, missing, delay))).await;
+    }
+
+    /// Serves `router` at `10.10.10.10:8080`.
+    async fn serve(router: axum::routing::MethodRouter) {
         let handle = iota_simulator::runtime::Handle::current();
         let builder = handle.create_node();
         let (startup_sender, mut startup_receiver) = tokio::sync::watch::channel(false);
@@ -437,10 +461,9 @@ mod simtests {
             .name("server")
             .init(move || {
                 info!("Server started");
-                let data = data.clone();
+                let router = router.clone();
                 let startup_sender = startup_sender.clone();
                 async move {
-                    let router = get(svc).with_state(data);
                     let addr = SocketAddr::from(([10, 10, 10, 10], 8080));
                     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
 
@@ -557,6 +580,193 @@ mod simtests {
             .await
             .unwrap();
         assert_eq!(result, vec![Some(ev)]);
+    }
+
+    #[sim_test(config = "constant_latency_ms(250)")]
+    async fn failed_reads_are_errors_not_misses() {
+        if CryptoProvider::get_default().is_none() {
+            ring::default_provider().install_default().ok();
+        }
+
+        let tx = random_tx();
+        let tx_digest = *tx.digest();
+        let data = Arc::new(Mutex::new(HashMap::from([(
+            format!("tx/{}", encode_digest(&tx_digest)),
+            bcs::to_bytes(&tx).unwrap(),
+        )])));
+        test_server_with(data, hyper::StatusCode::SERVICE_UNAVAILABLE, Duration::ZERO).await;
+        let store = HttpKVStore::new(
+            "http://10.10.10.10:8080",
+            1000,
+            KeyValueStoreMetrics::new_for_tests(),
+        )
+        .unwrap();
+
+        fn assert_unavailable<T>(result: IotaResult<T>) {
+            match result {
+                Err(IotaError::Storage(msg)) => assert!(msg.contains("503"), "{msg}"),
+                Err(err) => panic!("unexpected error: {err:?}"),
+                Ok(_) => panic!("a failed read was not an error"),
+            }
+        }
+
+        assert_eq!(
+            store.multi_get(&[tx_digest], &[]).await.unwrap(),
+            (vec![Some(tx)], vec![])
+        );
+        assert_unavailable(
+            store
+                .multi_get(&[tx_digest, TransactionDigest::random()], &[])
+                .await,
+        );
+        assert_unavailable(store.get_object(ObjectId::random(), 1.into()).await);
+    }
+
+    #[sim_test(config = "constant_latency_ms(250)")]
+    async fn failed_batch_caches_the_keys_it_read() {
+        if CryptoProvider::get_default().is_none() {
+            ring::default_provider().install_default().ok();
+        }
+
+        let tx = random_tx();
+        let tx_digest = *tx.digest();
+        let data = Arc::new(Mutex::new(HashMap::from([(
+            format!("tx/{}", encode_digest(&tx_digest)),
+            bcs::to_bytes(&tx).unwrap(),
+        )])));
+        // The 429 comes back before the transaction.
+        test_server_with(
+            data,
+            hyper::StatusCode::TOO_MANY_REQUESTS,
+            Duration::from_secs(1),
+        )
+        .await;
+        let metrics = KeyValueStoreMetrics::new_for_tests();
+        let store = HttpKVStore::new("http://10.10.10.10:8080", 1000, metrics.clone()).unwrap();
+
+        assert!(
+            store
+                .multi_get(&[TransactionDigest::random(), tx_digest], &[])
+                .await
+                .is_err()
+        );
+        assert_eq!(
+            store.multi_get(&[tx_digest], &[]).await.unwrap(),
+            (vec![Some(tx)], vec![])
+        );
+        assert_eq!(
+            metrics
+                .key_value_store_num_fetches_success
+                .get_metric_with_label_values(&["http_cache", "url"])
+                .unwrap()
+                .get(),
+            1
+        );
+    }
+
+    #[sim_test(config = "constant_latency_ms(250)")]
+    async fn failed_requests_are_errors_without_the_url() {
+        if CryptoProvider::get_default().is_none() {
+            ring::default_provider().install_default().ok();
+        }
+
+        // Nothing listens on this port.
+        test_server(Arc::new(Mutex::new(HashMap::new()))).await;
+        let store = HttpKVStore::new(
+            "http://10.10.10.10:8081",
+            1000,
+            KeyValueStoreMetrics::new_for_tests(),
+        )
+        .unwrap();
+
+        match store
+            .multi_get(
+                &[TransactionDigest::random(), TransactionDigest::random()],
+                &[],
+            )
+            .await
+        {
+            Err(IotaError::Storage(msg)) => assert!(!msg.contains("10.10.10.10"), "{msg}"),
+            other => panic!("expected a storage error, got {other:?}"),
+        }
+    }
+
+    #[sim_test(config = "constant_latency_ms(250)")]
+    async fn bad_request_is_a_miss() {
+        if CryptoProvider::get_default().is_none() {
+            ring::default_provider().install_default().ok();
+        }
+
+        test_server_with(
+            Arc::new(Mutex::new(HashMap::new())),
+            hyper::StatusCode::BAD_REQUEST,
+            Duration::ZERO,
+        )
+        .await;
+        let store = HttpKVStore::new(
+            "http://10.10.10.10:8080",
+            1000,
+            KeyValueStoreMetrics::new_for_tests(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            store
+                .multi_get(&[TransactionDigest::random()], &[])
+                .await
+                .unwrap(),
+            (vec![None], vec![])
+        );
+    }
+
+    #[sim_test(config = "constant_latency_ms(250)")]
+    async fn a_key_that_does_not_answer_fails_the_call_once_it_times_out() {
+        if CryptoProvider::get_default().is_none() {
+            ring::default_provider().install_default().ok();
+        }
+
+        let (answered, hanging) = (random_tx(), random_tx());
+        let path = |tx: &TransactionEnvelope| {
+            let (item_type, key) = Key::Transaction(*tx.digest()).to_path_elements();
+            format!("{item_type}/{key}")
+        };
+        let data = Arc::new(Mutex::new(HashMap::from([(
+            path(&answered),
+            bcs::to_bytes(&answered).unwrap(),
+        )])));
+        let hanging_path = format!("/{}", path(&hanging));
+        serve(get(move |request: Request<Body>| {
+            let data = data.clone();
+            let hangs = request.uri().path() == hanging_path;
+            async move {
+                if hangs {
+                    std::future::pending::<()>().await;
+                }
+                svc(
+                    State((data, hyper::StatusCode::NOT_FOUND, Duration::ZERO)),
+                    request,
+                )
+                .await
+            }
+        }))
+        .await;
+        let store = HttpKVStore::new(
+            "http://10.10.10.10:8080",
+            1000,
+            KeyValueStoreMetrics::new_for_tests(),
+        )
+        .unwrap();
+
+        let result = tokio::time::timeout(
+            Duration::from_secs(10),
+            store.multi_get(&[*answered.digest(), *hanging.digest()], &[]),
+        )
+        .await
+        .expect("the key that does not answer held up the call");
+        assert!(
+            matches!(result, Err(IotaError::Storage(_))),
+            "a timed-out read was not an error: {result:?}"
+        );
     }
 
     #[sim_test(config = "constant_latency_ms(250)")]

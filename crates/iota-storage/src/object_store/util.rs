@@ -127,6 +127,10 @@ pub async fn delete_files<S: ObjectStoreDeleteExt>(
     results.into_iter().collect()
 }
 
+/// Deletes every object under `path`. Every [`SUCCESS_MARKER`] under `path` is
+/// deleted before the other objects, so a delete that stops partway does not leave the
+/// directory listed as complete without its files. If deleting a marker
+/// fails, nothing else is deleted.
 pub async fn delete_recursively<S: ObjectStoreDeleteExt + ObjectStoreListExt>(
     path: &Path,
     store: &S,
@@ -141,7 +145,12 @@ pub async fn delete_recursively<S: ObjectStoreDeleteExt + ObjectStoreListExt>(
             return Err(res.err().unwrap().into());
         }
     }
-    delete_files(&paths_to_delete, store, concurrency).await
+    let (markers, files): (Vec<_>, Vec<_>) = paths_to_delete
+        .into_iter()
+        .partition(|location| location.filename() == Some(SUCCESS_MARKER));
+    let mut deleted = delete_files(&markers, store, concurrency).await?;
+    deleted.extend(delete_files(&files, store, concurrency).await?);
+    Ok(deleted)
 }
 
 pub fn path_to_filesystem(local_dir_path: PathBuf, location: &Path) -> anyhow::Result<PathBuf> {
@@ -324,13 +333,104 @@ pub fn get_path(prefix: &str) -> Path {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, num::NonZeroUsize};
+    use std::{fs, num::NonZeroUsize, sync::Arc, time::Duration};
 
+    use async_trait::async_trait;
+    use bytes::Bytes;
+    use futures::stream::BoxStream;
     use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
-    use object_store::path::Path;
+    use object_store::{DynObjectStore, ObjectMeta, ObjectStoreExt, memory::InMemory, path::Path};
     use tempfile::TempDir;
 
-    use crate::object_store::util::delete_recursively;
+    use crate::object_store::{
+        ObjectStoreDeleteExt, ObjectStoreListExt,
+        util::{MANIFEST_FILENAME, SUCCESS_MARKER, delete_recursively, put},
+    };
+
+    /// Deletes either only a success marker or everything but it; every other
+    /// delete never finishes, as when the process stops partway through a
+    /// delete.
+    struct StopsDeleting {
+        store: Arc<DynObjectStore>,
+        deletes_marker: bool,
+    }
+
+    #[async_trait]
+    impl ObjectStoreDeleteExt for StopsDeleting {
+        async fn delete_object(&self, src: &Path) -> anyhow::Result<()> {
+            if (src.filename() == Some(SUCCESS_MARKER)) == self.deletes_marker {
+                self.store.delete_object(src).await
+            } else {
+                std::future::pending().await
+            }
+        }
+    }
+
+    #[async_trait]
+    impl ObjectStoreListExt for StopsDeleting {
+        async fn list_objects(
+            &self,
+            src: Option<&Path>,
+        ) -> BoxStream<'_, object_store::Result<ObjectMeta>> {
+            self.store.list_objects(src).await
+        }
+    }
+
+    /// Puts a complete epoch directory into an in-memory store and starts a
+    /// delete of it that stops partway, deleting only the success marker or
+    /// only the other files. Returns the store and the directory.
+    async fn interrupted_delete(deletes_marker: bool) -> (Arc<DynObjectStore>, Path) {
+        let store: Arc<DynObjectStore> = Arc::new(InMemory::new());
+        let epoch_dir = Path::from("epoch_7");
+        for file in [
+            "1_1.obj",
+            "1_1.ref",
+            "EPOCH_INFO",
+            MANIFEST_FILENAME,
+            SUCCESS_MARKER,
+        ] {
+            put(&store, &epoch_dir.child(file), Bytes::from_static(b"data"))
+                .await
+                .unwrap();
+        }
+
+        let stopping_store = StopsDeleting {
+            store: store.clone(),
+            deletes_marker,
+        };
+        let delete =
+            delete_recursively(&epoch_dir, &stopping_store, NonZeroUsize::new(20).unwrap());
+        assert!(
+            tokio::time::timeout(Duration::from_secs(1), delete)
+                .await
+                .is_err(),
+            "delete_recursively must not finish while one of its deletes hangs"
+        );
+        (store, epoch_dir)
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn an_interrupted_delete_has_removed_the_success_marker() {
+        let (store, epoch_dir) = interrupted_delete(true).await;
+
+        assert!(matches!(
+            store.head(&epoch_dir.child(SUCCESS_MARKER)).await,
+            Err(object_store::Error::NotFound { .. })
+        ));
+        store
+            .head(&epoch_dir.child(MANIFEST_FILENAME))
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn nothing_else_is_deleted_before_the_success_marker() {
+        let (store, epoch_dir) = interrupted_delete(false).await;
+
+        for file in ["1_1.obj", MANIFEST_FILENAME, SUCCESS_MARKER] {
+            store.head(&epoch_dir.child(file)).await.unwrap();
+        }
+    }
 
     #[tokio::test]
     pub async fn test_delete_recursively() -> anyhow::Result<()> {

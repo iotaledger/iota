@@ -1077,6 +1077,66 @@ async fn test_chunked_checkpoint_event_message_sizes_within_limit() {
     server_handle.shutdown().await.expect("shutdown");
 }
 
+#[tokio::test]
+async fn test_checkpoint_events_follow_the_read_mask() {
+    let transactions = common::build_checkpoint_transactions_with_events(2, 2);
+    let summary = common::mock_summary(0, &common::EMPTY_CHECKPOINT_CONTENTS);
+    let contents = common::EMPTY_CHECKPOINT_CONTENTS.clone();
+
+    let state_reader = Arc::new(MockGrpcStateReader {
+        summary: Some(summary),
+        contents: Some(contents),
+        checkpoint_transactions: transactions,
+        ..Default::default()
+    });
+    let (server_handle, _) = common::start_test_server(state_reader, |_| {}).await;
+    let addr = server_handle.address();
+
+    let channel = tonic::transport::Channel::from_shared(format!("http://{addr}"))
+        .unwrap()
+        .connect()
+        .await
+        .expect("connect");
+    let mut client =
+        iota_grpc_types::v1::ledger_service::ledger_service_client::LedgerServiceClient::new(
+            channel,
+        );
+
+    let events_for = async |client: &mut _, read_mask| {
+        let stream = get_checkpoint_raw(client, read_mask, 4 * 1024 * 1024).await;
+        let (messages, _, _) = collect_checkpoint_data_stream(stream).await;
+        messages
+            .into_iter()
+            .filter_map(|msg| match msg.payload {
+                Some(checkpoint_data::Payload::Events(events)) => Some(events.events),
+                _ => None,
+            })
+            .flatten()
+            .collect::<Vec<_>>()
+    };
+
+    let events = events_for(&mut client, "checkpoint.summary,events.bcs").await;
+    assert_eq!(events.len(), 4);
+    for event in &events {
+        assert!(event.bcs.is_some(), "{event:?}");
+        assert!(event.package_id.is_none(), "{event:?}");
+        assert!(event.module.is_none(), "{event:?}");
+        assert!(event.sender.is_none(), "{event:?}");
+        assert!(event.event_type.is_none(), "{event:?}");
+        assert!(event.bcs_contents.is_none(), "{event:?}");
+    }
+
+    let events = events_for(&mut client, "checkpoint.summary,events").await;
+    assert_eq!(events.len(), 4);
+    for event in &events {
+        assert!(event.bcs.is_some(), "{event:?}");
+        assert!(event.package_id.is_some(), "{event:?}");
+        assert!(event.event_type.is_some(), "{event:?}");
+    }
+
+    server_handle.shutdown().await.expect("shutdown");
+}
+
 fn stream_in_range(
     client: &GrpcClient,
     (start, end): (

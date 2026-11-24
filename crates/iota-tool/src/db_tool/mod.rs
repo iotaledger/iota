@@ -6,12 +6,14 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, bail};
 use clap::Parser;
+use comfy_table::{ContentArrangement, Table};
 use iota_core::{
     authority::{
         authority_per_epoch_store::AuthorityEpochTables,
-        authority_store_tables::AuthorityPerpetualTables,
+        authority_store_tables::{AuthorityPerpetualTables, AuthorityPerpetualTablesOptions},
     },
     checkpoints::CheckpointStore,
+    epoch_buckets::HISTORIC_DB_DIR,
 };
 use iota_sdk_types::{CheckpointContentsDigest, CheckpointDigest, ObjectId, TransactionDigest};
 use iota_types::{
@@ -24,7 +26,7 @@ use self::{
     db_dump::{StoreName, dump_table, duplicate_objects_summary, list_tables, table_summary},
     index_search::{SearchRange, search_index},
 };
-use crate::db_tool::db_dump::{compact, print_table_metadata, prune_checkpoints, prune_objects};
+use crate::db_tool::db_dump::{compact, print_table_metadata};
 pub mod db_dump;
 mod index_search;
 
@@ -44,8 +46,7 @@ pub enum DbToolCommand {
     PrintCheckpointContent(PrintCheckpointContentOptions),
     RewindCheckpointExecution(RewindCheckpointExecutionOptions),
     Compact,
-    PruneObjects,
-    PruneCheckpoints,
+    PrintCheckpointWatermarks,
     SetCheckpointWatermark(SetCheckpointWatermarkOptions),
 }
 
@@ -147,21 +148,30 @@ pub struct RemoveObjectLockOptions {
     confirm: bool,
 }
 
+/// Checkpoint contents are kept per epoch and dropped a whole epoch at a
+/// time, so a watermark pointed at a checkpoint of a dropped epoch leaves the
+/// node without the contents it needs to run from there.
+const WATERMARK_RETENTION_CAUTION: &str = "CAUTION: the sequence number must be within an epoch \
+                                           the node still retains — see \
+                                           num-epochs-to-retain-for-checkpoints. Pointing a \
+                                           watermark at a checkpoint of a dropped epoch leaves \
+                                           the node unable to start.";
+
 #[derive(Parser)]
 pub struct RewindCheckpointExecutionOptions {
     #[arg(long)]
     epoch: EpochId,
 
-    #[arg(long)]
+    #[arg(long, help = WATERMARK_RETENTION_CAUTION)]
     checkpoint_sequence_number: u64,
 }
 
 #[derive(Parser)]
 pub struct SetCheckpointWatermarkOptions {
-    #[arg(long)]
+    #[arg(long, help = WATERMARK_RETENTION_CAUTION)]
     highest_verified: Option<CheckpointSequenceNumber>,
 
-    #[arg(long)]
+    #[arg(long, help = WATERMARK_RETENTION_CAUTION)]
     highest_synced: Option<CheckpointSequenceNumber>,
 }
 
@@ -180,6 +190,7 @@ pub async fn execute_db_tool_command(db_path: PathBuf, cmd: DbToolCommand) -> an
             print_db_table_summary(d.store_name, d.epoch, db_path, &d.table_name)
         }
         DbToolCommand::DuplicatesSummary => print_db_duplicates_summary(db_path),
+        DbToolCommand::PrintCheckpointWatermarks => print_checkpoint_watermarks(&db_path),
         DbToolCommand::ListDBMetadata(d) => {
             print_table_metadata(d.store_name, d.epoch, db_path, &d.table_name)
         }
@@ -192,8 +203,6 @@ pub async fn execute_db_tool_command(db_path: PathBuf, cmd: DbToolCommand) -> an
             rewind_checkpoint_execution(&db_path, d.epoch, d.checkpoint_sequence_number)
         }
         DbToolCommand::Compact => compact(db_path),
-        DbToolCommand::PruneObjects => prune_objects(db_path).await,
-        DbToolCommand::PruneCheckpoints => prune_checkpoints(db_path).await,
         DbToolCommand::IndexSearchKeyRange(rg) => {
             let res = search_index(
                 db_path,
@@ -220,6 +229,28 @@ pub async fn execute_db_tool_command(db_path: PathBuf, cmd: DbToolCommand) -> an
         }
         DbToolCommand::SetCheckpointWatermark(d) => set_checkpoint_watermark(&db_path, d),
     }
+}
+
+/// The directory holding the per-epoch history of the node whose live
+/// database directory is `live_db_path`. Every open of the node's stores must
+/// be given it.
+pub(crate) fn historic_db_path(live_db_path: &Path) -> PathBuf {
+    live_db_path.join(HISTORIC_DB_DIR)
+}
+
+/// [`historic_db_path`] for a store whose directory, `store_path`, is inside
+/// a node's live database directory.
+pub(crate) fn historic_db_path_of_store(store_path: &Path) -> PathBuf {
+    historic_db_path(store_path.parent().unwrap_or(store_path))
+}
+
+/// The options to open the perpetual store of the node whose live database
+/// directory is `live_db_path`.
+pub(crate) fn perpetual_options(live_db_path: &Path) -> Option<AuthorityPerpetualTablesOptions> {
+    Some(AuthorityPerpetualTablesOptions {
+        historic_db_path: Some(historic_db_path(live_db_path)),
+        ..Default::default()
+    })
 }
 
 pub fn print_db_all_tables(db_path: PathBuf) -> anyhow::Result<()> {
@@ -249,16 +280,21 @@ pub fn print_last_consensus_index(path: &Path) -> anyhow::Result<()> {
 }
 
 pub fn print_transaction(path: &Path, opt: PrintTransactionOptions) -> anyhow::Result<()> {
-    let perpetual_db = AuthorityPerpetualTables::open(&path.join("store"), None);
+    AuthorityPerpetualTables::ensure_per_epoch_layout(&path.join("store"))?;
+    let (_perpetual_db, _historic_objects, historic_ledger, _epoch_markers) =
+        AuthorityPerpetualTables::open_with_historic_objects(
+            &path.join("store"),
+            perpetual_options(path),
+        )?;
     if let Some((epoch, checkpoint_seq_num)) =
-        perpetual_db.get_checkpoint_sequence_number(&opt.digest)?
+        historic_ledger.get_transaction_checkpoint(&opt.digest)?
     {
         println!(
             "Transaction {:?} executed in epoch {} checkpoint {}",
             opt.digest, epoch, checkpoint_seq_num
         );
     };
-    if let Some(effects) = perpetual_db.get_effects(&opt.digest)? {
+    if let Some(effects) = historic_ledger.get_executed_effects(&opt.digest)? {
         println!(
             "Transaction {:?} dependencies: {:#?}",
             opt.digest,
@@ -269,7 +305,8 @@ pub fn print_transaction(path: &Path, opt: PrintTransactionOptions) -> anyhow::R
 }
 
 pub fn print_object(path: &Path, opt: PrintObjectOptions) -> anyhow::Result<()> {
-    let perpetual_db = AuthorityPerpetualTables::open(&path.join("store"), None);
+    AuthorityPerpetualTables::ensure_per_epoch_layout(&path.join("store"))?;
+    let perpetual_db = AuthorityPerpetualTables::open(&path.join("store"), perpetual_options(path));
 
     let obj = if let Some(version) = opt.version {
         perpetual_db.try_get_object_by_key(&opt.id, version.into())?
@@ -287,7 +324,11 @@ pub fn print_object(path: &Path, opt: PrintObjectOptions) -> anyhow::Result<()> 
 }
 
 pub fn print_checkpoint(path: &Path, opt: PrintCheckpointOptions) -> anyhow::Result<()> {
-    let checkpoint_store = CheckpointStore::new(&path.join("checkpoints"));
+    AuthorityPerpetualTables::ensure_per_epoch_layout(&path.join("store"))?;
+    let checkpoint_store = CheckpointStore::new_with_historic_db_path(
+        &path.join("checkpoints"),
+        &historic_db_path(path),
+    );
     let checkpoint = checkpoint_store
         .get_checkpoint_by_digest(&opt.digest)?
         .ok_or(anyhow!(
@@ -308,7 +349,11 @@ pub fn print_checkpoint_content(
     path: &Path,
     opt: PrintCheckpointContentOptions,
 ) -> anyhow::Result<()> {
-    let checkpoint_store = CheckpointStore::new(&path.join("checkpoints"));
+    AuthorityPerpetualTables::ensure_per_epoch_layout(&path.join("store"))?;
+    let checkpoint_store = CheckpointStore::new_with_historic_db_path(
+        &path.join("checkpoints"),
+        &historic_db_path(path),
+    );
     let contents = checkpoint_store
         .get_checkpoint_contents(&opt.digest)?
         .ok_or(anyhow!(
@@ -329,7 +374,11 @@ pub fn rewind_checkpoint_execution(
     epoch: EpochId,
     checkpoint_sequence_number: u64,
 ) -> anyhow::Result<()> {
-    let checkpoint_db = CheckpointStore::new(&path.join("checkpoints"));
+    AuthorityPerpetualTables::ensure_per_epoch_layout(&path.join("store"))?;
+    let checkpoint_db = CheckpointStore::new_with_historic_db_path(
+        &path.join("checkpoints"),
+        &historic_db_path(path),
+    );
     let Some(checkpoint) =
         checkpoint_db.get_checkpoint_by_sequence_number(checkpoint_sequence_number)?
     else {
@@ -399,6 +448,30 @@ pub fn print_all_entries(
     Ok(())
 }
 
+/// Prints the checkpoint watermark rows as stored, without resolving them to
+/// checkpoints, so a watermark naming a checkpoint the store no longer holds
+/// still shows.
+pub fn print_checkpoint_watermarks(path: &Path) -> anyhow::Result<()> {
+    AuthorityPerpetualTables::ensure_per_epoch_layout(&path.join("store"))?;
+    let checkpoint_db = CheckpointStore::new_with_historic_db_path(
+        &path.join("checkpoints"),
+        &historic_db_path(path),
+    );
+    let mut table = Table::new();
+    table
+        .set_content_arrangement(ContentArrangement::Dynamic)
+        .set_header(vec!["watermark", "sequence number", "digest"]);
+    for (mark, sequence_number, digest) in checkpoint_db.get_checkpoint_watermarks()? {
+        table.add_row(vec![
+            format!("{mark:?}"),
+            sequence_number.to_string(),
+            format!("{digest}"),
+        ]);
+    }
+    println!("{table}");
+    Ok(())
+}
+
 /// Force sets state sync checkpoint watermarks.
 /// Run with (for example):
 /// cargo run --package iota-tool -- db-tool --db-path
@@ -408,7 +481,11 @@ pub fn set_checkpoint_watermark(
     path: &Path,
     options: SetCheckpointWatermarkOptions,
 ) -> anyhow::Result<()> {
-    let checkpoint_db = CheckpointStore::new(&path.join("checkpoints"));
+    AuthorityPerpetualTables::ensure_per_epoch_layout(&path.join("store"))?;
+    let checkpoint_db = CheckpointStore::new_with_historic_db_path(
+        &path.join("checkpoints"),
+        &historic_db_path(path),
+    );
 
     if let Some(highest_verified) = options.highest_verified {
         let Some(checkpoint) = checkpoint_db.get_checkpoint_by_sequence_number(highest_verified)?
