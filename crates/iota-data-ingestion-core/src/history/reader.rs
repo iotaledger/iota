@@ -2,11 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{num::NonZeroUsize, ops::Range, sync::Arc, time::Duration};
+use std::{num::NonZeroUsize, ops::Range, path::PathBuf, sync::Arc, time::Duration};
 
 use bytes::{Buf, Bytes, buf::Reader};
 use futures::{Stream, StreamExt, TryStreamExt};
-use iota_config::object_storage_config::ObjectStoreConfig;
+use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use iota_storage::{
     compute_sha3_checksum_for_bytes, make_iterator,
     object_store::{ObjectStoreGetExt, http::HttpDownloaderBuilder, util::get},
@@ -19,7 +19,7 @@ use tokio::sync::{
     Mutex,
     oneshot::{self, Sender},
 };
-use tracing::info;
+use tracing::{error, info};
 
 use crate::{
     IngestionError,
@@ -50,6 +50,33 @@ pub struct HistoricalReaderConfig {
 }
 
 impl HistoricalReader {
+    pub(crate) fn from_url(
+        historical_url: String,
+        download_concurrency: NonZeroUsize,
+    ) -> Result<Self> {
+        let remote_store_config = if let Some(dir) = historical_url.strip_prefix("file://") {
+            ObjectStoreConfig {
+                object_store: Some(ObjectStoreType::File),
+                directory: Some(PathBuf::from(dir)),
+                ..Default::default()
+            }
+        } else {
+            ObjectStoreConfig {
+                object_store: Some(ObjectStoreType::S3),
+                object_store_connection_limit: 20,
+                aws_endpoint: Some(historical_url),
+                aws_virtual_hosted_style_request: true,
+                no_sign_request: true,
+                ..Default::default()
+            }
+        };
+        Self::new(HistoricalReaderConfig {
+            download_concurrency,
+            remote_store_config,
+        })
+        .inspect_err(|e| error!("unable to instantiate historical reader: {e}"))
+    }
+
     pub fn new(config: HistoricalReaderConfig) -> Result<Self> {
         let remote_object_store = if config.remote_store_config.no_sign_request {
             config.remote_store_config.make_http()?
