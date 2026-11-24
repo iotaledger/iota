@@ -154,6 +154,12 @@ impl Limiter {
             Self::Cells(cells) => cells.breaches(client),
         }
     }
+
+    fn forget(&self, client: IpAddr) {
+        if let Self::Cells(cells) = self {
+            cells.cells.lock().pop(&client);
+        }
+    }
 }
 
 /// Per-client GCRA cells in an LRU cache bounded at [`MAX_TRACKED_CLIENTS`].
@@ -327,6 +333,17 @@ impl TrafficControlPolicy {
         match &self.0 {
             Policy::Limit(policy) => Some(policy.direct.load().threshold),
             _ => None,
+        }
+    }
+
+    /// Drops what the policy counted for `client`, so that the client starts
+    /// again with its whole burst.
+    pub(super) fn forget(&self, client: IpAddr) {
+        if let Policy::Limit(policy) = &self.0 {
+            policy.direct.load().limiter.forget(client);
+            if let Some(proxied) = &policy.proxied {
+                proxied.forget(client);
+            }
         }
     }
 

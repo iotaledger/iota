@@ -67,11 +67,13 @@ typed-store.workspace = true
 [dev-dependencies]
 # external dependencies
 rustls.workspace = true
+serde_json.workspace = true
 serde_yaml.workspace = true
 tokio = { workspace = true, features = ["io-util"] }
 tonic-health.workspace = true
 
 # internal dependencies
+iota-core = { workspace = true, features = ["test-utils"] }
 iota-metrics = { workspace = true, features = ["test-utils"] }
 
 [build-dependencies]
