@@ -1,0 +1,9 @@
+[package]
+name = "large_object"
+edition = "2024"
+
+[dependencies]
+Iota = { local = "../../../../iota-framework/packages/iota-framework" }
+
+[addresses]
+large_object = "0x0"
