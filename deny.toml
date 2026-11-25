@@ -43,6 +43,12 @@ yanked = "warn"
 ignore = [
   # we don't do RSA signing on IOTA (only verifying for zklogin)
   "RUSTSEC-2023-0071",
+  # Cannot remove `proc-macro-error` until we can update `tabled`
+  "RUSTSEC-2024-0370",
+  # yaml-rust is unmaintained
+  "RUSTSEC-2024-0320",
+  # derivative is unmaintained
+  "RUSTSEC-2024-0388",
   # instant is unmaintained
   "RUSTSEC-2024-0384",
   # paste is unmaintained
@@ -75,12 +81,14 @@ ignore = [
   # secp256r1 secret keys are only used client-side. Remove once fastcrypto
   # moves to elliptic-curve 0.14.
   "RUSTSEC-2026-0387",
-  # zstd 0.13 and zstd-safe 7 advisories, fixed only in zstd 0.14 and
-  # zstd-safe 8. The latest `tonic` and `parquet` releases still require zstd
-  # 0.13. Remove once they move to 0.14.
-  "RUSTSEC-2026-0391",
-  "RUSTSEC-2026-0398",
-  "RUSTSEC-2026-0403",
+  # `clear_on_drop` is unmaintained. Only reachable through `bulletproofs`,
+  # pinned by `fastcrypto`; neither has a newer release that drops it.
+  "RUSTSEC-2026-0283",
+  # `pin-utils` is unmaintained. Newer `hyper` and `aws-smithy-*` releases
+  # drop it, but `wasm-timer` (final release) still needs it, via
+  # `snowflake-api` -> `reqwest-retry` 0.7 in `iota-analytics-indexer`. The
+  # latest `snowflake-api` still requires `reqwest-retry` 0.7.
+  "RUSTSEC-2026-0441",
   # `chrono` is unmaintained, and so is `humantime` because it wraps it. Both
   # come in through `diesel`, `arrow`, `async-graphql` and `object_store`.
   "RUSTSEC-2026-0543",
