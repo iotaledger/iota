@@ -1851,6 +1851,8 @@ async fn sync_checkpoint_contents<S>(
     let mut highest_started_network_total_transactions = highest_synced.network_total_transactions;
     let mut checkpoint_contents_tasks = FuturesOrdered::new();
 
+    // Transactions in checkpoints whose contents download has started but not finished;
+    // limited by `checkpoint_content_download_tx_concurrency` to bound memory use.
     let mut tx_in_flight: u64 = 0;
 
     // Batched logging state for pruned checkpoint failures.
@@ -1998,6 +2000,9 @@ async fn sync_checkpoint_contents<S>(
             // Enforce transaction count concurrency limit. A checkpoint is always started when no
             // other contents download is running, so a checkpoint with more transactions than the
             // limit is still downloaded.
+            //
+            // Summaries only carry the running total of transactions, so a checkpoint's own count
+            // is the difference from the previous checkpoint's total.
             let tx_count = next_checkpoint.network_total_transactions
                 - highest_started_network_total_transactions;
             if !checkpoint_contents_tasks.is_empty()
