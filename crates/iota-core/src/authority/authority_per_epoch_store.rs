@@ -7411,9 +7411,9 @@ impl AuthorityPerEpochStore {
         commit_height: CheckpointHeight,
         content_info: NonEmpty<(CheckpointSummary, CheckpointContents)>,
     ) {
-        // Removed here rather than when the builder reads them, so a build
-        // that fails before this point can read them again when it retries.
-        let removed_user_sigs: Vec<_> = {
+        // A build that fails before this point reads the user signatures
+        // again when it retries.
+        let removed_signatures: Vec<_> = {
             let mut user_sigs = self
                 .consensus_output_cache
                 .user_signatures_for_checkpoints
@@ -7426,7 +7426,7 @@ impl AuthorityPerEpochStore {
         };
         // Free the signatures without holding the lock the consensus handler
         // needs.
-        drop(removed_user_sigs);
+        drop(removed_signatures);
 
         let mut consensus_quarantine = self.consensus_quarantine.write();
         for (position_in_commit, (summary, transactions)) in content_info.into_iter().enumerate() {
