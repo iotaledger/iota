@@ -306,10 +306,13 @@ pub(crate) struct DagState {
     /// Each entry is a `CommitInfo` keyed by the last commit at the time it was
     /// written. Its `committed_rounds` field holds, for each authority, the
     /// highest round of its blocks committed up to that commit. Its
-    /// `reputation_scores` field holds the scores computed over a commit range;
-    /// the leader schedule built from them applies from the end of that range +
-    /// 1 to the end of the next range. The key is that range end, except after a
-    /// recovered backlog, where it is a later commit inside the next range.
+    /// `reputation_scores` field holds the scores taken at the end of a commit
+    /// range. They are aggregated over a window ending `MAX_PENDING_COMMITS`
+    /// commits before that range end, since a commit is scored only after
+    /// `MAX_PENDING_COMMITS` more commits follow it. The leader schedule built
+    /// from them applies from the end of that range + 1 to the end of the next
+    /// range. The key is that range end, except after a recovered backlog, where
+    /// it is a later commit inside the next range.
     commit_info_to_write: Vec<(CommitRef, CommitInfo)>,
 
     /// Misbehavior scoring metrics (in-memory + persisted buckets).
