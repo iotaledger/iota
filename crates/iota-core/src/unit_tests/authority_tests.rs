@@ -1568,6 +1568,260 @@ async fn test_simulate_rejects_a_system_transaction() {
     }
 }
 
+/// Turns the `ClaimAccount` kind on, with the bounds on a claim's cost that it
+/// needs.
+fn enable_claim_account(mut config: ProtocolConfig) -> ProtocolConfig {
+    config.set_claim_account_max_computation_units_for_testing(5_000);
+    config.set_claim_account_storage_bytes_bound_for_testing(2_000);
+    config.set_enable_claim_account_transaction_for_testing(true);
+    config
+}
+
+/// A claim of a new Ed25519 key, and the address the key derives.
+fn ed25519_claim() -> (iota_sdk_types::SmartAccountClaim, Address) {
+    let (sender, private_key): (Address, AccountPrivateKey) = get_key_pair();
+    let claim = iota_sdk_types::SmartAccountClaim::new(
+        &iota_sdk_types::crypto::PublicKey::Ed25519(private_key.public_key()),
+    );
+    (claim, sender)
+}
+
+/// A `ClaimAccount` of `claim` sent from `sender`, with the gas it declares.
+fn claim_account_transaction(
+    claim: &iota_sdk_types::SmartAccountClaim,
+    sender: Address,
+    gas: ObjectReference,
+    gas_price: u64,
+    gas_budget: u64,
+) -> Transaction {
+    Transaction::V1(TransactionV1 {
+        kind: TransactionKind::new_claim_account(
+            iota_sdk_types::ClaimAccountTransaction::new_smart_account(claim.clone()),
+        ),
+        sender,
+        gas_payment: GasPayment {
+            objects: vec![gas],
+            owner: sender,
+            price: gas_price,
+            budget: gas_budget,
+        },
+        expiration: TransactionExpiration::None,
+    })
+}
+
+/// Simulates a `ClaimAccount` of `claim` on `fullnode`, paid with a new gas
+/// coin that holds `gas_balance`. A zero gas price or gas budget is left for
+/// the simulation to fill in.
+fn simulate_claim_account(
+    fullnode: &Arc<AuthorityState>,
+    claim: &iota_sdk_types::SmartAccountClaim,
+    sender: Address,
+    gas_balance: u64,
+    gas_price: u64,
+    gas_budget: u64,
+    checks: VmChecks,
+) -> IotaResult<SimulateTransactionResult> {
+    let gas_object = Object::new_gas_with_balance_and_owner_for_testing(gas_balance, sender);
+    let gas_object_ref = gas_object.object_ref();
+    fullnode.insert_genesis_object(gas_object);
+
+    fullnode.simulate_transaction(
+        claim_account_transaction(claim, sender, gas_object_ref, gas_price, gas_budget),
+        checks,
+    )
+}
+
+/// A dry run holds a `ClaimAccount` to the minimum gas budget that signing
+/// requires of it, at the gas price the claim declares. A dev inspect accepts a
+/// declared budget below that minimum. Both fill in an unset budget no lower
+/// than it.
+#[tokio::test]
+async fn test_simulate_bounds_a_claim_account_gas_budget_as_signing_does() {
+    use iota_types::transaction::claim_account_min_gas_budget;
+
+    let _guard =
+        ProtocolConfig::apply_overrides_for_testing(|_, config| enable_claim_account(config));
+    let (claim, sender) = ed25519_claim();
+    let (_validator, fullnode, _object_basics) =
+        init_state_with_ids_and_object_basics_with_fullnode(vec![]).await;
+    let epoch_store = fullnode.epoch_store_for_testing();
+    let reference_gas_price = epoch_store.reference_gas_price();
+    let min_budget_at = |gas_price: u64| {
+        claim_account_min_gas_budget(
+            epoch_store.protocol_config(),
+            gas_price,
+            claim.public_key_raw_bytes.len() as u64,
+        )
+    };
+    let min_budget = min_budget_at(reference_gas_price);
+    let simulate = |gas_balance: u64, gas_price: u64, gas_budget: u64, checks| {
+        simulate_claim_account(
+            &fullnode,
+            &claim,
+            sender,
+            gas_balance,
+            gas_price,
+            gas_budget,
+            checks,
+        )
+    };
+
+    // A budget below the minimum is rejected, as signing rejects it, even
+    // though the coin covers it.
+    let Err(error) = simulate(min_budget, 0, min_budget - 1, VmChecks::Enabled) else {
+        panic!("a dry run should reject a claim budget below the minimum");
+    };
+    assert!(
+        matches!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::GasBudgetTooLow { gas_budget, min_budget: reported }
+            } if gas_budget == min_budget - 1 && reported == min_budget
+        ),
+        "unexpected error: {error:?}"
+    );
+
+    // The minimum is the one at the gas price the claim declares: a budget
+    // that is enough at the reference gas price is not at twice that price.
+    let declared_gas_price = 2 * reference_gas_price;
+    let min_budget_at_declared_price = min_budget_at(declared_gas_price);
+    assert!(min_budget_at_declared_price > min_budget);
+    let Err(error) = simulate(
+        min_budget_at_declared_price,
+        declared_gas_price,
+        min_budget,
+        VmChecks::Enabled,
+    ) else {
+        panic!("a dry run should reject a claim budget below the minimum at its gas price");
+    };
+    assert!(
+        matches!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::GasBudgetTooLow { min_budget: reported, .. }
+            } if reported == min_budget_at_declared_price
+        ),
+        "unexpected error: {error:?}"
+    );
+
+    // An unset budget is filled in no lower than the minimum under both check
+    // modes, so a coin that holds less is reported against its balance, not
+    // against a budget the caller never set.
+    for checks in [VmChecks::Enabled, VmChecks::Disabled] {
+        let Err(error) = simulate(min_budget - 1, 0, 0, checks) else {
+            panic!("{checks:?} should reject a balance below the minimum claim budget");
+        };
+        assert!(
+            matches!(
+                error,
+                IotaError::UserInput {
+                    error: UserInputError::GasBalanceTooLow { gas_balance, needed_gas_amount }
+                } if gas_balance == u128::from(min_budget - 1)
+                    && needed_gas_amount == u128::from(min_budget)
+            ),
+            "unexpected error for {checks:?}: {error:?}"
+        );
+    }
+
+    // A dev inspect lets the declared budget the dry run rejected through,
+    // unchanged. The run stops at the next gas check instead, which a coin
+    // holding less than that budget fails.
+    let Err(error) = simulate(min_budget - 2, 0, min_budget - 1, VmChecks::Disabled) else {
+        panic!("a dev inspect should reject a balance below the budget");
+    };
+    assert!(
+        matches!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::GasBalanceTooLow { gas_balance, needed_gas_amount }
+            } if gas_balance == u128::from(min_budget - 2)
+                && needed_gas_amount == u128::from(min_budget - 1)
+        ),
+        "unexpected error: {error:?}"
+    );
+}
+
+/// Of the rules a simulation can relax, only the one that leaves the gas
+/// budget unbounded takes the minimum gas budget of a `ClaimAccount` out of
+/// the input checks.
+#[test]
+fn test_claim_account_gas_budget_is_checked_unless_the_budget_is_unbounded() {
+    use iota_transaction_checks::{VerifierLimitsSource, check_transaction_input};
+    use iota_types::{
+        metrics::BytecodeVerifierMetrics,
+        transaction::{
+            InputObjects, ObjectReadResult, ReceivingObjects, claim_account_min_gas_budget,
+        },
+        transaction_executor::InputCheckRules,
+    };
+
+    let config = enable_claim_account(ProtocolConfig::get_for_version(
+        ProtocolVersion::MAX,
+        Chain::Unknown,
+    ));
+    let (claim, sender) = ed25519_claim();
+    let gas_price = 1_000;
+    let min_budget =
+        claim_account_min_gas_budget(&config, gas_price, claim.public_key_raw_bytes.len() as u64);
+    let metrics = Arc::new(BytecodeVerifierMetrics::new(
+        &prometheus_filtered::Registry::default(),
+    ));
+    let check = |gas_budget: u64, input_checks: InputCheckRules| {
+        let gas_object = Object::new_gas_with_balance_and_owner_for_testing(min_budget, sender);
+        check_transaction_input(
+            &config,
+            gas_price,
+            &claim_account_transaction(
+                &claim,
+                sender,
+                gas_object.object_ref(),
+                gas_price,
+                gas_budget,
+            ),
+            InputObjects::new(vec![ObjectReadResult::new_from_gas_object(&gas_object)]),
+            &ReceivingObjects::from(vec![]),
+            &metrics,
+            VerifierLimitsSource::ProtocolConfig,
+            0,
+            false,
+            input_checks,
+        )
+        .map(|_| ())
+    };
+    let is_below_the_minimum = |result: &IotaResult<()>| {
+        matches!(
+            result,
+            Err(IotaError::UserInput {
+                error: UserInputError::GasBudgetTooLow { min_budget: reported, .. }
+            }) if *reported == min_budget
+        )
+    };
+
+    check(min_budget, InputCheckRules::STRICT).expect("exactly the minimum must pass");
+    let result = check(min_budget - 1, InputCheckRules::STRICT);
+    assert!(is_below_the_minimum(&result), "{result:?}");
+
+    // Every relaxation but the unbounded budget still applies the minimum.
+    let result = check(
+        min_budget - 1,
+        InputCheckRules {
+            unbounded_gas_budget: false,
+            ..InputCheckRules::RELAXED_UNSAFE
+        },
+    );
+    assert!(is_below_the_minimum(&result), "{result:?}");
+
+    // The unbounded budget alone drops it.
+    check(
+        min_budget - 1,
+        InputCheckRules {
+            unbounded_gas_budget: true,
+            ..InputCheckRules::STRICT
+        },
+    )
+    .expect("an unbounded budget may be below the minimum");
+}
+
 /// A child object named as an owned input is rejected by both check modes: it
 /// has to be reached through its parent, not passed directly.
 #[tokio::test]

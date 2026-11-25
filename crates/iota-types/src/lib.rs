@@ -73,6 +73,8 @@ pub mod mock_checkpoint_builder;
 pub mod move_authenticator;
 pub mod move_layout;
 pub mod move_package;
+pub mod move_public_key;
+pub mod move_signature_scheme;
 pub mod multisig;
 pub mod object;
 pub mod passkey_authenticator;
