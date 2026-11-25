@@ -1718,8 +1718,8 @@ mod tests {
     }
 
     /// Round 2 blocks are waiting on round 1 when their round 3 children arrive in the batch
-    /// that sweeps round 1. The manager should accept both rounds in that batch, store the
-    /// round 2 transactions, and leave nothing to fetch.
+    /// that sweeps round 1. The manager should store both rounds and the parents' transactions
+    /// in that batch, so receiving the headers again leaves nothing to accept or fetch.
     #[tokio::test]
     async fn gc_eviction_accepts_children_in_the_same_batch() {
         let (context, _) = Context::new_for_test(4);
@@ -1744,14 +1744,26 @@ mod tests {
         let (accepted, missing) = manager
             .try_accept_block_headers(dag.block_headers(3..=3), DataSource::BlockBundleStream);
 
-        assert_eq!(accepted, dag.block_headers(2..=3));
+        let headers = dag.block_headers(2..=3);
+        assert_eq!(accepted, headers);
         assert!(missing.is_empty());
         assert!(manager.is_empty());
         assert_eq!(manager.suspended_full_blocks_count(), 0);
+        let header_refs = headers.iter().map(|header| header.reference()).collect();
+        assert_eq!(
+            dag_state.read().contains_block_headers(header_refs),
+            vec![true; headers.len()]
+        );
         assert_eq!(
             dag_state.read().contains_transactions(transaction_refs),
             vec![true; 4]
         );
+
+        let (accepted, missing) =
+            manager.try_accept_block_headers(headers, DataSource::BlockBundleStream);
+        assert!(accepted.is_empty());
+        assert!(missing.is_empty());
+        assert!(manager.is_empty());
     }
 
     /// A peer streams a different header for the same author and round in the batch that
