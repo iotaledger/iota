@@ -182,8 +182,10 @@ impl std::fmt::Debug for ExecutionTrace {
 #[derive(Debug, Default)]
 #[non_exhaustive]
 pub struct DebugArtifacts {
-    /// Gas profile output, if [`DebugConfig::profile`] was set.
+    /// Gas profile output, if [`DebugConfig::profile`] was set and the crate
+    /// was built with the `tracing` feature.
     pub profile: Option<ProfileOutput>,
-    /// Instruction-level execution trace, if [`DebugConfig::trace`] was set.
+    /// Instruction-level execution trace, if [`DebugConfig::trace`] was set and
+    /// the crate was built with the `tracing` feature.
     pub trace: Option<ExecutionTrace>,
 }
