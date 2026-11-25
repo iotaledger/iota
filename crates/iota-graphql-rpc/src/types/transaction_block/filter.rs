@@ -117,8 +117,8 @@ impl TransactionBlockFilter {
     ///
     /// Combining the remaining filters does not have this effect:
     ///
-    /// * `sent_address` is available as a denormalized column on the other filters' tables, and is
-    ///   served by `tx_senders` only when set on its own.
+    /// * `sent_address` is available as a denormalized column on the other filters' tables (except
+    ///   `tx_kinds`), and is served by `tx_senders` when set on its own or together with `kind`.
     /// * `{after,at,before}_checkpoint` bound the range of transactions each read is confined to.
     /// * `transaction_ids` matches at most one transaction per digest given.
     fn scan_count(&self) -> usize {
@@ -142,12 +142,18 @@ impl TransactionBlockFilter {
         self.scan_count() > 1
     }
 
-    /// Returns the transaction sender to query `tx_sender`.
+    /// Returns the transaction sender to query `tx_senders`.
     ///
     /// If there are other filters set that would query tables with a `sender`
-    /// column, then this returns `None`.
+    /// column, then this returns `None`. `tx_kinds` has no such column but requires sender
+    /// filtering for non-system transactions (system transactions don't need sender filtering since
+    /// they all have the same known sender=0x0).
     pub(crate) fn explicit_sender(&self) -> Option<IotaAddress> {
-        if self.scan_count() == 0 {
+        let only_nonsystem_kind = self.scan_count() == 1
+            && self
+                .kind
+                .is_some_and(|kind| kind != TransactionBlockKindInput::SystemTx);
+        if self.scan_count() == 0 || only_nonsystem_kind {
             self.sent_address
         } else {
             None
@@ -405,6 +411,35 @@ mod tests {
 
         for filter in TransactionBlockFilter::scanned() {
             let filter = filter.intersect(unscanned.clone()).unwrap();
+            assert_eq!(filter.explicit_sender(), None);
+        }
+    }
+
+    #[test]
+    fn explicit_sender_kept_with_a_user_transaction_kind() {
+        let unscanned = TransactionBlockFilter::unscanned();
+
+        for kind in [
+            TransactionBlockKindInput::ProgrammableTx,
+            TransactionBlockKindInput::ClaimAccount,
+        ] {
+            let by_kind = TransactionBlockFilter {
+                kind: Some(kind),
+                ..Default::default()
+            };
+            let filter = by_kind.clone().intersect(unscanned.clone()).unwrap();
+            assert_eq!(
+                filter.explicit_sender(),
+                Some(TransactionBlockFilter::SENDER)
+            );
+
+            // Any other scanned filter carries the sender itself.
+            let filter = by_kind
+                .intersect(TransactionBlockFilter {
+                    recv_address: Some(TransactionBlockFilter::SENDER),
+                    ..unscanned.clone()
+                })
+                .unwrap();
             assert_eq!(filter.explicit_sender(), None);
         }
     }
