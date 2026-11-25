@@ -1514,8 +1514,6 @@ impl PgIndexerStore {
     where
         Tables: IntoIterator<Item: AsRef<str>> + Send + 'static,
     {
-        use diesel::query_dsl::methods::FilterDsl;
-
         let guard = self
             .metrics
             .checkpoint_db_commit_latency_watermarks
@@ -1528,23 +1526,86 @@ impl PgIndexerStore {
 
         transactional_blocking_with_retry!(
             &self.blocking_cp,
+            |conn| Self::upsert_watermarks_upper_bound(conn, &upper_bound_updates),
+            PG_DB_COMMIT_SLEEP_DURATION
+        )
+        .tap_ok(|_| {
+            let elapsed = guard.stop_and_record();
+            info!(elapsed, "Persisted watermarks");
+        })
+        .tap_err(|e| {
+            tracing::error!("Failed to persist watermarks with error: {}", e);
+        })
+    }
+
+    /// Updates the watermarks of the given tables after the commit of a
+    /// checkpoint batch.
+    ///
+    /// 1. Sets the upper bound of each table to the end of the batch.
+    /// 2. Sets the lower bound of a new table to the start of the batch.
+    /// 3. Sets the lower bound of a table that has a gap before the batch to the start of the
+    ///    batch. A table has a gap if its `max_committed_cp` is below the greatest
+    ///    `max_committed_cp` in the `watermarks` table, which means that the writer did not write
+    ///    it for some batches.
+    ///
+    /// # Errors
+    ///
+    /// Fails if the update on the database fails.
+    pub(crate) fn update_committer_watermarks<Tables>(
+        &self,
+        tables: Tables,
+        upper_bound: WatermarkUpperBounds,
+        lower_bound: WatermarkLowerBounds,
+    ) -> Result<(), IndexerError>
+    where
+        Tables: IntoIterator<Item: AsRef<str>> + Send + 'static,
+    {
+        use diesel::NullableExpressionMethods;
+
+        let guard = self
+            .metrics
+            .checkpoint_db_commit_latency_watermarks
+            .start_timer();
+
+        let updates = tables
+            .into_iter()
+            .map(|table| StoredWatermark::from_bounds(table.as_ref(), upper_bound, lower_bound))
+            .collect::<Vec<_>>();
+        let entities = updates
+            .iter()
+            .map(|update| update.entity.clone())
+            .collect::<Vec<_>>();
+
+        transactional_blocking_with_retry!(
+            &self.blocking_cp,
             |conn| {
-                diesel::insert_into(watermarks::table)
-                    .values(&upper_bound_updates)
-                    .on_conflict(watermarks::entity)
-                    .do_update()
-                    .set((
-                        watermarks::current_epoch.eq(excluded(watermarks::current_epoch)),
-                        watermarks::max_committed_cp.eq(excluded(watermarks::max_committed_cp)),
-                        watermarks::max_committed_tx.eq(excluded(watermarks::max_committed_tx)),
-                    ))
-                    .filter(excluded(watermarks::max_committed_cp).ge(watermarks::max_committed_cp))
-                    .filter(excluded(watermarks::max_committed_tx).ge(watermarks::max_committed_tx))
-                    .filter(excluded(watermarks::current_epoch).ge(watermarks::current_epoch))
-                    .execute(conn)
-                    .map_err(IndexerError::from)
-                    .context("Failed to update watermarks upper bound")?;
-                Ok::<(), IndexerError>(())
+                let others = diesel::alias!(watermarks as others);
+                // A table that is behind the other tables has a gap before this
+                // batch. This must run before the upsert moves its upper bound.
+                diesel::update(
+                    watermarks::table
+                        .filter(watermarks::entity.eq_any(&entities))
+                        .filter(
+                            watermarks::max_committed_cp.nullable().lt(others
+                                .select(max(others.field(watermarks::max_committed_cp)))
+                                .single_value()),
+                        ),
+                )
+                .set((
+                    watermarks::min_available_epoch.eq(lower_bound.min_available_epoch),
+                    watermarks::min_available_cp.eq(lower_bound.min_available_cp),
+                    watermarks::min_available_tx.eq(lower_bound.min_available_tx),
+                    watermarks::min_bounds_updated_at_timestamp_ms.eq(sql::<
+                        diesel::sql_types::BigInt,
+                    >(
+                        "(EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) * 1000)::bigint",
+                    )),
+                ))
+                .execute(conn)
+                .map_err(IndexerError::from)
+                .context("Failed to update watermarks lower bound after a gap")?;
+
+                Self::upsert_watermarks_upper_bound(conn, &updates)
             },
             PG_DB_COMMIT_SLEEP_DURATION
         )
@@ -1555,6 +1616,39 @@ impl PgIndexerStore {
         .tap_err(|e| {
             tracing::error!("Failed to persist watermarks with error: {}", e);
         })
+    }
+
+    /// Inserts the given watermark rows, or updates the upper bound of the
+    /// rows that exist.
+    ///
+    /// The upper bound of an existing row does not go down. The lower bound of
+    /// an existing row does not change.
+    ///
+    /// # Errors
+    ///
+    /// Fails if the upsert on the database fails.
+    fn upsert_watermarks_upper_bound(
+        conn: &mut PgConnection,
+        rows: &[StoredWatermark],
+    ) -> Result<(), IndexerError> {
+        use diesel::query_dsl::methods::FilterDsl;
+
+        diesel::insert_into(watermarks::table)
+            .values(rows)
+            .on_conflict(watermarks::entity)
+            .do_update()
+            .set((
+                watermarks::current_epoch.eq(excluded(watermarks::current_epoch)),
+                watermarks::max_committed_cp.eq(excluded(watermarks::max_committed_cp)),
+                watermarks::max_committed_tx.eq(excluded(watermarks::max_committed_tx)),
+            ))
+            .filter(excluded(watermarks::max_committed_cp).ge(watermarks::max_committed_cp))
+            .filter(excluded(watermarks::max_committed_tx).ge(watermarks::max_committed_tx))
+            .filter(excluded(watermarks::current_epoch).ge(watermarks::current_epoch))
+            .execute(conn)
+            .map_err(IndexerError::from)
+            .context("Failed to update watermarks upper bound")?;
+        Ok(())
     }
 
     pub(crate) fn map_epochs_to_low_bounds(

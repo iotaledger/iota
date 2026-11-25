@@ -79,7 +79,7 @@ pub async fn tx_global_order_table_on_conflict_do_nothing(
 /// ```
 #[tokio::test]
 pub async fn test_insert_large_batch_tx_indices() -> Result<(), IndexerError> {
-    let sim = TestSim::new(
+    let mut sim = TestSim::new(
         OperationalLevel::default(),
         "indexer_ingestion_tx_indices_db",
     );
@@ -119,7 +119,7 @@ impl IngestionTest for TransactionTable {
         level: OperationalLevel,
         database_name: &str,
     ) -> (PgIndexerStore, Self::ExpectedState) {
-        let sim = TestSim::new(level, database_name);
+        let mut sim = TestSim::new(level, database_name);
         let (transaction, effects, _) = sim.execute_transfer();
         // Create a checkpoint which should include the transaction we executed.
         let checkpoint = sim.inner.create_checkpoint();
@@ -174,7 +174,7 @@ impl IngestionTest for TxGlobalOrderTable {
         level: OperationalLevel,
         database_name: &str,
     ) -> (PgIndexerStore, Self::ExpectedState) {
-        let sim = TestSim::new(level, database_name);
+        let mut sim = TestSim::new(level, database_name);
         let (_, effects, _) = sim.execute_transfer();
         sim.inner.create_checkpoint();
         let digest = *effects.transaction_digest();
