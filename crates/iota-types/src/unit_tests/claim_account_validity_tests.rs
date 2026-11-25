@@ -229,16 +229,17 @@ fn disabled_claim_kind_skips_the_gas_floor() {
 fn simulation_fills_in_an_unset_claim_budget_no_lower_than_the_gas_floor() {
     let (claim, sender) = ed25519_claim();
     let config = config();
-    let gas_price = 1_000;
-    let floor = floor_for(claim.clone(), sender, gas_price, &config);
+    let reference_gas_price = 1_000;
+    let floor = floor_for(claim.clone(), sender, reference_gas_price, &config);
     assert!(
-        floor > config.base_tx_cost_fixed() * gas_price,
+        floor > config.base_tx_cost_fixed() * reference_gas_price,
         "the claim floor {floor} must be above the minimum budget of any transaction"
     );
 
-    // The budget a simulation fills in for a claim that leaves its gas price
-    // and gas budget unset and pays with a coin holding `balance`.
-    let filled_budget = |balance: u64| {
+    // The gas price and the gas budget a simulation fills in for a claim that
+    // declares `gas_price`, zero for unset, leaves its gas budget unset and
+    // pays with a coin holding `balance`.
+    let filled_gas = |gas_price: u64, balance: u64| {
         let coin = Object::new_gas_with_balance_and_owner_for_testing(balance, sender);
         let coin_ref = coin.object_ref();
         let input_objects = InputObjects::new(vec![ObjectReadResult::new(
@@ -252,16 +253,30 @@ fn simulation_fills_in_an_unset_claim_budget_no_lower_than_the_gas_floor() {
             sender,
             coin_ref,
             0,
-            0,
+            gas_price,
         );
-        fill_in_unset_simulation_gas(&mut transaction, &input_objects, gas_price, &config);
-        assert_eq!(transaction.gas_price(), gas_price);
-        transaction.gas_budget()
+        fill_in_unset_simulation_gas(
+            &mut transaction,
+            &input_objects,
+            reference_gas_price,
+            &config,
+        );
+        (transaction.gas_price(), transaction.gas_budget())
     };
 
     // A coin that covers the floor backs the budget with its whole balance.
-    assert_eq!(filled_budget(floor + 1), floor + 1);
+    assert_eq!(filled_gas(0, floor + 1), (reference_gas_price, floor + 1));
     // A coin below the floor leaves the budget at the floor, so the gas checks
     // report the balance and not a budget the caller never set.
-    assert_eq!(filled_budget(floor - 1), floor);
+    assert_eq!(filled_gas(0, floor - 1), (reference_gas_price, floor));
+
+    // The floor is the one at the gas price the claim declares, not at the
+    // reference gas price.
+    let declared_gas_price = 2 * reference_gas_price;
+    let floor_at_declared_price = floor_for(claim.clone(), sender, declared_gas_price, &config);
+    assert!(floor_at_declared_price > floor);
+    assert_eq!(
+        filled_gas(declared_gas_price, floor_at_declared_price - 1),
+        (declared_gas_price, floor_at_declared_price)
+    );
 }

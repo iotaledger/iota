@@ -213,7 +213,7 @@ pub mod checked {
             let min_gas_budget = protocol_config
                 .base_tx_cost_fixed()
                 .saturating_mul(transaction.gas_price());
-            // A claim has a minimum budget of its own, above the general one.
+            // A claim has a minimum budget of its own.
             let min_gas_budget =
                 claim_account_min_gas_budget_of_transaction(transaction, protocol_config)
                     .map_or(min_gas_budget, |claim_min_gas_budget| {
