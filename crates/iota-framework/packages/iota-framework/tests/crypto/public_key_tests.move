@@ -183,6 +183,96 @@ fun create_passkey_too_long_aborts() {
     public_key::create(signature_scheme::passkey(), raw);
 }
 
+// === Failure: uncompressed and hybrid ECDSA keys ===
+//
+// The generator point of each curve. The curve validators accept it in these forms too,
+// but a `PublicKey` holds only the compressed form.
+
+/// The secp256k1 generator point, compressed.
+const SECP256K1_G_COMPRESSED: vector<u8> =
+    x"0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
+/// The secp256k1 generator point, uncompressed (prefix 0x04).
+const SECP256K1_G_UNCOMPRESSED: vector<u8> =
+    x"0479be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8";
+/// The secp256k1 generator point, hybrid (prefix 0x06).
+const SECP256K1_G_HYBRID: vector<u8> =
+    x"0679be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8";
+/// The secp256r1 generator point, compressed.
+const SECP256R1_G_COMPRESSED: vector<u8> =
+    x"036b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296";
+/// The secp256r1 generator point, uncompressed (prefix 0x04).
+const SECP256R1_G_UNCOMPRESSED: vector<u8> =
+    x"046b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c2964fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5";
+
+#[test]
+fun create_compressed_generator_keys() {
+    let secp256k1_raw = SECP256K1_G_COMPRESSED;
+    let secp256k1 = public_key::create(signature_scheme::secp256k1(), secp256k1_raw);
+    assert_ref_eq(secp256k1.raw_bytes(), &secp256k1_raw);
+
+    let secp256r1_raw = SECP256R1_G_COMPRESSED;
+    let secp256r1 = public_key::create(signature_scheme::secp256r1(), secp256r1_raw);
+    assert_ref_eq(secp256r1.raw_bytes(), &secp256r1_raw);
+    let passkey = public_key::create(signature_scheme::passkey(), secp256r1_raw);
+    assert_ref_eq(passkey.raw_bytes(), &secp256r1_raw);
+}
+
+#[test]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
+fun create_secp256k1_uncompressed_key_aborts() {
+    public_key::create(signature_scheme::secp256k1(), SECP256K1_G_UNCOMPRESSED);
+}
+
+#[test]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
+fun create_secp256k1_hybrid_key_aborts() {
+    public_key::create(signature_scheme::secp256k1(), SECP256K1_G_HYBRID);
+}
+
+#[test]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
+fun create_secp256r1_uncompressed_key_aborts() {
+    public_key::create(signature_scheme::secp256r1(), SECP256R1_G_UNCOMPRESSED);
+}
+
+#[test]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
+fun create_passkey_uncompressed_key_aborts() {
+    public_key::create(signature_scheme::passkey(), SECP256R1_G_UNCOMPRESSED);
+}
+
+#[test]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
+fun from_prefixed_bytes_secp256k1_uncompressed_key_aborts() {
+    let mut prefixed = x"01";
+    prefixed.append(SECP256K1_G_UNCOMPRESSED);
+    public_key::from_prefixed_bytes(prefixed);
+}
+
+#[test]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
+fun from_prefixed_bytes_secp256k1_hybrid_key_aborts() {
+    let mut prefixed = x"01";
+    prefixed.append(SECP256K1_G_HYBRID);
+    public_key::from_prefixed_bytes(prefixed);
+}
+
+#[test]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
+fun from_prefixed_bytes_secp256r1_uncompressed_key_aborts() {
+    let mut prefixed = x"02";
+    prefixed.append(SECP256R1_G_UNCOMPRESSED);
+    public_key::from_prefixed_bytes(prefixed);
+}
+
+#[test]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
+fun from_prefixed_bytes_passkey_uncompressed_key_aborts() {
+    let mut prefixed = x"06";
+    prefixed.append(SECP256R1_G_UNCOMPRESSED);
+    public_key::from_prefixed_bytes(prefixed);
+}
+
 // === Failure: MultiSig structural validation ===
 
 #[test]

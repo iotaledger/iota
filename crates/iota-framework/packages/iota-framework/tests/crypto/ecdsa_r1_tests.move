@@ -124,3 +124,18 @@ fun test_secp256r1_validate_pubkey_invalid() {
         ),
     );
 }
+
+#[test]
+fun test_secp256r1_validate_pubkey_accepts_uncompressed_keys() {
+    // The generator point, compressed and uncompressed (0x04).
+    assert!(
+        ecdsa_r1::secp256r1_validate_pubkey(
+            &x"036b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296",
+        ),
+    );
+    assert!(
+        ecdsa_r1::secp256r1_validate_pubkey(
+            &x"046b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c2964fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5",
+        ),
+    );
+}

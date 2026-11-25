@@ -207,9 +207,9 @@ pub struct EcdsaK1Secp256k1ValidatePubkeyCostParams {
 /// Implementation of the Move native function
 /// `ecdsa_k1::secp256k1_validate_pubkey(public_key: &vector<u8>): bool`
 ///
-/// Returns `true` if `public_key` is a valid compressed point on the secp256k1
-/// curve (the x-coordinate must have a corresponding y on the curve), `false`
-/// otherwise.
+/// Returns `true` if `public_key` is a valid point on the secp256k1 curve in
+/// SEC1 form, compressed (33 bytes), uncompressed (65 bytes) or hybrid (65
+/// bytes), `false` otherwise.
 ///
 /// gas cost: ecdsa_k1_secp256k1_validate_pubkey_cost_base
 pub fn secp256k1_validate_pubkey(

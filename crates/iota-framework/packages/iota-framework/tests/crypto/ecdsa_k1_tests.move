@@ -277,3 +277,23 @@ fun test_secp256k1_validate_pubkey_invalid() {
         ),
     );
 }
+
+#[test]
+fun test_secp256k1_validate_pubkey_accepts_uncompressed_and_hybrid_keys() {
+    // The generator point, compressed, uncompressed (0x04) and hybrid (0x06).
+    assert!(
+        ecdsa_k1::secp256k1_validate_pubkey(
+            &x"0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+        ),
+    );
+    assert!(
+        ecdsa_k1::secp256k1_validate_pubkey(
+            &x"0479be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
+        ),
+    );
+    assert!(
+        ecdsa_k1::secp256k1_validate_pubkey(
+            &x"0679be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
+        ),
+    );
+}

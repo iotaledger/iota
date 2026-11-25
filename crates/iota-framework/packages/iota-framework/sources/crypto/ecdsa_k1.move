@@ -51,11 +51,14 @@ public native fun secp256k1_ecrecover(
     hash: u8,
 ): vector<u8>;
 
-/// @param public_key: A 33-bytes compressed candidate secp256k1 public key.
+/// @param public_key: A candidate secp256k1 public key in SEC1 form: compressed (33 bytes,
+/// prefix 0x02 or 0x03), uncompressed (65 bytes, prefix 0x04) or hybrid (65 bytes, prefix
+/// 0x06 or 0x07).
 ///
-/// Returns true if `public_key` is a valid point on the secp256k1 curve: the x-coordinate
-/// (bytes 1–32) must have a corresponding y on the curve. Returns false otherwise.
-/// Approximately half of all 33-byte inputs with a valid prefix byte fail this check.
+/// Returns true if `public_key` is a valid point on the secp256k1 curve in one of these forms.
+/// For a compressed key, the x-coordinate (bytes 1–32) must have a corresponding y on the
+/// curve; approximately half of all 33-byte inputs with a valid prefix byte fail this check.
+/// Returns false otherwise.
 public native fun secp256k1_validate_pubkey(public_key: &vector<u8>): bool;
 
 /// @param pubkey: A 33-bytes compressed public key, a prefix either 0x02 or 0x03 and a 256-bit integer.

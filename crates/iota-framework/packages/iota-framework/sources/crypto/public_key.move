@@ -40,6 +40,13 @@ const EUnknownPublicKeyScheme: vector<u8> = b"Unknown public key scheme.";
 #[error(code = 2)]
 const EInvalidPublicKeyBytes: vector<u8> = b"Public key bytes are not a valid key for the scheme.";
 
+// === Constants ===
+
+/// Length of an Ed25519 public key.
+const ED25519_PUBLIC_KEY_LENGTH: u64 = 32;
+/// Length of a compressed Secp256k1, Secp256r1 or Passkey public key.
+const COMPRESSED_PUBLIC_KEY_LENGTH: u64 = 33;
+
 // === Structs ===
 
 /// A validated public key consisting of a typed `scheme` and raw key material.
@@ -153,15 +160,21 @@ public(package) fun verify_builtin_authenticator_signature(
 
 // === Private Functions ===
 
+// The length is checked before each curve validator, which also accepts the
+// uncompressed and hybrid forms of a key. Those would store another encoding of
+// the same key, which compares unequal and does not hash to its address.
 fun validate_public_key(scheme: SignatureScheme, raw_bytes: &vector<u8>) {
     if (scheme == signature_scheme::ed25519()) {
+        assert!(raw_bytes.length() == ED25519_PUBLIC_KEY_LENGTH, EInvalidPublicKeyBytes);
         assert!(ed25519::ed25519_validate_pubkey(raw_bytes), EInvalidPublicKeyBytes);
     } else if (scheme == signature_scheme::secp256k1()) {
+        assert!(raw_bytes.length() == COMPRESSED_PUBLIC_KEY_LENGTH, EInvalidPublicKeyBytes);
         assert!(ecdsa_k1::secp256k1_validate_pubkey(raw_bytes), EInvalidPublicKeyBytes);
     } else if (
         scheme == signature_scheme::secp256r1() ||
         scheme == signature_scheme::passkey()
     ) {
+        assert!(raw_bytes.length() == COMPRESSED_PUBLIC_KEY_LENGTH, EInvalidPublicKeyBytes);
         assert!(ecdsa_r1::secp256r1_validate_pubkey(raw_bytes), EInvalidPublicKeyBytes);
     } else if (scheme == signature_scheme::multisig()) {
         assert!(multisig::multisig_validate_pubkey(raw_bytes), EInvalidPublicKeyBytes);
