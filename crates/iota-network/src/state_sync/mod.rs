@@ -1527,14 +1527,44 @@ where
                  ({connected}/{known} peers connected)"
             );
         };
-        let checkpoint = verify_checkpoint_summary(
+        let checkpoint = match verify_checkpoint_summary(
             &current,
             &store,
             &peer_heights,
             &pinned_checkpoints,
             checkpoint,
             maybe_peer_id,
-        )?;
+        ) {
+            Ok(checkpoint) => checkpoint,
+            // A cached summary comes without the peer that sent it, so a peer
+            // can keep storing one that fails verification ahead of us. Ask the
+            // peers for this checkpoint instead of failing the whole task.
+            Err(e) if maybe_peer_id.is_none() => {
+                debug!("cached checkpoint summary {next} failed verification: {e}");
+                let peers = peer_balancer.clone().with_checkpoint(next);
+                let pinned_digest = pinned_checkpoint_digest(&pinned_checkpoints, next);
+                let Some((checkpoint, peer_id)) = request_checkpoint_summary_from_peers(
+                    &peer_heights,
+                    peers,
+                    next,
+                    pinned_digest,
+                    timeout,
+                )
+                .await
+                else {
+                    bail!("no peers were able to help sync checkpoint summary {next}");
+                };
+                verify_checkpoint_summary(
+                    &current,
+                    &store,
+                    &peer_heights,
+                    &pinned_checkpoints,
+                    checkpoint,
+                    Some(peer_id),
+                )?
+            }
+            Err(e) => return Err(e),
+        };
 
         debug!(checkpoint_seq = ?checkpoint.sequence_number(), "verified checkpoint summary");
         if let Some(checkpoint_summary_age_metric) = metrics.checkpoint_summary_age_metrics() {

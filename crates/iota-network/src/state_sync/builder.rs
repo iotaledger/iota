@@ -9,7 +9,10 @@ use std::{
 
 use anemo::codegen::InboundRequestLayer;
 use anemo_tower::{inflight_limit, rate_limit};
-use iota_config::{node::CheckpointArchiveConfig, p2p::StateSyncConfig};
+use iota_config::{
+    node::CheckpointArchiveConfig,
+    p2p::{MIN_CHECKPOINT_SUMMARY_SIZE, StateSyncConfig},
+};
 use iota_types::{messages_checkpoint::VerifiedCheckpoint, storage::WriteStore};
 use tap::Pipe;
 use tokio::{
@@ -92,6 +95,10 @@ impl<S> Builder<S>
 where
     S: WriteStore + Clone + Send + Sync + 'static,
 {
+    /// # Panics
+    ///
+    /// Panics if `max-checkpoint-summary-size` in the config is below
+    /// [`MIN_CHECKPOINT_SUMMARY_SIZE`].
     pub fn build(self) -> (UnstartedStateSync<S>, anemo::Router<anemo::ServicesSealed>) {
         let state_sync_config = self.config.clone().unwrap_or_default();
         let (mut builder, server) = self.build_internal();
@@ -156,6 +163,14 @@ where
         } = self;
         let store = store.unwrap();
         let config = config.unwrap_or_default();
+        let max_checkpoint_summary_size = config.max_checkpoint_summary_size();
+        if max_checkpoint_summary_size < MIN_CHECKPOINT_SUMMARY_SIZE {
+            panic!(
+                "Invalid state sync config: max-checkpoint-summary-size \
+                 {max_checkpoint_summary_size} is below the minimum of \
+                 {MIN_CHECKPOINT_SUMMARY_SIZE}"
+            );
+        }
         let metrics = metrics.unwrap_or_else(Metrics::disabled);
 
         let (sender, mailbox) = mpsc::channel(config.mailbox_capacity());

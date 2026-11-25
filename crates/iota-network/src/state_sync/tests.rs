@@ -15,7 +15,10 @@ use std::{
 use anemo::{PeerId, Request, Response, rpc::Status, types::response::StatusCode};
 use anyhow::anyhow;
 use bytes::Bytes;
-use iota_config::{node::CheckpointArchiveConfig, p2p::StateSyncConfig};
+use iota_config::{
+    node::CheckpointArchiveConfig,
+    p2p::{MIN_CHECKPOINT_SUMMARY_SIZE, StateSyncConfig},
+};
 use iota_data_ingestion_core::{
     Reducer, Worker,
     history::{
@@ -2106,6 +2109,75 @@ async fn requested_checkpoint_that_fails_verification_marks_its_peer_as_not_on_s
     assert!(
         !event_loop.peer_heights.read().unwrap().peers[&network_2.peer_id()].on_same_chain_as_us
     );
+}
+
+#[tokio::test]
+async fn cached_checkpoint_that_fails_verification_is_requested_from_peers() {
+    let (committee, (ordered_checkpoints, _, _, _)) =
+        make_committee_and_checkpoints(0, 4, 3, None, empty_contents);
+    let genesis_checkpoint = &ordered_checkpoints[0];
+    // A summary from epoch 1, which the node has no committee for.
+    let (_, (forged_checkpoints, _, _, _)) =
+        make_committee_and_checkpoints(1, 4, 1, Some(genesis_checkpoint.clone()), empty_contents);
+    let forged_checkpoint = forged_checkpoints[0].clone().into_inner();
+    assert_eq!(forged_checkpoint.sequence_number(), 1);
+
+    let store_2 = store_with_genesis_state(
+        genesis_checkpoint.clone(),
+        empty_contents(),
+        committee.committee().to_owned(),
+    );
+    for checkpoint in &ordered_checkpoints[1..] {
+        store_2.inner_mut().insert_checkpoint(checkpoint);
+    }
+    let (_, server_2) = Builder::new().store(store_2).build();
+    let network_2 = build_network(|router| router.merge(server_2));
+
+    let (mut event_loop, server, _handle) = node_at_genesis(genesis_checkpoint, &committee, vec![]);
+    event_loop
+        .network
+        .connect(network_2.local_addr())
+        .await
+        .unwrap();
+    insert_peer_on_same_chain(&server, network_2.peer_id(), 2);
+    push_from_peer(&server, PeerId([10; 32]), forged_checkpoint.clone()).await;
+    assert_eq!(
+        cached_checkpoint_digest(&event_loop, 1),
+        Some(*forged_checkpoint.digest())
+    );
+    run_checkpoint_summary_sync(&mut event_loop).await;
+
+    assert_eq!(
+        event_loop
+            .store
+            .get_highest_verified_checkpoint_seq_number(),
+        2
+    );
+    assert_eq!(
+        event_loop
+            .store
+            .get_checkpoint_by_sequence_number(1)
+            .unwrap()
+            .digest(),
+        ordered_checkpoints[1].digest()
+    );
+    assert!(!is_checkpoint_cached(
+        &event_loop,
+        forged_checkpoint.digest()
+    ));
+}
+
+#[test]
+#[should_panic(expected = "max-checkpoint-summary-size")]
+fn summary_size_limit_below_the_minimum_is_rejected() {
+    let config = StateSyncConfig {
+        max_checkpoint_summary_size: Some(MIN_CHECKPOINT_SUMMARY_SIZE - 1),
+        ..Default::default()
+    };
+    Builder::new()
+        .store(SharedInMemoryStore::default())
+        .config(config)
+        .build_internal();
 }
 
 #[tokio::test]

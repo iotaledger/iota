@@ -226,10 +226,17 @@ pub struct StateSyncConfig {
     /// and of a checkpoint summary from a peer once decompressed. Larger
     /// requests are rejected and larger summaries are not stored.
     ///
-    /// If unspecified, this will default to `262,144` (256 KiB).
+    /// If unspecified, this will default to `262,144` (256 KiB). Must be at
+    /// least [`MIN_CHECKPOINT_SUMMARY_SIZE`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_checkpoint_summary_size: Option<usize>,
 }
+
+/// The smallest accepted `max-checkpoint-summary-size`. The handshake carries
+/// two summaries, and an end-of-epoch summary for a committee of 150
+/// validators is about 16 KiB, so a smaller limit can make the node reject
+/// honest peers.
+pub const MIN_CHECKPOINT_SUMMARY_SIZE: usize = 64 * 1024;
 
 impl StateSyncConfig {
     pub fn interval_period(&self) -> Duration {
