@@ -4044,9 +4044,8 @@ impl AuthorityPerEpochStore {
     /// Note: caller usually need to call consensus_message_processed_notify
     /// before this call
     ///
-    /// The signatures stay cached, so a failed checkpoint build can read them
-    /// again when it is retried. `process_constructed_checkpoint` drops them
-    /// once the checkpoints that contain the transactions are built.
+    /// Does not remove the signatures; `process_constructed_checkpoint` drops
+    /// them once the checkpoints that contain the transactions are built.
     pub fn user_signatures_for_checkpoint(
         &self,
         transactions: &[VerifiedTransaction],
@@ -7412,6 +7411,8 @@ impl AuthorityPerEpochStore {
         commit_height: CheckpointHeight,
         content_info: NonEmpty<(CheckpointSummary, CheckpointContents)>,
     ) {
+        // Removed here rather than when the builder reads them, so a build
+        // that fails before this point can read them again when it retries.
         let removed_user_sigs: Vec<_> = {
             let mut user_sigs = self
                 .consensus_output_cache
