@@ -33,7 +33,6 @@ use crate::{
     crypto::{
         AggregateAuthorityPublicKey, AuthorityPublicKey, AuthorityPublicKeyBytes,
         AuthoritySignature, NetworkPublicKey, network_pubkey_from_bytes,
-        verify_proof_of_possession,
     },
     error::IotaError,
     gas_coin::IotaTreasuryCap,
@@ -105,7 +104,7 @@ impl VerifiedValidatorMetadataV1 {
 /// Checks a proof of possession for a key parsed with fastcrypto, which accepts
 /// compressed or uncompressed keys and leaves the group checks to this proof,
 /// so an invalid key fails with `E_METADATA_INVALID_POP`.
-fn verify_pop(
+fn verify_proof_of_possession(
     authority_pubkey: &AggregateAuthorityPublicKey,
     pop: &BLS12381Signature,
     iota_address: Address,
@@ -114,7 +113,8 @@ fn verify_pop(
         AuthorityPublicKey::try_from(AuthorityPublicKeyBytes::from(authority_pubkey))
             .map_err(|_| E_METADATA_INVALID_POP)?;
     let pop = AuthoritySignature::from_bytes(pop.as_bytes()).map_err(|_| E_METADATA_INVALID_POP)?;
-    verify_proof_of_possession(&pop, &authority_pubkey, iota_address)
+    authority_pubkey
+        .verify_proof_of_possession(iota_address, &pop)
         .map_err(|_| E_METADATA_INVALID_POP)
 }
 
@@ -129,7 +129,7 @@ impl ValidatorMetadataV1 {
         // Verify proof of possession for the authority key
         let pop = BLS12381Signature::from_bytes(self.proof_of_possession_bytes.as_ref())
             .map_err(|_| E_METADATA_INVALID_POP)?;
-        verify_pop(&authority_pubkey, &pop, self.iota_address)?;
+        verify_proof_of_possession(&authority_pubkey, &pop, self.iota_address)?;
 
         let network_pubkey = network_pubkey_from_bytes(self.network_pubkey_bytes.as_ref())
             .map_err(|_| E_METADATA_INVALID_NET_PUBKEY)?;
@@ -179,7 +179,7 @@ impl ValidatorMetadataV1 {
         if let Some(ref next_epoch_authority_pubkey) = next_epoch_authority_pubkey {
             match next_epoch_pop {
                 Some(next_epoch_pop) => {
-                    verify_pop(
+                    verify_proof_of_possession(
                         next_epoch_authority_pubkey,
                         &next_epoch_pop,
                         self.iota_address,
