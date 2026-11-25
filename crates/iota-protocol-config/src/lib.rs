@@ -2385,14 +2385,8 @@ impl ProtocolConfig {
     }
 
     pub fn consensus_enable_sliding_window_leader_schedule(&self) -> bool {
-        let res = self
-            .feature_flags
-            .consensus_enable_sliding_window_leader_schedule;
-        assert!(
-            !res || self.leader_schedule_window_size() >= self.commits_per_schedule(),
-            "consensus_enable_sliding_window_leader_schedule requires window_size >= commits_per_schedule"
-        );
-        res
+        self.feature_flags
+            .consensus_enable_sliding_window_leader_schedule
     }
 
     pub fn consensus_enable_absolute_score_leader_schedule(&self) -> bool {
