@@ -110,6 +110,8 @@ const SMART_ACCOUNT_FREE_ACCESS_PACKAGE_PATH: &str =
     "tests/abstract_account/smart_account_free_access";
 const SMART_ACCOUNT_FREE_ACCESS_MODULE_NAME: &str = "smart_account_free_access";
 const SMART_ACCOUNT_FREE_ACCESS_FN_NAME: &str = "authenticate";
+#[cfg(msim)]
+const LARGE_OBJECT_PACKAGE_PATH: &str = "tests/abstract_account/large_object";
 /// The code of `smart_account::ESmartAccountsNotEnabled`.
 const SMART_ACCOUNTS_NOT_ENABLED_ERROR_CODE: u8 = 1;
 /// The last epoch in which the key proofs of the `SmartAccount` tests are
@@ -5882,39 +5884,13 @@ async fn test_smart_account_key_rotation() -> Result<(), anyhow::Error> {
     let account = test_env.create_builtin_smart_account(&old_kp).await?;
     let sender: Address = account.object_id.into();
 
-    let new_pk = new_kp.public_key();
-    let rotate_pt = |key_proof: Vec<u8>| -> anyhow::Result<ProgrammableTransaction> {
-        let mut builder = ProgrammableTransactionBuilder::new();
-        let arguments = vec![
-            builder.obj(CallArg::Shared(SharedObjectReference::new(
-                account.object_id,
-                account.version,
-                true,
-            )))?,
-            move_public_key_arg(&mut builder, new_pk.scheme(), new_pk.as_ref())?,
-            builder.pure(key_proof)?,
-            builder.pure(KEY_PROOF_VALID_UNTIL_EPOCH)?,
-        ];
-        builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            Identifier::from_static("smart_account_builtin_authenticator"),
-            Identifier::from_static("rotate_public_key"),
-            vec![],
-            arguments,
-        );
-        Ok(builder.finish())
-    };
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
     let gas = test_env
         .test_cluster
         .fund_address_and_return_gas(rgp, Some(20_000_000_000), sender)
         .await;
-    let unsigned_tx = test_env
-        .craft_tx_from_pt(rotate_pt(vec![])?, gas, sender, None)
-        .await?;
-    let key_proof = test_env.sign_key_proof(&new_kp, &unsigned_tx, sender, false)?;
     let tx_data = test_env
-        .craft_tx_from_pt(rotate_pt(key_proof)?, gas, sender, None)
+        .craft_smart_account_public_key_rotation(account, &new_kp, gas)
         .await?;
     let sig = builtin_sig_for_keypair(&old_kp, &tx_data, account)?;
     test_env
@@ -5937,6 +5913,908 @@ async fn test_smart_account_key_rotation() -> Result<(), anyhow::Error> {
     let sig = builtin_sig_for_keypair(&old_kp, &tx_data, account)?;
     let tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx_data, vec![sig]));
     assert_refused_for_an_invalid_builtin_signature(&test_env.test_cluster, tx, gas).await
+}
+
+/// How a scenario takes the old key away from a `SmartAccount`.
+#[cfg(msim)]
+#[derive(Clone, Copy, Debug)]
+enum Rotation {
+    /// `smart_account_builtin_authenticator::rotate_public_key` replaces the
+    /// key. At execution, the built-in authenticator refuses the old key's
+    /// signature.
+    PublicKey,
+    /// `rotate_to_custom_authenticator_v1` sets the free-access authenticator
+    /// and deletes the key field. At execution, the free-access authenticator
+    /// takes no argument, so the signature the transaction carries for the
+    /// built-in one fails it with `ArityMismatch`.
+    CustomAuthenticator,
+}
+
+/// A transaction signed with a `SmartAccount`'s old key, as
+/// [`craft_smart_account_gas_transfer()`] crafts it.
+#[cfg(msim)]
+#[derive(Clone, Copy, Debug)]
+struct StaleTransaction {
+    /// The gas coin that pays, by its index among the run's gas coins.
+    gas_coin: usize,
+    /// The gas price, as a multiple of the reference gas price.
+    gas_price_factor: u64,
+    /// How many `LargeObject`s, of about 240,000 bytes each, the transaction
+    /// takes as inputs it does not use.
+    large_inputs: usize,
+}
+
+#[cfg(msim)]
+impl StaleTransaction {
+    /// Paid by the gas coin `gas_coin` at the reference gas price, with no
+    /// large inputs.
+    fn paid_by(gas_coin: usize) -> Self {
+        Self {
+            gas_coin,
+            gas_price_factor: 1,
+            large_inputs: 0,
+        }
+    }
+}
+
+/// What became of a [`StaleTransaction`].
+#[cfg(msim)]
+#[derive(Debug)]
+enum StaleOutcome {
+    /// It executed, with these effects on the fullnode.
+    Executed(TransactionEffects),
+    /// It never executed. The last status the validator it was submitted to
+    /// gave for it.
+    NotExecuted(iota_types::messages_grpc::TxStatusUpdate),
+}
+
+/// What [`run_stale_smart_account_transactions()`] leaves to check.
+#[cfg(msim)]
+struct StaleRun {
+    test_env: TestEnvironment,
+    /// The validator whose view was behind, which admitted the transactions.
+    paused_validator: AuthorityName,
+    rgp: u64,
+    /// Each transaction's digest and outcome, in the order they were given.
+    outcomes: Vec<(iota_sdk_types::TransactionDigest, StaleOutcome)>,
+}
+
+#[cfg(msim)]
+impl StaleRun {
+    /// The digest and effects of transaction `index`. Panics unless it
+    /// executed.
+    fn executed(&self, index: usize) -> (&iota_sdk_types::TransactionDigest, &TransactionEffects) {
+        match &self.outcomes[index] {
+            (digest, StaleOutcome::Executed(effects)) => (digest, effects),
+            (digest, outcome) => {
+                panic!("transaction {index} ({digest}) must execute, got {outcome:?}")
+            }
+        }
+    }
+
+    /// Asserts that transaction `index` executed, failed authentication as a
+    /// transaction signed with the old key fails after `rotation`, and charged
+    /// the account `units` computation units at a gas price of
+    /// `gas_price_factor` times the reference gas price. Also asserts that
+    /// the paused validator built the checkpoint holding it, and that its
+    /// attestation is recorded valid.
+    async fn assert_account_charged(
+        &self,
+        index: usize,
+        rotation: Rotation,
+        gas_price_factor: u64,
+        units: u64,
+    ) {
+        let (digest, effects) = self.executed(index);
+        assert_failed_authentication_after(rotation, effects);
+        assert_account_paid(effects, units, gas_price_factor * self.rgp);
+        assert_validator_built_the_certified_checkpoint(
+            &self.test_env.test_cluster,
+            &self.paused_validator,
+            digest,
+        )
+        .await;
+        assert_attestation_recorded_valid(
+            &self.test_env.test_cluster,
+            &self.paused_validator,
+            digest,
+        );
+    }
+}
+
+/// The `gas_rounding_step` of the protocol config, in gas units: the smallest
+/// computation charge.
+#[cfg(msim)]
+const GAS_ROUNDING_STEP: u64 = 1_000;
+/// The budget of a stale transaction, in gas units: 0.1 IOTA at the reference
+/// gas price, and half a gas coin at the highest gas price.
+#[cfg(msim)]
+const STALE_TX_BUDGET_UNITS: u64 = 100_000;
+/// The balance of each gas coin a scenario funds the account with.
+#[cfg(msim)]
+const STALE_GAS_COIN_BALANCE: u64 = 20_000_000_000;
+/// The size of each chunk a `LargeObject` holds: a pure argument just under
+/// `max_pure_argument_size`.
+#[cfg(msim)]
+const LARGE_OBJECT_CHUNK_SIZE: usize = 16_000;
+/// How many chunks a `LargeObject` holds: 240,000 bytes in all, just under
+/// `max_move_object_size`.
+#[cfg(msim)]
+const LARGE_OBJECT_CHUNKS: u64 = 15;
+/// The gas budget of the transaction that freezes the `LargeObject`s. Storing
+/// one costs about 1 IOTA.
+#[cfg(msim)]
+const FREEZE_LARGE_OBJECTS_GAS_BUDGET: u64 = 40_000_000_000;
+
+/// Under P-COOL, an honest validator whose view is behind admits transactions
+/// signed with a `SmartAccount`'s old key after `rotation`, and consensus
+/// orders them after it. Runs the transactions `stale` and returns what
+/// became of each.
+///
+/// The validator refuses, before consensus, a transaction whose
+/// authentication needs more than `max_auth_gas` buys at its gas price, and
+/// one that reuses a gas coin version it already locked.
+///
+/// Who pays for a transaction that executes depends on `attestation`, which
+/// turns validator attestation on or off:
+/// - on: the validator attests the transaction at the account version it read, before the rotation.
+///   Execution fails it on every validator. The judge re-runs authentication at the recorded
+///   version, where the built-in authenticator reads the account's key field as it was then, finds
+///   the old key, and passes, also after `rotate_to_custom_authenticator_v1` deleted the field. So
+///   the attestation is valid and the account pays, as for a failure it authorized.
+/// - off: the account pays its own gas but did not authorize the transaction, so nobody is charged.
+///
+/// Staging: execution on one validator is paused before the rotation executes
+/// there, so that validator still admits transactions signed with the old
+/// key. Execution resumes once each transaction the validator submitted to
+/// consensus has executed on the others, or after 30 seconds, when one was
+/// dropped after consensus.
+#[cfg(msim)]
+async fn run_stale_smart_account_transactions(
+    rotation: Rotation,
+    attestation: bool,
+    stale: &[StaleTransaction],
+) -> anyhow::Result<StaleRun> {
+    use std::{sync::atomic::Ordering, time::Duration};
+
+    use iota_core::authority_client::validator_v2::ValidatorV2API;
+    use iota_macros::clear_fail_point;
+    use iota_types::messages_grpc::TxStatusUpdate;
+    use test_cluster::override_validator_attestation;
+
+    telemetry_subscribers::init_for_testing();
+    let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
+
+    let _attestation = override_validator_attestation(attestation);
+    let mut test_env = TestEnvironment::with_cluster(
+        TestClusterBuilder::new()
+            .with_epoch_duration_ms(600_000)
+            .build()
+            .await,
+    );
+    assert_pcool_flow_on(&test_env.test_cluster);
+    let old_kp = SimpleKeypair::from(Ed25519PrivateKey::random_with(StdRng::from_seed(
+        [28u8; 32],
+    )));
+    let account = test_env.create_builtin_smart_account(&old_kp).await?;
+    let sender: Address = account.object_id.into();
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+
+    // Every coin and object the transactions use exists on every validator
+    // before any execution is paused, and so does the free-access package.
+    let rotate_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), sender)
+        .await;
+    let gas_coin_count = stale.iter().map(|tx| tx.gas_coin + 1).max().unwrap_or(0);
+    let mut gas_coins = Vec::with_capacity(gas_coin_count);
+    for _ in 0..gas_coin_count {
+        gas_coins.push(
+            test_env
+                .test_cluster
+                .fund_address_and_return_gas(rgp, Some(STALE_GAS_COIN_BALANCE), sender)
+                .await,
+        );
+    }
+    let large_input_count = stale.iter().map(|tx| tx.large_inputs).max().unwrap_or(0);
+    let large_objects = if large_input_count > 0 {
+        test_env.freeze_large_objects(large_input_count).await?
+    } else {
+        vec![]
+    };
+    let stale_txs = stale
+        .iter()
+        .map(|tx| {
+            craft_smart_account_gas_transfer(
+                sender,
+                gas_coins[tx.gas_coin],
+                tx.gas_price_factor * rgp,
+                &large_objects[..tx.large_inputs],
+            )
+        })
+        .collect::<anyhow::Result<Vec<_>>>()?;
+    let rotation = match rotation {
+        Rotation::PublicKey => {
+            let new_kp = SimpleKeypair::from(Secp256k1PrivateKey::random_with(StdRng::from_seed(
+                [29u8; 32],
+            )));
+            test_env
+                .craft_smart_account_public_key_rotation(account, &new_kp, rotate_gas)
+                .await?
+        }
+        Rotation::CustomAuthenticator => {
+            let package_id = test_env.publish_smart_account_free_access_package().await;
+            test_env
+                .craft_smart_account_rotation_to_custom_authenticator(
+                    account, package_id, rotate_gas,
+                )
+                .await?
+        }
+    };
+
+    // Pause execution on one validator until the transactions signed with the
+    // old key have been admitted and executed by the others.
+    let paused_validator = test_env.test_cluster.get_validator_pubkeys()[0];
+    let paused = pause_execution_on(&test_env.test_cluster, &paused_validator);
+
+    // The rotation, signed with the old key, executes on every validator but
+    // the paused one.
+    let sig = builtin_sig_for_keypair(&old_kp, &rotation, account)?;
+    test_env
+        .execute_and_check_tx_correctness(TransactionEnvelope::new(SenderSignedTransaction::new(
+            rotation,
+            vec![sig],
+        )))
+        .await?;
+
+    // The transactions signed with the old key, each submitted to the paused
+    // validator. Its view still has the built-in authenticator and the old
+    // key, so the authentication it runs before submitting passes, as long as
+    // `max_auth_gas` covers it at the transaction's gas price.
+    let paused_client = test_env
+        .test_cluster
+        .authority_aggregator()
+        .authority_clients[&paused_validator]
+        .clone();
+    // The validator answers each submission once it has refused the
+    // transaction or submitted it to consensus. The transactions are submitted
+    // one at a time, in the order given, so that of two paid by the same gas
+    // coin version, the first always takes the lock.
+    let mut answers = Vec::with_capacity(stale_txs.len());
+    for tx_data in stale_txs {
+        let sig = builtin_sig_for_keypair(&old_kp, &tx_data, account)?;
+        let tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx_data, vec![sig]));
+        let digest = *tx.digest();
+        let updates = tokio::time::timeout(
+            Duration::from_secs(60),
+            paused_client
+                .authority_client()
+                .submit_tx(vec![tx], Some(client_ip)),
+        )
+        .await
+        .expect("the paused validator must answer each submission within 60s")?;
+        let Some((_, update)) = updates.into_iter().last() else {
+            panic!("the paused validator must answer the submission of {digest}");
+        };
+        answers.push((digest, update));
+    }
+
+    // The others execute a submitted transaction and certify its checkpoint,
+    // which the fullnode then executes, unless it is dropped after consensus,
+    // hence the time limit.
+    let executed_on_the_fullnode = |digest: &iota_sdk_types::TransactionDigest| {
+        test_env
+            .test_cluster
+            .fullnode_handle
+            .iota_node
+            .with(|node| {
+                node.state()
+                    .get_transaction_cache_reader()
+                    .try_get_executed_effects(digest)
+                    .unwrap()
+                    .is_some()
+            })
+    };
+    let _all_executed = tokio::time::timeout(Duration::from_secs(30), async {
+        while !answers.iter().all(|(digest, update)| {
+            !matches!(
+                update,
+                TxStatusUpdate::Submitted | TxStatusUpdate::Executed { .. }
+            ) || executed_on_the_fullnode(digest)
+        }) {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await;
+
+    paused.store(false, Ordering::SeqCst);
+    clear_fail_point("transaction_execution_delay");
+    let mut outcomes = Vec::with_capacity(answers.len());
+    for (digest, update) in answers {
+        let outcome = if executed_on_the_fullnode(&digest) {
+            StaleOutcome::Executed(wait_for_fullnode_effects(&test_env.test_cluster, digest).await?)
+        } else {
+            StaleOutcome::NotExecuted(update)
+        };
+        outcomes.push((digest, outcome));
+    }
+
+    Ok(StaleRun {
+        test_env,
+        paused_validator,
+        rgp,
+        outcomes,
+    })
+}
+
+/// [`run_stale_smart_account_transactions()`] after `rotate_public_key`: the
+/// attestation is recorded valid and the account pays the smallest charge,
+/// 1,000 computation units, and nothing for storage.
+///
+/// Simulator only, because the pause is a fail point.
+#[cfg(msim)]
+#[sim_test]
+async fn attested_stale_smart_account_tx_after_key_rotation_charges_account()
+-> Result<(), anyhow::Error> {
+    let run = run_stale_smart_account_transactions(
+        Rotation::PublicKey,
+        true,
+        &[StaleTransaction::paid_by(0)],
+    )
+    .await?;
+    run.assert_account_charged(0, Rotation::PublicKey, 1, GAS_ROUNDING_STEP)
+        .await;
+
+    Ok(())
+}
+
+/// [`run_stale_smart_account_transactions()`] after
+/// `rotate_to_custom_authenticator_v1`: the attestation is recorded valid and
+/// the account pays the smallest charge, as after `rotate_public_key`.
+///
+/// Simulator only, because the pause is a fail point.
+#[cfg(msim)]
+#[sim_test]
+async fn attested_stale_smart_account_tx_after_rotation_to_custom_authenticator_charges_account()
+-> Result<(), anyhow::Error> {
+    let run = run_stale_smart_account_transactions(
+        Rotation::CustomAuthenticator,
+        true,
+        &[StaleTransaction::paid_by(0)],
+    )
+    .await?;
+    run.assert_account_charged(0, Rotation::CustomAuthenticator, 1, GAS_ROUNDING_STEP)
+        .await;
+
+    Ok(())
+}
+
+/// [`run_stale_smart_account_transactions()`] with validator attestation off:
+/// the transaction executes and fails, and nobody is charged.
+///
+/// Simulator only, because the pause is a fail point.
+#[cfg(msim)]
+#[sim_test]
+async fn stale_smart_account_tx_without_attestation_charges_nobody() -> Result<(), anyhow::Error> {
+    use iota_sdk_types::GasCostSummary;
+
+    let run = run_stale_smart_account_transactions(
+        Rotation::PublicKey,
+        false,
+        &[StaleTransaction::paid_by(0)],
+    )
+    .await?;
+    let (digest, effects) = run.executed(0);
+    assert_failed_authentication_after(Rotation::PublicKey, effects);
+    assert_eq!(
+        effects.gas_cost_summary(),
+        &GasCostSummary::default(),
+        "nobody may be charged for a transaction the gas owner did not authorize"
+    );
+    assert_validator_built_the_certified_checkpoint(
+        &run.test_env.test_cluster,
+        &run.paused_validator,
+        digest,
+    )
+    .await;
+
+    Ok(())
+}
+
+/// The gas prices of [`attested_stale_smart_account_txs_across_gas_prices()`],
+/// as multiples of the reference gas price, up to `max_gas_price`.
+#[cfg(msim)]
+const SWEPT_GAS_PRICE_FACTORS: [u64; 7] = [1, 2, 5, 10, 20, 50, 100];
+
+/// [`run_stale_smart_account_transactions()`] after `rotate_public_key`, with
+/// one transaction at each of [`SWEPT_GAS_PRICE_FACTORS`], each paid by its
+/// own gas coin. `max_auth_gas` buys fewer units the higher the gas price, but
+/// even at `max_gas_price` it covers the built-in authenticator's check of an
+/// Ed25519 signature, so the validator admits each transaction, and the
+/// account pays the smallest charge, 1,000 computation units, at its gas
+/// price.
+///
+/// Simulator only, because the pause is a fail point.
+#[cfg(msim)]
+#[sim_test]
+async fn attested_stale_smart_account_txs_across_gas_prices() -> Result<(), anyhow::Error> {
+    let stale = SWEPT_GAS_PRICE_FACTORS
+        .iter()
+        .enumerate()
+        .map(|(gas_coin, &gas_price_factor)| StaleTransaction {
+            gas_coin,
+            gas_price_factor,
+            large_inputs: 0,
+        })
+        .collect::<Vec<_>>();
+    let run = run_stale_smart_account_transactions(Rotation::PublicKey, true, &stale).await?;
+
+    for (index, factor) in SWEPT_GAS_PRICE_FACTORS.into_iter().enumerate() {
+        run.assert_account_charged(index, Rotation::PublicKey, factor, GAS_ROUNDING_STEP)
+            .await;
+    }
+
+    Ok(())
+}
+
+/// [`run_stale_smart_account_transactions()`] after `rotate_public_key`, with
+/// two transactions paid by the same gas coin version. The validator refuses
+/// the second, since the first holds the lock on that version, so the account
+/// pays once.
+///
+/// Simulator only, because the pause is a fail point.
+#[cfg(msim)]
+#[sim_test]
+async fn attested_stale_smart_account_txs_on_one_gas_coin_charge_account_once()
+-> Result<(), anyhow::Error> {
+    use iota_types::messages_grpc::TxStatusUpdate;
+
+    let run = run_stale_smart_account_transactions(
+        Rotation::PublicKey,
+        true,
+        &[StaleTransaction::paid_by(0), StaleTransaction::paid_by(0)],
+    )
+    .await?;
+
+    run.assert_account_charged(0, Rotation::PublicKey, 1, GAS_ROUNDING_STEP)
+        .await;
+    let (first_digest, _) = run.executed(0);
+    let (_, outcome) = &run.outcomes[1];
+    assert!(
+        matches!(
+            outcome,
+            StaleOutcome::NotExecuted(TxStatusUpdate::Rejected {
+                error: IotaError::ObjectLockConflict { pending_transaction, .. },
+            }) if pending_transaction == first_digest
+        ),
+        "the validator must refuse the second transaction on the gas coin version the first \
+         holds, got {outcome:?}"
+    );
+
+    Ok(())
+}
+
+/// How many `LargeObject`s the transaction of
+/// [`attested_stale_smart_account_tx_with_large_inputs_charges_their_reads()`]
+/// takes as inputs.
+#[cfg(msim)]
+const LARGE_INPUTS: usize = 10;
+/// The computation units the account pays for that transaction: reading
+/// [`LARGE_INPUTS`] objects of about 240,000 bytes each, at 15 internal units
+/// a byte, plus the authentication, rounded up to 1,000 units.
+#[cfg(msim)]
+const LARGE_INPUTS_COMPUTATION_UNITS: u64 = 37_000;
+
+/// [`run_stale_smart_account_transactions()`] after `rotate_public_key`, with a
+/// transaction that also takes [`LARGE_INPUTS`] large immutable objects as
+/// inputs. Execution charges reading the input objects before it runs the
+/// authentication, and `max_auth_gas` does not cap that, so the account pays
+/// [`LARGE_INPUTS_COMPUTATION_UNITS`].
+///
+/// Simulator only, because the pause is a fail point.
+#[cfg(msim)]
+#[sim_test]
+async fn attested_stale_smart_account_tx_with_large_inputs_charges_their_reads()
+-> Result<(), anyhow::Error> {
+    let run = run_stale_smart_account_transactions(
+        Rotation::PublicKey,
+        true,
+        &[StaleTransaction {
+            gas_coin: 0,
+            gas_price_factor: 1,
+            large_inputs: LARGE_INPUTS,
+        }],
+    )
+    .await?;
+    run.assert_account_charged(0, Rotation::PublicKey, 1, LARGE_INPUTS_COMPUTATION_UNITS)
+        .await;
+
+    Ok(())
+}
+
+/// Under P-COOL with validator attestation, a validator can record, for a
+/// transaction signed with a `SmartAccount`'s old key, the account version from
+/// before `rotate_public_key`, as a faulty validator can. Only
+/// `attestation_freshness_window_commits` bounds how old that version may be:
+/// within it, the judge re-runs authentication there, finds the old key, and
+/// the attestation is valid, so the account pays. Outside it, the attestation
+/// is refuted and nobody pays.
+///
+/// Runs `count` transactions signed with the old key one after the other,
+/// each paid at the reference gas price by the same gas coin at its next
+/// version, and each submitted to the same validator, which records the old
+/// account version. The first is submitted `wait` after the rotation.
+/// `freshness_window_commits` overrides `attestation_freshness_window_commits`
+/// when given. Returns the environment, the validator, and the digest and
+/// effects of each transaction.
+///
+/// Simulator only, because the faulty validator acts through fail points.
+#[cfg(msim)]
+async fn run_stale_smart_account_transactions_recorded_at_the_old_version(
+    count: usize,
+    freshness_window_commits: Option<u64>,
+    wait: std::time::Duration,
+) -> anyhow::Result<(
+    TestEnvironment,
+    AuthorityName,
+    Vec<(iota_sdk_types::TransactionDigest, TransactionEffects)>,
+)> {
+    use iota_types::messages_grpc::TxStatusUpdate;
+    use test_cluster::ProtocolEnvOverride;
+
+    telemetry_subscribers::init_for_testing();
+
+    let window = freshness_window_commits.map(|window| window.to_string());
+    let mut overrides = vec![
+        ("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE", "1"),
+        (
+            "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION",
+            "true",
+        ),
+    ];
+    if let Some(window) = &window {
+        overrides.push((
+            "IOTA_PROTOCOL_CONFIG_OVERRIDE_ATTESTATION_FRESHNESS_WINDOW_COMMITS",
+            window,
+        ));
+    }
+    let _overrides = ProtocolEnvOverride::new(&overrides);
+    let test_env = TestEnvironment::with_cluster(
+        TestClusterBuilder::new()
+            .with_epoch_duration_ms(600_000)
+            .build()
+            .await,
+    );
+    assert_pcool_flow_on(&test_env.test_cluster);
+    let old_kp = SimpleKeypair::from(Ed25519PrivateKey::random_with(StdRng::from_seed(
+        [30u8; 32],
+    )));
+    let new_kp = SimpleKeypair::from(Secp256k1PrivateKey::random_with(StdRng::from_seed(
+        [31u8; 32],
+    )));
+    let account = test_env.create_builtin_smart_account(&old_kp).await?;
+    let sender: Address = account.object_id.into();
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+
+    // The rotation executes on every validator.
+    let rotate_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), sender)
+        .await;
+    let rotation = test_env
+        .craft_smart_account_public_key_rotation(account, &new_kp, rotate_gas)
+        .await?;
+    let sig = builtin_sig_for_keypair(&old_kp, &rotation, account)?;
+    test_env
+        .execute_and_check_tx_correctness(TransactionEnvelope::new(SenderSignedTransaction::new(
+            rotation,
+            vec![sig],
+        )))
+        .await?;
+    tokio::time::sleep(wait).await;
+
+    // Each transaction is paid by the gas coin at the version the previous
+    // one left it at.
+    let attestor = test_env.test_cluster.get_validator_pubkeys()[0];
+    let mut gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(STALE_GAS_COIN_BALANCE), sender)
+        .await;
+    let mut executed = Vec::with_capacity(count);
+    for _ in 0..count {
+        let tx_data = craft_smart_account_gas_transfer(sender, gas, rgp, &[])?;
+        let sig = builtin_sig_for_keypair(&old_kp, &tx_data, account)?;
+        let tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx_data, vec![sig]));
+        let digest = *tx.digest();
+        let updates = submit_recording_account_version(
+            &test_env.test_cluster,
+            &attestor,
+            tx,
+            account.version,
+        )
+        .await?;
+        assert!(
+            matches!(
+                updates.last(),
+                Some((
+                    _,
+                    TxStatusUpdate::Submitted | TxStatusUpdate::Executed { .. }
+                ))
+            ),
+            "the validator must attest and submit the transaction, got {updates:?}"
+        );
+        let effects = wait_for_fullnode_effects(&test_env.test_cluster, digest).await?;
+        gas = *effects.gas_object().reference();
+        executed.push((digest, effects));
+    }
+
+    Ok((test_env, attestor, executed))
+}
+
+/// [`run_stale_smart_account_transactions_recorded_at_the_old_version()`] with
+/// three transactions right after the rotation: each attestation is recorded
+/// valid, and the account pays the smallest charge for each, all with the same
+/// gas coin.
+///
+/// Simulator only, because the faulty validator acts through fail points.
+#[cfg(msim)]
+#[sim_test]
+async fn stale_smart_account_txs_recorded_at_the_old_version_charge_account_each_time()
+-> Result<(), anyhow::Error> {
+    let (test_env, attestor, executed) =
+        run_stale_smart_account_transactions_recorded_at_the_old_version(
+            3,
+            None,
+            std::time::Duration::ZERO,
+        )
+        .await?;
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    for (digest, effects) in &executed {
+        assert_failed_authentication_after(Rotation::PublicKey, effects);
+        assert_account_paid(effects, GAS_ROUNDING_STEP, rgp);
+        assert_attestation_recorded_valid(&test_env.test_cluster, &attestor, digest);
+    }
+
+    Ok(())
+}
+
+/// [`run_stale_smart_account_transactions_recorded_at_the_old_version()`] with
+/// an `attestation_freshness_window_commits` of 10 and one transaction 10
+/// seconds after the rotation, more than 10 commits later: the attestation is
+/// recorded refuted, and nobody pays.
+///
+/// Simulator only, because the faulty validator acts through fail points.
+#[cfg(msim)]
+#[sim_test]
+async fn stale_smart_account_tx_recorded_at_the_old_version_after_the_window_charges_nobody()
+-> Result<(), anyhow::Error> {
+    use iota_sdk_types::GasCostSummary;
+
+    let (test_env, _, executed) = run_stale_smart_account_transactions_recorded_at_the_old_version(
+        1,
+        Some(10),
+        std::time::Duration::from_secs(10),
+    )
+    .await?;
+    let [(digest, effects)] = executed.as_slice() else {
+        panic!("one transaction must execute, got {executed:?}");
+    };
+    assert_failed_authentication_after(Rotation::PublicKey, effects);
+    assert_eq!(
+        effects.gas_cost_summary(),
+        &GasCostSummary::default(),
+        "nobody may be charged for a refuted attestation"
+    );
+    assert_attestation_recorded_refuted(&test_env.test_cluster, digest);
+
+    Ok(())
+}
+
+/// Crafts an unsigned transaction, sent by the `SmartAccount` at `sender` and
+/// paid with `gas` at `gas_price` with a budget of [`STALE_TX_BUDGET_UNITS`],
+/// that transfers one nano of `gas` to a random address and takes
+/// `extra_inputs` as inputs it does not use.
+#[cfg(msim)]
+fn craft_smart_account_gas_transfer(
+    sender: Address,
+    gas: ObjectReference,
+    gas_price: u64,
+    extra_inputs: &[ObjectReference],
+) -> anyhow::Result<Transaction> {
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.pay_iota(vec![Address::random()], vec![1])?;
+    for input in extra_inputs {
+        builder.obj(CallArg::ImmutableOrOwned(*input))?;
+    }
+    Ok(Transaction::new_programmable_allow_sponsor(
+        sender,
+        vec![gas],
+        builder.finish(),
+        STALE_TX_BUDGET_UNITS * gas_price,
+        gas_price,
+        sender,
+    ))
+}
+
+/// Submits `tx` to `attestor`, which attests it although its Move
+/// authentication fails there, as a faulty validator can, and records
+/// `account_version` for the account of its Move authenticator in place of
+/// the version it read. Returns the validator's answers.
+#[cfg(msim)]
+async fn submit_recording_account_version(
+    test_cluster: &TestCluster,
+    attestor: &AuthorityName,
+    tx: TransactionEnvelope,
+    account_version: iota_sdk_types::Version,
+) -> anyhow::Result<
+    Vec<(
+        iota_sdk_types::TransactionDigest,
+        iota_types::messages_grpc::TxStatusUpdate,
+    )>,
+> {
+    use iota_core::authority_client::validator_v2::ValidatorV2API;
+    use iota_macros::{clear_fail_point, register_fail_point_arg};
+    use iota_types::attestation::SharedInputIndex;
+
+    let attestor_sim_id = test_cluster
+        .swarm
+        .node(attestor)
+        .unwrap()
+        .get_node_handle()
+        .unwrap()
+        .with(|_| iota_simulator::current_simnode_id());
+    // The attestor claims every unit the budget pays for, so that the claim
+    // does not cut the judge's re-run short.
+    let transaction = tx.data().transaction();
+    let claimed_units = transaction.gas_budget() / transaction.gas_price();
+    register_fail_point_arg("attest-ignore-auth-failure", move || {
+        (iota_simulator::current_simnode_id() == attestor_sim_id).then_some(claimed_units)
+    });
+    let versions = vec![(
+        SharedInputIndex::AuthenticatorAccount { authenticator: 0 },
+        account_version,
+    )];
+    register_fail_point_arg("attest-shared-object-versions", move || {
+        (iota_simulator::current_simnode_id() == attestor_sim_id).then(|| versions.clone())
+    });
+
+    let client = test_cluster.authority_aggregator().authority_clients[attestor].clone();
+    let updates = client
+        .authority_client()
+        .submit_tx(vec![tx], Some(SocketAddr::new([127, 0, 0, 1].into(), 0)))
+        .await;
+    clear_fail_point("attest-ignore-auth-failure");
+    clear_fail_point("attest-shared-object-versions");
+
+    Ok(updates?)
+}
+
+/// Waits up to 60 seconds for the fullnode to execute the transaction
+/// `digest`, and returns its effects.
+#[cfg(msim)]
+async fn wait_for_fullnode_effects(
+    test_cluster: &TestCluster,
+    digest: iota_sdk_types::TransactionDigest,
+) -> anyhow::Result<TransactionEffects> {
+    let mut effects = tokio::time::timeout(
+        std::time::Duration::from_secs(60),
+        test_cluster
+            .fullnode_handle
+            .iota_node
+            .with_async(|node| async move {
+                node.state()
+                    .get_transaction_cache_reader()
+                    .try_notify_read_executed_effects("", &[digest])
+                    .await
+            }),
+    )
+    .await
+    .expect("the fullnode must execute the transaction within 60s")?;
+
+    Ok(effects.remove(0))
+}
+
+/// Asserts that `effects` are those of a transaction that failed its Move
+/// authentication, before any command ran, as a transaction signed with a
+/// `SmartAccount`'s old key fails after `rotation`.
+#[cfg(msim)]
+fn assert_failed_authentication_after(rotation: Rotation, effects: &TransactionEffects) {
+    use iota_sdk_types::ExecutionStatus;
+
+    let ExecutionStatus::Failure { error, command } = effects.status() else {
+        panic!(
+            "expected the transaction to fail, got {:?}",
+            effects.status()
+        );
+    };
+    assert!(
+        command.is_none(),
+        "the authentication failure must carry no command index"
+    );
+    let ExecutionError::MoveAuthentication { error } = error else {
+        panic!("expected a MoveAuthentication failure, got {error:?}");
+    };
+    match rotation {
+        Rotation::PublicKey => assert!(
+            matches!(
+                &**error,
+                ExecutionError::MoveAbort { location: MoveLocation { module, function_name, .. }, code }
+                if module.as_str() == BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str()
+                && function_name
+                    .as_ref()
+                    .is_some_and(|f| f.as_str() == BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME)
+                && ErrorBitset::from_u64(*code)
+                    .and_then(|bitset| bitset.error_code())
+                    .map(u64::from)
+                    == Some(INVALID_SIGNATURE_ERROR_CODE)
+            ),
+            "expected the built-in authenticator to refuse the signature, got {error:?}"
+        ),
+        Rotation::CustomAuthenticator => assert!(
+            matches!(&**error, ExecutionError::ArityMismatch),
+            "expected the free-access authenticator to fail with ArityMismatch, got {error:?}"
+        ),
+    }
+}
+
+/// Asserts that the gas owner paid `units` computation units at `gas_price`
+/// for `effects`, and nothing for storage: its gas coin only moves to its next
+/// version.
+#[cfg(msim)]
+fn assert_account_paid(effects: &TransactionEffects, units: u64, gas_price: u64) {
+    let gas_cost = effects.gas_cost_summary();
+    assert_eq!(
+        gas_cost.computation_cost,
+        units * gas_price,
+        "the account must pay {units} computation units at a gas price of {gas_price}, got \
+         {gas_cost:?}"
+    );
+    assert_eq!(
+        gas_cost.storage_cost, gas_cost.storage_rebate,
+        "the account must pay nothing for storage, got {gas_cost:?}"
+    );
+}
+
+/// Asserts that every node records the attestation of the transaction
+/// `digest` as refuted. The validators judged it at execution, and the
+/// checkpoint certifies the record, so the fullnode holds it too.
+#[cfg(msim)]
+fn assert_attestation_recorded_refuted(
+    test_cluster: &TestCluster,
+    digest: &iota_sdk_types::TransactionDigest,
+) {
+    use iota_types::attestation::{AttestationRecord, AttestationVerdict};
+
+    let read = |node: &iota_node::IotaNode| {
+        let state = node.state();
+        state
+            .get_transaction_cache_reader()
+            .multi_get_attestation_records_in_epoch(
+                state.epoch_store_for_testing().epoch(),
+                &[*digest],
+            )
+            .pop()
+            .expect("one result per digest")
+    };
+    let records = test_cluster
+        .all_validator_handles()
+        .into_iter()
+        .map(|handle| handle.with(read))
+        .chain(std::iter::once(
+            test_cluster.fullnode_handle.iota_node.with(read),
+        ));
+    for record in records {
+        assert!(
+            matches!(
+                record,
+                Some(AttestationRecord {
+                    verdict: AttestationVerdict::Refuted { .. },
+                    ..
+                })
+            ),
+            "every node must record the attestation refuted, got {record:?}"
+        );
+    }
 }
 
 /// Where `enable_smart_accounts` is off, as on testnet and mainnet,
@@ -7163,6 +8041,81 @@ impl TestEnvironment {
         Ok(UserSignature::Simple(signature).to_bytes())
     }
 
+    /// Crafts an unsigned transaction, sent by the `SmartAccount` `account` and
+    /// paid with `gas`, that replaces the account's public key with `new_kp`'s
+    /// through `smart_account_builtin_authenticator::rotate_public_key`, with
+    /// `new_kp`'s key proof.
+    async fn craft_smart_account_public_key_rotation(
+        &self,
+        account: ObjectReference,
+        new_kp: &SimpleKeypair,
+        gas: ObjectReference,
+    ) -> anyhow::Result<Transaction> {
+        let sender: Address = account.object_id.into();
+        let new_pk = new_kp.public_key();
+        let rotate_pt = |key_proof: Vec<u8>| -> anyhow::Result<ProgrammableTransaction> {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            let arguments = vec![
+                builder.obj(CallArg::Shared(SharedObjectReference::new(
+                    account.object_id,
+                    account.version,
+                    true,
+                )))?,
+                move_public_key_arg(&mut builder, new_pk.scheme(), new_pk.as_ref())?,
+                builder.pure(key_proof)?,
+                builder.pure(KEY_PROOF_VALID_UNTIL_EPOCH)?,
+            ];
+            builder.programmable_move_call(
+                IOTA_FRAMEWORK_PACKAGE_ID,
+                Identifier::from_static("smart_account_builtin_authenticator"),
+                Identifier::from_static("rotate_public_key"),
+                vec![],
+                arguments,
+            );
+            Ok(builder.finish())
+        };
+        let unsigned_tx = self
+            .craft_tx_from_pt(rotate_pt(vec![])?, gas, sender, None)
+            .await?;
+        let key_proof = self.sign_key_proof(new_kp, &unsigned_tx, sender, false)?;
+        self.craft_tx_from_pt(rotate_pt(key_proof)?, gas, sender, None)
+            .await
+    }
+
+    /// Crafts an unsigned transaction, sent by the `SmartAccount` `account` and
+    /// paid with `gas`, that replaces the account's built-in authenticator
+    /// with the free-access authenticator of the package `package_id` through
+    /// `smart_account_builtin_authenticator::rotate_to_custom_authenticator_v1`,
+    /// which detaches the account's public key.
+    #[cfg(msim)]
+    async fn craft_smart_account_rotation_to_custom_authenticator(
+        &self,
+        account: ObjectReference,
+        package_id: ObjectId,
+        gas: ObjectReference,
+    ) -> anyhow::Result<Transaction> {
+        let metadata_ref = self
+            .test_cluster
+            .get_latest_object_ref(&move_package::derive_package_metadata_id(package_id))
+            .await;
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let account_arg = builder.obj(CallArg::Shared(SharedObjectReference::new(
+            account.object_id,
+            account.version,
+            true,
+        )))?;
+        let authenticator = free_access_authenticator_arg(&mut builder, metadata_ref)?;
+        builder.programmable_move_call(
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            Identifier::from_static("smart_account_builtin_authenticator"),
+            Identifier::from_static("rotate_to_custom_authenticator_v1"),
+            vec![],
+            vec![account_arg, authenticator],
+        );
+        self.craft_tx_from_pt(builder.finish(), gas, account.object_id.into(), None)
+            .await
+    }
+
     /// Publishes the package with a custom authenticator for `SmartAccount`.
     async fn publish_smart_account_free_access_package(&mut self) -> ObjectId {
         let path = [
@@ -7174,6 +8127,57 @@ impl TestEnvironment {
         publish_package(self.test_cluster.wallet(), path)
             .await
             .object_id
+    }
+
+    /// Publishes the `large_object` package and freezes `count` `LargeObject`s,
+    /// each holding [`LARGE_OBJECT_CHUNKS`] chunks of
+    /// [`LARGE_OBJECT_CHUNK_SIZE`] bytes, in one transaction sent by address 0
+    /// of the test cluster. Returns their references.
+    #[cfg(msim)]
+    async fn freeze_large_objects(&mut self, count: usize) -> anyhow::Result<Vec<ObjectReference>> {
+        let path = [env!("CARGO_MANIFEST_DIR"), LARGE_OBJECT_PACKAGE_PATH]
+            .iter()
+            .collect();
+        let package_id = publish_package(self.test_cluster.wallet(), path)
+            .await
+            .object_id;
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let chunk = builder.pure(vec![0u8; LARGE_OBJECT_CHUNK_SIZE])?;
+        let copies = builder.pure(LARGE_OBJECT_CHUNKS)?;
+        for _ in 0..count {
+            builder.programmable_move_call(
+                package_id,
+                Identifier::from_static("large_object"),
+                Identifier::from_static("freeze_new"),
+                vec![],
+                vec![chunk, copies],
+            );
+        }
+        let tx = self
+            .test_cluster
+            .test_transaction_builder()
+            .await
+            .programmable(builder.finish())
+            .with_gas_budget(FREEZE_LARGE_OBJECTS_GAS_BUDGET)
+            .build();
+        let effects = self.test_cluster.sign_and_execute_transaction(&tx).await;
+        let large_objects = effects
+            .all_changed_objects()
+            .into_iter()
+            .filter_map(|(changed, kind)| {
+                matches!(
+                    (changed.owner(), kind),
+                    (Owner::Immutable, WriteKind::Create)
+                )
+                .then_some(*changed.reference())
+            })
+            .collect::<Vec<_>>();
+        anyhow::ensure!(
+            large_objects.len() == count,
+            "expected {count} frozen objects, got {large_objects:?}"
+        );
+
+        Ok(large_objects)
     }
 
     /// Crafts a signed transaction that creates a `SmartAccount` through
@@ -7189,18 +8193,7 @@ impl TestEnvironment {
             .await;
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
-            let arguments = vec![
-                builder.obj(CallArg::ImmutableOrOwned(metadata_ref))?,
-                builder.pure(SMART_ACCOUNT_FREE_ACCESS_MODULE_NAME)?,
-                builder.pure(SMART_ACCOUNT_FREE_ACCESS_FN_NAME)?,
-            ];
-            let authenticator = builder.programmable_move_call(
-                IOTA_FRAMEWORK_PACKAGE_ID,
-                Identifier::from_static("authenticator_function"),
-                Identifier::from_static("create_auth_function_ref_v1"),
-                vec![TypeTag::from_str("0x2::smart_account::SmartAccount")?],
-                arguments,
-            );
+            let authenticator = free_access_authenticator_arg(&mut builder, metadata_ref)?;
             let account_builder = builder.programmable_move_call(
                 IOTA_FRAMEWORK_PACKAGE_ID,
                 Identifier::from_static("smart_account"),
@@ -7348,6 +8341,28 @@ fn builtin_sig_for_keypair(
             object_arg,
         )
         .into(),
+    ))
+}
+
+/// Adds the command that builds the `AuthenticatorFunctionRefV1<SmartAccount>`
+/// of the free-access authenticator to `builder`, and returns its result.
+/// `metadata_ref` is the `PackageMetadata` of the package with that
+/// authenticator.
+fn free_access_authenticator_arg(
+    builder: &mut ProgrammableTransactionBuilder,
+    metadata_ref: ObjectReference,
+) -> anyhow::Result<Argument> {
+    let arguments = vec![
+        builder.obj(CallArg::ImmutableOrOwned(metadata_ref))?,
+        builder.pure(SMART_ACCOUNT_FREE_ACCESS_MODULE_NAME)?,
+        builder.pure(SMART_ACCOUNT_FREE_ACCESS_FN_NAME)?,
+    ];
+    Ok(builder.programmable_move_call(
+        IOTA_FRAMEWORK_PACKAGE_ID,
+        Identifier::from_static("authenticator_function"),
+        Identifier::from_static("create_auth_function_ref_v1"),
+        vec![TypeTag::from_str("0x2::smart_account::SmartAccount")?],
+        arguments,
     ))
 }
 
