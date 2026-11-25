@@ -103,7 +103,7 @@ pub const IOTA_PRIV_KEY_PREFIX: &str = "iotaprivkey";
 
 /// Authority signatures cross into fastcrypto to be aggregated and batch
 /// checked.
-pub fn to_aggregate_signature(signature: &AuthoritySignature) -> IotaResult<BLS12381Signature> {
+pub fn to_fastcrypto_signature(signature: &AuthoritySignature) -> IotaResult<BLS12381Signature> {
     BLS12381Signature::from_bytes(signature.bytes()).map_err(|e| IotaError::InvalidSignature {
         error: e.to_string(),
     })
@@ -719,7 +719,7 @@ impl AuthoritySignInfoTrait for AuthoritySignInfo {
             .signatures
             .get_mut(message_index)
             .ok_or(IotaError::InvalidAddress)?
-            .add_signature(to_aggregate_signature(&self.signature)?)
+            .add_signature(to_fastcrypto_signature(&self.signature)?)
             .map_err(|_| IotaError::InvalidSignature {
                 error: "Fail to aggregator auth sig".to_string(),
             })?;
@@ -961,7 +961,7 @@ impl<const STRONG_THRESHOLD: bool> AuthorityQuorumSignInfo<STRONG_THRESHOLD> {
         }
         let sigs: Vec<BLS12381Signature> = signatures
             .values()
-            .map(to_aggregate_signature)
+            .map(to_fastcrypto_signature)
             .collect::<IotaResult<_>>()?;
 
         Ok(AuthorityQuorumSignInfo {
@@ -1139,7 +1139,7 @@ impl<'a> VerificationObligation<'a> {
         self.signatures
             .get_mut(idx)
             .ok_or(IotaError::InvalidAuthenticator)?
-            .add_signature(to_aggregate_signature(signature)?)
+            .add_signature(to_fastcrypto_signature(signature)?)
             .map_err(|_| IotaError::InvalidSignature {
                 error: "Failed to add signature to obligation".to_string(),
             })?;

@@ -16,7 +16,7 @@ use iota_types::{
     committee::Committee,
     crypto::{
         AggregateAuthorityPublicKey, AuthoritySignInfoTrait, VerificationObligation,
-        to_aggregate_signature,
+        to_fastcrypto_signature,
     },
     error::{IotaError, IotaResult},
     message_envelope::Message,
@@ -373,7 +373,7 @@ impl SignatureVerifier {
                     .signatures
                     .get_mut(idx)
                     .ok_or(IotaError::InvalidAuthenticator)?
-                    .add_signature(to_aggregate_signature(
+                    .add_signature(to_fastcrypto_signature(
                         signed_authority_capabilities.auth_sig(),
                     )?)
                     .map_err(|_| IotaError::InvalidSignature {

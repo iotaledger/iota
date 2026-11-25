@@ -13,7 +13,7 @@ use iota_types::{
     base_types::{AuthorityName, ConciseableName},
     committee::{Committee, CommitteeTrait, StakeUnit},
     crypto::{
-        AuthorityQuorumSignInfo, AuthoritySignInfo, AuthoritySignInfoTrait, to_aggregate_signature,
+        AuthorityQuorumSignInfo, AuthoritySignInfo, AuthoritySignInfoTrait, to_fastcrypto_signature,
     },
     error::{IotaError, IotaResult},
     message_envelope::{Envelope, Message},
@@ -142,7 +142,7 @@ impl<const STRENGTH: bool> StakeAggregator<AuthoritySignInfo, STRENGTH> {
         }
         // A signature that is not a curve point would make every aggregation of
         // this quorum fail, so it is rejected before it is counted.
-        if let Err(error) = to_aggregate_signature(&sig.signature) {
+        if let Err(error) = to_fastcrypto_signature(&sig.signature) {
             return InsertResult::Failed { error };
         }
         match self.insert_generic(sig.authority, sig) {

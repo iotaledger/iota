@@ -30,7 +30,7 @@ use crate::{
         AccountPrivateKey, AggregateAuthorityPublicKey, AuthorityKeyPair, AuthorityPublicKeyBytes,
         AuthoritySignInfoTrait, IotaAuthoritySignature, PublicKey, VerificationObligation,
         bcs_signable_test::{Foo, get_obligation_input},
-        get_key_pair, to_aggregate_signature,
+        get_key_pair, to_fastcrypto_signature,
     },
     effects::{SignedTransactionEffects, TestEffectsBuilder, TransactionEffectsAPIForTesting},
     transaction::SenderSignedTransactionAPI,
@@ -300,7 +300,7 @@ fn test_handle_reject_malicious_signature() {
         );
         quorum
             .signature
-            .add_signature(to_aggregate_signature(&sig).unwrap())
+            .add_signature(to_fastcrypto_signature(&sig).unwrap())
             .unwrap();
     }
     let (mut obligation, idx) = get_obligation_input(&message);
