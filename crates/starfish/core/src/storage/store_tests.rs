@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
-
 use bytes::Bytes;
 use rstest::rstest;
 use starfish_config::AuthorityIndex;
@@ -12,11 +10,11 @@ use tempfile::TempDir;
 use super::{Store, WriteBatch, mem_store::MemStore, rocksdb_store::RocksDBStore};
 use crate::{
     block_header::{
-        BlockHeaderAPI, BlockHeaderDigest, BlockRef, Slot, TestBlockHeader, VerifiedBlock,
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, Slot, TestBlockHeader, TransactionsCommitment,
+        VerifiedBlock,
     },
     commit::{CommitDigest, CommitRef, TrustedCommit},
-    context::Context,
-    transaction_ref::GenericTransactionRef,
+    transaction_ref::TransactionRef,
 };
 
 /// Test fixture for store tests. Wraps around various store implementations.
@@ -304,7 +302,7 @@ async fn read_and_contain_transactions(
     // Test reading all transactions
     let refs: Vec<_> = written_blocks
         .iter()
-        .map(|b| GenericTransactionRef::TransactionRef(b.verified_block_header.transaction_ref()))
+        .map(|b| b.verified_block_header.transaction_ref())
         .collect();
     let read_txs = store
         .read_verified_transactions(&refs)
@@ -348,11 +346,11 @@ async fn read_and_contain_transactions(
     assert_eq!(contains, vec![true; refs.len()]);
 
     // Test with missing reference
-    let missing_ref = GenericTransactionRef::from(BlockRef::new(
-        99,
-        AuthorityIndex::new_for_test(99),
-        BlockHeaderDigest::default(),
-    ));
+    let missing_ref = TransactionRef {
+        round: 99,
+        author: AuthorityIndex::new_for_test(99),
+        transactions_commitment: TransactionsCommitment::default(),
+    };
     let read_missing = store
         .read_verified_transactions(&[missing_ref])
         .expect("Read missing should not fail");
@@ -371,8 +369,6 @@ async fn read_and_scan_commits(
     #[values(new_rocksdb_teststore(), new_mem_teststore())] test_store: TestStore,
 ) {
     let store = test_store.store();
-    let (context, _) = Context::new_for_test(4);
-    let context = Arc::new(context);
 
     {
         let last_commit = store
@@ -383,7 +379,6 @@ async fn read_and_scan_commits(
 
     let written_commits = vec![
         TrustedCommit::new_for_test(
-            &context,
             1,
             CommitDigest::MIN,
             1,
@@ -396,7 +391,6 @@ async fn read_and_scan_commits(
             vec![],
         ),
         TrustedCommit::new_for_test(
-            &context,
             2,
             CommitDigest::MIN,
             2,
@@ -409,7 +403,6 @@ async fn read_and_scan_commits(
             vec![],
         ),
         TrustedCommit::new_for_test(
-            &context,
             3,
             CommitDigest::MIN,
             3,
@@ -422,7 +415,6 @@ async fn read_and_scan_commits(
             vec![],
         ),
         TrustedCommit::new_for_test(
-            &context,
             4,
             CommitDigest::MIN,
             4,

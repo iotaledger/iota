@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "1.36.1-rc"
+    "version": "1.37.0-rc"
   },
   "methods": [
     {
@@ -1288,15 +1288,15 @@
           "params": [
             {
               "name": "version",
-              "value": 40
+              "value": 41
             }
           ],
           "result": {
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "40",
-              "protocolVersion": "40",
+              "maxSupportedProtocolVersion": "41",
+              "protocolVersion": "41",
               "featureFlags": {
                 "accept_passkey_in_multisig": true,
                 "additional_borrow_checks": true,
@@ -1314,6 +1314,7 @@
                 "congestion_limit_overshoot_in_gas_price_feedback_mechanism": true,
                 "consensus_batched_block_sync": true,
                 "consensus_block_restrictions": true,
+                "consensus_commit_transactions_once_traversed": true,
                 "consensus_commit_transactions_only_for_traversed_headers": true,
                 "consensus_dedup_only_recorded_messages": true,
                 "consensus_distributed_vote_scoring_strategy": true,
@@ -1341,6 +1342,7 @@
                 "enable_move_authentication_for_sponsor": true,
                 "enable_pcool_flow": true,
                 "enable_poseidon": true,
+                "enable_transaction_dependencies": true,
                 "enable_validator_attestation": true,
                 "enable_vdf": true,
                 "hardened_otw_check": true,
@@ -1369,6 +1371,7 @@
                 "relocate_event_module": true,
                 "report_move_authentication_error": true,
                 "rethrow_serialization_type_layout_errors": true,
+                "secp256r1_ecrecover_checks_x_below_p": true,
                 "select_committee_from_eligible_validators": true,
                 "select_committee_supporting_next_epoch_version": true,
                 "separate_gas_price_feedback_mechanism_for_randomness": true,
@@ -1390,7 +1393,12 @@
                 "address_to_u256_cost_base": {
                   "u64": "52"
                 },
-                "attestation_max_refuted_units_squared": null,
+                "attestation_freshness_window_commits": {
+                  "u64": "12000"
+                },
+                "attestation_max_refuted_units_squared": {
+                  "u64": "100000000"
+                },
                 "attestor_accuracy_tolerance_percentage": null,
                 "auth_context_authenticator_function_info_v1_cost_base": {
                   "u64": "270"
@@ -1899,7 +1907,7 @@
                   "u32": "512"
                 },
                 "max_auth_gas": {
-                  "u64": "250000"
+                  "u64": "1000000"
                 },
                 "max_back_edges_per_function": {
                   "u64": "10000"
@@ -7788,6 +7796,25 @@
                   {
                     "type": "null"
                   }
+                ]
+              }
+            }
+          },
+          {
+            "description": "The transaction this transaction depends on: it executes after that transaction, and fails if that transaction failed. Not usable by a command.",
+            "type": "object",
+            "required": [
+              "digest",
+              "type"
+            ],
+            "properties": {
+              "digest": {
+                "$ref": "#/components/schemas/Base58"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "transactionDependency"
                 ]
               }
             }

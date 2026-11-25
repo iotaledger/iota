@@ -20,9 +20,9 @@ use move_compiler::{
     shared::{NumberFormat, NumericalAddress},
     unit_test::{TestPlan, plan_builder::construct_test_plan},
 };
-use move_coverage::coverage_map::{CoverageMap, output_map_to_file};
+use move_coverage::coverage_map::{CoverageMap, TraceConsumer, output_map_to_file};
 use move_package::{BuildConfig, compilation::build_plan::BuildPlan};
-use move_unit_test::UnitTestingConfig;
+use move_unit_test::{TRACE_DIR, TraceType, UnitTestingConfig};
 use move_vm_test_utils::gas_schedule::CostTable;
 
 use super::reroot_path;
@@ -77,9 +77,9 @@ pub struct Test {
     #[clap(name = "rand-num-iters", long = "rand-num-iters")]
     pub rand_num_iters: Option<u64>,
 
-    // Enable tracing for tests
-    #[clap(long = "trace-execution")]
-    pub trace_execution: bool,
+    /// Enable tracing for tests.
+    #[clap(long = "trace-execution", default_missing_value = "full", num_args = 0..=1)]
+    pub trace_execution: Option<TraceType>,
 }
 
 impl Test {
@@ -93,7 +93,7 @@ impl Test {
         let rerooted_path = reroot_path(path)?;
         let compute_coverage = self.compute_coverage;
         // save disassembly if trace execution is enabled
-        let save_disassembly = self.trace_execution;
+        let save_disassembly = self.trace_execution.is_some();
         let result = run_move_unit_tests(
             &rerooted_path,
             config,
@@ -203,6 +203,13 @@ pub fn run_move_unit_tests<W: Write + Send>(
     let root_package = resolution_graph.root_package();
     let build_plan = BuildPlan::create(&resolution_graph)?;
 
+    // If we are computing coverage, then we need to enable tracing, since the
+    // coverage information is derived from the trace. If the user explicitly
+    // set the trace config, then we respect that and don't override it.
+    if compute_coverage && unit_test_config.trace_execution.is_none() {
+        unit_test_config.trace_execution = Some(TraceType::InstructionOnly);
+    }
+
     // Compile the package. We need to intercede in the compilation, process being
     // performed by the Move package system, to first grab the compilation env,
     // construct the test plan from it, and then save it, before resuming the
@@ -237,23 +244,17 @@ pub fn run_move_unit_tests<W: Write + Send>(
     let no_tests = test_plan.is_empty();
     let test_plan = TestPlan::new(test_plan, mapped_files, units, bytecode_deps_modules);
 
-    let trace_path = pkg_path.join(".trace");
+    let trace_path = pkg_path.join(TRACE_DIR);
     let coverage_map_path = pkg_path
         .join(".coverage_map")
         .with_extension(MOVE_COVERAGE_MAP_EXTENSION);
     let cleanup_trace = || {
         if compute_coverage && trace_path.exists() {
-            std::fs::remove_file(&trace_path).unwrap();
+            std::fs::remove_dir_all(&trace_path).unwrap();
         }
     };
 
     cleanup_trace();
-
-    // If we need to compute test coverage set the VM tracking environment variable
-    // since we will need this trace to construct the coverage information.
-    if compute_coverage {
-        std::env::set_var("MOVE_VM_TRACE", &trace_path);
-    }
 
     // Run the tests. If any of the tests fail, then we don't produce a coverage
     // report, so cleanup the trace files.
@@ -267,7 +268,7 @@ pub fn run_move_unit_tests<W: Write + Send>(
 
     // Compute the coverage map. This will be used by other commands after this.
     if compute_coverage && !no_tests {
-        let coverage_map = CoverageMap::from_trace_file(trace_path);
+        let coverage_map = CoverageMap::from_trace_dir(trace_path);
         output_map_to_file(coverage_map_path, &coverage_map).unwrap();
     }
     Ok((UnitTestResult::Success, warning_diags))

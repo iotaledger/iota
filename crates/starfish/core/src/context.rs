@@ -20,7 +20,7 @@ use crate::{
     },
     metrics::Metrics,
     peer_responsiveness::PeerResponsiveness,
-    transaction_ref::GenericTransactionRef,
+    transaction_ref::TransactionRef,
 };
 
 /// Context contains per-epoch configuration and metrics shared by all
@@ -47,6 +47,8 @@ pub(crate) struct Context {
     pub peer_responsiveness: Arc<PeerResponsiveness>,
     /// Commitment over an empty transaction list for this committee.
     pub(crate) empty_transactions_commitment: TransactionsCommitment,
+    /// When this authority started.
+    pub start_time: std::time::Instant,
 }
 
 impl Context {
@@ -72,6 +74,21 @@ impl Context {
             clock,
             peer_responsiveness,
             empty_transactions_commitment,
+            start_time: std::time::Instant::now(),
+        }
+    }
+
+    /// Records how long after start this authority first reached `stage`.
+    /// Callers record only stages that a restart in the middle of the epoch
+    /// does not reach again.
+    pub(crate) fn record_epoch_start_stage(&self, stage: &str) {
+        let gauge = self
+            .metrics
+            .node_metrics
+            .epoch_start_stage_ms
+            .with_label_values(&[stage]);
+        if gauge.get() == 0 {
+            gauge.set(self.start_time.elapsed().as_millis() as i64);
         }
     }
 
@@ -81,11 +98,8 @@ impl Context {
 
     pub(crate) fn empty_transactions_for_ref(
         &self,
-        transaction_ref: GenericTransactionRef,
+        transaction_ref: TransactionRef,
     ) -> Option<CommitmentVerifiedTransactions> {
-        let GenericTransactionRef::TransactionRef(transaction_ref) = transaction_ref else {
-            return None;
-        };
         (transaction_ref.transactions_commitment == self.empty_transactions_commitment)
             .then(|| CommitmentVerifiedTransactions::new_empty_from_ref(transaction_ref, None))
     }
@@ -99,10 +113,8 @@ impl Context {
     /// Whether leader blocks choose their acknowledgments by what the voters
     /// are expected to hold.
     pub(crate) fn adaptive_acknowledgments_enabled(&self) -> bool {
-        self.protocol_config.consensus_starfish_speed()
-            && self
-                .parameters
-                .enable_starfish_speed_adaptive_acknowledgments
+        self.parameters
+            .enable_starfish_speed_adaptive_acknowledgments
     }
 
     /// Create a test context with a committee of given size and even stake

@@ -20,7 +20,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     config::DEFAULT_PAGE_SIZE,
-    connection::ScanConnection,
     consistency::{Checkpointed, ConsistentNamedCursor},
     data::{DataLoader, Db, DbConnection, QueryExecutor},
     error::Error,
@@ -39,7 +38,9 @@ use crate::{
         object::{self, ActiveObject, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus},
         owner::OwnerImpl,
         stake::StakedIota,
-        transaction_block::{self, TransactionBlock, TransactionBlockFilter},
+        transaction_block::{
+            self, TransactionBlock, TransactionBlockConnection, TransactionBlockFilter,
+        },
         type_filter::ExactTypeFilter,
         uint53::{MAX_UINT53, UInt53},
     },
@@ -401,7 +402,7 @@ impl MovePackage {
             deprecation = "`scanLimit` will be removed with v1.38, along with the support for combining complex filters."
         )]
         scan_limit: Option<u64>,
-    ) -> Result<ScanConnection<String, TransactionBlock>> {
+    ) -> Result<TransactionBlockConnection> {
         ObjectImpl(&self.super_)
             .received_transaction_blocks(ctx, first, after, last, before, filter, scan_limit)
             .await

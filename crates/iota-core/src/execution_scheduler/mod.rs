@@ -10,6 +10,7 @@ use iota_config::node::AuthorityOverloadConfig;
 use iota_sdk_types::{SenderSignedTransaction, TransactionDigest};
 use iota_types::{
     error::IotaResult, executable_transaction::VerifiedExecutableTransaction, storage::InputKey,
+    transaction::TransactionAPI,
 };
 use prometheus_filtered::IntGauge;
 use tokio::{sync::mpsc::UnboundedSender, time::Instant};
@@ -17,8 +18,9 @@ use transaction_manager::TransactionManager;
 
 use crate::{
     authority::{
-        AuthorityMetrics, ExecutionEnv, authority_per_epoch_store::AuthorityPerEpochStore,
-        shared_object_version_manager::Schedulable,
+        AuthorityMetrics, ExecutionEnv,
+        authority_per_epoch_store::AuthorityPerEpochStore,
+        shared_object_version_manager::{AssignedVersions, Schedulable},
     },
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
 };
@@ -56,6 +58,25 @@ pub struct PendingTransactionStats {
     pub enqueue_time: Instant,
     /// The time this transaction becomes ready for execution.
     pub ready_time: Option<Instant>,
+}
+
+/// The scheduler key a transaction waits on for the transaction named by its
+/// transaction dependency input, if it has one and will read it. A
+/// transaction cancelled at sequencing (one of its assigned versions is a
+/// cancellation sentinel) executes as cancelled without reading the
+/// dependency, so it does not wait.
+pub(crate) fn transaction_dependency_input_key(
+    transaction: &VerifiedExecutableTransaction,
+    assigned_versions: &AssignedVersions,
+) -> Option<InputKey> {
+    let digest = transaction.data().transaction().transaction_dependency()?;
+    if assigned_versions
+        .iter()
+        .any(|assignment| assignment.version.is_canceled())
+    {
+        return None;
+    }
+    Some(InputKey::ExecutedTransaction { digest })
 }
 
 /// A transaction that is waiting in the execution scheduler for its input

@@ -20,7 +20,7 @@ use rocksdb::{
 };
 use serde::{Serialize, de::DeserializeOwned};
 use tokio::{sync::oneshot, time::Instant};
-use tracing::{debug, error, instrument, warn};
+use tracing::{debug, error, info, instrument, warn};
 use typed_store_error::TypedStoreError;
 
 use crate::{
@@ -152,10 +152,43 @@ const CF_METRICS_REPORT_PERIOD_SECS: u64 = 30;
 #[derive(Debug)]
 pub struct Database {
     pub(crate) storage: Storage,
+    /// Declared right after `storage`: fields are dropped in declaration
+    /// order, so its drop sees RocksDB closed.
+    close_timer: CloseTimer,
     pub(crate) metric_conf: MetricConf,
     /// Declared after `storage`: fields are dropped in declaration order, so
     /// this goes only once RocksDB has closed and released its `LOCK` file.
     closed: Arc<()>,
+}
+
+/// Records how long a RocksDB database took to close, from the start of
+/// [`Database`]'s drop to the drop of this timer.
+#[derive(Debug)]
+struct CloseTimer {
+    db_name: String,
+    start: Option<Instant>,
+}
+
+impl Drop for CloseTimer {
+    fn drop(&mut self) {
+        let Some(start) = self.start else {
+            return;
+        };
+        let elapsed_ms = start.elapsed().as_millis();
+        DBMetrics::get()
+            .op_metrics
+            .rocksdb_close_duration_ms
+            .with_label_values(&[&self.db_name])
+            .set(elapsed_ms as i64);
+        if elapsed_ms > 100 {
+            let thread = std::thread::current();
+            info!(
+                "Closed RocksDB {} in {elapsed_ms} ms on thread {}",
+                self.db_name,
+                thread.name().unwrap_or("unnamed")
+            );
+        }
+    }
 }
 
 /// What [`wait_for_database_close`] waits on; see [`Database::close_handle`].
@@ -164,6 +197,9 @@ pub struct DatabaseClose(Weak<()>);
 impl Drop for Database {
     fn drop(&mut self) {
         DBMetrics::get().decrement_num_active_dbs(&self.metric_conf.db_name);
+        if matches!(self.storage, Storage::Rocks(_)) {
+            self.close_timer.start = Some(Instant::now());
+        }
     }
 }
 
@@ -178,6 +214,10 @@ impl Database {
         DBMetrics::get().increment_num_active_dbs(&metric_conf.db_name);
         Self {
             storage,
+            close_timer: CloseTimer {
+                db_name: metric_conf.db_name.clone(),
+                start: None,
+            },
             metric_conf,
             closed: Arc::new(()),
         }
@@ -1000,7 +1040,7 @@ impl<K, V> DBMap<K, V> {
         match &self.db.storage {
             Storage::Rocks(db) => {
                 let readopts =
-                    rocks_util::apply_range_bounds(self.opts.readopts(), lower_bound, upper_bound);
+                    rocks_util::iterator_read_options(&self.opts, lower_bound, upper_bound, false);
                 match self.rocks_safe_iter(db, readopts) {
                     Ok(iter) => Box::new(iter),
                     Err(e) => error_iterator(e),
@@ -1029,8 +1069,12 @@ impl<K, V> DBMap<K, V> {
     {
         match &self.db.storage {
             Storage::Rocks(db) => {
-                let readopts =
-                    rocks_util::apply_range_bounds(self.opts.readopts(), lower_bound, None);
+                let readopts = rocks_util::iterator_read_options(
+                    &self.opts,
+                    lower_bound,
+                    upper_bound.clone(),
+                    true,
+                );
                 match self.rocks_safe_iter(db, readopts) {
                     Ok(iter) => Box::new(SafeRevIter::new(iter, upper_bound)),
                     Err(e) => error_iterator(e),

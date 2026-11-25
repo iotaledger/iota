@@ -120,10 +120,13 @@
 //! then the rows again, as explained under "Why the store answer for an id
 //! with no row is the epoch-start state" above.
 //!
-//! The coin deny check also needs the type of a kept shared input, whose
-//! object the shared reader does not read. That read takes the latest store
+//! The coin deny check also needs the type of a kept shared input. The shared
+//! reader reads that input's object only to check that it exists and is
+//! shared, and does not return it. The type read takes the latest store
 //! object even when rows exist, because an object's type never changes, and
-//! once the object is gone, the version its deletion replaced.
+//! once the object is gone, the version its deletion replaced. The reader
+//! keeps the type for the rest of the commit, and only the type: the object
+//! it came from is not an answer as of the horizon.
 
 use iota_sdk_types::{ObjectReference, TransactionDigest, Version};
 use iota_types::{
@@ -156,6 +159,7 @@ pub enum OwnedVerdict {
 /// and is shared at the declared initial version is checked, never its
 /// contents.
 #[must_use]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SharedVerdict {
     /// Live and shared at the declared initial version. Holds no object:
     /// execution reads it at the version consensus assigns.
@@ -172,6 +176,7 @@ pub enum SharedVerdict {
 /// The reader's result for one package input. A denied package is reported
 /// by the deny check, so a package input never drops here.
 #[must_use]
+#[derive(Clone, Debug)]
 pub enum PackageVerdict {
     /// Published at or below the horizon, or before this epoch. Holds the
     /// package, for the input loader and the deny check.
@@ -182,7 +187,7 @@ pub enum PackageVerdict {
 /// The reader's result for one dynamic field, as of the horizon. The check
 /// that reads the field decides from it.
 #[must_use]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DynamicFieldAtHorizon {
     /// The field's object at the version live at the horizon.
     Live(Object),

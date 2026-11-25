@@ -4,7 +4,7 @@
 
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
-    num::NonZeroUsize,
+    num::{NonZeroU32, NonZeroUsize},
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
@@ -21,7 +21,7 @@ use iota_types::{
     committee::EpochId,
     crypto::{
         AccountPrivateKey, AuthorityKeyPair, AuthorityPublicKeyBytes, KeypairTraits,
-        NetworkKeyPair, get_key_pair_from_rng,
+        NetworkPrivateKey, get_key_pair_from_rng,
     },
     messages_checkpoint::CheckpointSequenceNumber,
     supported_protocol_versions::{Chain, SupportedProtocolVersions},
@@ -35,7 +35,8 @@ use starfish_config::Parameters as StarfishParameters;
 use crate::{
     Config, certificate_deny_config::CertificateDenyConfig, genesis,
     migration_tx_data::MigrationTxData, object_storage_config::ObjectStoreConfig, p2p::P2pConfig,
-    transaction_deny_config::TransactionDenyConfig, verifier_signing_config::VerifierSigningConfig,
+    setting::Setting, transaction_deny_config::TransactionDenyConfig,
+    verifier_signing_config::VerifierSigningConfig,
 };
 
 /// Default gas price of 1000 Nanos
@@ -93,34 +94,32 @@ pub struct NodeConfig {
     #[serde(default = "default_enable_jsonrpc_api")]
     pub enable_jsonrpc_api: bool,
 
-    /// Renamed to `enable_jsonrpc_api`; see [`NodeConfig::check_renamed_keys`]
-    /// for which configs that still set it are refused. Never set this.
-    /// Removal is tracked in <https://github.com/iotaledger/iota/issues/12885>.
-    #[serde(default, skip_serializing)]
-    pub enable_index_processing: Option<bool>,
-
     /// Flag to enable gRPC load shedding: requests over a service's
     /// concurrency limit are rejected immediately with `RESOURCE_EXHAUSTED`
     /// instead of waiting for a slot.
     #[serde(default)]
     pub grpc_load_shed: Option<bool>,
 
-    /// Maximum number of concurrent in-flight requests per CPU core, applied
-    /// to each service of the validator gRPC server separately (`Validator`,
+    /// Maximum number of in-flight requests per CPU core, applied to each
+    /// service of the validator gRPC server separately (`Validator`,
     /// `ValidatorV2`, `ValidatorPeer`), so a flood of client transaction
     /// submissions cannot crowd validator-peer RPCs out of admission slots.
-    /// The effective per-service limit is this value multiplied by the CPU
-    /// cores of the machine at server startup, so the same config file scales
-    /// with the hardware.
+    /// The per-service limit is this value times the CPU cores of the machine
+    /// at server startup.
     ///
-    /// Most request time is spent awaiting locks, I/O or consensus rather
-    /// than on-CPU, so the default ceiling is generous: it bounds total
-    /// in-flight work so a request flood cannot grow queues and memory
-    /// without limit, it does not throttle normal load. Operators wanting
-    /// hard load-shedding can lower it and set `grpc_load_shed`.
+    /// A request is in flight from admission until its response has been
+    /// sent, so a `SubmitTx` or `GetTxStatus` stream counts while it streams;
+    /// a `GetTxStatus` stream waits up to 30 s for its transactions. A
+    /// response not fully sent 60 s after its headers gives up its slot and
+    /// ends with `DEADLINE_EXCEEDED`, whether or not the client is still
+    /// reading. A request over the limit waits for a slot, or is rejected if
+    /// `grpc_load_shed` is set.
     ///
-    /// A value of zero is rejected at config load: it would not disable the
-    /// limit, it would block every request.
+    /// A lower value must leave room for every `GetTxStatus` stream open at
+    /// peak.
+    ///
+    /// Zero is rejected at config load: it would block every request rather
+    /// than disable the limit.
     #[serde(default = "default_grpc_concurrency_limit_per_core")]
     pub grpc_concurrency_limit_per_core: NonZeroUsize,
 
@@ -253,6 +252,14 @@ pub struct NodeConfig {
     #[serde(default)]
     pub verifier_signing_config: VerifierSigningConfig,
 
+    /// How many threads read the inputs of a consensus commit's transactions
+    /// at once in post-consensus validation, the consensus handler's own
+    /// thread included. One reads them one after another. By default a
+    /// third of the cores, at least one and at most sixteen. Has no effect
+    /// unless the pcool flow is enabled.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub post_consensus_validation_readers: Option<NonZeroUsize>,
+
     /// If a value is set, it determines if writes to DB can stall, which can
     /// halt the whole process. By default, write stall is enabled on
     /// validators but not on fullnodes.
@@ -288,7 +295,117 @@ pub struct NodeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub validator_client_monitor_config:
         Option<crate::validator_client_monitor_config::ValidatorClientMonitorConfig>,
+
+    /// Limits of the validator's gRPC listener on `network_address`.
+    #[serde(default, skip_serializing_if = "ListenerLimitsConfig::is_unset")]
+    pub validator_grpc_listener_limits: ListenerLimitsConfig,
+
+    /// Limits of the JSON-RPC listener on `json_rpc_address`.
+    #[serde(default, skip_serializing_if = "ListenerLimitsConfig::is_unset")]
+    pub json_rpc_listener_limits: ListenerLimitsConfig,
+
+    /// Limits of the gRPC API listener on `grpc_api_config.address`.
+    #[serde(default, skip_serializing_if = "ListenerLimitsConfig::is_unset")]
+    pub grpc_api_listener_limits: ListenerLimitsConfig,
 }
+
+/// Limits a listener places on the clients that connect to it.
+///
+/// Each field names a setting of `iota_http::Config`, which documents what the
+/// listener does with it. A field left out takes the listener's default, and a
+/// field written as `null` turns that limit off.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct ListenerLimitsConfig {
+    /// How long an accepted connection may take to complete its TLS handshake.
+    /// Can be turned off only together with `max-pending-connections`.
+    #[serde(default, skip_serializing_if = "Setting::is_unset")]
+    pub handshake_timeout: Setting<Duration>,
+
+    /// How many accepted connections may be in their TLS handshake at the
+    /// same time.
+    #[serde(default, skip_serializing_if = "Setting::is_unset")]
+    pub max_pending_connections: Setting<NonZeroUsize>,
+
+    /// How many connections the listener may hold at once.
+    #[serde(default, skip_serializing_if = "Setting::is_unset")]
+    pub max_connections: Setting<NonZeroUsize>,
+
+    /// How many connections one client address may hold at once.
+    #[serde(default, skip_serializing_if = "Setting::is_unset")]
+    pub max_connections_per_client_ip: Setting<NonZeroUsize>,
+
+    /// How many leading bits of an IPv6 address identify one client.
+    /// Must be between 32 and 128.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ipv6_prefix_len: Option<u8>,
+
+    /// How long a connection may serve no request before the listener closes
+    /// it.
+    #[serde(default, skip_serializing_if = "Setting::is_unset")]
+    pub max_connection_idle: Setting<Duration>,
+
+    /// How many HTTP/2 streams one connection may have open at once.
+    #[serde(default, skip_serializing_if = "Setting::is_unset")]
+    pub max_concurrent_streams: Setting<NonZeroU32>,
+
+    /// How often the listener pings an HTTP/2 connection to find out whether
+    /// its peer is still there.
+    #[serde(default, skip_serializing_if = "Setting::is_unset")]
+    pub http2_keepalive_interval: Setting<Duration>,
+
+    /// How long an HTTP/1 connection may take to send a complete request
+    /// header block.
+    #[serde(default, skip_serializing_if = "Setting::is_unset")]
+    pub http1_header_read_timeout: Setting<Duration>,
+}
+
+impl ListenerLimitsConfig {
+    /// Whether every field was left out. Meant for `skip_serializing_if`.
+    pub fn is_unset(&self) -> bool {
+        *self == Self::default()
+    }
+
+    /// Rejects the limits the listener would refuse to start with. `key` is
+    /// the section's key in `NodeConfig`, used in the error.
+    fn validate(&self, key: &str) -> Result<()> {
+        for (name, duration) in [
+            ("handshake-timeout", self.handshake_timeout),
+            ("max-connection-idle", self.max_connection_idle),
+            ("http2-keepalive-interval", self.http2_keepalive_interval),
+            ("http1-header-read-timeout", self.http1_header_read_timeout),
+        ] {
+            if duration == Setting::Value(Duration::ZERO) {
+                anyhow::bail!(
+                    "`{key}.{name}` is 0; set it greater than zero, or to `null` to turn it off"
+                );
+            }
+        }
+        // Every listener defaults both settings to on, so an absent
+        // `max-pending-connections` is on too.
+        if self.handshake_timeout == Setting::Disabled
+            && self.max_pending_connections != Setting::Disabled
+        {
+            anyhow::bail!(
+                "`{key}.handshake-timeout` is `null`, but `max-pending-connections` is on, and \
+                 only the handshake timeout frees its slots; set a handshake timeout, or set \
+                 `max-pending-connections` to `null` too"
+            );
+        }
+        if let Some(len) = self
+            .ipv6_prefix_len
+            .filter(|len| !(MIN_IPV6_PREFIX_LEN..=128).contains(len))
+        {
+            anyhow::bail!(
+                "`{key}.ipv6-prefix-len` is {len}; set it between {MIN_IPV6_PREFIX_LEN} and 128"
+            );
+        }
+        Ok(())
+    }
+}
+
+/// The shortest IPv6 prefix length a listener accepts.
+const MIN_IPV6_PREFIX_LEN: u8 = 32;
 
 #[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -744,43 +861,16 @@ pub fn bool_true() -> bool {
 impl Config for NodeConfig {}
 
 impl NodeConfig {
-    /// Fails if the config file still sets a key that has been renamed, unless
-    /// the new key already does what the old value asked for; that case only
-    /// logs a warning. Call this before doing any work.
-    ///
-    /// `enable-index-processing` is accepted on a validator, which never built
-    /// the JSON-RPC index whatever its value, and as `true` while
-    /// `enable-jsonrpc-api` is on. `false` on a full node is refused: it served
-    /// the JSON-RPC API without its index, which `enable-jsonrpc-api` cannot
-    /// express.
-    pub fn check_renamed_keys(&self) -> Result<()> {
-        let Some(enable_index_processing) = self.enable_index_processing else {
-            return Ok(());
-        };
-        if self.is_validator() || (enable_index_processing && self.enable_jsonrpc_api) {
-            tracing::warn!(
-                "`enable-index-processing` was renamed to `enable-jsonrpc-api` and has no \
-                 effect; remove it from the config"
-            );
-            return Ok(());
-        }
-        anyhow::bail!(
-            "`enable-index-processing` was renamed to `enable-jsonrpc-api` (default true), which \
-             turns the JSON-RPC API and its index on or off together; remove the old key and \
-             set `enable-jsonrpc-api` to the value you want."
-        );
-    }
-
     pub fn authority_key_pair(&self) -> &AuthorityKeyPair {
         self.authority_key_pair.authority_keypair()
     }
 
-    pub fn protocol_key_pair(&self) -> NetworkKeyPair {
-        self.protocol_key_pair.network_keypair()
+    pub fn protocol_private_key(&self) -> NetworkPrivateKey {
+        self.protocol_key_pair.network_private_key()
     }
 
-    pub fn network_key_pair(&self) -> NetworkKeyPair {
-        self.network_key_pair.network_keypair()
+    pub fn network_private_key(&self) -> NetworkPrivateKey {
+        self.network_key_pair.network_private_key()
     }
 
     pub fn authority_public_key(&self) -> AuthorityPublicKeyBytes {
@@ -902,6 +992,18 @@ impl NodeConfig {
                  checkpoints are still needed after an epoch boundary; set it to 1 or more"
             );
         }
+        // Checked on every node: a fullnode starts the validator listener
+        // only when it joins the committee, at an epoch change.
+        for (key, limits) in [
+            (
+                "validator-grpc-listener-limits",
+                &self.validator_grpc_listener_limits,
+            ),
+            ("json-rpc-listener-limits", &self.json_rpc_listener_limits),
+            ("grpc-api-listener-limits", &self.grpc_api_listener_limits),
+        ] {
+            limits.validate(key)?;
+        }
         Ok(())
     }
 }
@@ -923,7 +1025,9 @@ pub struct ConsensusConfig {
     pub db_pruner_period_secs: Option<u64>,
 
     /// Hard limit on the number of pending transactions to submit to
-    /// consensus, including those in submission wait. Used as the upper
+    /// consensus, including those in submission wait and, in the
+    /// certificate-less (P-COOL) mode, user transactions the validator is
+    /// still checking. Used as the upper
     /// bound for graduated pre-consensus load shedding
     /// (`graduated_load_shedding_soft_limit_pct`) in the certificate-less
     /// (P-COOL) mode, and as the threshold for the binary
@@ -931,7 +1035,9 @@ pub struct ConsensusConfig {
     /// certificate-less and certificate-based flows.
     ///
     /// Default to 20_000 inflight limit, assuming 20_000 txn tps * 1 sec
-    /// consensus latency.
+    /// consensus latency. In the P-COOL mode, a user transaction counts from
+    /// admission, so that second also includes the checks there and, with
+    /// attestation, the dry run and the wait for it.
     pub max_pending_transactions: Option<usize>,
 
     /// When defined caps the calculated submission position to the
@@ -967,8 +1073,12 @@ impl ConsensusConfig {
     }
 
     /// Returns the hard limit on the number of pending transactions to submit
-    /// to consensus, including those in submission wait. Defaults to 20_000
-    /// inflight limit, assuming 20_000 txn tps * 1 sec consensus latency.
+    /// to consensus, including those in submission wait and, in the
+    /// certificate-less (P-COOL) mode, user transactions the validator is
+    /// still checking. Defaults to 20_000 inflight limit, assuming 20_000 txn
+    /// tps * 1 sec consensus latency. In the P-COOL mode, a user transaction
+    /// counts from admission, so that second also includes the checks there
+    /// and, with attestation, the dry run and the wait for it.
     pub fn max_pending_transactions(&self) -> usize {
         self.max_pending_transactions.unwrap_or(20_000)
     }
@@ -1156,10 +1266,9 @@ pub struct AuthorityStorePruningConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub num_epochs_to_retain_for_checkpoints: Option<u64>,
     /// Number of historic epochs of RPC index history (the transaction and
-    /// event lookups behind `iotax_queryTransactionBlocks`, `iotax_queryEvents`
-    /// and their gRPC equivalents) to keep, on top of the epoch the node is
-    /// in. Index tables for live objects are not affected. Read through
-    /// [`Self::num_epochs_to_retain_for_indexes`].
+    /// event lookups behind `iotax_queryTransactionBlocks` and
+    /// `iotax_queryEvents`) to keep, on top of the epoch the node is in. Index tables for live
+    /// objects are not affected. Read through [`Self::num_epochs_to_retain_for_indexes`].
     ///   0        — keep the epoch the node is in only.
     ///   N        — keep the epoch the node is in plus the N epochs before it.
     ///   u64::MAX — keep every epoch's bucket; index pruning is off.
@@ -1388,6 +1497,30 @@ pub struct AuthorityOverloadConfig {
     /// via the same-named accessor, which clamps the value to <=100.
     #[serde(default = "default_max_transaction_manager_queue_length_soft_limit_pct")]
     pub max_transaction_manager_queue_length_soft_limit_pct: u32,
+
+    /// Maximum number of attestation dry runs the validator runs at once.
+    /// Unset means a quarter of the available cores, at least one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_concurrent_attestations: Option<NonZeroUsize>,
+
+    /// Maximum number of submissions that wait for a free attestation dry run,
+    /// a bound on the memory they hold. A submission that finds every dry run
+    /// taken and this many waiting is rejected with
+    /// [`IotaError::ValidatorOverloadedRetryAfter`]. Unset means 1,024.
+    ///
+    /// [`IotaError::ValidatorOverloadedRetryAfter`]: iota_types::error::IotaError::ValidatorOverloadedRetryAfter
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_queued_attestations: Option<usize>,
+
+    /// Maximum time a submission waits for a free attestation dry run. A
+    /// submission that has waited this long, or whose expected wait is longer
+    /// when it arrives, is rejected with
+    /// [`IotaError::ValidatorOverloadedRetryAfter`], which asks the client to
+    /// retry after the first whole second past this wait. Unset means 500 ms.
+    ///
+    /// [`IotaError::ValidatorOverloadedRetryAfter`]: iota_types::error::IotaError::ValidatorOverloadedRetryAfter
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_attestation_wait: Option<Duration>,
 }
 
 impl AuthorityOverloadConfig {
@@ -1461,6 +1594,9 @@ impl Default for AuthorityOverloadConfig {
                 default_max_transaction_manager_queue_length_soft_limit_pct(),
             max_transaction_manager_per_object_queue_length:
                 default_max_transaction_manager_per_object_queue_length(),
+            max_concurrent_attestations: None,
+            max_queued_attestations: None,
+            max_attestation_wait: None,
         }
     }
 }
@@ -1626,10 +1762,10 @@ impl KeyPairWithPath {
             .as_ref()
     }
 
-    /// The stored keypair as an ed25519 network keypair, for the network
+    /// The stored keypair as an ed25519 network private key, for the network
     /// stacks that consume that type directly. Panics if the stored keypair
     /// is not ed25519.
-    pub fn network_keypair(&self) -> NetworkKeyPair {
+    pub fn network_private_key(&self) -> NetworkPrivateKey {
         self.keypair()
             .as_opt_ed25519()
             .cloned()
@@ -1712,13 +1848,17 @@ pub struct StateDebugDumpConfig {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use std::{
+        num::{NonZeroU32, NonZeroUsize},
+        path::PathBuf,
+        time::Duration,
+    };
 
     use fastcrypto::traits::KeyPair;
     use iota_keys::keypair_file::{write_authority_keypair_to_file, write_keypair_to_file};
     use iota_sdk_crypto::simple::SimpleKeypair;
     use iota_types::{
-        crypto::{AuthorityKeyPair, NetworkKeyPair, get_key_pair_from_rng},
+        crypto::{AuthorityKeyPair, NetworkPrivateKey, get_key_pair_from_rng},
         traffic_control::PolicyConfig,
     };
     use rand::{SeedableRng, rngs::StdRng};
@@ -1727,10 +1867,12 @@ mod tests {
 
     use super::{
         AuthorityStorePruningConfig, DEFAULT_NUM_EPOCHS_TO_RETAIN_FOR_CHECKPOINTS, Genesis,
-        GrpcApiConfig, ObjectStoreConfig, default_grpc_api_config,
+        GrpcApiConfig, ListenerLimitsConfig, ObjectStoreConfig, default_grpc_api_config,
         default_periodic_compaction_threshold_days, default_traffic_controller_policy_config,
     };
-    use crate::{ConsensusConfig, NodeConfig, object_storage_config::ObjectStoreType};
+    use crate::{
+        ConsensusConfig, NodeConfig, object_storage_config::ObjectStoreType, setting::Setting,
+    };
 
     const TEMPLATE: &str = include_str!("../data/fullnode-template.yaml");
 
@@ -2040,6 +2182,95 @@ mod tests {
         config.validate().unwrap();
     }
 
+    /// The keys of the listeners' limits sections in a node config.
+    const LISTENER_LIMITS_KEYS: [&str; 3] = [
+        "validator-grpc-listener-limits",
+        "json-rpc-listener-limits",
+        "grpc-api-listener-limits",
+    ];
+
+    /// The template config with `limits`, a YAML mapping, under `key`.
+    fn config_with_listener_limits(key: &str, limits: &str) -> NodeConfig {
+        serde_yaml::from_str(&format!("{TEMPLATE}\n{key}: {limits}\n")).unwrap()
+    }
+
+    /// The pending-connection limit is on unless turned off, and only the
+    /// handshake timeout frees its slots, so the timeout can be turned off
+    /// only together with it. The template is a fullnode's, so this also
+    /// covers the validator listener it starts only once it joins the
+    /// committee.
+    #[test]
+    fn validate_rejects_a_handshake_timeout_turned_off_alone() {
+        for key in LISTENER_LIMITS_KEYS {
+            for limits in [
+                "{handshake-timeout: null}",
+                "{handshake-timeout: null, max-pending-connections: 1}",
+            ] {
+                let err = config_with_listener_limits(key, limits)
+                    .validate()
+                    .unwrap_err()
+                    .to_string();
+                assert!(
+                    err.contains(&format!("`{key}.handshake-timeout` is `null`")),
+                    "{limits}: {err}"
+                );
+            }
+            config_with_listener_limits(
+                key,
+                "{handshake-timeout: null, max-pending-connections: null}",
+            )
+            .validate()
+            .unwrap();
+        }
+    }
+
+    /// A zero deadline is reached at once and a zero interval never pauses,
+    /// so the listener refuses either.
+    #[test]
+    fn validate_rejects_a_zero_listener_duration() {
+        for key in LISTENER_LIMITS_KEYS {
+            for name in [
+                "handshake-timeout",
+                "max-connection-idle",
+                "http2-keepalive-interval",
+                "http1-header-read-timeout",
+            ] {
+                let err =
+                    config_with_listener_limits(key, &format!("{{{name}: {{secs: 0, nanos: 0}}}}"))
+                        .validate()
+                        .unwrap_err()
+                        .to_string();
+                assert!(err.contains(&format!("`{key}.{name}` is 0")), "{err}");
+
+                config_with_listener_limits(key, &format!("{{{name}: {{secs: 1, nanos: 0}}}}"))
+                    .validate()
+                    .unwrap();
+            }
+        }
+    }
+
+    /// The listener accepts IPv6 prefix lengths from 32 to 128 bits.
+    #[test]
+    fn validate_rejects_an_ipv6_prefix_len_out_of_range() {
+        for key in LISTENER_LIMITS_KEYS {
+            for len in [0, 31, 129] {
+                let err = config_with_listener_limits(key, &format!("{{ipv6-prefix-len: {len}}}"))
+                    .validate()
+                    .unwrap_err()
+                    .to_string();
+                assert!(
+                    err.contains(&format!("`{key}.ipv6-prefix-len` is {len}")),
+                    "{err}"
+                );
+            }
+            for len in [32, 128] {
+                config_with_listener_limits(key, &format!("{{ipv6-prefix-len: {len}}}"))
+                    .validate()
+                    .unwrap();
+            }
+        }
+    }
+
     #[test]
     fn enable_soft_locking_defaults_to_enabled() {
         // The template omits `enable-soft-locking`, so this exercises the serde
@@ -2050,68 +2281,24 @@ mod tests {
         assert!(config.enable_soft_locking);
     }
 
-    /// The old key is refused where `enable-jsonrpc-api` cannot be assumed to
-    /// do what its value asked for, and accepted elsewhere, so that the configs
-    /// earlier releases wrote out keep starting.
-    #[test]
-    fn renamed_enable_index_processing_key() {
-        const TEMPLATE: &str = include_str!("../data/fullnode-template.yaml");
-        let with_old_key = |value: bool| {
-            let mut template: serde_yaml::Value = serde_yaml::from_str(TEMPLATE).unwrap();
-            template
-                .as_mapping_mut()
-                .unwrap()
-                .insert("enable-index-processing".into(), value.into());
-            serde_yaml::from_value::<NodeConfig>(template).unwrap()
-        };
-
-        // `false` on a full node served the JSON-RPC API without its index.
-        let mut config = with_old_key(false);
-        assert_eq!(config.enable_index_processing, Some(false));
-        assert!(config.enable_jsonrpc_api);
-        let err = config.check_renamed_keys().unwrap_err().to_string();
-        assert!(err.contains("enable-index-processing"), "{err}");
-        assert!(err.contains("enable-jsonrpc-api"), "{err}");
-
-        // A validator never built the index, whatever the value.
-        config.consensus_config = Some(consensus_config());
-        assert!(config.check_renamed_keys().is_ok());
-
-        // `true` asks for what `enable-jsonrpc-api` does by default.
-        let mut config = with_old_key(true);
-        assert!(config.check_renamed_keys().is_ok());
-        config.enable_jsonrpc_api = false;
-        assert!(config.check_renamed_keys().is_err());
-
-        // Never serialized, so rewriting the config cannot bring the key back.
-        let serialized = serde_yaml::to_string(&config).unwrap();
-        assert!(
-            !serialized.contains("enable-index-processing"),
-            "{serialized}"
-        );
-
-        let config: NodeConfig = serde_yaml::from_str(TEMPLATE).unwrap();
-        assert!(config.check_renamed_keys().is_ok());
-    }
-
     #[test]
     fn load_key_pairs_to_node_config() {
         let authority_key_pair: AuthorityKeyPair =
             get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1;
-        let protocol_key_pair: NetworkKeyPair =
+        let protocol_private_key: NetworkPrivateKey =
             get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1;
-        let network_key_pair: NetworkKeyPair =
+        let network_private_key: NetworkPrivateKey =
             get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1;
 
         write_authority_keypair_to_file(&authority_key_pair, PathBuf::from("authority.key"))
             .unwrap();
         write_keypair_to_file(
-            &SimpleKeypair::from(protocol_key_pair.clone()),
+            &SimpleKeypair::from(protocol_private_key.clone()),
             PathBuf::from("protocol.key"),
         )
         .unwrap();
         write_keypair_to_file(
-            &SimpleKeypair::from(network_key_pair.clone()),
+            &SimpleKeypair::from(network_private_key.clone()),
             PathBuf::from("network.key"),
         )
         .unwrap();
@@ -2123,12 +2310,12 @@ mod tests {
             authority_key_pair.public()
         );
         assert_eq!(
-            template.network_key_pair().public_key(),
-            network_key_pair.public_key()
+            template.network_private_key().public_key(),
+            network_private_key.public_key()
         );
         assert_eq!(
-            template.protocol_key_pair().public_key(),
-            protocol_key_pair.public_key()
+            template.protocol_private_key().public_key(),
+            protocol_private_key.public_key()
         );
     }
 
@@ -2232,6 +2419,142 @@ mod tests {
             written_at(&written, COMPACTION_THRESHOLD),
             Some(Value::Null)
         );
+    }
+
+    fn limits(yaml: &str) -> ListenerLimitsConfig {
+        serde_yaml::from_str(yaml).unwrap()
+    }
+
+    #[test]
+    fn a_node_config_without_listener_limits_leaves_every_limit_unset() {
+        let config = template_config();
+        assert_eq!(
+            config.validator_grpc_listener_limits,
+            ListenerLimitsConfig::default()
+        );
+        assert_eq!(
+            config.json_rpc_listener_limits,
+            ListenerLimitsConfig::default()
+        );
+        assert_eq!(
+            config.grpc_api_listener_limits,
+            ListenerLimitsConfig::default()
+        );
+    }
+
+    #[test]
+    fn a_listener_limit_left_out_is_unset_and_null_disables_it() {
+        assert_eq!(
+            limits("max-connections: 30\nmax-connection-idle: null"),
+            ListenerLimitsConfig {
+                max_connections: Setting::Value(NonZeroUsize::new(30).unwrap()),
+                max_connection_idle: Setting::Disabled,
+                ..Default::default()
+            }
+        );
+    }
+
+    /// Every value is distinct, so a key read into the wrong field fails here.
+    #[test]
+    fn every_listener_limit_is_read_from_its_own_key() {
+        let read = limits(
+            "
+            handshake-timeout: {secs: 1, nanos: 0}
+            max-pending-connections: 2
+            max-connections: 3
+            max-connections-per-client-ip: 4
+            ipv6-prefix-len: 48
+            max-connection-idle: {secs: 5, nanos: 0}
+            max-concurrent-streams: 6
+            http2-keepalive-interval: {secs: 7, nanos: 0}
+            http1-header-read-timeout: {secs: 8, nanos: 0}
+            ",
+        );
+        assert_eq!(
+            read,
+            ListenerLimitsConfig {
+                handshake_timeout: Setting::Value(Duration::from_secs(1)),
+                max_pending_connections: Setting::Value(NonZeroUsize::new(2).unwrap()),
+                max_connections: Setting::Value(NonZeroUsize::new(3).unwrap()),
+                max_connections_per_client_ip: Setting::Value(NonZeroUsize::new(4).unwrap()),
+                ipv6_prefix_len: Some(48),
+                max_connection_idle: Setting::Value(Duration::from_secs(5)),
+                max_concurrent_streams: Setting::Value(NonZeroU32::new(6).unwrap()),
+                http2_keepalive_interval: Setting::Value(Duration::from_secs(7)),
+                http1_header_read_timeout: Setting::Value(Duration::from_secs(8)),
+            }
+        );
+    }
+
+    #[test]
+    fn every_listener_limit_can_be_disabled() {
+        let read = limits(
+            "
+            handshake-timeout: null
+            max-pending-connections: null
+            max-connections: null
+            max-connections-per-client-ip: null
+            ipv6-prefix-len: null
+            max-connection-idle: null
+            max-concurrent-streams: null
+            http2-keepalive-interval: null
+            http1-header-read-timeout: null
+            ",
+        );
+        assert_eq!(
+            read,
+            ListenerLimitsConfig {
+                handshake_timeout: Setting::Disabled,
+                max_pending_connections: Setting::Disabled,
+                max_connections: Setting::Disabled,
+                max_connections_per_client_ip: Setting::Disabled,
+                ipv6_prefix_len: None,
+                max_connection_idle: Setting::Disabled,
+                max_concurrent_streams: Setting::Disabled,
+                http2_keepalive_interval: Setting::Disabled,
+                http1_header_read_timeout: Setting::Disabled,
+            }
+        );
+    }
+
+    #[test]
+    fn listener_limits_are_written_only_when_set() {
+        let mut config = template_config();
+        let written = serde_yaml::to_value(&config).unwrap();
+        for key in [
+            "validator-grpc-listener-limits",
+            "json-rpc-listener-limits",
+            "grpc-api-listener-limits",
+        ] {
+            assert_eq!(written_at(&written, &[key]), None, "{key} was written");
+        }
+
+        config.json_rpc_listener_limits.max_connections = Setting::Value(NonZeroUsize::MIN);
+        config.grpc_api_listener_limits.max_connection_idle = Setting::Disabled;
+        let read_back = round_trip(&config);
+        assert_eq!(
+            read_back.json_rpc_listener_limits,
+            config.json_rpc_listener_limits
+        );
+        assert_eq!(
+            read_back.grpc_api_listener_limits,
+            config.grpc_api_listener_limits
+        );
+        assert!(read_back.validator_grpc_listener_limits.is_unset());
+    }
+
+    /// With a limit of zero attestation dry runs at once, a validator could
+    /// attest no transaction, so a config with that limit fails to load.
+    #[test]
+    fn config_with_zero_concurrent_attestations_fails_to_load() {
+        let zero = serde_yaml::from_str::<super::AuthorityOverloadConfig>(
+            "max-concurrent-attestations: 0",
+        );
+        assert!(zero.is_err(), "{zero:?}");
+
+        let one: super::AuthorityOverloadConfig =
+            serde_yaml::from_str("max-concurrent-attestations: 1").unwrap();
+        assert_eq!(one.max_concurrent_attestations, NonZeroUsize::new(1));
     }
 }
 

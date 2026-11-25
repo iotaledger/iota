@@ -91,9 +91,8 @@ pub type AggregateAuthoritySignatureAsBytes = BLS12381AggregateSignatureAsBytes;
 
 pub type AccountPrivateKey = Ed25519PrivateKey;
 
-pub type NetworkKeyPair = Ed25519PrivateKey;
-pub type NetworkPublicKey = iota_sdk_types::Ed25519PublicKey;
 pub type NetworkPrivateKey = Ed25519PrivateKey;
+pub type NetworkPublicKey = iota_sdk_types::Ed25519PublicKey;
 
 pub type DefaultHash = Blake2b256;
 
@@ -1196,9 +1195,10 @@ impl FromStr for PublicKey {
 // Types for randomness generation
 //
 #[cfg(not(target_arch = "wasm32"))]
-pub type RandomnessSignature = fastcrypto_tbls::types::Signature;
+pub type RandomnessSignature = fastcrypto_threshold::types::Signature;
 #[cfg(not(target_arch = "wasm32"))]
-pub type RandomnessPartialSignature = fastcrypto_tbls::tbls::PartialSignature<RandomnessSignature>;
+pub type RandomnessPartialSignature =
+    fastcrypto_threshold::tbls::PartialSignature<RandomnessSignature>;
 #[cfg(not(target_arch = "wasm32"))]
 pub type RandomnessPrivateKey =
-    fastcrypto_tbls::ecies_v1::PrivateKey<fastcrypto::groups::bls12381::G2Element>;
+    fastcrypto_threshold::ecies_v1::PrivateKey<fastcrypto::groups::bls12381::G2Element>;

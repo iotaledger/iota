@@ -96,7 +96,7 @@ fn input_object_version_validity_check(version: Version) -> UserInputResult {
 
 /// Rejects an identifier that move-core rejects. The SDK `Identifier` also
 /// accepts `<SELF>`, which no module or type can be named.
-fn move_core_identifier_validity_check(identifier: &Identifier) -> UserInputResult {
+pub fn move_core_identifier_validity_check(identifier: &Identifier) -> UserInputResult {
     fp_ensure!(
         move_core_types::identifier::Identifier::is_valid(identifier.as_str()),
         UserInputError::InvalidIdentifier {
@@ -108,7 +108,7 @@ fn move_core_identifier_validity_check(identifier: &Identifier) -> UserInputResu
 
 /// Rejects an identifier that move-core rejects in the module or name of any
 /// struct type in `type_tags`, nested type parameters included.
-fn type_tags_identifiers_validity_check<'a>(
+pub fn type_tags_identifiers_validity_check<'a>(
     type_tags: impl IntoIterator<Item = &'a TypeTag>,
 ) -> UserInputResult {
     let mut stack: Vec<&TypeTag> = type_tags.into_iter().collect();
@@ -385,13 +385,21 @@ impl CallArgExt for CallArg {
                 initial_shared_version: *initial_shared_version,
                 mutable: *mutable,
             }),
-            CallArg::Pure(_) | CallArg::Receiving(_) => None,
+            CallArg::Pure(_) | CallArg::Receiving(_) | CallArg::TransactionDependency(_) => None,
             _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         }
     }
 
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
         match self {
+            CallArg::TransactionDependency(_) => {
+                fp_ensure!(
+                    config.enable_transaction_dependencies(),
+                    UserInputError::Unsupported(
+                        "transaction dependency inputs are not enabled".to_string()
+                    )
+                );
+            }
             CallArg::Pure(bytes) => {
                 fp_ensure!(
                     bytes.len() < config.max_pure_argument_size() as usize,
@@ -702,6 +710,13 @@ pub trait ProgrammableTransactionExt: Sized + programmable_transaction_ext::Seal
     fn receiving_objects(&self) -> Vec<ObjectReference>;
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
     fn validate_argument_indices(&self) -> UserInputResult;
+    /// The index and digest of the first transaction dependency input, if any.
+    fn dependency_input(&self) -> Option<(usize, TransactionDigest)>;
+    /// The digest named by the transaction dependency input, if any.
+    fn transaction_dependency(&self) -> Option<TransactionDigest>;
+    /// Checks that at most one input is a transaction dependency and that no
+    /// command uses it.
+    fn validate_transaction_dependency_inputs(&self) -> UserInputResult;
     fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectReference>;
     fn move_calls(&self) -> Vec<(&ObjectId, &str, &str)>;
     fn non_system_packages_to_be_published(&self) -> impl Iterator<Item = &Vec<Vec<u8>>>;
@@ -767,6 +782,7 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
         for input in inputs {
             input.validity_check(config)?
         }
+        self.validate_transaction_dependency_inputs()?;
         if let Some(max_publish_commands) = config.max_publish_or_upgrade_per_ptb_as_option() {
             let publish_count = commands
                 .iter()
@@ -809,6 +825,52 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
         Ok(())
     }
 
+    fn dependency_input(&self) -> Option<(usize, TransactionDigest)> {
+        self.inputs
+            .iter()
+            .enumerate()
+            .find_map(|(index, input)| match input {
+                CallArg::TransactionDependency(digest) => Some((index, *digest)),
+                _ => None,
+            })
+    }
+
+    fn transaction_dependency(&self) -> Option<TransactionDigest> {
+        self.dependency_input().map(|(_, digest)| digest)
+    }
+
+    fn validate_transaction_dependency_inputs(&self) -> UserInputResult {
+        let dep_index = match self.dependency_input() {
+            Some((index, _)) => index,
+            None => return Ok(()),
+        };
+        // At most one dependency input.
+        fp_ensure!(
+            self.inputs[dep_index + 1..]
+                .iter()
+                .all(|input| !matches!(input, CallArg::TransactionDependency(_))),
+            UserInputError::SizeLimitExceeded {
+                limit: "maximum transaction dependency inputs in a programmable transaction"
+                    .to_string(),
+                value: "1".to_string(),
+            }
+        );
+        // No command may use it.
+        for (command_idx, command) in self.commands.iter().enumerate() {
+            for (argument_idx, argument) in command_arguments(command).enumerate() {
+                if let Argument::Input(index) = argument {
+                    if *index as usize == dep_index {
+                        return Err(UserInputError::TransactionDependencyInputUsed {
+                            command_idx,
+                            argument_idx,
+                        });
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn validate_argument_indices(&self) -> UserInputResult {
         for (command_idx, command) in self.commands.iter().enumerate() {
             for (argument_idx, argument) in command_arguments(command).enumerate() {
@@ -840,7 +902,10 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
     fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectReference> {
         self.inputs.iter().filter_map(|arg| match arg {
             CallArg::Shared(shared) => Some(*shared),
-            CallArg::Pure(_) | CallArg::Receiving(_) | CallArg::ImmutableOrOwned(_) => None,
+            CallArg::Pure(_)
+            | CallArg::Receiving(_)
+            | CallArg::ImmutableOrOwned(_)
+            | CallArg::TransactionDependency(_) => None,
             _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         })
     }
@@ -1182,6 +1247,11 @@ pub trait TransactionAPI {
 
     /// Returns the transaction expiration.
     fn expiration(&self) -> &TransactionExpiration;
+
+    /// Returns the digest of the transaction this transaction depends on, if
+    /// it carries a transaction dependency input: it executes after that
+    /// transaction, and fails if that transaction failed.
+    fn transaction_dependency(&self) -> Option<TransactionDigest>;
 
     /// Returns a list of the transaction data shared input objects.
     ///
@@ -1594,7 +1664,20 @@ impl TransactionAPI for Transaction {
     #[instrument(level = "trace", skip_all)]
     fn validity_check_no_gas_check(&self, config: &ProtocolConfig) -> UserInputResult {
         self.kind().validity_check(config)?;
+        if self.transaction_dependency().is_some() {
+            fp_ensure!(
+                matches!(self.expiration(), TransactionExpiration::Epoch(_)),
+                UserInputError::TransactionDependencyRequiresExpiration
+            );
+        }
         self.check_sponsorship()
+    }
+
+    fn transaction_dependency(&self) -> Option<TransactionDigest> {
+        match self.kind() {
+            TransactionKind::Programmable(ptb) => ptb.transaction_dependency(),
+            _ => None,
+        }
     }
 
     fn check_gas_payment_size(&self, config: &ProtocolConfig) -> UserInputResult {
@@ -2148,10 +2231,12 @@ pub trait SenderSignedTransactionAPI {
     /// their type arguments if `include_type_arg_packages` is set, in the
     /// order the transaction and then each authenticator name them.
     ///
-    /// Although some shared objects(with a different mutability flag, for
-    /// example) can be duplicated in the transaction and authenticators, we
-    /// load them independently to make it possible to analyze the inputs in
-    /// the transaction checkers.
+    /// Although some shared objects (with a different mutability flag, for
+    /// example) can be duplicated in the transaction and authenticators, each
+    /// of their distinct kinds is returned, to make it possible to analyze the
+    /// inputs in the transaction checkers. A caller that reads the inputs must
+    /// read such an object once for all its kinds: the checkers assert that
+    /// all kinds of one object got the same read result.
     fn collect_all_input_object_kind_for_reading(
         &self,
         include_type_arg_packages: bool,
@@ -2286,6 +2371,18 @@ impl SenderSignedTransactionAPI for SenderSignedTransaction {
         tx.validity_check(context.config)
             .map_err(Into::<IotaError>::into)?;
 
+        // A dependency can only be satisfied within one epoch, so a dependent
+        // has to expire with the current one. An earlier epoch was refused
+        // above as expired.
+        if tx.transaction_dependency().is_some() {
+            fp_ensure!(
+                matches!(tx.expiration(), TransactionExpiration::Epoch(epoch) if *epoch == context.epoch),
+                IotaError::UserInput {
+                    error: UserInputError::TransactionDependencyRequiresExpiration
+                }
+            );
+        }
+
         move_authenticators_validity_check(self, context.config)?;
 
         Ok(tx_size)
@@ -2333,6 +2430,9 @@ impl SenderSignedTransactionAPI for SenderSignedTransaction {
             .into();
         if let Some((gas_object_id, version)) = input_objects.gas_object_cancellation() {
             tx_input_objects.set_gas_object_cancellation(gas_object_id, version);
+        }
+        if let Some(dependency) = input_objects.transaction_dependency() {
+            tx_input_objects.set_transaction_dependency(dependency);
         }
 
         let per_authenticator_inputs =
@@ -3279,16 +3379,30 @@ pub struct InputObjects {
     /// the gas object itself is still read normally, because the cancelled
     /// execution must charge gas to it.
     gas_object_cancellation: Option<(ObjectId, Version)>,
+    /// The transaction named by the transaction dependency input, with
+    /// whether it executed successfully. Set when the input objects are read
+    /// for execution; absent when the transaction has no dependency or is
+    /// cancelled at sequencing, which never waits for the dependency.
+    transaction_dependency: Option<TransactionDependencyReadResult>,
+}
+
+/// The outcome of the transaction named by a transaction dependency input, as
+/// read when the dependent is executed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TransactionDependencyReadResult {
+    pub digest: TransactionDigest,
+    pub succeeded: bool,
 }
 
 impl std::fmt::Debug for InputObjects {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match &self.gas_object_cancellation {
-            None => f.debug_list().entries(self.objects.iter()).finish(),
-            Some(gas_object_cancellation) => f
+        match (&self.gas_object_cancellation, &self.transaction_dependency) {
+            (None, None) => f.debug_list().entries(self.objects.iter()).finish(),
+            (gas_object_cancellation, transaction_dependency) => f
                 .debug_struct("InputObjects")
                 .field("objects", &self.objects)
                 .field("gas_object_cancellation", gas_object_cancellation)
+                .field("transaction_dependency", transaction_dependency)
                 .finish(),
         }
     }
@@ -3339,6 +3453,7 @@ impl InputObjects {
         Self {
             objects,
             gas_object_cancellation: None,
+            transaction_dependency: None,
         }
     }
 
@@ -3440,7 +3555,28 @@ impl InputObjects {
         self.objects
             .iter()
             .filter_map(|obj| obj.get_previous_transaction())
+            .chain(
+                self.transaction_dependency
+                    .map(|dependency| dependency.digest),
+            )
             .collect()
+    }
+
+    pub fn set_transaction_dependency(&mut self, dependency: TransactionDependencyReadResult) {
+        self.transaction_dependency = Some(dependency);
+    }
+
+    pub fn transaction_dependency(&self) -> Option<TransactionDependencyReadResult> {
+        self.transaction_dependency
+    }
+
+    /// The transaction named by the dependency input when it did not execute
+    /// successfully. This transaction then fails with
+    /// `TransactionDependencyFailed` without running its commands.
+    pub fn failed_transaction_dependency(&self) -> Option<TransactionDigest> {
+        self.transaction_dependency
+            .filter(|dependency| !dependency.succeeded)
+            .map(|dependency| dependency.digest)
     }
 
     pub fn mutable_inputs(&self) -> BTreeMap<ObjectId, (VersionDigest, Owner)> {

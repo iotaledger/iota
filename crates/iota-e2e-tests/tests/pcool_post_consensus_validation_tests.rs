@@ -847,12 +847,13 @@ async fn test_crash_after_post_consensus_decisions_recovers() {
     clear_fail_point("crash-after-post-consensus-decisions");
 }
 
-/// A faulty validator can sequence a transaction admission would refuse. One
-/// whose receiving argument names an object nobody created must not be kept:
-/// the scheduler would wait for that object forever, its commit would never
-/// complete, and every handler would park at the horizon wait. Validation
-/// reports the object missing instead, nobody executes the transaction, and
-/// checkpoints keep coming on every validator.
+/// A faulty validator can sequence a transaction admission would refuse,
+/// attaching an attestation without running the dry run. One whose receiving
+/// argument names an object nobody created must not be kept: the scheduler
+/// would wait for that object forever, its commit would never complete, and
+/// every handler would park at the horizon wait. Validation reports the object
+/// missing instead and drops the transaction on every validator, nobody
+/// executes it, and checkpoints keep coming on every validator.
 #[sim_test]
 async fn test_receiving_an_object_nobody_created_does_not_halt_the_cluster() {
     use std::{net::SocketAddr, path::PathBuf};
@@ -920,6 +921,28 @@ async fn test_receiving_an_object_nobody_created_does_not_halt_the_cluster() {
 
     // One validator skips its input checks and submits it, as a faulty one can.
     let faulty = test_cluster.get_validator_pubkeys()[0];
+    assert!(
+        node_handle(faulty).with(|node| {
+            node.state()
+                .epoch_store_for_testing()
+                .protocol_config()
+                .enable_validator_attestation()
+        }),
+        "the test covers the flow with validator attestation on"
+    );
+    let dropped = |name| {
+        node_handle(name).with(|node| {
+            node.state()
+                .metrics
+                .consensus_handler_validation_dropped_transactions
+                .get()
+        })
+    };
+    let dropped_before: Vec<_> = test_cluster
+        .get_validator_pubkeys()
+        .into_iter()
+        .map(|validator| (validator, dropped(validator)))
+        .collect();
     let faulty_sim_id = node_handle(faulty).with(|_| iota_simulator::current_simnode_id());
     register_fail_point_if("admit-without-input-checks", move || {
         iota_simulator::current_simnode_id() == faulty_sim_id
@@ -969,6 +992,15 @@ async fn test_receiving_an_object_nobody_created_does_not_halt_the_cluster() {
         .unwrap_or_else(|_| {
             panic!("validator {validator:?} must keep executing checkpoints, stuck below {target}")
         });
+    }
+
+    // Post-consensus validation dropped it on every validator, so it was
+    // sequenced.
+    for (validator, before) in dropped_before {
+        assert!(
+            dropped(validator) > before,
+            "validator {validator:?} must drop the transaction in post-consensus validation"
+        );
     }
 
     // Nobody executed the transaction.

@@ -35,7 +35,7 @@ use crate::{
     loader::{Function, Loader, Resolver},
     native_extensions::NativeContextExtensions,
     native_functions::NativeContext,
-    open_frame, open_initial_frame, open_instruction, trace,
+    open_frame, open_initial_frame, open_instruction,
     tracing2::tracer::VMTracer,
 };
 
@@ -1446,11 +1446,6 @@ impl Frame {
         let code = self.function.code();
         loop {
             for instruction in &code[self.pc as usize..] {
-                trace!(
-                    &self.function,
-                    &self.locals, self.pc, instruction, resolver, interpreter
-                );
-
                 fail_point!("move_vm::interpreter_loop", |_| {
                     Err(
                         PartialVMError::new(StatusCode::VERIFIER_INVARIANT_VIOLATION).with_message(

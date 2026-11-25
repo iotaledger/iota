@@ -47,32 +47,53 @@ use crate::{
     transaction::{SenderSignedTransactionAPI, TransactionAPI},
 };
 
-/// A potential input to a transaction.
+/// A potential input to a transaction: something the execution scheduler
+/// waits for before the transaction can execute.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum InputKey {
-    VersionedObject { id: ObjectId, version: Version },
-    Package { id: ObjectId },
+    VersionedObject {
+        id: ObjectId,
+        version: Version,
+    },
+    Package {
+        id: ObjectId,
+    },
+    /// The transaction named by a transaction dependency input has executed,
+    /// so its effects can be read.
+    ExecutedTransaction {
+        digest: TransactionDigest,
+    },
 }
 
 impl InputKey {
-    pub fn id(&self) -> ObjectId {
+    /// The object this key waits for, or `None` for an executed transaction.
+    pub fn object_id(&self) -> Option<ObjectId> {
         match self {
-            InputKey::VersionedObject { id, .. } => *id,
-            InputKey::Package { id } => *id,
+            InputKey::VersionedObject { id, .. } => Some(*id),
+            InputKey::Package { id } => Some(*id),
+            InputKey::ExecutedTransaction { .. } => None,
+        }
+    }
+
+    /// The transaction this key waits for, or `None` for an object.
+    pub fn transaction_digest(&self) -> Option<TransactionDigest> {
+        match self {
+            InputKey::ExecutedTransaction { digest } => Some(*digest),
+            InputKey::VersionedObject { .. } | InputKey::Package { .. } => None,
         }
     }
 
     pub fn version(&self) -> Option<Version> {
         match self {
             InputKey::VersionedObject { version, .. } => Some(*version),
-            InputKey::Package { .. } => None,
+            InputKey::Package { .. } | InputKey::ExecutedTransaction { .. } => None,
         }
     }
 
     pub fn is_cancelled(&self) -> bool {
         match self {
             InputKey::VersionedObject { version, .. } => version.is_canceled(),
-            InputKey::Package { .. } => false,
+            InputKey::Package { .. } | InputKey::ExecutedTransaction { .. } => false,
         }
     }
 }

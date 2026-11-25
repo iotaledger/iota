@@ -15,14 +15,16 @@ use async_graphql::{
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl};
 use fastcrypto::encoding::{Base58, Encoding};
 use iota_indexer::{
-    models::checkpoints::StoredCheckpoint, pruning::CommitterTables, schema::checkpoints,
+    models::checkpoints::StoredCheckpoint,
+    pruning::{CommitterTables, oldest_available_checkpoint::OldestAvailableCheckpoint},
+    schema::checkpoints,
 };
 use iota_sdk_types::{CheckpointDigest, CheckpointSummary};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     config::DEFAULT_PAGE_SIZE,
-    connection::ScanConnection,
+    connection::OldestAvailableCheckpointField,
     consistency::Checkpointed,
     data::{Conn, DataLoader, Db, DbConnection, QueryExecutor},
     error::Error,
@@ -33,10 +35,16 @@ use crate::{
         digest::Digest,
         epoch::Epoch,
         gas::GasCostSummary,
-        transaction_block::{self, TransactionBlock, TransactionBlockFilter},
+        transaction_block::{
+            self, TransactionBlock, TransactionBlockConnection, TransactionBlockFilter,
+        },
         uint53::UInt53,
     },
 };
+
+/// A page of checkpoints, reporting `oldestAvailableCheckpoint`.
+pub(crate) type CheckpointConnection =
+    Connection<String, Checkpoint, OldestAvailableCheckpointField>;
 
 /// Filter either by the digest, or the sequence number, or neither, to get the
 /// latest checkpoint.
@@ -231,7 +239,7 @@ impl Checkpoint {
             deprecation = "`scanLimit` will be removed with v1.38, along with the support for combining complex filters."
         )]
         scan_limit: Option<u64>,
-    ) -> Result<ScanConnection<String, TransactionBlock>> {
+    ) -> Result<TransactionBlockConnection> {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
 
         let Some(filter) = filter
@@ -241,7 +249,7 @@ impl Checkpoint {
                 ..Default::default()
             })
         else {
-            return Ok(ScanConnection::new(false, false));
+            return Ok(TransactionBlockConnection::new(false, false));
         };
 
         TransactionBlock::paginate(ctx, page, filter, self.checkpoint_viewed_at, scan_limit)
@@ -260,6 +268,12 @@ impl CheckpointId {
 }
 
 impl Checkpoint {
+    /// The oldest available checkpoint for a checkpoint queried by sequence number or
+    /// digest, or a page of checkpoints.
+    pub(crate) fn oldest_available_checkpoint(db: &Db) -> OldestAvailableCheckpoint {
+        OldestAvailableCheckpoint::for_tables(&db.inner, &[CommitterTables::Checkpoints], true)
+    }
+
     pub(crate) fn sequence_number_impl(&self) -> u64 {
         self.stored.sequence_number as u64
     }
@@ -276,6 +290,10 @@ impl Checkpoint {
     /// Look up a `Checkpoint` in the database, filtered by either sequence
     /// number or digest. If both filters are supplied they will both be
     /// applied. If none are supplied, the latest checkpoint is fetched.
+    ///
+    /// Fails with `DATA_PRUNED` when the checkpoint is not found and may have
+    /// been pruned. Returns `None` when the requested checkpoint certainly
+    /// does not exist.
     pub(crate) async fn query(
         ctx: &Context<'_>,
         filter: CheckpointId,
@@ -287,12 +305,27 @@ impl Checkpoint {
                 digest,
             } => {
                 let DataLoader(dl) = ctx.data_unchecked();
-                dl.load_one(SeqNumKey {
-                    sequence_number: sequence_number.into(),
-                    digest,
-                    checkpoint_viewed_at,
+                let sequence_number = u64::from(sequence_number);
+                if let Some(checkpoint) = dl
+                    .load_one(SeqNumKey {
+                        sequence_number,
+                        digest,
+                        checkpoint_viewed_at,
+                    })
+                    .await?
+                {
+                    return Ok(Some(checkpoint));
+                }
+
+                let oldest_available_checkpoint =
+                    Self::oldest_available_checkpoint(ctx.data_unchecked());
+                if sequence_number >= u64::from(oldest_available_checkpoint) {
+                    return Ok(None);
+                }
+                Err(Error::DataPruned {
+                    message: format!("checkpoint {sequence_number} has been pruned"),
+                    oldest_available_checkpoint,
                 })
-                .await
             }
 
             CheckpointId {
@@ -300,11 +333,25 @@ impl Checkpoint {
                 digest: Some(digest),
             } => {
                 let DataLoader(dl) = ctx.data_unchecked();
-                dl.load_one(DigestKey {
-                    digest,
-                    checkpoint_viewed_at,
+                if let Some(checkpoint) = dl
+                    .load_one(DigestKey {
+                        digest,
+                        checkpoint_viewed_at,
+                    })
+                    .await?
+                {
+                    return Ok(Some(checkpoint));
+                }
+
+                let oldest_available_checkpoint =
+                    Self::oldest_available_checkpoint(ctx.data_unchecked());
+                if oldest_available_checkpoint.has_full_history() {
+                    return Ok(None);
+                }
+                Err(Error::DataPruned {
+                    message: format!("checkpoint {digest} not found, it may have been pruned"),
+                    oldest_available_checkpoint,
                 })
-                .await
             }
 
             CheckpointId {
@@ -359,7 +406,7 @@ impl Checkpoint {
     /// Returns the inclusive `[lo, hi]` checkpoint sequence-number range to
     /// paginate over, given the `checkpoint_viewed_at` and optional `epoch`
     /// filter. Returns `None` when `filter` targets an epoch that does not
-    /// exist.
+    /// exist or starts after `checkpoint_viewed_at`.
     ///
     /// The `epochs` table is never pruned but an in-progress epoch's
     /// `last_checkpoint_id` is NULL - in that case the upper bound is
@@ -386,11 +433,14 @@ impl Checkpoint {
             .await
             .map_err(|err| Error::Internal(format!("Failed to fetch epoch range: {err}")))?;
 
-        Ok(row.map(|(first, last)| {
+        Ok(row.and_then(|(first, last)| {
+            let lo = first as u64;
             let hi = last
                 .map(|l| std::cmp::min(l as u64, checkpoint_viewed_at))
                 .unwrap_or(checkpoint_viewed_at);
-            (first as u64, hi)
+            // The epoch starts after `checkpoint_viewed_at`, so it has no
+            // checkpoints yet.
+            (lo <= hi).then_some((lo, hi))
         }))
     }
 
@@ -411,47 +461,45 @@ impl Checkpoint {
     ///
     /// A cursor or epoch in the pruned range is served from the fallback KV
     /// store when configured, otherwise the request errors.
+    ///
+    /// The connection reports the oldest checkpoint the page has data from.
     pub(crate) async fn paginate(
         db: &Db,
         page: Page<Cursor>,
         filter: Option<u64>,
         checkpoint_viewed_at: u64,
-    ) -> Result<Connection<String, Checkpoint>, Error> {
+    ) -> Result<CheckpointConnection, Error> {
+        let oldest_available_checkpoint = Self::oldest_available_checkpoint(db);
+
         let cursor_viewed_at = page.validate_cursor_consistency()?;
         let checkpoint_viewed_at = cursor_viewed_at.unwrap_or(checkpoint_viewed_at);
 
         if page.limit() == 0 {
-            return Ok(Connection::new(false, false));
+            return Ok(empty_page(oldest_available_checkpoint));
         }
 
-        let Some((mut absolute_lo_incl, absolute_hi_incl)) =
+        let Some((absolute_lo_incl, absolute_hi_incl)) =
             Self::pagination_range(db, filter, checkpoint_viewed_at).await?
         else {
-            return Ok(Connection::new(false, false));
+            return Ok(empty_page(oldest_available_checkpoint));
         };
 
         // Without a fallback, anything below the pruning watermark is unreachable
-        if !db.inner.is_fallback_enabled() {
-            if let Some(lowest_unpruned_cp) = db
-                .inner
-                .watermark_cache()
-                .get_lowest_available_cp_for_tables(&[CommitterTables::Checkpoints])
-                .map(|w| w as u64)
-            {
-                absolute_lo_incl = absolute_lo_incl.max(lowest_unpruned_cp);
-            }
-        }
+        let absolute_lo_incl = absolute_lo_incl.max(u64::from(oldest_available_checkpoint));
 
         let available_range = absolute_lo_incl..=absolute_hi_incl;
 
         if available_range.is_empty() {
-            return Err(Error::DataPruned(
-                "all checkpoints in the requested range have been pruned".into(),
-            ));
+            return Err(Error::DataPruned {
+                message: "all checkpoints in the requested range have been pruned".into(),
+                oldest_available_checkpoint,
+            });
         }
 
-        let Some(page_range) = page.narrow_to_available_range(&available_range)? else {
-            return Ok(Connection::new(false, false));
+        let Some(page_range) =
+            page.narrow_to_available_range(&available_range, oldest_available_checkpoint)?
+        else {
+            return Ok(empty_page(oldest_available_checkpoint));
         };
 
         // Take `limit` sequence numbers from the appropriate end of the page range.
@@ -489,7 +537,11 @@ impl Checkpoint {
         let has_prev = fetched_lo > absolute_lo_incl;
         let has_next = fetched_hi < absolute_hi_incl;
 
-        let mut conn = Connection::new(has_prev, has_next);
+        let mut conn = Connection::with_additional_fields(
+            has_prev,
+            has_next,
+            oldest_available_checkpoint.into(),
+        );
         for stored in all_rows {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
             conn.edges.push(Edge::new(
@@ -503,6 +555,11 @@ impl Checkpoint {
 
         Ok(conn)
     }
+}
+
+/// A page without checkpoints, reporting `oldest_available_checkpoint`.
+fn empty_page(oldest_available_checkpoint: OldestAvailableCheckpoint) -> CheckpointConnection {
+    Connection::with_additional_fields(false, false, oldest_available_checkpoint.into())
 }
 
 impl Target<Cursor> for StoredCheckpoint {
@@ -526,13 +583,15 @@ impl Page<Cursor> {
     /// Narrow page range to the `available` range and return the inclusive
     /// range this page should cover, or `None` if the range is empty.
     ///
-    /// A cursor below `available.start()` returns `Error::DataPruned` (the
-    /// data was pruned since the cursor was issued). A cursor above
-    /// `available.end()` returns `Error::Client` (the cursor is malformed).
-    /// When `after > before` the range is empty and no error is returned.
+    /// A cursor below `oldest_available_checkpoint` returns
+    /// `Error::DataPruned` (the data was pruned since the cursor was issued).
+    /// A cursor otherwise outside `available` returns `Error::Client` (the
+    /// cursor is malformed). When `after > before` the range is empty and no
+    /// error is returned.
     fn narrow_to_available_range(
         &self,
         available: &RangeInclusive<u64>,
+        oldest_available_checkpoint: OldestAvailableCheckpoint,
     ) -> Result<Option<RangeInclusive<u64>>, Error> {
         let lo = *available.start();
         let hi = *available.end();
@@ -554,8 +613,16 @@ impl Page<Cursor> {
         // Since `after <= before`, it's enough to check if the smaller cursor is below
         // `lo`. Analogously for `hi`.
         if let Some((name, seq)) = after.or(before) {
+            if seq < u64::from(oldest_available_checkpoint) {
+                return Err(Error::DataPruned {
+                    message: format!(
+                        "`{name}` cursor (seq {seq}) is below the available range {available:?}"
+                    ),
+                    oldest_available_checkpoint,
+                });
+            }
             if seq < lo {
-                return Err(Error::DataPruned(format!(
+                return Err(Error::Client(format!(
                     "`{name}` cursor (seq {seq}) is below the available range {available:?}"
                 )));
             }

@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 40;
+pub const MAX_PROTOCOL_VERSION: u64 = 41;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -283,6 +283,18 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Update the gas model version to 3.
 //             Enable validator attestation on devnet, with the checkpoint
 //             summary data version that certifies the verdicts.
+// Version 41: Commit a block's transactions once its header is traversed even
+//             if its acknowledgment quorum was reached first, outside Mainnet.
+//             `ecdsa_r1::secp256r1_ecrecover` rejects a signature whose
+//             restored x-coordinate is not below the field modulus.
+//             Outside Mainnet and Testnet, a programmable transaction may
+//             carry a transaction dependency input: its commands run only if
+//             the named transaction succeeded in the current epoch. If that
+//             transaction fails after the dependent was sequenced, the
+//             dependent executes as failed with `TransactionDependencyFailed`.
+//             Raise `max_auth_gas` to 0.001 IOTA on devnet.
+//             Set the attestation freshness window on devnet.
+//             Set the penalty for refuted attestations on devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -840,9 +852,28 @@ struct FeatureFlags {
     // If true, the block-proposing validator attests each received user transaction
     // before sending it to consensus. The attestor certifies that Move authentication
     // passed and the attestation carries a computation cost estimate for
-    // shared-object scheduling.
+    // shared-object scheduling. The Move authenticators run at execution, and
+    // in the attestor's dry run, then share at most `max_auth_gas`; the
+    // transaction body gets the rest of the budget.
     #[serde(skip_serializing_if = "is_false")]
     enable_validator_attestation: bool,
+
+    // If true, a block whose transactions reach their acknowledgment quorum
+    // before its header is traversed is committed once its header is traversed.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_commit_transactions_once_traversed: bool,
+
+    // If true, `ecdsa_r1::secp256r1_ecrecover` rejects a signature whose
+    // restored x-coordinate `r + n` is not below the field modulus, instead
+    // of wrapping it at 2^256.
+    #[serde(skip_serializing_if = "is_false")]
+    secp256r1_ecrecover_checks_x_below_p: bool,
+
+    // If true, a programmable transaction may carry a transaction dependency
+    // input. It executes after the named transaction, and fails without running
+    // its commands if that transaction failed.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_transaction_dependencies: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1693,6 +1724,13 @@ pub struct ProtocolConfig {
     /// of the epoch. Unset disables the penalty and the cutoff.
     attestation_max_refuted_units_squared: Option<u64>,
 
+    /// How many commits before the one an attested transaction was first
+    /// sequenced in a recorded version may have stopped being current for the
+    /// judge to re-run authentication at it; leader rounds for a version a
+    /// commit prologue or a deny-rules update superseded, the only position
+    /// those carry. Unset admits any commit of the epoch.
+    attestation_freshness_window_commits: Option<u64>,
+
     /// The max number of transactions that can be included in a single Soft
     /// Bundle.
     max_soft_bundle_size: Option<u64>,
@@ -2087,6 +2125,25 @@ impl ProtocolConfig {
             .consensus_commit_transactions_only_for_traversed_headers
     }
 
+    /// Whether a block whose transactions reached their acknowledgment quorum
+    /// before its header was traversed is committed once its header is
+    /// traversed.
+    ///
+    /// # Panics
+    ///
+    /// If the flag is set without
+    /// `consensus_commit_transactions_only_for_traversed_headers`.
+    pub fn consensus_commit_transactions_once_traversed(&self) -> bool {
+        let res = self
+            .feature_flags
+            .consensus_commit_transactions_once_traversed;
+        assert!(
+            !res || self.consensus_commit_transactions_only_for_traversed_headers(),
+            "consensus_commit_transactions_once_traversed requires consensus_commit_transactions_only_for_traversed_headers to be enabled"
+        );
+        res
+    }
+
     /// Check whether congestion limit overshoot is enabled in the gas price
     /// feedback mechanism.
     pub fn congestion_limit_overshoot_in_gas_price_feedback_mechanism(&self) -> bool {
@@ -2408,6 +2465,15 @@ impl ProtocolConfig {
     pub fn enable_validator_attestation(&self) -> bool {
         self.feature_flags.enable_validator_attestation
     }
+
+    pub fn secp256r1_ecrecover_checks_x_below_p(&self) -> bool {
+        self.feature_flags.secp256r1_ecrecover_checks_x_below_p
+    }
+
+    /// Its prerequisites are checked once, in [`Self::get_for_version`].
+    pub fn enable_transaction_dependencies(&self) -> bool {
+        self.feature_flags.enable_transaction_dependencies
+    }
 }
 
 #[cfg(not(msim))]
@@ -2469,6 +2535,13 @@ impl ProtocolConfig {
                     .expect("failed to parse ProtocolConfig feature flags override env variables");
 
             feature_flag_overrides.apply_to(&mut ret.feature_flags);
+
+            // An environment override can switch attestation off but cannot
+            // unset a parameter, so the parameters that require it go with
+            // the flag.
+            if !ret.feature_flags.enable_validator_attestation {
+                ret.unset_attestation_parameters();
+            }
         }
 
         // Devnet runs the P-COOL flow from version 32, before the settings it
@@ -2555,6 +2628,12 @@ impl ProtocolConfig {
                 ret.checkpoint_summary_version_specific_data == Some(2),
                 "enable_validator_attestation requires checkpoint_summary_version_specific_data = 2"
             );
+            // Execution and the attestor's dry run limit the Move
+            // authenticators to `max_auth_gas`.
+            assert!(
+                ret.max_auth_gas.is_some(),
+                "enable_validator_attestation requires max_auth_gas to be set"
+            );
         }
         if ret.attestation_max_refuted_units_squared.is_some() {
             assert!(
@@ -2567,8 +2646,31 @@ impl ProtocolConfig {
                  pass_validator_scores_to_advance_epoch"
             );
         }
+        if ret.attestation_freshness_window_commits.is_some() {
+            assert!(
+                ret.enable_validator_attestation(),
+                "attestation_freshness_window_commits requires enable_validator_attestation"
+            );
+        }
+        // A transaction without shared inputs that waits too long for its
+        // dependency is cancelled through its gas object, which carries the
+        // suggested gas price.
+        if ret.enable_transaction_dependencies() {
+            assert!(
+                ret.congestion_control_gas_price_feedback_mechanism(),
+                "enable_transaction_dependencies requires \
+                 congestion_control_gas_price_feedback_mechanism to be set"
+            );
+        }
 
         ret
+    }
+
+    /// Unsets the parameters [`Self::get_for_version`] accepts only with
+    /// `enable_validator_attestation`.
+    fn unset_attestation_parameters(&mut self) {
+        self.attestation_max_refuted_units_squared = None;
+        self.attestation_freshness_window_commits = None;
     }
 
     /// Get the value ProtocolConfig that are in effect during the given
@@ -3085,6 +3187,7 @@ impl ProtocolConfig {
             checkpoint_summary_version_specific_data: Some(1),
             attestor_accuracy_tolerance_percentage: None,
             attestation_max_refuted_units_squared: None,
+            attestation_freshness_window_commits: None,
 
             max_soft_bundle_size: Some(5),
 
@@ -3940,6 +4043,36 @@ impl ProtocolConfig {
                         cfg.checkpoint_summary_version_specific_data = Some(2);
                     }
                 }
+                41 => {
+                    // Commit a block's transactions once its header is
+                    // traversed, also when their acknowledgment quorum came
+                    // first.
+                    if chain != Chain::Mainnet {
+                        cfg.feature_flags
+                            .consensus_commit_transactions_once_traversed = true;
+                    }
+
+                    // `ecdsa_r1::secp256r1_ecrecover` rejects a signature
+                    // whose restored x-coordinate is not below the field
+                    // modulus.
+                    cfg.feature_flags.secp256r1_ecrecover_checks_x_below_p = true;
+
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        // A programmable transaction may carry a transaction
+                        // dependency input.
+                        cfg.feature_flags.enable_transaction_dependencies = true;
+                        // Raise max_auth_gas to 0.001 IOTA, the minimum transaction
+                        // cost at a gas price of 1000.
+                        cfg.max_auth_gas = Some(1_000_000);
+
+                        // Ten minutes at devnet's 20 commits a second.
+                        cfg.attestation_freshness_window_commits = Some(12_000);
+
+                        // Cuts an attestor off after no more than 100 refuted
+                        // attestations per epoch at the current `max_auth_gas`.
+                        cfg.attestation_max_refuted_units_squared = Some(100_000_000);
+                    }
+                }
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
@@ -4229,6 +4362,11 @@ impl ProtocolConfig {
             .consensus_commit_transactions_only_for_traversed_headers = val;
     }
 
+    pub fn set_consensus_commit_transactions_once_traversed_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .consensus_commit_transactions_once_traversed = val;
+    }
+
     pub fn set_congestion_limit_overshoot_in_gas_price_feedback_mechanism_for_testing(
         &mut self,
         val: bool,
@@ -4286,6 +4424,10 @@ impl ProtocolConfig {
 
     pub fn set_always_advance_dkg_to_resolution_for_testing(&mut self, val: bool) {
         self.feature_flags.always_advance_dkg_to_resolution = val;
+    }
+
+    pub fn set_enable_transaction_dependencies_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_transaction_dependencies = val;
     }
 
     /// Turning the flow on also turns on the flags it requires, turns off
@@ -4359,6 +4501,11 @@ impl ProtocolConfig {
         }
     }
 
+    pub fn set_pass_calculated_validator_scores_to_advance_epoch_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .pass_calculated_validator_scores_to_advance_epoch = val;
+    }
+
     pub fn set_package_metadata_with_dynamic_module_metadata_for_testing(&mut self, val: bool) {
         self.feature_flags
             .package_metadata_with_dynamic_module_metadata = val;
@@ -4395,8 +4542,12 @@ impl ProtocolConfig {
         }
     }
 
+    /// Turning attestation off also unsets the parameters that require it.
     pub fn set_enable_validator_attestation_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_validator_attestation = val;
+        if !val {
+            self.unset_attestation_parameters();
+        }
     }
 }
 
@@ -4516,6 +4667,20 @@ mod test {
                 assert_yaml_snapshot!(
                     format!("{}version_{}", chain_str, cur.as_u64()),
                     ProtocolConfig::get_for_version(cur, *chain_id)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn commit_transactions_once_traversed_activation() {
+        for chain in [Chain::Unknown, Chain::Mainnet, Chain::Testnet] {
+            for version in MIN_PROTOCOL_VERSION..=MAX_PROTOCOL_VERSION {
+                let config = ProtocolConfig::get_for_version(ProtocolVersion::new(version), chain);
+                assert_eq!(
+                    config.consensus_commit_transactions_once_traversed(),
+                    version >= 41 && chain != Chain::Mainnet,
+                    "unexpected activation for {chain:?} at version {version}"
                 );
             }
         }
@@ -4732,6 +4897,23 @@ mod test {
         let _ = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
     }
 
+    /// Execution and the attestor's dry run read `max_auth_gas` under
+    /// attestation, so a configuration without it is rejected at startup
+    /// rather than stopping the validator at the first transaction.
+    #[test]
+    #[should_panic(expected = "enable_validator_attestation requires max_auth_gas to be set")]
+    fn attestation_without_max_auth_gas_is_rejected() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.disable_max_auth_gas_for_testing();
+            config
+        });
+        let config = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        assert!(
+            config.enable_validator_attestation(),
+            "the latest devnet configuration should run attestation"
+        );
+    }
+
     /// A zero chunk limit would make every delta unsplittable; the pure
     /// chunking function clamps it, but the configuration is still invalid.
     #[test]
@@ -4862,6 +5044,30 @@ mod test {
                             .is_some(),
                         "version {version} on {chain:?} runs the P-COOL flow without the \
                          regex reference safety budget"
+                    );
+                }
+            }
+        }
+    }
+
+    /// The penalty's value is calibrated for refuted attestations of at most
+    /// 2 × `gas_rounding_step` units, execution's run plus the judge's re-run.
+    /// That holds while `max_auth_gas` buys no more than one step per run at a
+    /// gas price of 1,000.
+    #[test]
+    fn refuted_attestation_penalty_requires_max_auth_gas_within_one_rounding_step() {
+        const GAS_PRICE: u64 = 1_000;
+        for chain in [Chain::Unknown, Chain::Mainnet, Chain::Testnet] {
+            for version in MIN_PROTOCOL_VERSION..=MAX_PROTOCOL_VERSION {
+                let config = ProtocolConfig::get_for_version(ProtocolVersion::new(version), chain);
+                if config
+                    .attestation_max_refuted_units_squared_as_option()
+                    .is_some()
+                {
+                    assert!(
+                        config.max_auth_gas() <= config.gas_rounding_step() * GAS_PRICE,
+                        "version {version} on {chain:?} penalizes refuted attestations while \
+                         max_auth_gas buys more than one gas_rounding_step"
                     );
                 }
             }
