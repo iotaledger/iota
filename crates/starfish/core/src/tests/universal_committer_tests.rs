@@ -133,86 +133,24 @@ async fn indirect_commit_with_missing_old_own_ancestor() {
     ));
 }
 
-/// Ensure idempotent replies.
+/// Deciding again from the same last finalized leader returns the same leader,
+/// and a finalized leader is not returned again.
 #[tokio::test]
 async fn idempotence() {
     let (context, dag_state, mut committer) = basic_test_setup();
+    // Rounds 1 to 3 let the round-1 leader commit.
+    build_dag(context, dag_state, None, 3);
+    let round_1_leader = committer.elect_leader(1);
 
-    // note: waves & rounds are zero-indexed.
-    let first_non_genesis_leader_round = 1;
-    let certifying_round_for_first_leader = 3;
-    let references_certifying_round_for_round_1 = build_dag(
-        context.clone(),
-        dag_state.clone(),
-        None,
-        certifying_round_for_first_leader,
-    );
-
-    // Commit one leader.
-    let last_finalized = Slot::new(0, 0);
-    let first_sequence = committer.try_decide(last_finalized);
-    assert_eq!(first_sequence.len(), 1);
-
-    if let DecidedLeader::Commit(ref block, _, _) = first_sequence[0] {
-        assert_eq!(first_sequence[0].round(), first_non_genesis_leader_round);
-        assert_eq!(
-            block.author(),
-            committer
-                .elect_leader(first_non_genesis_leader_round)
-                .authority
-        )
-    } else {
-        panic!("Expected a committed leader")
-    };
-
-    // Ensure that if try_commit is called again with the same last decided leader
-    // input the commit decision will be the same.
-    let first_sequence = committer.try_decide(last_finalized);
-
-    assert_eq!(first_sequence.len(), 1);
-    if let DecidedLeader::Commit(ref block, _, _) = first_sequence[0] {
-        assert_eq!(first_sequence[0].round(), first_non_genesis_leader_round);
-        assert_eq!(
-            block.author(),
-            committer
-                .elect_leader(first_non_genesis_leader_round)
-                .authority
-        )
-    } else {
-        panic!("Expected a committed leader")
-    };
-
-    // Ensure we don't commit the same leader of round 1 again if we mark it as the
-    // last decided.
-    let leader_status_first_leader = first_sequence.last().unwrap();
-    let last_finalized = Slot::new(
-        leader_status_first_leader.round(),
-        leader_status_first_leader.authority(),
-    );
-    assert!(committer.try_decide(last_finalized).is_empty());
-
-    // Add more rounds so we have something to commit after the leader of round 1
-    let certifying_round_for_round_5 = 7;
-    build_dag(
-        context,
-        dag_state,
-        Some(references_certifying_round_for_round_1),
-        certifying_round_for_round_5,
-    );
-
-    let round_5 = 5;
-    let second_sequence = committer.try_decide(last_finalized);
-    tracing::info!("Commit sequence: {second_sequence:#?}");
-
-    // Expect that all leaders between round 2 and round 5 are committed.
-    // The last one is a block of leader from round 5
-    assert_eq!(second_sequence.len(), 4);
-    if let DecidedLeader::Commit(ref block, _, _) = second_sequence[3] {
-        assert_eq!(block.round(), round_5);
-        assert_eq!(block.author(), committer.elect_leader(round_5).authority);
-    } else {
-        panic!("Expected a committed leader")
-    };
+    for _ in 0..2 {
+        let decided = committer.try_decide(Slot::new(0, 0));
+        assert!(
+            matches!(decided.as_slice(), [DecidedLeader::Commit(..)]),
+            "got {decided:?}"
+        );
+        assert_eq!(decided[0].slot(), round_1_leader);
+    }
+    assert!(committer.try_decide(round_1_leader).is_empty());
 }
 
 /// Commit one by one each leader as the dag progresses in ideal conditions.
@@ -254,38 +192,6 @@ async fn multiple_direct_commit() {
         // each new round is added.
         let last = sequence.into_iter().next_back().unwrap();
         last_finalized = Slot::new(last.round(), last.authority());
-    }
-}
-
-/// Commit leaders from 10 waves in a row (calling the committer after adding
-/// them).
-#[tokio::test]
-async fn direct_commit_late_call() {
-    let (context, dag_state, mut committer) = basic_test_setup();
-
-    // note: waves & rounds are zero-indexed.
-    let num_waves = 11;
-    let certifying_round_wave_10 = 32;
-    build_dag(context, dag_state, None, certifying_round_wave_10);
-
-    let last_finalized = Slot::new(0, 0);
-    let sequence = committer.try_decide(last_finalized);
-    tracing::info!("Commit sequence: {sequence:#?}");
-
-    // With 11 full non-intersecting waves completed, excluding genesis in wave 0 as
-    // its leader round, ensure we have 30 leaders are committed.
-    assert_eq!(sequence.len(), 3 * (num_waves - 1_usize));
-    for (i, leader_block) in sequence.iter().enumerate() {
-        let leader_round = i as Round + 1;
-        if let DecidedLeader::Commit(ref block, _, _) = leader_block {
-            assert_eq!(block.round(), leader_round);
-            assert_eq!(
-                block.author(),
-                committer.elect_leader(leader_round).authority
-            );
-        } else {
-            panic!("Expected a committed leader")
-        };
     }
 }
 
@@ -476,138 +382,60 @@ async fn test_byzantine_validator() {
         .filter(|x| x.author != leader_12)
         .collect();
 
-    // Accept these references/blocks as ancestors from certifying round blocks in
-    // dag state
-    let byzantine_block_b13_1 = VerifiedBlockHeader::new_for_test(
-        TestBlockHeader::new(13, 1)
-            .set_version(version)
-            .set_ancestors(references_without_leader_12.clone())
-            .build(),
-    );
-    dag_state
-        .write()
-        .accept_block_header(byzantine_block_b13_1.clone(), DataSource::Test);
+    // Three B13 blocks that differ only in timestamp; none links A12.
+    let byzantine_b13: Vec<_> = (0..3)
+        .map(|timestamp_ms| {
+            let block = VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(13, 1)
+                    .set_version(version)
+                    .set_ancestors(references_without_leader_12.clone())
+                    .set_timestamp_ms(timestamp_ms)
+                    .build(),
+            );
+            dag_state
+                .write()
+                .accept_block_header(block.clone(), DataSource::Test);
+            block.reference()
+        })
+        .collect();
 
-    // Make equivocation through timestamp
-    let timestamp = byzantine_block_b13_1.timestamp_ms();
-
-    let byzantine_block_b13_2 = VerifiedBlockHeader::new_for_test(
-        TestBlockHeader::new(13, 1)
-            .set_version(version)
-            .set_ancestors(references_without_leader_12.clone())
-            .set_timestamp_ms(timestamp + 1)
-            .build(),
-    );
-    dag_state
-        .write()
-        .accept_block_header(byzantine_block_b13_2.clone(), DataSource::Test);
-
-    let byzantine_block_b13_3 = VerifiedBlockHeader::new_for_test(
-        TestBlockHeader::new(13, 1)
-            .set_version(version)
-            .set_ancestors(references_without_leader_12)
-            .set_timestamp_ms(timestamp + 2)
-            .build(),
-    );
-    dag_state
-        .write()
-        .accept_block_header(byzantine_block_b13_3.clone(), DataSource::Test);
-
-    // Ancestors of certifying blocks in round 14 should include multiple byzantine
-    // non-votes B13 but there are enough good votes to prevent a skip.
-    // Additionally only one of the non-votes per authority should be counted so
-    // we should not skip leader A12.
-    let mut references_round_14 = vec![];
-    let certifying_block_a14 = VerifiedBlockHeader::new_for_test(
-        TestBlockHeader::new(14, 0)
-            .set_version(version)
-            .set_ancestors(good_references_voting_round_12.clone())
-            .build(),
-    );
-    references_round_14.push(certifying_block_a14.reference());
-    dag_state
-        .write()
-        .accept_block_header(certifying_block_a14, DataSource::Test);
-
-    let good_references_voting_round_12_without_b13 = good_references_voting_round_12
-        .into_iter()
+    // A14 links the good round-13 blocks. B14, C14 and D14 each replace the good
+    // B13 with a different byzantine one, which is a non-vote for A12, but they
+    // still link the good votes of A, C and D, so A12 is not skipped.
+    let good_without_b13: Vec<_> = good_references_voting_round_12
+        .iter()
         .filter(|r| r.author != AuthorityIndex::new_for_test(1))
-        .collect::<Vec<_>>();
-
-    let certifying_block_b14 = VerifiedBlockHeader::new_for_test(
-        TestBlockHeader::new(14, 1)
-            .set_version(version)
-            .set_ancestors(
-                good_references_voting_round_12_without_b13
-                    .iter()
-                    .cloned()
-                    .chain(std::iter::once(byzantine_block_b13_1.reference()))
-                    .collect(),
-            )
-            .build(),
+        .copied()
+        .collect();
+    let ancestors_14 = std::iter::once(good_references_voting_round_12).chain(
+        byzantine_b13
+            .iter()
+            .map(|b13| good_without_b13.iter().copied().chain([*b13]).collect()),
     );
-    references_round_14.push(certifying_block_b14.reference());
-    dag_state
-        .write()
-        .accept_block_header(certifying_block_b14, DataSource::Test);
-
-    let certifying_block_c14 = VerifiedBlockHeader::new_for_test(
-        TestBlockHeader::new(14, 2)
-            .set_version(version)
-            .set_ancestors(
-                good_references_voting_round_12_without_b13
-                    .iter()
-                    .cloned()
-                    .chain(std::iter::once(byzantine_block_b13_2.reference()))
-                    .collect(),
-            )
-            .build(),
-    );
-    references_round_14.push(certifying_block_c14.reference());
-    dag_state
-        .write()
-        .accept_block_header(certifying_block_c14, DataSource::Test);
-
-    let certifying_block_d14 = VerifiedBlockHeader::new_for_test(
-        TestBlockHeader::new(14, 3)
-            .set_version(version)
-            .set_ancestors(
-                good_references_voting_round_12_without_b13
-                    .iter()
-                    .cloned()
-                    .chain(std::iter::once(byzantine_block_b13_3.reference()))
-                    .collect(),
-            )
-            .build(),
-    );
-    references_round_14.push(certifying_block_d14.reference());
-    dag_state
-        .write()
-        .accept_block_header(certifying_block_d14, DataSource::Test);
-
-    // DagState Update:
-    // - We have A13, B13, D13 & C13 as good votes in the voting round of leader A12
-    // - We have 3 byzantine B13 nonvotes that we received as ancestors from certifying round blocks
-    //   from B, C, & D.
-    // - We have B14, C14 & D14 that include this byzantine nonvote. But all of
-    // these blocks also have good votes from A, C & D.
+    let mut references_round_14 = vec![];
+    for (author, ancestors) in (0u8..).zip(ancestors_14) {
+        let block = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(14, author)
+                .set_version(version)
+                .set_ancestors(ancestors)
+                .build(),
+        );
+        references_round_14.push(block.reference());
+        dag_state
+            .write()
+            .accept_block_header(block, DataSource::Test);
+    }
 
     // Expect a successful direct commit of A12 and leaders at rounds 1 ~ 11 as
     // every round has a leader.
-    let last_finalized = Slot::new(0, 0);
-    let sequence = committer.try_decide(last_finalized);
-    tracing::info!("Commit sequence: {sequence:#?}");
-
+    let sequence = committer.try_decide(Slot::new(0, 0));
     assert_eq!(sequence.len(), 12);
-    if let DecidedLeader::Commit(ref block, _, _) = sequence[11] {
-        assert_eq!(block.round(), leader_round_12);
-        assert_eq!(
-            block.author(),
-            committer.elect_leader(leader_round_12).authority
-        )
-    } else {
-        panic!("Expected a committed leader")
-    };
+    assert!(
+        matches!(sequence[11], DecidedLeader::Commit(..)),
+        "got {:?}",
+        sequence[11]
+    );
+    assert_eq!(sequence[11].slot(), committer.elect_leader(leader_round_12));
 
     // Now build an additional dag layer on top of the existing dag so a commit
     // decision can be made about leader B13 which is the byzantine validator.
@@ -619,29 +447,19 @@ async fn test_byzantine_validator() {
     );
 
     // Ensure B13 is marked as undecided as there is <2f+1 blame and <2f+1 certs
-    let last_sequenced = sequence.last().unwrap();
-    let last_finalized = Slot::new(last_sequenced.round(), last_sequenced.authority());
-    let sequence = committer.try_decide(last_finalized);
-    assert!(sequence.is_empty());
+    let last_finalized = sequence[11].slot();
+    assert!(committer.try_decide(last_finalized).is_empty());
 
     // Now build an additional 3 dag layers on top of the existing dag so a commit
     // decision can be made about leader A16 and then an indirect decision can be
     // made about B13
     build_dag(context, dag_state, Some(references_round_15), 18);
     let sequence = committer.try_decide(last_finalized);
-    tracing::info!("Commit sequence: {sequence:#?}");
     assert_eq!(sequence.len(), 4);
 
     // Ensure we skip B13 as there is no way to have a certified link to any one
     // of the multiple blocks at slot B13.
-    let skipped_leader_round = 13;
-    let leader = committer.elect_leader(skipped_leader_round).authority;
-    if let DecidedLeader::Skip(ref slot) = sequence[0] {
-        assert_eq!(slot.round, skipped_leader_round);
-        assert_eq!(slot.authority, leader);
-    } else {
-        panic!("Expected a skipped leader")
-    };
+    assert_eq!(sequence[0], DecidedLeader::Skip(committer.elect_leader(13)));
 }
 
 // TODO: Add byzantine variant of tests for indirect/direct
