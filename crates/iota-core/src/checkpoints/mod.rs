@@ -4061,12 +4061,27 @@ mod tests {
                 .is_err()
         );
 
+        let tx = VerifiedTransaction::new_genesis_transaction(vec![], vec![]);
+        let digest = *tx.digest();
+        epoch_store.test_insert_user_signature(digest, tx.signatures().to_vec());
+        assert!(
+            epoch_store
+                .user_signatures_for_checkpoint(std::slice::from_ref(&tx), &[digest])
+                .is_ok()
+        );
+
         epoch_store.start_executing_synced_checkpoints().await;
         tokio::time::timeout(Duration::from_secs(5), tasks.join_next())
             .await
             .expect("the checkpoint builder should stop")
             .unwrap()
             .unwrap();
+        assert!(
+            epoch_store
+                .user_signatures_for_checkpoint(&[tx], &[digest])
+                .is_err(),
+            "user signatures must be dropped once the checkpoint builder stops"
+        );
     }
 
     // A validator does not verify its own consensus blocks, so under the P-COOL
