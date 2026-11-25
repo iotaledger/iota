@@ -4043,6 +4043,9 @@ impl AuthorityPerEpochStore {
 
     /// Note: caller usually need to call consensus_message_processed_notify
     /// before this call
+    ///
+    /// Does not remove the signatures; `process_constructed_checkpoint` drops
+    /// them once the checkpoints that contain the transactions are built.
     pub fn user_signatures_for_checkpoint(
         &self,
         transactions: &[VerifiedTransaction],
@@ -4051,17 +4054,17 @@ impl AuthorityPerEpochStore {
         assert_eq!(transactions.len(), digests.len());
 
         let signatures: Vec<_> = {
-            let mut user_sigs = self
+            let user_sigs = self
                 .consensus_output_cache
                 .user_signatures_for_checkpoints
                 .lock();
-            digests.iter().map(|d| user_sigs.remove(d)).collect()
+            digests.iter().map(|d| user_sigs.get(d).cloned()).collect()
         };
 
         let mut result = Vec::with_capacity(digests.len());
         for (signatures, transaction) in signatures.into_iter().zip(transactions.iter()) {
             let signatures = if let Some(signatures) = signatures {
-                signatures
+                signatures.to_vec()
             } else if matches!(
                 transaction.inner().transaction().kind(),
                 TransactionKind::RandomnessStateUpdate(_)
@@ -4082,6 +4085,18 @@ impl AuthorityPerEpochStore {
             result.push(signatures);
         }
         Ok(result)
+    }
+
+    /// Drops all user signatures kept for the checkpoint builder. Call once
+    /// the checkpoint builder of this epoch has stopped.
+    pub(crate) fn clear_user_signatures_for_checkpoints(&self) {
+        let removed = std::mem::take(
+            &mut *self
+                .consensus_output_cache
+                .user_signatures_for_checkpoints
+                .lock(),
+        );
+        drop(removed);
     }
 
     pub fn clear_override_protocol_upgrade_buffer_stake(&self) -> IotaResult {
@@ -4572,7 +4587,7 @@ impl AuthorityPerEpochStore {
         self.consensus_output_cache
             .user_signatures_for_checkpoints
             .lock()
-            .insert(digest, signatures);
+            .insert(digest, signatures.into());
         // Match the key the checkpoint builder waits on: in the P-COOL flow
         // user transactions are submitted as UserTransaction, not as
         // Certificate.
@@ -4636,7 +4651,7 @@ impl AuthorityPerEpochStore {
         let sigs: Vec<_> = transactions
             .filter_map(|schedulable| match schedulable {
                 Schedulable::Transaction(transaction) => {
-                    Some((*transaction.digest(), transaction.signatures().to_vec()))
+                    Some((*transaction.digest(), Arc::from(transaction.signatures())))
                 }
                 Schedulable::RandomnessStateUpdate(_, _) => None,
             })
@@ -7396,6 +7411,23 @@ impl AuthorityPerEpochStore {
         commit_height: CheckpointHeight,
         content_info: NonEmpty<(CheckpointSummary, CheckpointContents)>,
     ) {
+        // A build that fails before this point reads the user signatures
+        // again when it retries.
+        let removed_signatures: Vec<_> = {
+            let mut user_sigs = self
+                .consensus_output_cache
+                .user_signatures_for_checkpoints
+                .lock();
+            content_info
+                .iter()
+                .flat_map(|(_, contents)| contents.iter())
+                .filter_map(|digests| user_sigs.remove(&digests.transaction))
+                .collect()
+        };
+        // Free the signatures without holding the lock the consensus handler
+        // needs.
+        drop(removed_signatures);
+
         let mut consensus_quarantine = self.consensus_quarantine.write();
         for (position_in_commit, (summary, transactions)) in content_info.into_iter().enumerate() {
             let sequence_number = summary.sequence_number;
