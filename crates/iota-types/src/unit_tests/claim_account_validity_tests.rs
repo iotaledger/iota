@@ -14,8 +14,12 @@ use iota_sdk_types::{
 use crate::{
     crypto::{AccountPrivateKey, get_key_pair},
     error::UserInputError,
+    gas::fill_in_unset_simulation_gas,
     move_public_key::MovePublicKey,
-    transaction::{TransactionAPI, TransactionKind},
+    object::Object,
+    transaction::{
+        InputObjectKind, InputObjects, ObjectReadResult, TransactionAPI, TransactionKind,
+    },
 };
 
 /// The latest version on a chain other than testnet and mainnet, which enables
@@ -219,4 +223,45 @@ fn disabled_claim_kind_skips_the_gas_floor() {
         claim_tx_with_budget_and_price(claim, sender, 0, 1).validity_check(&config),
         Err(UserInputError::Unsupported(_))
     ));
+}
+
+#[test]
+fn simulation_fills_in_an_unset_claim_budget_no_lower_than_the_gas_floor() {
+    let (claim, sender) = ed25519_claim();
+    let config = config();
+    let gas_price = 1_000;
+    let floor = floor_for(claim.clone(), sender, gas_price, &config);
+    assert!(
+        floor > config.base_tx_cost_fixed() * gas_price,
+        "the claim floor {floor} must be above the minimum budget of any transaction"
+    );
+
+    // The budget a simulation fills in for a claim that leaves its gas price
+    // and gas budget unset and pays with a coin holding `balance`.
+    let filled_budget = |balance: u64| {
+        let coin = Object::new_gas_with_balance_and_owner_for_testing(balance, sender);
+        let coin_ref = coin.object_ref();
+        let input_objects = InputObjects::new(vec![ObjectReadResult::new(
+            InputObjectKind::ImmOrOwnedMoveObject(coin_ref),
+            coin.into(),
+        )]);
+        let mut transaction = Transaction::new(
+            TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(
+                claim.clone(),
+            )),
+            sender,
+            coin_ref,
+            0,
+            0,
+        );
+        fill_in_unset_simulation_gas(&mut transaction, &input_objects, gas_price, &config);
+        assert_eq!(transaction.gas_price(), gas_price);
+        transaction.gas_budget()
+    };
+
+    // A coin that covers the floor backs the budget with its whole balance.
+    assert_eq!(filled_budget(floor + 1), floor + 1);
+    // A coin below the floor leaves the budget at the floor, so the gas checks
+    // report the balance and not a budget the caller never set.
+    assert_eq!(filled_budget(floor - 1), floor);
 }

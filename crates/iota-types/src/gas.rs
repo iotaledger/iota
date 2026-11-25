@@ -22,7 +22,10 @@ pub mod checked {
             tables::GasStatus,
         },
         object::{MoveStructExt, Object},
-        transaction::{InputObjects, ObjectReadResult, TransactionAPI},
+        transaction::{
+            InputObjects, ObjectReadResult, TransactionAPI,
+            claim_account_min_gas_budget_of_transaction,
+        },
     };
 
     #[enum_dispatch]
@@ -195,7 +198,8 @@ pub mod checked {
 
     /// Fills in the gas a simulated transaction leaves unset: a zero price
     /// becomes `reference_gas_price`, and a zero budget as much as the gas
-    /// coins can back, up to the protocol maximum.
+    /// coins can back, up to the protocol maximum and never below the minimum
+    /// the transaction may declare.
     pub fn fill_in_unset_simulation_gas(
         transaction: &mut Transaction,
         input_objects: &InputObjects,
@@ -209,6 +213,12 @@ pub mod checked {
             let min_gas_budget = protocol_config
                 .base_tx_cost_fixed()
                 .saturating_mul(transaction.gas_price());
+            // A claim has a minimum budget of its own, above the general one.
+            let min_gas_budget =
+                claim_account_min_gas_budget_of_transaction(transaction, protocol_config)
+                    .map_or(min_gas_budget, |claim_min_gas_budget| {
+                        claim_min_gas_budget.max(min_gas_budget)
+                    });
 
             // The gas budget is capped at the gas coins' combined balance rather than left
             // at the protocol maximum, so that coins holding less than `max_tx_gas`

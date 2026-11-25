@@ -1568,6 +1568,101 @@ async fn test_simulate_rejects_a_system_transaction() {
     }
 }
 
+/// A dry run holds a `ClaimAccount` to the minimum gas budget that signing
+/// requires of it. A dev inspect does not bound the budget, so it does not.
+#[tokio::test]
+async fn test_simulate_bounds_a_claim_account_gas_budget_as_signing_does() {
+    use iota_sdk_types::{ClaimAccountTransaction, SmartAccountClaim, crypto::PublicKey};
+    use iota_types::transaction::claim_account_min_gas_budget;
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_claim_account_max_computation_units_for_testing(5_000);
+        config.set_claim_account_storage_bytes_bound_for_testing(2_000);
+        config.set_enable_claim_account_transaction_for_testing(true);
+        config
+    });
+    let (sender, private_key): (Address, AccountPrivateKey) = get_key_pair();
+    let claim = SmartAccountClaim::new(&PublicKey::Ed25519(private_key.public_key()));
+    let (_validator, fullnode, _object_basics) =
+        init_state_with_ids_and_object_basics_with_fullnode(vec![]).await;
+    let epoch_store = fullnode.epoch_store_for_testing();
+    let min_budget = claim_account_min_gas_budget(
+        epoch_store.protocol_config(),
+        epoch_store.reference_gas_price(),
+        claim.public_key_raw_bytes.len() as u64,
+    );
+
+    let simulate = |gas_balance: u64, budget: u64, checks| {
+        let gas_object = Object::new_gas_with_balance_and_owner_for_testing(gas_balance, sender);
+        let gas_object_ref = gas_object.object_ref();
+        fullnode.insert_genesis_object(gas_object);
+
+        fullnode.simulate_transaction(
+            Transaction::V1(TransactionV1 {
+                kind: TransactionKind::new_claim_account(
+                    ClaimAccountTransaction::new_smart_account(claim.clone()),
+                ),
+                sender,
+                gas_payment: GasPayment {
+                    objects: vec![gas_object_ref],
+                    owner: sender,
+                    price: 0,
+                    budget,
+                },
+                expiration: TransactionExpiration::None,
+            }),
+            checks,
+        )
+    };
+
+    // A budget below the minimum is rejected, as signing rejects it, even
+    // though the coin covers it.
+    let Err(error) = simulate(min_budget, min_budget - 1, VmChecks::Enabled) else {
+        panic!("a dry run should reject a claim budget below the minimum");
+    };
+    assert!(
+        matches!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::GasBudgetTooLow { min_budget: reported, .. }
+            } if reported == min_budget
+        ),
+        "unexpected error: {error:?}"
+    );
+
+    // An unset budget is filled in no lower than the minimum, so a coin that
+    // holds less is reported against its balance, not against a budget the
+    // caller never set.
+    let Err(error) = simulate(min_budget - 1, 0, VmChecks::Enabled) else {
+        panic!("a dry run should reject a balance below the minimum claim budget");
+    };
+    assert!(
+        matches!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::GasBalanceTooLow { .. }
+            }
+        ),
+        "unexpected error: {error:?}"
+    );
+
+    // A dev inspect lets the budget the dry run rejected through. The run
+    // stops at the next gas check instead, which a coin holding less than the
+    // budget fails.
+    let Err(error) = simulate(min_budget - 2, min_budget - 1, VmChecks::Disabled) else {
+        panic!("a dev inspect should reject a balance below the budget");
+    };
+    assert!(
+        matches!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::GasBalanceTooLow { .. }
+            }
+        ),
+        "unexpected error: {error:?}"
+    );
+}
+
 /// A child object named as an owned input is rejected by both check modes: it
 /// has to be reached through its parent, not passed directly.
 #[tokio::test]

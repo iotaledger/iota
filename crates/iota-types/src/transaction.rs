@@ -2993,16 +2993,18 @@ pub fn claim_account_min_gas_budget(
     computation.saturating_add(storage)
 }
 
-/// Requires a `ClaimAccount`'s gas budget to cover the claim pipeline at the
-/// transaction's own gas price and key size, so a claim that is accepted
-/// cannot run out of gas at execution. A no-op for every other transaction
-/// kind, and when the claim kind is disabled.
-fn check_claim_account_gas_budget(data: &Transaction, config: &ProtocolConfig) -> UserInputResult {
+/// [`claim_account_min_gas_budget`] of `data` at its own gas price and key
+/// size. `None` for every transaction kind other than `ClaimAccount`, and when
+/// the claim kind is disabled.
+pub(crate) fn claim_account_min_gas_budget_of_transaction(
+    data: &Transaction,
+    config: &ProtocolConfig,
+) -> Option<u64> {
     if !config.enable_claim_account_transaction() {
-        return Ok(());
+        return None;
     }
     let TransactionKind::ClaimAccount(claim) = data.kind() else {
-        return Ok(());
+        return None;
     };
     let smart = match &claim.kind {
         AccountClaimKind::SmartAccount(smart) => smart,
@@ -3012,11 +3014,27 @@ fn check_claim_account_gas_budget(data: &Transaction, config: &ProtocolConfig) -
     };
     // The cost scales with the declared gas price and the key bytes the claim
     // stores, so the floor does too.
-    let min_budget = claim_account_min_gas_budget(
+    Some(claim_account_min_gas_budget(
         config,
         data.gas_price(),
         smart.public_key_raw_bytes.len() as u64,
-    );
+    ))
+}
+
+/// Requires a `ClaimAccount`'s gas budget to cover the claim pipeline at the
+/// transaction's own gas price and key size, so a claim that is accepted
+/// cannot run out of gas at execution. A no-op for every other transaction
+/// kind, and when the claim kind is disabled.
+///
+/// Reads the gas price and the gas budget, so a simulation can only run it
+/// once it has filled in the ones its caller left unset.
+pub fn check_claim_account_gas_budget(
+    data: &Transaction,
+    config: &ProtocolConfig,
+) -> UserInputResult {
+    let Some(min_budget) = claim_account_min_gas_budget_of_transaction(data, config) else {
+        return Ok(());
+    };
     fp_ensure!(
         data.gas_budget() >= min_budget,
         UserInputError::GasBudgetTooLow {
