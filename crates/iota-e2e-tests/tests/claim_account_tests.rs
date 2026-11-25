@@ -554,6 +554,269 @@ async fn test_claim_account_rejected_when_key_does_not_derive_sender() {
     );
 }
 
+/// With `enable_claim_account_transaction` off, a `ClaimAccount` never reaches
+/// a commit. An honest validator rejects it at submission, so one validator
+/// skips its validity and input checks and puts it in a block, as a faulty one
+/// can. The other validators refuse that block, so nobody sequences or
+/// executes the claim. They keep building the certified checkpoints, and an
+/// ordinary transaction submitted through one of them still executes.
+///
+/// Simulator only, because the skipped checks are fail points.
+#[cfg(msim)]
+#[sim_test]
+async fn test_claim_account_from_a_faulty_validator_is_refused_when_disabled() {
+    use std::{net::SocketAddr, time::Duration};
+
+    use iota_core::authority_client::validator_v2::ValidatorV2API;
+    use iota_keys::keystore::AccountKeystore;
+    use iota_macros::{clear_fail_point, register_fail_point_if};
+    use iota_sdk_crypto::simple::SimpleKeypair;
+    use iota_sdk_types::{
+        Address, ClaimAccountTransaction, SmartAccountClaim, Transaction, TransactionKind,
+    };
+    use iota_types::{
+        effects::TransactionEffectsAPI,
+        error::{IotaError, UserInputError},
+        messages_grpc::TxStatusUpdate,
+        transaction::{TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI},
+    };
+
+    telemetry_subscribers::init_for_testing();
+
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let mut addresses = test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .addresses()
+        .into_iter();
+    let owner: Address = addresses.next().expect("wallet must have an account");
+    let other: Address = addresses.next().expect("wallet must have a second account");
+    let keypair: SimpleKeypair = test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .get_key(&owner)
+        .expect("keypair must exist for owner")
+        .as_keypair()
+        .expect("stored key must be a keypair")
+        .clone();
+
+    let (public_key_scheme, public_key_raw_bytes) = claim_public_key(&keypair);
+    let kind = TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(
+        SmartAccountClaim {
+            public_key_scheme,
+            public_key_raw_bytes,
+        },
+    ));
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let gas = first_gas_coin(&test_cluster.wallet, owner).await;
+    let claim = test_cluster.wallet.sign_transaction(&Transaction::new(
+        kind,
+        owner,
+        gas,
+        rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+        rgp,
+    ));
+    let claim_digest = *claim.digest();
+
+    // An honest validator rejects the claim at submission.
+    let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
+    let validators = test_cluster.get_validator_pubkeys();
+    let client_of = |name| {
+        test_cluster.authority_aggregator().authority_clients[name]
+            .authority_client()
+            .clone()
+    };
+    let rejected = client_of(&validators[1])
+        .submit_tx(vec![claim.clone()], Some(client_ip))
+        .await
+        .unwrap();
+    assert!(
+        matches!(
+            rejected.as_slice(),
+            [(
+                digest,
+                TxStatusUpdate::Rejected {
+                    error: IotaError::UserInput {
+                        error: UserInputError::Unsupported(_)
+                    }
+                }
+            )] if *digest == claim_digest
+        ),
+        "an honest validator must reject the claim as unsupported, got {rejected:?}"
+    );
+
+    // One validator skips its validity and input checks and puts the claim in
+    // a block.
+    let faulty = validators[0];
+    let faulty_sim_id = test_cluster
+        .swarm
+        .node(&faulty)
+        .unwrap()
+        .get_node_handle()
+        .unwrap()
+        .with(|_| iota_simulator::current_simnode_id());
+    for fail_point in ["admit-without-validity-check", "admit-without-input-checks"] {
+        register_fail_point_if(fail_point, move || {
+            iota_simulator::current_simnode_id() == faulty_sim_id
+        });
+    }
+    let submitted = tokio::time::timeout(
+        Duration::from_secs(60),
+        client_of(&faulty).submit_tx(vec![claim], Some(client_ip)),
+    )
+    .await
+    .expect("the submission must be answered within 60s")
+    .unwrap();
+    clear_fail_point("admit-without-validity-check");
+    clear_fail_point("admit-without-input-checks");
+    assert!(
+        matches!(
+            submitted.as_slice(),
+            [(digest, TxStatusUpdate::Submitted)] if *digest == claim_digest
+        ),
+        "the validator skipping its checks must submit the claim, got {submitted:?}"
+    );
+
+    // The other validators keep executing checkpoints, and the ones they build
+    // themselves are the certified ones. The faulty validator is left out: the
+    // others refuse its blocks from the one with the claim on.
+    let highest_executed = |handle: &iota_node::IotaNodeHandle| {
+        handle.with(|node| {
+            node.state()
+                .get_checkpoint_store()
+                .get_highest_executed_checkpoint_seq_number()
+                .unwrap()
+                .unwrap_or_default()
+        })
+    };
+    let last_built = |handle: &iota_node::IotaNodeHandle| {
+        handle.with(|node| {
+            node.state()
+                .epoch_store_for_testing()
+                .last_built_checkpoint_builder_summary()
+                .unwrap()
+                .map(|summary| summary.summary.sequence_number)
+                .unwrap_or_default()
+        })
+    };
+    let honest: Vec<_> = validators[1..]
+        .iter()
+        .map(|name| {
+            test_cluster
+                .swarm
+                .node(name)
+                .unwrap()
+                .get_node_handle()
+                .unwrap()
+        })
+        .collect();
+    let first_compared = honest.iter().map(highest_executed).min().unwrap();
+    let target = honest.iter().map(highest_executed).max().unwrap() + 20;
+    for handle in &honest {
+        tokio::time::timeout(Duration::from_secs(180), async {
+            while highest_executed(handle) < target || last_built(handle) < target {
+                tokio::time::sleep(Duration::from_millis(500)).await;
+            }
+        })
+        .await
+        .expect("the other validators must execute and build checkpoints past the refusal");
+        handle.with(|node| {
+            let store = node.state().get_checkpoint_store().clone();
+            for sequence_number in first_compared..=target {
+                let local = store
+                    .get_locally_computed_checkpoint(sequence_number)
+                    .unwrap();
+                let certified = store
+                    .get_checkpoint_by_sequence_number(sequence_number)
+                    .unwrap();
+                if let (Some(local), Some(certified)) = (local, certified) {
+                    assert_eq!(
+                        local.digest(),
+                        *certified.digest(),
+                        "a validator's checkpoint {sequence_number} must match the certified one"
+                    );
+                }
+            }
+        });
+    }
+
+    // The claim reached no commit: twenty checkpoints later no other validator
+    // has dropped it at a commit, which it does with a claim it sequences.
+    for handle in &honest {
+        let sequenced = tokio::time::timeout(
+            Duration::from_secs(1),
+            handle.with_async(|node| async move {
+                node.state()
+                    .epoch_store_for_testing()
+                    .notify_read_dropped_digests(claim_digest)
+                    .await
+            }),
+        )
+        .await;
+        assert!(
+            sequenced.is_err(),
+            "a validator sequenced the claim and dropped it: {sequenced:?}"
+        );
+    }
+
+    // Nobody executed the claim, and its gas coin keeps its version.
+    for handle in test_cluster.all_node_handles() {
+        let executed = handle.with(|node| {
+            node.state()
+                .get_transaction_cache_reader()
+                .try_get_executed_effects(&claim_digest)
+                .unwrap()
+        });
+        assert!(executed.is_none(), "no node may execute the claim");
+    }
+    assert_eq!(
+        test_cluster.get_latest_object_ref(&gas.object_id).await,
+        gas,
+        "the dropped claim's gas coin must keep its version"
+    );
+
+    // An ordinary transaction submitted through another validator still
+    // executes.
+    let transfer = test_cluster.wallet.sign_transaction(
+        &test_cluster
+            .test_transaction_builder_with_sender(other)
+            .await
+            .transfer_iota(Some(1), owner)
+            .build(),
+    );
+    let transfer_digest = *transfer.digest();
+    let submitted = client_of(&validators[1])
+        .submit_tx(vec![transfer], Some(client_ip))
+        .await
+        .unwrap();
+    assert!(
+        matches!(
+            submitted.as_slice(),
+            [(digest, TxStatusUpdate::Submitted)] if *digest == transfer_digest
+        ),
+        "another validator must submit the transfer, got {submitted:?}"
+    );
+    let effects = tokio::time::timeout(
+        Duration::from_secs(60),
+        test_cluster
+            .fullnode_handle
+            .iota_node
+            .with_async(|node| async move {
+                node.state()
+                    .get_transaction_cache_reader()
+                    .try_notify_read_executed_effects("", &[transfer_digest])
+                    .await
+            }),
+    )
+    .await
+    .expect("the transfer must execute within 60s")
+    .unwrap()
+    .remove(0);
+    assert!(effects.status().is_success(), "{:?}", effects.status());
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
