@@ -3,6 +3,11 @@ source: crates/iota-graphql-rpc/tests/snapshot_tests.rs
 expression: sdl
 ---
 """
+The type of account created by a claim.
+"""
+union AccountClaimKind = SmartAccountClaim
+
+"""
 The 32-byte address that is an account address (corresponding to a public
 key).
 """
@@ -499,18 +504,13 @@ input CheckpointId {
 }
 
 """
-The type of account created by a claim.
-"""
-union ClaimAccountKind = SmartAccountClaim
-
-"""
 A transaction that claims the sender's address as an account object.
 """
 type ClaimAccountTransaction {
 	"""
 	The type of account created by the claim.
 	"""
-	kind: ClaimAccountKind!
+	kind: AccountClaimKind!
 }
 
 """

@@ -18,10 +18,10 @@ pub(crate) struct ClaimAccountTransaction {
 #[Object]
 impl ClaimAccountTransaction {
     /// The type of account created by the claim.
-    async fn kind(&self) -> ClaimAccountKind {
+    async fn kind(&self) -> AccountClaimKind {
         match &self.native.kind {
             NativeAccountClaimKind::SmartAccount(smart) => {
-                ClaimAccountKind::SmartAccount(SmartAccountClaim {
+                AccountClaimKind::SmartAccount(SmartAccountClaim {
                     public_key_scheme: smart.public_key_scheme,
                     public_key_raw_bytes: Base64::from(smart.public_key_raw_bytes.as_slice()),
                 })
@@ -35,7 +35,7 @@ impl ClaimAccountTransaction {
 
 /// The type of account created by a claim.
 #[derive(Union, Clone, Eq, PartialEq)]
-pub(crate) enum ClaimAccountKind {
+pub(crate) enum AccountClaimKind {
     SmartAccount(SmartAccountClaim),
 }
 
