@@ -78,11 +78,30 @@ fn standard_signature_is_verified_on_success() {
 #[cfg(feature = "tracing")]
 #[test]
 fn standard_signature_run_is_traced() {
+    use iota_sdk_types::Identifier;
+    use iota_types::IOTA_FRAMEWORK_PACKAGE_ID;
+    use iota_vm_sdk::TraceEvent;
+
     let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
     let gas = gas_coin(sender);
     let recipient = Address::from(ObjectId::random());
 
-    let tx = transfer_tx(sender, &gas, recipient, TRANSFER_AMOUNT);
+    let mut b = ProgrammableTransactionBuilder::new();
+    b.programmable_move_call(
+        IOTA_FRAMEWORK_PACKAGE_ID,
+        Identifier::from_static("address"),
+        Identifier::from_static("length"),
+        vec![],
+        vec![],
+    );
+    b.transfer_iota(recipient, Some(TRANSFER_AMOUNT));
+    let tx = Transaction::new_programmable(
+        sender,
+        vec![gas.object_ref()],
+        b.finish(),
+        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE * GAS_PRICE,
+        GAS_PRICE,
+    );
     let signed = to_sender_signed_transaction(tx, &key).into_data();
 
     let mut store = InMemoryStore::with_framework();
@@ -103,8 +122,11 @@ fn standard_signature_run_is_traced() {
         .trace
         .expect("a standard-signature run must capture a trace");
     assert!(
-        trace.event_count() > 0,
-        "a captured trace must hold the events the engine emitted"
+        trace
+            .events()
+            .expect("trace events should be readable")
+            .any(|event| matches!(event, Ok(TraceEvent::Instruction { .. }))),
+        "the trace must carry the Move call's instructions"
     );
 }
 
