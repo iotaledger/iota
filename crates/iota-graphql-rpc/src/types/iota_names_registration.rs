@@ -15,7 +15,6 @@ use iota_sdk_types::{Address, StructTag};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    available_range::LedgerView,
     balance::{self, Balance},
     base64::Base64,
     big_int::BigInt,
@@ -25,6 +24,7 @@ use super::{
     display::DisplayEntry,
     dynamic_field::{DynamicField, DynamicFieldName},
     iota_address::IotaAddress,
+    ledger_view::LedgerView,
     move_object::{MoveObject, MoveObjectImpl},
     move_value::MoveValue,
     object::{self, ActiveObject, Object, ObjectFilter, ObjectImpl, ObjectStatus},

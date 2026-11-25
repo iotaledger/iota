@@ -23,10 +23,10 @@ use crate::{
     filter, query,
     raw_query::RawQuery,
     types::{
-        available_range::LedgerView,
         big_int::BigInt,
         cursor::{self, Page, RawPaginated, ScanLimited, Target},
         iota_address::IotaAddress,
+        ledger_view::{LedgerView, LedgerViewKind},
         move_type::MoveType,
         uint53::UInt53,
     },
@@ -129,7 +129,7 @@ impl Balance {
                     return Ok::<_, diesel::result::Error>(None);
                 };
 
-                if matches!(ledger_view, LedgerView::Live(_)) {
+                if ledger_view.kind == LedgerViewKind::Live {
                     page.set_live_view(checkpoint_viewed_at);
                 }
 

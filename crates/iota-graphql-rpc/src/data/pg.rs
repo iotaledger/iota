@@ -23,9 +23,8 @@ pub(crate) struct PgExecutor {
     pub inner: IndexerReader,
     pub limits: Limits,
     pub metrics: Metrics,
-    /// Maximum size of the `availableRange` window (`MAX_AVAILABLE_RANGE`).
-    /// Caps how many checkpoints below `latest` a consistent view can be
-    /// requested for.
+    /// Caps how many checkpoints below `latest` a consistent `ledgerView`
+    /// can be requested for.
     pub max_available_range: u64,
 }
 

@@ -1,0 +1,138 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 17 tasks
+
+task 1, lines 13-36:
+//# run-graphql
+Response: {
+  "data": {
+    "ledgerView": {
+      "kind": "CONSISTENT",
+      "max": {
+        "digest": "HA81rp38NCuAG3umu7XtxzZLVcWpJeTFuE33BCCq6Ztw",
+        "sequenceNumber": 0
+      },
+      "min": {
+        "digest": "HA81rp38NCuAG3umu7XtxzZLVcWpJeTFuE33BCCq6Ztw",
+        "sequenceNumber": 0
+      }
+    },
+    "max": {
+      "digest": "HA81rp38NCuAG3umu7XtxzZLVcWpJeTFuE33BCCq6Ztw",
+      "sequenceNumber": 0
+    },
+    "min": {
+      "digest": "HA81rp38NCuAG3umu7XtxzZLVcWpJeTFuE33BCCq6Ztw",
+      "sequenceNumber": 0
+    }
+  }
+}
+
+task 3, line 40:
+//# create-checkpoint
+Checkpoint created: 1
+
+task 4, lines 42-53:
+//# run-graphql
+Response: {
+  "data": {
+    "ledgerView": {
+      "kind": "CONSISTENT",
+      "max": {
+        "sequenceNumber": 1
+      },
+      "min": {
+        "sequenceNumber": 0
+      }
+    }
+  }
+}
+
+task 6, line 57:
+//# create-checkpoint
+Checkpoint created: 2
+
+task 7, lines 59-70:
+//# run-graphql
+Response: {
+  "data": {
+    "ledgerView": {
+      "kind": "CONSISTENT",
+      "max": {
+        "sequenceNumber": 2
+      },
+      "min": {
+        "sequenceNumber": 0
+      }
+    }
+  }
+}
+
+task 9, line 74:
+//# create-checkpoint
+Checkpoint created: 3
+
+task 10, lines 76-87:
+//# run-graphql
+Response: {
+  "data": {
+    "ledgerView": {
+      "kind": "CONSISTENT",
+      "max": {
+        "sequenceNumber": 3
+      },
+      "min": {
+        "sequenceNumber": 0
+      }
+    }
+  }
+}
+
+task 12, line 91:
+//# create-checkpoint
+Checkpoint created: 4
+
+task 13, lines 93-104:
+//# run-graphql
+Response: {
+  "data": {
+    "ledgerView": {
+      "kind": "CONSISTENT",
+      "max": {
+        "sequenceNumber": 4
+      },
+      "min": {
+        "sequenceNumber": 0
+      }
+    }
+  }
+}
+
+task 15, line 108:
+//# create-checkpoint
+Checkpoint created: 5
+
+task 16, lines 110-131:
+//# run-graphql
+Response: {
+  "data": {
+    "ledgerView": {
+      "kind": "CONSISTENT",
+      "max": {
+        "sequenceNumber": 5
+      },
+      "min": {
+        "sequenceNumber": 0
+      }
+    },
+    "max": {
+      "digest": "2QtPyuUTV9HN6wS2YUGop4yBYfRFqYwrKsC3fC8Q8ZeJ",
+      "sequenceNumber": 5
+    },
+    "min": {
+      "digest": "HA81rp38NCuAG3umu7XtxzZLVcWpJeTFuE33BCCq6Ztw",
+      "sequenceNumber": 0
+    }
+  }
+}

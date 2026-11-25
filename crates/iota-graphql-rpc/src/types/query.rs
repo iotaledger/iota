@@ -25,7 +25,6 @@ use crate::{
     server::{builder::get_write_api, watermark_task::Watermark},
     types::{
         address::Address,
-        available_range::AvailableRange,
         chain_identifier::ChainIdentifierCache,
         checkpoint::{self, Checkpoint, CheckpointId},
         coin::Coin,
@@ -37,6 +36,7 @@ use crate::{
         event::{self, Event, EventFilter},
         iota_address::IotaAddress,
         iota_names_registration::{IotaNames, Name},
+        ledger_view::{AvailableRange, LedgerView},
         move_package::{self, MovePackage, MovePackageCheckpointFilter, MovePackageVersionFilter},
         move_type::MoveType,
         move_view_result::MoveViewResult,
@@ -76,11 +76,29 @@ impl Query {
     /// For consistent view, a query paginated with a cursor is viewed at the checkpoint the cursor
     /// was issued at, so the cursor expires once that checkpoint leaves the range.
     ///
-    /// For live views, the ranges resolves into the latest checkpoint with available data on the
-    /// db.
+    /// For live views, the range resolves into the latest checkpoint with fully indexed data in
+    /// the database.
+    #[graphql(deprecation = "Use `ledgerView` instead. Will be removed in v1.50.")]
     async fn available_range(&self, ctx: &Context<'_>) -> Result<AvailableRange> {
         let Watermark { checkpoint, .. } = *ctx.data()?;
         AvailableRange::query(ctx.data_unchecked(), checkpoint)
+            .await
+            .extend()
+    }
+
+    /// View on the ledger that object queries read.
+    ///
+    /// This applies to objects, coins, balances, dynamic fields and name registrations.
+    ///
+    /// A `LIVE` view always reads the latest state of objects. In this case `max` represents the
+    /// latest fully indexed checkpoint in the database. This implies that two consecutive pages
+    /// of results might not reflect the same state of the ledger.
+    ///
+    /// A `CONSISTENT` view reads a pinned snapshot of objects at any checkpoint
+    /// from `min` to `max`.
+    async fn ledger_view(&self, ctx: &Context<'_>) -> Result<LedgerView> {
+        let Watermark { checkpoint, .. } = *ctx.data()?;
+        LedgerView::query(ctx.data_unchecked(), checkpoint)
             .await
             .extend()
     }

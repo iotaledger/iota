@@ -22,10 +22,10 @@ use crate::{
     filter,
     raw_query::RawQuery,
     types::{
-        available_range::LedgerView,
         base64::Base64,
         cursor::{Page, Target},
         iota_address::IotaAddress,
+        ledger_view::{LedgerView, LedgerViewKind},
         move_object::MoveObject,
         move_value::MoveValue,
         object::{self, ActiveObject, Object, StoredBackwardObject},
@@ -211,7 +211,7 @@ impl DynamicField {
                     return Ok::<_, diesel::result::Error>(None);
                 };
 
-                if matches!(ledger_view, LedgerView::Live(_)) {
+                if ledger_view.kind == LedgerViewKind::Live {
                     page.set_live_view(checkpoint_viewed_at);
                 }
 

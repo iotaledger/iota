@@ -59,10 +59,9 @@ pub struct ConnectionConfig {
     /// to connect to, on start-up.
     #[arg(long, default_value_t = ConnectionConfig::default().skip_migration_consistency_check)]
     pub skip_migration_consistency_check: bool,
-    /// Maximum number of checkpoints to look back for consistent view queries.
-    /// Directly influences the `availableRange` size. Larger values let
-    /// pagination cursors stay valid for longer, downside is that older cursors
-    /// have higher DB cost.
+    /// Maximum number of checkpoints to look back for consistent `ledgerView`
+    /// queries. Larger values let pagination cursors stay valid for longer, downside
+    /// is that older cursors have higher DB cost.
     #[arg(
         long,
         default_value_t = ConnectionConfig::default().max_available_range,

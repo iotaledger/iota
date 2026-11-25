@@ -145,8 +145,8 @@ For consistent view, a query paginated with a cursor is viewed at
 the checkpoint the cursor was issued at, so the cursor expires once that
 checkpoint leaves the range.
 
-For live views, the ranges resolves into the latest checkpoint with available
-data on the db.
+For live views, the range resolves into the latest checkpoint with fully indexed data in
+the database.
 """
 type AvailableRange {
 	first: Checkpoint
@@ -1690,6 +1690,48 @@ type Lagged {
 	Number of missed payloads since the previous emitted one.
 	"""
 	count: Int!
+}
+
+"""
+View on the ledger that object queries read.
+
+This applies to objects, coins, balances, dynamic fields and name registrations.
+
+A `LIVE` view always reads the latest state of objects. In this case `max` represents the
+latest fully indexed checkpoint in the database. This implies that two consecutive pages
+of results might not reflect the same state of the ledger.
+
+A `CONSISTENT` view reads a pinned snapshot of objects at any checkpoint
+from `min` to `max`.
+"""
+type LedgerView {
+	"""
+	Whether the view is live or consistent.
+	"""
+	kind: LedgerViewKind!
+	"""
+	The lowest checkpoint of a consistent view, or `null` for a live view.
+	"""
+	min: Checkpoint
+	"""
+	The latest fully indexed checkpoint in the database when the view is live,
+	or the highest checkpoint of a consistent view.
+	"""
+	max: Checkpoint
+}
+
+"""
+The kind of a view on the ledger.
+"""
+enum LedgerViewKind {
+	"""
+	Rolling view over the latest state of objects.
+	"""
+	LIVE
+	"""
+	Consistent view at any checkpoint in a range.
+	"""
+	CONSISTENT
 }
 
 """
@@ -3568,10 +3610,23 @@ type Query {
 	For consistent view, a query paginated with a cursor is viewed at the checkpoint the cursor
 	was issued at, so the cursor expires once that checkpoint leaves the range.
 	
-	For live views, the ranges resolves into the latest checkpoint with available data on the
-	db.
+	For live views, the range resolves into the latest checkpoint with fully indexed data in
+	the database.
 	"""
-	availableRange: AvailableRange!
+	availableRange: AvailableRange! @deprecated(reason: "Use `ledgerView` instead. Will be removed in v1.50.")
+	"""
+	View on the ledger that object queries read.
+	
+	This applies to objects, coins, balances, dynamic fields and name registrations.
+	
+	A `LIVE` view always reads the latest state of objects. In this case `max` represents the
+	latest fully indexed checkpoint in the database. This implies that two consecutive pages
+	of results might not reflect the same state of the ledger.
+	
+	A `CONSISTENT` view reads a pinned snapshot of objects at any checkpoint
+	from `min` to `max`.
+	"""
+	ledgerView: LedgerView!
 	"""
 	Configuration for this RPC service
 	"""
