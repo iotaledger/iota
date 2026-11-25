@@ -92,25 +92,6 @@ pub struct AuthorityPerpetualTables {
     /// Object references of currently active objects that can be mutated.
     pub(crate) live_owned_object_markers: DBMap<ObjectReference, ()>,
 
-    /// The flat ledger tables [`HistoricLedger`] replaced; dropped when the
-    /// database is opened.
-    // TODO(https://github.com/iotaledger/iota/issues/13576): remove these tables.
-    #[rename = "transactions"]
-    #[deprecated_db_map]
-    _transactions: Option<DBMap<(), ()>>,
-    #[rename = "effects"]
-    #[deprecated_db_map]
-    _effects: Option<DBMap<(), ()>>,
-    #[rename = "executed_effects"]
-    #[deprecated_db_map]
-    _executed_effects: Option<DBMap<(), ()>>,
-    #[rename = "events_2"]
-    #[deprecated_db_map]
-    _events_2: Option<DBMap<(), ()>>,
-    #[rename = "executed_transactions_to_checkpoint"]
-    #[deprecated_db_map]
-    _executed_transactions_to_checkpoint: Option<DBMap<(), ()>>,
-
     // Finalized root state hash for epoch, to be included in CheckpointSummary
     // of last checkpoint of epoch. These values should only ever be written once
     // and never changed
@@ -130,28 +111,6 @@ pub struct AuthorityPerpetualTables {
     /// earlier protocol versions. This number is the result of
     /// storage_fund_balance - sum(storage_rebate).
     pub(crate) expected_storage_fund_imbalance: DBMap<(), i64>,
-
-    /// Tables of the one-time move into the per-epoch buckets; dropped when
-    /// the database is opened.
-    // TODO(https://github.com/iotaledger/iota/issues/13576): remove these tables.
-    #[rename = "object_per_epoch_marker_table"]
-    #[deprecated_db_map]
-    _object_per_epoch_marker_table: Option<DBMap<(), ()>>,
-    #[rename = "object_backlog_sweep_progress"]
-    #[deprecated_db_map]
-    _object_backlog_sweep_progress: Option<DBMap<(), ()>>,
-    #[rename = "object_backlog_sweep_bound"]
-    #[deprecated_db_map]
-    _object_backlog_sweep_bound: Option<DBMap<(), ()>>,
-    #[rename = "object_backlog_sweep_epoch"]
-    #[deprecated_db_map]
-    _object_backlog_sweep_epoch: Option<DBMap<(), ()>>,
-    #[rename = "ledger_backlog_migration_progress"]
-    #[deprecated_db_map]
-    _ledger_backlog_migration_progress: Option<DBMap<(), ()>>,
-    #[rename = "ledger_backlog_migration_floor"]
-    #[deprecated_db_map]
-    _ledger_backlog_migration_floor: Option<DBMap<(), ()>>,
 }
 
 /// The total IOTA supply used during conservation checks.
@@ -272,14 +231,6 @@ impl AuthorityPerpetualTables {
             (
                 "live_owned_object_markers".to_string(),
                 live_owned_object_markers_table_config(db_options.clone()),
-            ),
-            (
-                "transactions".to_string(),
-                transactions_table_config(db_options.clone()),
-            ),
-            (
-                "effects".to_string(),
-                effects_table_config(db_options.clone()),
             ),
         ]);
         table_options.extend(HistoricObjects::extra_column_family_options(
@@ -862,22 +813,6 @@ fn objects_table_config(db_options: DBOptions) -> DBOptions {
     db_options
         .optimize_for_write_throughput()
         .optimize_for_read(read_size_from_env(ENV_VAR_OBJECTS_BLOCK_CACHE_SIZE).unwrap_or(5 * 1024))
-}
-
-fn transactions_table_config(db_options: DBOptions) -> DBOptions {
-    db_options
-        .optimize_for_write_throughput()
-        .optimize_for_point_lookup(
-            read_size_from_env(ENV_VAR_TRANSACTIONS_BLOCK_CACHE_SIZE).unwrap_or(512),
-        )
-}
-
-fn effects_table_config(db_options: DBOptions) -> DBOptions {
-    db_options
-        .optimize_for_write_throughput()
-        .optimize_for_point_lookup(
-            read_size_from_env(ENV_VAR_EFFECTS_BLOCK_CACHE_SIZE).unwrap_or(1024),
-        )
 }
 
 /// `db_options` with one block cache that every historic ledger bucket opened
