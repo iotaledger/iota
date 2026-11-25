@@ -66,66 +66,6 @@ fn mock_checkpoint_data_with_sender(
     }
 }
 
-fn build_large_checkpoint_transactions() -> Vec<CheckpointTransaction> {
-    // Create many dummy transactions to exceed the message size limit when chunked.
-    // Each transaction is roughly 500-1000 bytes when serialized as protobuf.
-    let num_transactions = 50000;
-    let mut transactions = Vec::with_capacity(num_transactions);
-
-    for _ in 0..num_transactions {
-        let (sender, key): (_, AccountPrivateKey) = get_key_pair();
-        let gas = random_object_ref();
-        let transaction = TestTransactionBuilder::new(sender, gas, 1000)
-            .transfer(random_object_ref(), sender)
-            .build_and_sign(&key);
-
-        let effects = TestEffectsBuilder::new(transaction.data()).build();
-        let (input_objects, output_objects) = common::objects_for_effects(sender, &effects);
-
-        transactions.push(CheckpointTransaction {
-            transaction,
-            effects,
-            events: None,
-            input_objects,
-            output_objects,
-        });
-    }
-
-    transactions
-}
-
-/// Helper to set up test server with specific large checkpoints.
-async fn test_server_and_client_setup_with_large_checkpoints<
-    I: Iterator<Item = u64>,
-    L: Iterator<Item = u64>,
->(
-    checkpoint_range: I,
-    large_checkpoints: L,
-    config_customizer: impl FnOnce(&mut GrpcApiConfig),
-    client_max_message_size_bytes: Option<u32>,
-) -> (
-    GrpcServerHandle,
-    GrpcClient,
-    Arc<Mutex<HashSet<CheckpointSequenceNumber>>>,
-) {
-    let mut mock = MockGrpcStateReader::new_from_iter(checkpoint_range);
-    mock.large_checkpoint_transactions = build_large_checkpoint_transactions();
-    let mock = Arc::new(mock);
-
-    // Mark specified checkpoints as large
-    for seq in large_checkpoints {
-        mock.mark_checkpoint_as_large(seq);
-    }
-
-    test_server_and_client_setup(
-        std::iter::empty(),
-        config_customizer,
-        Some(mock),
-        client_max_message_size_bytes,
-    )
-    .await
-}
-
 /// Set up a test server and high-level `GrpcClient` with a set of available
 /// checkpoint sequence numbers.
 async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
@@ -300,11 +240,14 @@ async fn test_historical_end_sequence_number_only() {
 #[tokio::test]
 async fn test_future_end_sequence_number_only_full() {
     let (server_handle, client, _) = test_server_and_client_setup(0..=10, |_| {}, None, None).await;
-    spawn_checkpoint_sender(&server_handle, 11);
 
-    let range = (None, Some(100));
+    let range = (None, Some(20));
 
     let mut stream = stream_in_range(&client, range).await.unwrap();
+
+    // Start the checkpoint sender after we've subscribed to the stream, so
+    // checkpoint 20 cannot be broadcast before the stream listens.
+    spawn_checkpoint_sender(&server_handle, 11);
 
     let mut results = Vec::new();
 
@@ -327,7 +270,7 @@ async fn test_future_end_sequence_number_only_full() {
     .await
     .expect("waiting for stream timed out");
 
-    assert_eq!(results, vec![100]);
+    assert_eq!(results, vec![20]);
 
     // Clean up
     server_handle
@@ -440,11 +383,18 @@ async fn test_historical_to_live_gap_fill() {
         .expect("Failed to shutdown server");
 }
 
+/// A stream that falls behind the broadcast channel loses the checkpoints the
+/// channel dropped, and reads them from storage instead.
+///
+/// On one thread, so the stream cannot read the channel while the test
+/// broadcasts without awaiting.
 #[tokio::test(flavor = "current_thread")]
-async fn test_gap_fill_with_slow_client() {
-    // Pre-populate storage with checkpoints 0..=10 before spawning the producer
+async fn test_gap_fill_when_the_stream_falls_behind_the_broadcast() {
+    const STORED: u64 = 10;
+    const LAST: u64 = 40;
+
     let (server_handle, client, checkpoints) = test_server_and_client_setup(
-        0..=10,
+        0..=STORED,
         |config| {
             config.broadcast_buffer_size = 5;
         },
@@ -453,52 +403,38 @@ async fn test_gap_fill_with_slow_client() {
     )
     .await;
 
-    // Producer: generates checkpoints 11..=200, one every 100ms
-    tokio::spawn({
-        let data_broadcaster = server_handle.checkpoint_data_broadcaster().clone();
-        let checkpoints = checkpoints.clone();
-        async move {
-            for i in 11..=200u64 {
-                let data = mock_checkpoint_data(i);
-                checkpoints.lock().unwrap().insert(i);
-                data_broadcaster.send_traced(&data);
-                tokio::time::sleep(Duration::from_millis(100)).await;
-            }
-        }
-    });
-
-    // Client: slow consumer
     let range = (Some(0), None);
-
     let mut stream = stream_in_range(&client, range).await.unwrap();
-
     let mut results = Vec::new();
 
-    tokio::time::timeout(Duration::from_secs(120), async {
-        while let Some(res) = stream.body_mut().next().await {
-            match res {
-                Ok(response) => {
-                    let sequence_number = response.sequence_number();
-                    results.push(sequence_number);
-                    tokio::time::sleep(Duration::from_millis(250)).await; // slow down the client
-                    if sequence_number >= 20 {
-                        break;
-                    }
-                }
-                Err(iota_grpc_client::GrpcError::Grpc(status))
-                    if status.code() == tonic::Code::NotFound =>
-                {
+    let mut read_until = async |results: &mut Vec<u64>, last: u64| {
+        tokio::time::timeout(Duration::from_secs(10), async {
+            while let Some(res) = stream.body_mut().next().await {
+                let sequence_number = res.expect("stream should not error").sequence_number();
+                results.push(sequence_number);
+                if sequence_number >= last {
                     break;
                 }
-                Err(e) => panic!("Unexpected error in stream: {e:?}"),
             }
-        }
-    })
-    .await
-    .expect("waiting for stream timed out");
+        })
+        .await
+        .expect("waiting for stream timed out");
+    };
 
-    // Assert we got all checkpoints 0..=20
-    assert_eq!(results, (0..=20u64).collect::<Vec<_>>());
+    // The stream has caught up with storage and is subscribed to the channel.
+    read_until(&mut results, STORED).await;
+
+    // Far more checkpoints than the channel holds, with no await between
+    // them, so the channel drops the oldest before the stream reads any.
+    let data_broadcaster = server_handle.checkpoint_data_broadcaster().clone();
+    for sequence_number in STORED + 1..=LAST {
+        checkpoints.lock().unwrap().insert(sequence_number);
+        data_broadcaster.send_traced(&mock_checkpoint_data(sequence_number));
+    }
+
+    read_until(&mut results, LAST).await;
+
+    assert_eq!(results, (0..=LAST).collect::<Vec<_>>());
 
     // Clean up
     server_handle
@@ -507,59 +443,79 @@ async fn test_gap_fill_with_slow_client() {
         .expect("Failed to shutdown server");
 }
 
+/// A checkpoint whose transactions exceed the message size limit is sent in
+/// several messages, and the client puts them back together, both for a
+/// single checkpoint and in a stream.
 #[tokio::test]
 async fn test_chunked_checkpoint_streaming() {
-    // Test chunking by using a naturally large checkpoint that exceeds 4MB
-    let (server_handle, client, _checkpoints) =
-        test_server_and_client_setup_with_large_checkpoints(
-            0..=1,
-            std::iter::once(0), // Mark checkpoint 0 as large
-            |config| {
-                config.max_message_size_bytes = 4 * 1024 * 1024; // 4 MB
-            },
-            Some(4 * 1024 * 1024),
-        )
-        .await;
+    const MAX_MESSAGE_SIZE_BYTES: u32 = 4 * 1024 * 1024;
+    const TRANSACTIONS: usize = 300;
 
-    // Test individual checkpoint retrieval
+    // About 19 KB per transaction with 4 KiB objects, so 300 exceed the limit
+    // and the server has to split them.
+    let mut transaction = common::build_checkpoint_transactions_with_events(1, 0).remove(0);
+    common::set_object_contents_len(&mut transaction, 4096);
+    let mock = Arc::new(MockGrpcStateReader {
+        summary: Some(common::mock_summary(0, &common::EMPTY_CHECKPOINT_CONTENTS)),
+        contents: Some(common::EMPTY_CHECKPOINT_CONTENTS.clone()),
+        checkpoint_transactions: vec![transaction; TRANSACTIONS],
+        ..Default::default()
+    });
+    let (server_handle, client, _checkpoints) = test_server_and_client_setup(
+        std::iter::empty(),
+        |config| {
+            config.max_message_size_bytes = MAX_MESSAGE_SIZE_BYTES;
+        },
+        Some(mock),
+        Some(MAX_MESSAGE_SIZE_BYTES),
+    )
+    .await;
+    let read_mask = || {
+        [
+            CheckpointResponseField::CHECKPOINT,
+            CheckpointResponseField::TRANSACTIONS,
+        ]
+    };
+
     let individual_checkpoint = client
         .checkpoint_by_sequence_number(0)
+        .read_mask(read_mask())
         .await
         .expect("get_checkpoint should work");
+    let individual_checkpoint = individual_checkpoint.body();
+    assert_eq!(individual_checkpoint.sequence_number(), 0);
+    assert_eq!(
+        individual_checkpoint.executed_transactions().len(),
+        TRANSACTIONS
+    );
+    let encoded_len: usize = individual_checkpoint
+        .executed_transactions()
+        .iter()
+        .map(Message::encoded_len)
+        .sum();
+    assert!(
+        encoded_len > MAX_MESSAGE_SIZE_BYTES as usize,
+        "the transactions ({encoded_len} bytes) must not fit in one message"
+    );
 
-    // Verify the checkpoint data is correct
-    assert_eq!(individual_checkpoint.body().sequence_number(), 0);
-    let summary = individual_checkpoint
-        .body()
-        .summary()
-        .expect("should have summary")
-        .summary()
-        .expect("should have checkpoint summary");
-    assert_eq!(summary.epoch, 0);
-
-    // Test streaming checkpoints - this should also work with small chunks
     let mut stream = client
         .checkpoints_stream()
         .start_sequence_number(0)
         .end_sequence_number(0)
+        .read_mask(read_mask())
         .await
         .unwrap();
-
     let streamed_checkpoint = stream
         .body_mut()
         .next()
         .await
         .expect("stream should have data")
         .expect("stream should not error");
-
-    // Verify the streamed checkpoint data matches
     assert_eq!(streamed_checkpoint.sequence_number(), 0);
-    let streamed_summary = streamed_checkpoint
-        .summary()
-        .expect("should have summary")
-        .summary()
-        .expect("should have checkpoint summary");
-    assert_eq!(streamed_summary.epoch, 0);
+    assert_eq!(
+        streamed_checkpoint.executed_transactions().len(),
+        TRANSACTIONS
+    );
 
     // Clean up
     server_handle
@@ -927,9 +883,13 @@ async fn get_checkpoint_raw(
 
 #[tokio::test]
 async fn test_chunked_checkpoint_message_sizes_within_limit() {
-    // 10 000 transactions → total payload exceeds the 4 MB minimum message size
-    // enforced by the server, which enables the splitting test.
-    let transactions = common::build_checkpoint_transactions_with_events(10_000, 0);
+    // About 19 KB per transaction with 4 KiB objects, so 300 exceed the 4 MB
+    // minimum message size the server enforces, which enables the splitting
+    // test. Large objects rather than many transactions, because the server's
+    // work grows with the number of transactions, not with their size.
+    let mut transaction = common::build_checkpoint_transactions_with_events(1, 0).remove(0);
+    common::set_object_contents_len(&mut transaction, 4096);
+    let transactions = vec![transaction; 300];
     let summary = common::mock_summary(0, &common::EMPTY_CHECKPOINT_CONTENTS);
     let contents = common::EMPTY_CHECKPOINT_CONTENTS.clone();
 
