@@ -355,6 +355,20 @@ pub trait ObjectCacheRead: Send + Sync {
         epoch: EpochId,
     ) -> IotaResult<Option<Object>>;
 
+    /// The lowest version of `object_id` above `version` that is uncommitted,
+    /// the newest in the live table, relocated into `epoch`'s historic objects
+    /// bucket, or a tombstone written during `epoch`, and whether it is still
+    /// uncommitted: only then can its writer be yet to record its effects.
+    /// Reads no other epoch's bucket, but the newest live row may be an
+    /// earlier epoch's tombstone, kept only while that epoch is retained: the
+    /// caller checks that the writer ran in `epoch`.
+    fn try_find_lowest_version_above_in_epoch(
+        &self,
+        object_id: &ObjectId,
+        version: Version,
+        epoch: EpochId,
+    ) -> IotaResult<Option<(Version, bool)>>;
+
     fn try_multi_get_objects_by_key(
         &self,
         object_keys: &[ObjectKey],
@@ -449,25 +463,31 @@ pub trait ObjectCacheRead: Send + Sync {
         // them out before the version-based check, which would otherwise treat
         // their sentinel versions as a real (never-appearing) version.
         let mut cancelled_results = vec![];
-        let (keys_with_version, keys_without_version): (Vec<_>, Vec<_>) = keys
-            .iter()
-            .enumerate()
-            .filter(|(idx, key)| {
-                if key.is_cancelled() {
-                    cancelled_results.push((*idx, true));
-                    false
-                } else {
-                    true
+        let mut keys_with_version = vec![];
+        let mut keys_without_version = vec![];
+        let mut executed_transaction_keys = vec![];
+        for (idx, key) in keys.iter().enumerate() {
+            if key.is_cancelled() {
+                cancelled_results.push((idx, true));
+                continue;
+            }
+            match key {
+                InputKey::VersionedObject { id, version } => {
+                    keys_with_version.push((idx, key, *id, *version))
                 }
-            })
-            .partition(|(_, key)| key.version().is_some());
+                InputKey::Package { id } => keys_without_version.push((idx, *id)),
+                InputKey::ExecutedTransaction { digest } => {
+                    executed_transaction_keys.push((idx, *digest))
+                }
+            }
+        }
 
         let mut versioned_results = vec![];
-        for ((idx, input_key), has_key) in keys_with_version.iter().zip(
+        for ((idx, input_key, id, version), has_key) in keys_with_version.iter().zip(
             self.try_multi_object_exists_by_key(
                 &keys_with_version
                     .iter()
-                    .map(|(_, k)| ObjectKey(k.id(), k.version().unwrap()))
+                    .map(|(_, _, id, version)| ObjectKey(*id, *version))
                     .collect::<Vec<_>>(),
             )?,
         ) {
@@ -483,21 +503,14 @@ pub trait ObjectCacheRead: Send + Sync {
                 // exists or was deleted. We will then let mark it as available
                 // to let the transaction through so it can fail at execution.
                 let is_available = self
-                    .try_get_object(&input_key.id())?
-                    .map(|obj| obj.version() >= input_key.version().unwrap())
+                    .try_get_object(id)?
+                    .map(|obj| obj.version() >= *version)
                     .unwrap_or(false)
-                    || self.try_have_deleted_owned_object_at_version_or_after(
-                        &input_key.id(),
-                        input_key.version().unwrap(),
-                        epoch,
-                    )?;
+                    || self
+                        .try_have_deleted_owned_object_at_version_or_after(id, *version, epoch)?;
                 versioned_results.push((*idx, is_available));
             } else if self
-                .try_get_deleted_shared_object_previous_tx_digest(
-                    &input_key.id(),
-                    input_key.version().unwrap(),
-                    epoch,
-                )?
+                .try_get_deleted_shared_object_previous_tx_digest(id, *version, epoch)?
                 .is_some()
             {
                 // If the object is an already deleted shared object, mark it as available if
@@ -509,11 +522,11 @@ pub trait ObjectCacheRead: Send + Sync {
             }
         }
 
-        let unversioned_results = keys_without_version.into_iter().map(|(idx, key)| {
+        let unversioned_results = keys_without_version.into_iter().map(|(idx, id)| {
             (
                 idx,
                 match self
-                    .try_get_latest_object_ref_or_tombstone(key.id())
+                    .try_get_latest_object_ref_or_tombstone(id)
                     .expect("read cannot fail")
                 {
                     None => false,
@@ -522,14 +535,41 @@ pub trait ObjectCacheRead: Send + Sync {
             )
         });
 
+        let executed_transaction_results = if executed_transaction_keys.is_empty() {
+            vec![]
+        } else {
+            executed_transaction_keys
+                .iter()
+                .map(|(idx, _)| *idx)
+                .zip(
+                    self.try_multi_transactions_executed(
+                        &executed_transaction_keys
+                            .iter()
+                            .map(|(_, digest)| *digest)
+                            .collect::<Vec<_>>(),
+                    )?,
+                )
+                .collect()
+        };
+
         let mut results = versioned_results
             .into_iter()
             .chain(unversioned_results)
+            .chain(executed_transaction_results)
             .chain(cancelled_results)
             .collect::<Vec<_>>();
         results.sort_by_key(|(idx, _)| *idx);
         Ok(results.into_iter().map(|(_, result)| result).collect())
     }
+
+    /// Whether each transaction has executed, i.e. its effects are available
+    /// to a dependent waiting on `InputKey::ExecutedTransaction`. Looked up in
+    /// the perpetual store, so a transaction executed in an earlier epoch
+    /// counts as executed.
+    fn try_multi_transactions_executed(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<bool>>;
 
     /// Non-fallible version of `try_multi_input_objects_available`.
     fn multi_input_objects_available(
@@ -612,17 +652,6 @@ pub trait ObjectCacheRead: Send + Sync {
         self.try_get_iota_system_state_object_unsafe()
             .expect("storage access failed")
     }
-
-    /// Whether `version` of `object_id` stopped being the current version
-    /// during `epoch`, that is a transaction of that epoch consumed it. Reads
-    /// only `epoch`'s records, so the answer does not depend on how many
-    /// epochs the node retains.
-    fn try_object_superseded_in_epoch(
-        &self,
-        object_id: &ObjectId,
-        version: Version,
-        epoch: EpochId,
-    ) -> IotaResult<bool>;
 
     // Marker methods
 
@@ -764,7 +793,9 @@ pub trait ObjectCacheRead: Send + Sync {
     /// wait until all of them become available, so that the transaction
     /// can start execution.
     /// `input_and_receiving_keys` contains both input objects and receiving
-    /// input objects, including canceled objects.
+    /// input objects, including canceled objects. An
+    /// `InputKey::ExecutedTransaction` is never notified here; wait for it with
+    /// `TransactionCacheRead::notify_read_executed_effects_digests`.
     /// TODO: Eventually this can return the objects read results,
     /// so that execution does not need to load them again.
     fn notify_read_input_objects<'a>(

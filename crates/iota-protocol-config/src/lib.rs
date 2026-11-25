@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 41;
+pub const MAX_PROTOCOL_VERSION: u64 = 42;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -285,6 +285,30 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             summary data version that certifies the verdicts.
 // Version 41: Commit a block's transactions once its header is traversed even
 //             if its acknowledgment quorum was reached first, outside Mainnet.
+//             `ecdsa_r1::secp256r1_ecrecover` rejects a signature whose
+//             restored x-coordinate is not below the field modulus.
+//             Outside Mainnet and Testnet, a programmable transaction may
+//             carry a transaction dependency input: its commands run only if
+//             the named transaction succeeded in the current epoch. If that
+//             transaction fails after the dependent was sequenced, the
+//             dependent executes as failed with `TransactionDependencyFailed`.
+//             Raise `max_auth_gas` to 0.001 IOTA on devnet.
+//             Set the attestation freshness window on devnet.
+//             Set the penalty for refuted attestations on devnet.
+// Version 42: Enable built-in Move authenticators in devnet.
+//             Enable creating SmartAccounts in devnet.
+//             Introduce Move native functions for validating public keys for
+//             Ed25519, Secp256k1, Secp256r1, and MultiSig signature schemes,
+//             deriving IOTA addresses from public keys, and verifying a
+//             signature of a personal message by a public key.
+//             Introduce the Move native functions that return the nonce of the
+//             transaction and the text a key holder signs to approve attaching
+//             their key to a SmartAccount.
+//             Set the gas costs of those natives on all networks, and of the
+//             built-in Move authenticators in devnet.
+//             Add `tx_context::chain_identifier`, which returns the digest of
+//             the genesis checkpoint, and set the gas cost of its native on
+//             all networks.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -842,7 +866,9 @@ struct FeatureFlags {
     // If true, the block-proposing validator attests each received user transaction
     // before sending it to consensus. The attestor certifies that Move authentication
     // passed and the attestation carries a computation cost estimate for
-    // shared-object scheduling.
+    // shared-object scheduling. The Move authenticators run at execution, and
+    // in the attestor's dry run, then share at most `max_auth_gas`; the
+    // transaction body gets the rest of the budget.
     #[serde(skip_serializing_if = "is_false")]
     enable_validator_attestation: bool,
 
@@ -850,6 +876,33 @@ struct FeatureFlags {
     // before its header is traversed is committed once its header is traversed.
     #[serde(skip_serializing_if = "is_false")]
     consensus_commit_transactions_once_traversed: bool,
+
+    // If true, `ecdsa_r1::secp256r1_ecrecover` rejects a signature whose
+    // restored x-coordinate `r + n` is not below the field modulus, instead
+    // of wrapping it at 2^256.
+    #[serde(skip_serializing_if = "is_false")]
+    secp256r1_ecrecover_checks_x_below_p: bool,
+
+    // If true, a programmable transaction may carry a transaction dependency
+    // input. It executes after the named transaction, and fails without running
+    // its commands if that transaction failed.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_transaction_dependencies: bool,
+
+    // If true, enables the authentication with built-in Move authenticators.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_builtin_move_authenticators: bool,
+
+    // If true, the `ClaimAccount` user transaction kind is accepted. It creates an
+    // account object whose id is the sender's address, so a usable account also
+    // requires `enable_builtin_move_authenticators`.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_claim_account_transaction: bool,
+
+    // If true, `smart_account::builder_v1` and a smart account `ClaimAccount` create a
+    // `SmartAccount`; otherwise they abort.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_smart_accounts: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1432,6 +1485,13 @@ pub struct ProtocolConfig {
     tx_context_gas_budget_cost_base: Option<u64>,
     tx_context_ids_created_cost_base: Option<u64>,
     tx_context_replace_cost_base: Option<u64>,
+    // Cost param for the Move native function `tx_context::native_tx_nonce(): vector<u8>`
+    tx_context_tx_nonce_cost_base: Option<u64>,
+    // Cost param for the Move native function
+    // `smart_account_builtin_authenticator::key_proof_message(chain_identifier: vector<u8>,
+    // account: address, new_account: bool, nonce: vector<u8>, valid_until_epoch: u64):
+    // vector<u8>`
+    smart_account_builtin_authenticator_key_proof_message_cost_base: Option<u64>,
 
     // Types
     // Cost params for the Move native function `is_one_time_witness<T: drop>(_: &T): bool`
@@ -1700,6 +1760,13 @@ pub struct ProtocolConfig {
     /// of the epoch. Unset disables the penalty and the cutoff.
     attestation_max_refuted_units_squared: Option<u64>,
 
+    /// How many commits before the one an attested transaction was first
+    /// sequenced in a recorded version may have stopped being current for the
+    /// judge to re-run authentication at it; leader rounds for a version a
+    /// commit prologue or a deny-rules update superseded, the only position
+    /// those carry. Unset admits any commit of the epoch.
+    attestation_freshness_window_commits: Option<u64>,
+
     /// The max number of transactions that can be included in a single Soft
     /// Bundle.
     max_soft_bundle_size: Option<u64>,
@@ -1836,6 +1903,49 @@ pub struct ProtocolConfig {
     /// larger bound than `max_move_package_size`. When unset, system packages
     /// are bound by `max_move_package_size` like any other package.
     max_move_system_package_size: Option<u64>,
+
+    // Cost param for the Move native function
+    // `public_key::verify_builtin_authenticator_signature_impl(public_key: &PublicKey,
+    // signature: &vector<u8>): bool`, the signature check of the built-in Move
+    // authenticators. It runs only while a built-in authenticator authenticates a
+    // transaction.
+    public_key_verify_builtin_authenticator_signature_impl_cost_base: Option<u64>,
+
+    // Cost param for the Move native function `ed25519::ed25519_validate_pubkey(public_key:
+    // &vector<u8>): bool`
+    ed25519_ed25519_validate_pubkey_cost_base: Option<u64>,
+    // Cost param for the Move native function `ecdsa_k1::secp256k1_validate_pubkey(public_key:
+    // &vector<u8>): bool`
+    ecdsa_k1_secp256k1_validate_pubkey_cost_base: Option<u64>,
+    // Cost param for the Move native function `ecdsa_r1::secp256r1_validate_pubkey(public_key:
+    // &vector<u8>): bool`
+    ecdsa_r1_secp256r1_validate_pubkey_cost_base: Option<u64>,
+    // Cost param for the Move native function `multisig::multisig_validate_pubkey(public_key:
+    // &vector<u8>): bool`
+    multisig_multisig_validate_pubkey_cost_base: Option<u64>,
+    // Cost param for the Move native function `public_key::to_iota_address_impl(flag: u8,
+    // raw_bytes: &vector<u8>): address`
+    public_key_to_iota_address_impl_cost_base: Option<u64>,
+    // Cost params for the Move native function
+    // `public_key::verify_personal_message_signature_impl(public_key: &PublicKey, signature:
+    // &vector<u8>, message: &vector<u8>): bool`
+    public_key_verify_personal_message_signature_impl_cost_base: Option<u64>,
+    public_key_verify_personal_message_signature_impl_msg_cost_per_byte: Option<u64>,
+    public_key_verify_personal_message_signature_impl_sig_cost_per_byte: Option<u64>,
+    // Cost param for the Move native function `tx_context::native_chain_identifier():
+    // vector<u8>`
+    tx_context_chain_identifier_cost_base: Option<u64>,
+
+    // Upper bound on the computation units a `ClaimAccount` is charged, after rounding.
+    //
+    // The claim runs a fixed pipeline with no user code, so its cost is bounded by this many
+    // units at the transaction's own gas price plus the storage bound below. Requiring the
+    // budget to clear that sum rejects, from the transaction bytes alone, a claim that would
+    // run out of gas at execution.
+    claim_account_max_computation_units: Option<u64>,
+    // Upper bound on the bytes a `ClaimAccount` stores beyond its raw public key bytes: the
+    // account object, its authenticator function reference and the field holding the key.
+    claim_account_storage_bytes_bound: Option<u64>,
 }
 
 // feature flags
@@ -2434,6 +2544,63 @@ impl ProtocolConfig {
     pub fn enable_validator_attestation(&self) -> bool {
         self.feature_flags.enable_validator_attestation
     }
+
+    pub fn secp256r1_ecrecover_checks_x_below_p(&self) -> bool {
+        self.feature_flags.secp256r1_ecrecover_checks_x_below_p
+    }
+
+    /// Its prerequisites are checked once, in [`Self::get_for_version`].
+    pub fn enable_transaction_dependencies(&self) -> bool {
+        self.feature_flags.enable_transaction_dependencies
+    }
+
+    pub fn enable_builtin_move_authenticators(&self) -> bool {
+        let enable_builtin_move_authenticators =
+            self.feature_flags.enable_builtin_move_authenticators;
+        if enable_builtin_move_authenticators {
+            assert!(
+                self.enable_move_authentication(),
+                "enable_builtin_move_authenticators requires enable_move_authentication to be set"
+            );
+            assert!(
+                self.public_key_verify_builtin_authenticator_signature_impl_cost_base
+                    .is_some(),
+                "enable_builtin_move_authenticators requires public_key_verify_builtin_authenticator_signature_impl_cost_base to be set"
+            );
+        }
+        enable_builtin_move_authenticators
+    }
+
+    pub fn enable_claim_account_transaction(&self) -> bool {
+        let enable_claim_account_transaction = self.feature_flags.enable_claim_account_transaction;
+        if enable_claim_account_transaction {
+            // A claimed account is authenticated by the built-in authenticator
+            // of its key's scheme, so without them it could never send a
+            // transaction, and an address can only be claimed once.
+            assert!(
+                self.enable_builtin_move_authenticators(),
+                "enable_claim_account_transaction requires enable_builtin_move_authenticators to be set"
+            );
+            // The validity check rejects a claim whose budget cannot cover the
+            // pipeline, so the bounds that define that floor must be set.
+            assert!(
+                self.claim_account_max_computation_units.is_some()
+                    && self.claim_account_storage_bytes_bound.is_some(),
+                "enable_claim_account_transaction requires claim_account_max_computation_units \
+                 and claim_account_storage_bytes_bound to be set"
+            );
+        }
+        enable_claim_account_transaction
+    }
+
+    pub fn enable_smart_accounts(&self) -> bool {
+        let enable_smart_accounts = self.feature_flags.enable_smart_accounts;
+        assert!(
+            !enable_smart_accounts || self.enable_move_authentication(),
+            "enable_smart_accounts requires enable_move_authentication to be set"
+        );
+        enable_smart_accounts
+    }
 }
 
 #[cfg(not(msim))]
@@ -2495,6 +2662,13 @@ impl ProtocolConfig {
                     .expect("failed to parse ProtocolConfig feature flags override env variables");
 
             feature_flag_overrides.apply_to(&mut ret.feature_flags);
+
+            // An environment override can switch attestation off but cannot
+            // unset a parameter, so the parameters that require it go with
+            // the flag.
+            if !ret.feature_flags.enable_validator_attestation {
+                ret.unset_attestation_parameters();
+            }
         }
 
         // Devnet runs the P-COOL flow from version 32, before the settings it
@@ -2581,6 +2755,12 @@ impl ProtocolConfig {
                 ret.checkpoint_summary_version_specific_data == Some(2),
                 "enable_validator_attestation requires checkpoint_summary_version_specific_data = 2"
             );
+            // Execution and the attestor's dry run limit the Move
+            // authenticators to `max_auth_gas`.
+            assert!(
+                ret.max_auth_gas.is_some(),
+                "enable_validator_attestation requires max_auth_gas to be set"
+            );
         }
         if ret.attestation_max_refuted_units_squared.is_some() {
             assert!(
@@ -2593,8 +2773,31 @@ impl ProtocolConfig {
                  pass_validator_scores_to_advance_epoch"
             );
         }
+        if ret.attestation_freshness_window_commits.is_some() {
+            assert!(
+                ret.enable_validator_attestation(),
+                "attestation_freshness_window_commits requires enable_validator_attestation"
+            );
+        }
+        // A transaction without shared inputs that waits too long for its
+        // dependency is cancelled through its gas object, which carries the
+        // suggested gas price.
+        if ret.enable_transaction_dependencies() {
+            assert!(
+                ret.congestion_control_gas_price_feedback_mechanism(),
+                "enable_transaction_dependencies requires \
+                 congestion_control_gas_price_feedback_mechanism to be set"
+            );
+        }
 
         ret
+    }
+
+    /// Unsets the parameters [`Self::get_for_version`] accepts only with
+    /// `enable_validator_attestation`.
+    fn unset_attestation_parameters(&mut self) {
+        self.attestation_max_refuted_units_squared = None;
+        self.attestation_freshness_window_commits = None;
     }
 
     /// Get the value ProtocolConfig that are in effect during the given
@@ -2872,6 +3075,8 @@ impl ProtocolConfig {
             tx_context_gas_budget_cost_base: None,
             tx_context_ids_created_cost_base: None,
             tx_context_replace_cost_base: None,
+            tx_context_tx_nonce_cost_base: None,
+            smart_account_builtin_authenticator_key_proof_message_cost_base: None,
 
             // `types` module
             // Cost params for the Move native function `is_one_time_witness<T: drop>(_: &T): bool`
@@ -3111,6 +3316,7 @@ impl ProtocolConfig {
             checkpoint_summary_version_specific_data: Some(1),
             attestor_accuracy_tolerance_percentage: None,
             attestation_max_refuted_units_squared: None,
+            attestation_freshness_window_commits: None,
 
             max_soft_bundle_size: Some(5),
 
@@ -3154,6 +3360,23 @@ impl ProtocolConfig {
             consensus_leader_schedule_window_size: None,
 
             max_move_system_package_size: None,
+
+            // Built-in Move authenticators
+            public_key_verify_builtin_authenticator_signature_impl_cost_base: None,
+
+            ed25519_ed25519_validate_pubkey_cost_base: None,
+            ecdsa_k1_secp256k1_validate_pubkey_cost_base: None,
+            ecdsa_r1_secp256r1_validate_pubkey_cost_base: None,
+            multisig_multisig_validate_pubkey_cost_base: None,
+            public_key_to_iota_address_impl_cost_base: None,
+            public_key_verify_personal_message_signature_impl_cost_base: None,
+            public_key_verify_personal_message_signature_impl_msg_cost_per_byte: None,
+            public_key_verify_personal_message_signature_impl_sig_cost_per_byte: None,
+            tx_context_chain_identifier_cost_base: None,
+
+            claim_account_max_computation_units: None,
+            claim_account_storage_bytes_bound: None,
+
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -3900,6 +4123,7 @@ impl ProtocolConfig {
                     if chain != Chain::Mainnet {
                         cfg.feature_flags.allow_dkg_completion_after_timeout = true;
                     }
+
                     cfg.feature_flags.consensus_dedup_only_recorded_messages = true;
 
                     // Raise the minimum validator joining stake to 6M IOTA, the low
@@ -3974,6 +4198,53 @@ impl ProtocolConfig {
                         cfg.feature_flags
                             .consensus_commit_transactions_once_traversed = true;
                     }
+
+                    // `ecdsa_r1::secp256r1_ecrecover` rejects a signature
+                    // whose restored x-coordinate is not below the field
+                    // modulus.
+                    cfg.feature_flags.secp256r1_ecrecover_checks_x_below_p = true;
+
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        // A programmable transaction may carry a transaction
+                        // dependency input.
+                        cfg.feature_flags.enable_transaction_dependencies = true;
+                        // Raise max_auth_gas to 0.001 IOTA, the minimum transaction
+                        // cost at a gas price of 1000.
+                        cfg.max_auth_gas = Some(1_000_000);
+
+                        // Ten minutes at devnet's 20 commits a second.
+                        cfg.attestation_freshness_window_commits = Some(12_000);
+
+                        // Cuts an attestor off after no more than 100 refuted
+                        // attestations per epoch at the current `max_auth_gas`.
+                        cfg.attestation_max_refuted_units_squared = Some(100_000_000);
+                    }
+                }
+                42 => {
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Enable built-in Move authenticators in devnet.
+                        cfg.feature_flags.enable_builtin_move_authenticators = true;
+                        // Enable creating smart accounts in devnet only.
+                        cfg.feature_flags.enable_smart_accounts = true;
+
+                        // Set the cost for built-in Move authenticators to 0 for now.
+                        cfg.public_key_verify_builtin_authenticator_signature_impl_cost_base =
+                            Some(0);
+                    }
+
+                    cfg.ed25519_ed25519_validate_pubkey_cost_base = Some(170);
+                    cfg.ecdsa_k1_secp256k1_validate_pubkey_cost_base = Some(176);
+                    cfg.ecdsa_r1_secp256r1_validate_pubkey_cost_base = Some(325);
+                    cfg.multisig_multisig_validate_pubkey_cost_base = Some(72);
+                    cfg.public_key_to_iota_address_impl_cost_base = Some(341);
+                    cfg.public_key_verify_personal_message_signature_impl_cost_base = Some(4225);
+                    cfg.public_key_verify_personal_message_signature_impl_msg_cost_per_byte =
+                        Some(2);
+                    cfg.public_key_verify_personal_message_signature_impl_sig_cost_per_byte =
+                        Some(2);
+                    cfg.tx_context_chain_identifier_cost_base = Some(30);
+                    cfg.tx_context_tx_nonce_cost_base = Some(30);
+                    cfg.smart_account_builtin_authenticator_key_proof_message_cost_base = Some(52);
                 }
                 // Use this template when making changes:
                 //
@@ -4328,6 +4599,10 @@ impl ProtocolConfig {
         self.feature_flags.always_advance_dkg_to_resolution = val;
     }
 
+    pub fn set_enable_transaction_dependencies_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_transaction_dependencies = val;
+    }
+
     /// Turning the flow on also turns on the flags it requires, turns off
     /// `pre_consensus_sponsor_only_move_authentication`, which it excludes, and
     /// fills in the settings it requires when unset, whatever the version.
@@ -4440,8 +4715,24 @@ impl ProtocolConfig {
         }
     }
 
+    /// Turning attestation off also unsets the parameters that require it.
     pub fn set_enable_validator_attestation_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_validator_attestation = val;
+        if !val {
+            self.unset_attestation_parameters();
+        }
+    }
+
+    pub fn set_enable_builtin_move_authenticators_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_builtin_move_authenticators = val;
+    }
+
+    pub fn set_enable_claim_account_transaction_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_claim_account_transaction = val;
+    }
+
+    pub fn set_enable_smart_accounts_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_smart_accounts = val;
     }
 }
 
@@ -4791,6 +5082,23 @@ mod test {
         let _ = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
     }
 
+    /// Execution and the attestor's dry run read `max_auth_gas` under
+    /// attestation, so a configuration without it is rejected at startup
+    /// rather than stopping the validator at the first transaction.
+    #[test]
+    #[should_panic(expected = "enable_validator_attestation requires max_auth_gas to be set")]
+    fn attestation_without_max_auth_gas_is_rejected() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.disable_max_auth_gas_for_testing();
+            config
+        });
+        let config = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        assert!(
+            config.enable_validator_attestation(),
+            "the latest devnet configuration should run attestation"
+        );
+    }
+
     /// A zero chunk limit would make every delta unsplittable; the pure
     /// chunking function clamps it, but the configuration is still invalid.
     #[test]
@@ -4921,6 +5229,30 @@ mod test {
                             .is_some(),
                         "version {version} on {chain:?} runs the P-COOL flow without the \
                          regex reference safety budget"
+                    );
+                }
+            }
+        }
+    }
+
+    /// The penalty's value is calibrated for refuted attestations of at most
+    /// 2 × `gas_rounding_step` units, execution's run plus the judge's re-run.
+    /// That holds while `max_auth_gas` buys no more than one step per run at a
+    /// gas price of 1,000.
+    #[test]
+    fn refuted_attestation_penalty_requires_max_auth_gas_within_one_rounding_step() {
+        const GAS_PRICE: u64 = 1_000;
+        for chain in [Chain::Unknown, Chain::Mainnet, Chain::Testnet] {
+            for version in MIN_PROTOCOL_VERSION..=MAX_PROTOCOL_VERSION {
+                let config = ProtocolConfig::get_for_version(ProtocolVersion::new(version), chain);
+                if config
+                    .attestation_max_refuted_units_squared_as_option()
+                    .is_some()
+                {
+                    assert!(
+                        config.max_auth_gas() <= config.gas_rounding_step() * GAS_PRICE,
+                        "version {version} on {chain:?} penalizes refuted attestations while \
+                         max_auth_gas buys more than one gas_rounding_step"
                     );
                 }
             }

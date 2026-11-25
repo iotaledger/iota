@@ -1,7 +1,7 @@
 ---
 source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
 ---
-processed 19 tasks
+processed 20 tasks
 
 init:
 A: object(0,0)
@@ -86,15 +86,55 @@ task 13, line 52:
 //# create-checkpoint
 Checkpoint created: 9
 
-task 14, lines 54-58:
+task 14, lines 54-59:
 //# run-graphql --wait-for-checkpoint-pruned 6
 Response: {
-  "data": {
-    "pruned": null
-  }
+  "data": null,
+  "errors": [
+    {
+      "message": "Requested data has been pruned: transaction B3aPJX8HWo5nnRQB7PpahRHbyGVTN6tgcyRnxTPHEpJe not found, it may have been pruned",
+      "locations": [
+        {
+          "line": 4,
+          "column": 3
+        }
+      ],
+      "path": [
+        "pruned"
+      ],
+      "extensions": {
+        "code": "DATA_PRUNED",
+        "oldestAvailableCheckpoint": 7
+      }
+    }
+  ]
 }
 
-task 15, lines 60-64:
+task 15, lines 61-66:
+//# run-graphql
+Response: {
+  "data": null,
+  "errors": [
+    {
+      "message": "Requested data has been pruned: transaction 11111111111111111111111111111111 not found, it may have been pruned",
+      "locations": [
+        {
+          "line": 4,
+          "column": 3
+        }
+      ],
+      "path": [
+        "unknown"
+      ],
+      "extensions": {
+        "code": "DATA_PRUNED",
+        "oldestAvailableCheckpoint": 7
+      }
+    }
+  ]
+}
+
+task 16, lines 68-72:
 //# run-graphql
 Response: {
   "data": {
@@ -104,20 +144,22 @@ Response: {
   }
 }
 
-task 16, lines 66-72:
+task 17, lines 74-83:
 //# run-graphql
 Response: {
   "data": {
-    "transactionBlocksByDigests": [
-      null,
-      {
-        "digest": "Dzp7aBcjmNpenbvokfi9uHwtcQXbseQ9guBKJrRvJWSG"
-      }
-    ]
+    "transactionsByDigests": {
+      "nodes": [
+        null,
+        {
+          "digest": "Dzp7aBcjmNpenbvokfi9uHwtcQXbseQ9guBKJrRvJWSG"
+        }
+      ]
+    }
   }
 }
 
-task 17, lines 74-82:
+task 18, lines 85-93:
 //# run-graphql
 Response: {
   "data": {
@@ -133,14 +175,32 @@ Response: {
   }
 }
 
-task 18, lines 84-92:
+task 19, lines 95-104:
 //# run-graphql
 Response: {
   "data": {
     "object": {
-      "asMoveObject": {
-        "previousTransactionBlock": null
+      "asMoveObject": null
+    }
+  },
+  "errors": [
+    {
+      "message": "Requested data has been pruned: transaction 73cyqbRDri1pZLmM3PHyeF3yrV9MeW2u6RTJu3zQZCwb not found, it may have been pruned",
+      "locations": [
+        {
+          "line": 6,
+          "column": 7
+        }
+      ],
+      "path": [
+        "object",
+        "asMoveObject",
+        "previousTransactionBlock"
+      ],
+      "extensions": {
+        "code": "DATA_PRUNED",
+        "oldestAvailableCheckpoint": 7
       }
     }
-  }
+  ]
 }

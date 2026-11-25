@@ -139,9 +139,6 @@ pub(crate) enum ConsensusError {
     #[error("Transaction Synchronizer is saturated")]
     TransactionSynchronizerSaturated,
 
-    #[error("Block {block_ref:?} rejected: {reason}")]
-    BlockRejected { block_ref: BlockRef, reason: String },
-
     #[error(
         "Ancestor is in wrong position: block {block_authority}, ancestor {ancestor_authority}, position {position}"
     )]

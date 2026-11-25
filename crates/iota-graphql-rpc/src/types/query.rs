@@ -19,7 +19,6 @@ use serde::de::DeserializeOwned;
 
 use crate::{
     config::{DEFAULT_PAGE_SIZE, ServiceConfig},
-    connection::ScanConnection,
     error::Error,
     mutation::Mutation,
     server::{builder::get_write_api, watermark_task::Watermark},
@@ -27,14 +26,14 @@ use crate::{
         address::Address,
         available_range::AvailableRange,
         chain_identifier::ChainIdentifierCache,
-        checkpoint::{self, Checkpoint, CheckpointId},
+        checkpoint::{self, Checkpoint, CheckpointConnection, CheckpointId},
         coin::Coin,
         coin_metadata::CoinMetadata,
         cursor::Page,
         digest::Digest,
         dry_run_result::DryRunResult,
         epoch::Epoch,
-        event::{self, Event, EventFilter},
+        event::{self, Event, EventConnection, EventFilter},
         iota_address::IotaAddress,
         iota_names_registration::{IotaNames, Name},
         move_package::{self, MovePackage, MovePackageCheckpointFilter, MovePackageVersionFilter},
@@ -44,7 +43,9 @@ use crate::{
         owner::Owner,
         protocol_config::ProtocolConfigs,
         subscription::Subscription,
-        transaction_block::{self, TransactionBlock, TransactionBlockFilter},
+        transaction_block::{
+            self, TransactionBlock, TransactionBlockConnection, TransactionBlockFilter,
+        },
         transaction_metadata::TransactionMetadata,
         type_filter::ExactTypeFilter,
         uint53::UInt53,
@@ -70,8 +71,11 @@ impl Query {
             .extend()
     }
 
-    /// Range of checkpoints that the RPC has data available for (for data
-    /// that can be tied to a particular checkpoint).
+    /// Range of checkpoints that consistent object queries (objects, coins,
+    /// balances, dynamic fields and name registrations) can be viewed at. A
+    /// query paginated with a cursor is viewed at the checkpoint the cursor
+    /// was issued at, so the cursor expires once that checkpoint leaves the
+    /// range.
     async fn available_range(&self, ctx: &Context<'_>) -> Result<AvailableRange> {
         let Watermark { checkpoint, .. } = *ctx.data()?;
         AvailableRange::query(ctx.data_unchecked(), checkpoint)
@@ -360,36 +364,6 @@ impl Query {
     }
 
     /// Fetch multiple transaction blocks by their digests.
-    /// This includes all transactions, even if they are not checkpointed yet.
-    #[graphql(deprecation = "Use `transactionsByDigests` instead. Will be removed in v1.38.")]
-    async fn transaction_blocks_by_digests(
-        &self,
-        ctx: &Context<'_>,
-        digests: Vec<Digest>,
-    ) -> Result<Vec<Option<TransactionBlock>>> {
-        let limits = &ctx.data_unchecked::<ServiceConfig>().limits;
-        if digests.len() > limits.max_transaction_ids as usize {
-            return Err(Error::Client(format!(
-                "Transaction IDs exceed max limit of '{}'",
-                limits.max_transaction_ids
-            ))
-            .into());
-        }
-
-        let Watermark { checkpoint, .. } = *ctx.data()?;
-        let mut result = TransactionBlock::multi_query(ctx, digests.clone(), checkpoint)
-            .await
-            .extend()?;
-
-        // Map each input digest to Some(transaction) if found, None otherwise
-        // This maintains the same order and length as the input vector
-        Ok(digests
-            .into_iter()
-            .map(|digest| result.remove(&digest))
-            .collect())
-    }
-
-    /// Fetch multiple transaction blocks by their digests.
     ///
     /// Unlike `transactionBlocks(filter: { transactionIds })`, this includes
     /// all transactions, even if they are not checkpointed yet.
@@ -458,7 +432,7 @@ impl Query {
         after: Option<checkpoint::Cursor>,
         last: Option<u64>,
         before: Option<checkpoint::Cursor>,
-    ) -> Result<Connection<String, Checkpoint>> {
+    ) -> Result<CheckpointConnection> {
         let Watermark { checkpoint, .. } = *ctx.data()?;
 
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
@@ -519,7 +493,7 @@ impl Query {
             deprecation = "`scanLimit` will be removed with v1.38, along with the support for combining complex filters."
         )]
         scan_limit: Option<u64>,
-    ) -> Result<ScanConnection<String, TransactionBlock>> {
+    ) -> Result<TransactionBlockConnection> {
         let Watermark { checkpoint, .. } = *ctx.data()?;
 
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
@@ -550,7 +524,7 @@ impl Query {
         last: Option<u64>,
         before: Option<event::Cursor>,
         filter: Option<EventFilter>,
-    ) -> Result<Connection<String, Event>> {
+    ) -> Result<EventConnection> {
         let Watermark { checkpoint, .. } = *ctx.data()?;
 
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;

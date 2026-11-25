@@ -86,6 +86,7 @@ pub use storage::delete_all_transactions_from_store;
 #[cfg(msim)]
 pub use transaction::NoopTransactionVerifier;
 pub use transaction::{
-    BlockStatus, ClientError, Priority, TransactionClient, TransactionVerifier, ValidationError,
+    BlockStatus, ClientError, Priority, TransactionClient, TransactionSubmissionLimits,
+    TransactionVerifier, ValidationError, check_transactions_fit,
 };
 pub use transaction_ref::TransactionRef;

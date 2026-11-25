@@ -39,6 +39,7 @@ use iota_types::{
     attestation::{AttestationTotals, AttestationVerdict},
     base_types::AuthorityName,
     effects::TransactionEffectsAPI,
+    error::IotaError,
     messages_checkpoint::{CheckpointSummaryExt, VerifiedCheckpoint},
     messages_grpc::TxStatusUpdate,
     move_package,
@@ -48,7 +49,7 @@ use iota_types::{
         TransactionEnvelope,
     },
 };
-use test_cluster::{TestCluster, TestClusterBuilder};
+use test_cluster::{ProtocolEnvOverride, TestCluster, TestClusterBuilder};
 
 const AA_PACKAGE_PATH: &str = "tests/abstract_account/abstract_account";
 const AA_MODULE_NAME: &str = "abstract_account";
@@ -169,10 +170,9 @@ async fn test_aa_tx_with_failed_authentication_is_dropped() -> Result<(), anyhow
 }
 
 /// A valid AA transaction whose Move authentication needs more gas than
-/// `max_auth_gas` must be refused by the attestor. The dry run meters
-/// authentication against the whole budget, as execution does, so without the
-/// capped pre-run the attestor would do budget-sized work on a transaction it
-/// then drops unpaid.
+/// `max_auth_gas` must be refused by the attestor. The authenticators' own run
+/// at `max_auth_gas` refuses it before the dry run, so the attestor does no
+/// more unpaid work on it than that.
 #[sim_test]
 async fn test_aa_tx_with_authentication_over_max_auth_gas_is_refused() -> Result<(), anyhow::Error>
 {
@@ -215,20 +215,19 @@ async fn test_aa_tx_with_authentication_over_max_auth_gas_is_refused() -> Result
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
     let aa_tx = TransactionEnvelope::from_user_sig_data(tx_data, signatures);
 
-    match test_env.submit_tx_v2(aa_tx).await {
-        Ok(results) => {
-            let (_, status) = results.first().expect("expected one status update");
-            assert!(
-                matches!(status, TxStatusUpdate::Rejected { .. }),
-                "an authentication over max_auth_gas must be refused, got: {status:?}"
-            );
-        }
-        // A validator/transport-level error is also an acceptable outcome: the
-        // transaction was not attested or accepted.
-        Err(e) => {
-            tracing::info!("over-budget authentication errored as expected: {e:?}");
-        }
-    }
+    let results = test_env.submit_tx_v2(aa_tx).await?;
+    let [(_, TxStatusUpdate::Rejected { error })] = results.as_slice() else {
+        panic!("an authentication over max_auth_gas must be refused, got: {results:?}");
+    };
+    // The refusal is the one admission gives: the failed authentication's
+    // status and what caused it.
+    let IotaError::MoveAuthenticatorExecutionFailure { error } = error else {
+        panic!("the refusal must be a failed Move authentication, got: {error:?}");
+    };
+    assert!(
+        error.contains("Insufficient Gas") && error.contains("caused by"),
+        "the authentication must be refused for running out of gas, got: {error}"
+    );
 
     Ok(())
 }
@@ -435,37 +434,6 @@ fn enable_attestation_env() -> ProtocolEnvOverride {
             "true",
         ),
     ])
-}
-
-/// Sets process-wide environment variables on construction, restores them (by
-/// removing them) on drop.  Must be constructed **before**
-/// `TestClusterBuilder::build()` so that validator node threads inherit the
-/// values when they call `ProtocolConfig::get_for_version`.
-struct ProtocolEnvOverride {
-    keys: Vec<&'static str>,
-}
-
-impl ProtocolEnvOverride {
-    fn new(overrides: &[(&'static str, &'static str)]) -> Self {
-        for (key, val) in overrides {
-            // SAFETY: set before any node thread is spawned; no concurrent env
-            // readers at this point.
-            unsafe { std::env::set_var(key, val) };
-        }
-        Self {
-            keys: overrides.iter().map(|(k, _)| *k).collect(),
-        }
-    }
-}
-
-impl Drop for ProtocolEnvOverride {
-    fn drop(&mut self) {
-        for key in &self.keys {
-            // SAFETY: runs at test teardown, when no node thread reads the
-            // environment anymore.
-            unsafe { std::env::remove_var(key) };
-        }
-    }
 }
 
 // --------------------------------------------------
@@ -827,7 +795,7 @@ mod faulty_attestor {
     use iota_protocol_config::{OverrideGuard, ProtocolConfig};
     use iota_sdk_types::{
         EndOfEpochTransactionKind, ExecutionError, ExecutionStatus, GasCostSummary,
-        SignatureScheme, TransactionEffects, TransactionKind,
+        SignatureScheme, TransactionEffects, TransactionKind, Version,
     };
     use iota_simulator::task::NodeId;
     use iota_swarm_config::genesis_config::{
@@ -835,7 +803,7 @@ mod faulty_attestor {
     };
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        attestation::AttestationRecord,
+        attestation::{AttestationRecord, SharedInputIndex},
         base_types::{ConciseableName, EpochId},
         crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, PublicKey, get_key_pair_from_rng},
         error::IotaError,
@@ -891,6 +859,11 @@ mod faulty_attestor {
     /// The refutations the cutoff test submits at most before it gives up on
     /// reaching [`CUTOFF_UNITS_SQUARED`].
     const MAX_REFUTATIONS_TO_CUT_OFF: usize = 10;
+
+    /// The `max_auth_gas` of the test of an authentication over it: ten gas
+    /// units at the cluster's gas price, far below what the Ed25519
+    /// verification in `authenticate_ed25519` costs.
+    const MAX_AUTH_GAS_BELOW_THE_AUTHENTICATION: u64 = 10_000;
 
     /// The score every validator gets while the protocol feature flag
     /// `pass_calculated_validator_scores_to_advance_epoch` is off: a copy of
@@ -949,15 +922,13 @@ mod faulty_attestor {
         expected_verdict: ExpectedVerdict,
     }
 
-    /// Runs an honest attestation and seven attestations of the faulty
-    /// attestor in one epoch. Move authentication of the seven fails at
-    /// execution, and the account version the attestor records decides the
-    /// verdict:
+    /// Runs an honest attestation and six attestations of the faulty attestor
+    /// in one epoch. Move authentication of the six fails at execution, and
+    /// the account version the attestor records decides the verdict:
     /// - the version the attestor read: [`Refuted`], no re-run;
     /// - a version superseded in the previous epoch: [`Refuted`], no re-run;
     /// - a version ahead of the executed one: [`Refuted`], no re-run;
     /// - a version superseded this epoch, holding the signer's key: [`Valid`];
-    /// - the same version with a wrong digest, signer's key: [`Valid`];
     /// - the same version, with a wrong signature: [`Refuted`] by the re-run;
     /// - the same version, signer's key, internal re-run error: [`Undecided`].
     ///
@@ -968,11 +939,9 @@ mod faulty_attestor {
     /// superseded in the previous epoch. The judge re-runs authentication only
     /// at versions superseded this epoch, so that validator refutes like the
     /// others. The judge reads only the current epoch's versions, so that
-    /// validator is there to catch a judge that reads older ones. The judge
-    /// compares only the ids and versions a record names, so a wrong digest
-    /// leaves the verdict unchanged. The last re-run ends in an internal error
-    /// through the `judge-rerun-internal-error` fail point, which no
-    /// transaction can cause.
+    /// validator is there to catch a judge that reads older ones. The last
+    /// re-run ends in an internal error through the
+    /// `judge-rerun-internal-error` fail point, which no transaction can cause.
     ///
     /// Every node must execute each transaction with the same effects, which
     /// charge the gas owner for a valid attestation and nobody for a refuted
@@ -1051,7 +1020,7 @@ mod faulty_attestor {
                     tx,
                     &attestor,
                     attestor_sim_id,
-                    Some(vec![account_with_first_key]),
+                    Some(account_with_first_key.version),
                 )
                 .await,
             attestor,
@@ -1060,23 +1029,14 @@ mod faulty_attestor {
         });
 
         let account_with_second_key = env.account_ref().await;
-        let version_ahead = ObjectReference::new(
-            account_with_second_key.object_id,
-            account_with_second_key.version + 1,
-            account_with_second_key.digest,
-        );
+        let version_ahead = account_with_second_key.version + 1;
         let tx = env
             .craft_account_transaction_signed_over_another_digest_by(&second_key)
             .await?;
         scenarios.push(Scenario {
             name: "recorded version ahead of the executed one",
             digest: env
-                .submit_to_faulty_attestor(
-                    tx,
-                    &attestor,
-                    attestor_sim_id,
-                    Some(vec![version_ahead]),
-                )
+                .submit_to_faulty_attestor(tx, &attestor, attestor_sim_id, Some(version_ahead))
                 .await,
             attestor,
             authenticates: false,
@@ -1100,28 +1060,7 @@ mod faulty_attestor {
                     tx,
                     &attestor,
                     attestor_sim_id,
-                    Some(vec![account_with_second_key]),
-                )
-                .await,
-            attestor,
-            authenticates: false,
-            expected_verdict: ExpectedVerdict::Valid,
-        });
-
-        let account_with_a_wrong_digest = ObjectReference::new(
-            account_with_second_key.object_id,
-            account_with_second_key.version,
-            account_with_first_key.digest,
-        );
-        let tx = env.craft_account_transaction_signed_by(&second_key).await?;
-        scenarios.push(Scenario {
-            name: "recorded version superseded this epoch, with a wrong digest",
-            digest: env
-                .submit_to_faulty_attestor(
-                    tx,
-                    &attestor,
-                    attestor_sim_id,
-                    Some(vec![account_with_a_wrong_digest]),
+                    Some(account_with_second_key.version),
                 )
                 .await,
             attestor,
@@ -1139,7 +1078,7 @@ mod faulty_attestor {
                     tx,
                     &attestor,
                     attestor_sim_id,
-                    Some(vec![account_with_second_key]),
+                    Some(account_with_second_key.version),
                 )
                 .await,
             attestor,
@@ -1160,7 +1099,7 @@ mod faulty_attestor {
                     tx,
                     &attestor,
                     attestor_sim_id,
-                    Some(vec![account_with_second_key]),
+                    Some(account_with_second_key.version),
                 )
                 .await,
             attestor,
@@ -1286,6 +1225,147 @@ mod faulty_attestor {
             read_change_epoch_scores(&env.test_cluster, epoch),
             expected_scores,
             "the change epoch transaction cuts the attestor's score alone"
+        );
+
+        for handle in env.test_cluster.all_node_handles() {
+            assert_eq!(
+                read_verdict_mismatches(&handle),
+                0.0,
+                "no node may record a verdict that differs from the certified one"
+            );
+        }
+
+        Ok(())
+    }
+
+    /// The faulty attestor attests two transactions whose Move authentication
+    /// needs more than `max_auth_gas`. Execution gives the authenticators at
+    /// most `max_auth_gas`, so both fail there, and the account version the
+    /// attestor records decides how the attestation is refuted:
+    /// - the version the attestor read: [`Refuted`], no re-run;
+    /// - a version superseded this epoch: [`Refuted`] by the re-run.
+    ///
+    /// The judge's re-run gets at most `max_auth_gas` too, whatever units the
+    /// attestor claims: an honest dry run refuses an authentication that needs
+    /// more, so one that passes only above `max_auth_gas` cannot make the
+    /// account pay.
+    ///
+    /// Every node must execute each transaction with the same effects, which
+    /// charge nobody. Every validator must build the checkpoints as certified
+    /// and record the verdict the checkpoint certifies. The refutation by the
+    /// re-run must carry more units than the one without a re-run.
+    ///
+    /// [`Refuted`]: AttestationVerdict::Refuted
+    #[sim_test]
+    async fn authentication_over_max_auth_gas_is_refuted_at_a_superseded_version()
+    -> Result<(), anyhow::Error> {
+        telemetry_subscribers::init_for_testing();
+        let _config = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_validator_attestation_for_testing(true);
+            config.set_checkpoint_summary_version_specific_data_for_testing(2);
+            config.set_attestation_max_refuted_units_squared_for_testing(MAX_REFUTED_UNITS_SQUARED);
+            config.set_max_auth_gas_for_testing(MAX_AUTH_GAS_BELOW_THE_AUTHENTICATION);
+
+            config
+        });
+
+        let mut env = TestEnvironment::from_cluster(
+            TestClusterBuilder::new()
+                .with_num_validators(NUM_VALIDATORS)
+                .with_epoch_duration_ms(EPOCH_DURATION_MS)
+                .build()
+                .await,
+        );
+        env.setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+            .await?;
+        let attestor = env.validator_at(ATTESTOR);
+        let attestor_sim_id = env
+            .node(&attestor)
+            .with(|_| iota_simulator::current_simnode_id());
+        let owner = env.owner.expect("the account is set up");
+        let epoch = 0;
+        let mut scenarios = Vec::new();
+
+        let tx = env.craft_account_transaction_signed_by(&owner).await?;
+        scenarios.push(Scenario {
+            name: "over max_auth_gas at the versions the attestor read",
+            digest: env
+                .submit_to_faulty_attestor(tx, &attestor, attestor_sim_id, None)
+                .await,
+            attestor,
+            authenticates: false,
+            expected_verdict: ExpectedVerdict::Refuted,
+        });
+
+        // The scenario so far must execute at the account version that the
+        // next transaction supersedes.
+        env.wait_for_transaction_checkpoint(&scenarios[0].digest)
+            .await;
+        let superseded_account = env.account_ref().await;
+        env.supersede_account_version().await?;
+
+        let tx = env.craft_account_transaction_signed_by(&owner).await?;
+        scenarios.push(Scenario {
+            name: "over max_auth_gas at a recorded version superseded this epoch",
+            digest: env
+                .submit_to_faulty_attestor(
+                    tx,
+                    &attestor,
+                    attestor_sim_id,
+                    Some(superseded_account.version),
+                )
+                .await,
+            attestor,
+            authenticates: false,
+            expected_verdict: ExpectedVerdict::RefutedByRerun,
+        });
+
+        let mut checkpoints_to_compare = BTreeSet::new();
+        for scenario in &scenarios {
+            let checkpoint = env.wait_for_transaction_checkpoint(&scenario.digest).await;
+            checkpoints_to_compare.insert(checkpoint.sequence_number);
+            let effects = wait_for_effects_on_every_node(&env.test_cluster, scenario.digest).await;
+            assert!(
+                effects.iter().all(|on_node| *on_node == effects[0]),
+                "{}: every node must reach the same effects",
+                scenario.name
+            );
+            assert_status(scenario, &effects[0]);
+            let gas_coin = env
+                .test_cluster
+                .get_object_from_fullnode_store(effects[0].gas_object().reference().object_id())
+                .await
+                .expect("the fullnode holds the gas coin");
+            assert_payment(scenario, &effects[0], &gas_coin);
+        }
+        assert_validators_build_the_certified_checkpoints(
+            &env.test_cluster,
+            &checkpoints_to_compare,
+        )
+        .await;
+
+        let fullnode = &env.test_cluster.fullnode_handle.iota_node;
+        let (certified, _) = read_certified_attestations(
+            &env.test_cluster,
+            epoch,
+            highest_executed_checkpoint(fullnode),
+        );
+        for scenario in &scenarios {
+            env.assert_records(scenario, certified.get(&scenario.digest).copied());
+        }
+        let refuted_units = |scenario: &Scenario| {
+            let AttestationVerdict::Refuted { units } = certified[&scenario.digest].verdict else {
+                panic!("{}: the record is refuted", scenario.name)
+            };
+
+            units
+        };
+        let (without_rerun, by_rerun) =
+            (refuted_units(&scenarios[0]), refuted_units(&scenarios[1]));
+        assert!(
+            by_rerun > without_rerun,
+            "the refutation by the re-run must add the re-run's units to execution's: \
+             {by_rerun} vs {without_rerun}"
         );
 
         for handle in env.test_cluster.all_node_handles() {
@@ -1764,6 +1844,47 @@ mod faulty_attestor {
             Ok(new_owner)
         }
 
+        /// Moves the account to a new version without running its
+        /// authenticator: the owner's address, which is not the account, calls
+        /// `rotate_public_key`. The call aborts for any sender but the
+        /// account, and an aborted transaction still moves its mutable shared
+        /// inputs to a new version. Returns once every node has executed the
+        /// transaction. Panics if the transaction succeeds.
+        async fn supersede_account_version(&self) -> anyhow::Result<()> {
+            let Some(owner) = self.owner else {
+                anyhow::bail!("Abstract account not set up yet");
+            };
+            let public_key = self
+                .test_cluster
+                .wallet
+                .config()
+                .keystore()
+                .get_key(&owner)?
+                .public();
+            let tx_data = self
+                .test_cluster
+                .test_transaction_builder()
+                .await
+                .programmable(self.craft_rotate_owner_key_ptb(&public_key)?)
+                .build();
+            let tx = self.test_cluster.wallet.sign_transaction(&tx_data);
+            let digest = *tx.digest();
+            let response = self
+                .test_cluster
+                .wallet
+                .execute_transaction_may_fail(tx)
+                .await?;
+            assert!(
+                !response
+                    .status_ok()
+                    .expect("the response carries the effects"),
+                "only the account may rotate its key"
+            );
+            wait_for_effects_on_every_node(&self.test_cluster, digest).await;
+
+            Ok(())
+        }
+
         /// The body of a transaction that rotates the account to `public_key`,
         /// with the Ed25519 authenticator.
         fn craft_rotate_owner_key_ptb(
@@ -1907,35 +2028,38 @@ mod faulty_attestor {
         /// the faulty attestor and `attestor_sim_id` is its simulator node id.
         /// The attestor attests `tx` although the Move authentication of `tx`
         /// fails there, and claims every unit the budget pays for, so that the
-        /// claim never cuts the judge's re-run short. When `recorded_versions`
-        /// is given, the attestor records them in place of the versions its dry
-        /// run read. `recorded_versions` need not be a whole record, which also
-        /// holds the account's fields the authenticator read: the judge
-        /// compares only the versions a record names, and its re-run resolves
-        /// the fields under the recorded account version, so the account's
-        /// version alone decides the verdict.
+        /// claim does not cut the judge's re-run short. When
+        /// `recorded_account_version` is given, the attestor records it for the
+        /// account of the Move authenticator at signature 0 in place of what
+        /// its dry run read. An account transaction names no other shared
+        /// object, so that entry is the whole record, and the judge's re-run
+        /// resolves the account's fields under the recorded account version.
         async fn submit_to_faulty_attestor(
             &self,
             tx: TransactionEnvelope,
             attestor: &AuthorityName,
             attestor_sim_id: NodeId,
-            recorded_versions: Option<Vec<ObjectReference>>,
+            recorded_account_version: Option<Version>,
         ) -> TransactionDigest {
             let transaction = tx.data().transaction();
             let claimed_units = transaction.gas_budget() / transaction.gas_price();
             register_fail_point_arg("attest-ignore-auth-failure", move || {
                 (iota_simulator::current_simnode_id() == attestor_sim_id).then_some(claimed_units)
             });
-            if let Some(versions) = recorded_versions.clone() {
-                register_fail_point_arg("attest-object-versions", move || {
+            if let Some(version) = recorded_account_version {
+                let versions = vec![(
+                    SharedInputIndex::AuthenticatorAccount { authenticator: 0 },
+                    version,
+                )];
+                register_fail_point_arg("attest-shared-object-versions", move || {
                     (iota_simulator::current_simnode_id() == attestor_sim_id)
                         .then(|| versions.clone())
                 });
             }
             let digest = self.submit_to(tx, attestor).await;
             clear_fail_point("attest-ignore-auth-failure");
-            if recorded_versions.is_some() {
-                clear_fail_point("attest-object-versions");
+            if recorded_account_version.is_some() {
+                clear_fail_point("attest-shared-object-versions");
             }
 
             digest

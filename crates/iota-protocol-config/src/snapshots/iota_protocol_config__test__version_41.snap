@@ -83,6 +83,8 @@ feature_flags:
   move_authenticator_type_arg_packages_as_inputs: true
   enable_validator_attestation: true
   consensus_commit_transactions_once_traversed: true
+  secp256r1_ecrecover_checks_x_below_p: true
+  enable_transaction_dependencies: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000
@@ -117,7 +119,7 @@ max_move_object_size: 256000
 max_move_package_size: 102400
 max_publish_or_upgrade_per_ptb: 5
 max_tx_gas: 50000000000
-max_auth_gas: 250000
+max_auth_gas: 1000000
 max_gas_price: 100000
 max_gas_computation_bucket: 5000000
 gas_rounding_step: 1000
@@ -366,6 +368,8 @@ max_deferral_rounds_for_congestion_control: 10
 min_checkpoint_interval_ms: 200
 checkpoint_rate_window_size: 20
 checkpoint_summary_version_specific_data: 2
+attestation_max_refuted_units_squared: 100000000
+attestation_freshness_window_commits: 12000
 max_soft_bundle_size: 5
 max_accumulated_txn_cost_per_object_in_mysticeti_commit: 10
 max_committee_members_count: 100

@@ -536,6 +536,13 @@ mod tests {
             unreachable!("not read when loading shared inputs")
         }
 
+        fn try_multi_transactions_executed(
+            &self,
+            _: &[TransactionDigest],
+        ) -> IotaResult<Vec<bool>> {
+            unreachable!("not read when loading shared inputs")
+        }
+
         fn try_find_object_lt_or_eq_version(
             &self,
             _: ObjectId,
@@ -560,12 +567,12 @@ mod tests {
             unreachable!("not read when loading shared inputs")
         }
 
-        fn try_object_superseded_in_epoch(
+        fn try_find_lowest_version_above_in_epoch(
             &self,
             _: &ObjectId,
             _: Version,
             _: EpochId,
-        ) -> IotaResult<bool> {
+        ) -> IotaResult<Option<(Version, bool)>> {
             unreachable!("not read when loading shared inputs")
         }
 

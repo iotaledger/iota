@@ -182,16 +182,6 @@ pub struct BuilderCheckpointSummary {
 
 #[derive(DBMapUtils)]
 pub struct CheckpointStoreTables {
-    /// The flat checkpoint tables [`HistoricCheckpoints`] replaced; dropped
-    /// when the database is opened.
-    // TODO(https://github.com/iotaledger/iota/issues/13576): remove these tables.
-    #[rename = "checkpoint_content"]
-    #[deprecated_db_map]
-    _checkpoint_content: Option<DBMap<(), ()>>,
-    #[rename = "checkpoint_by_digest"]
-    #[deprecated_db_map]
-    _checkpoint_by_digest: Option<DBMap<(), ()>>,
-
     /// Certified checkpoint summaries, keyed by sequence number.
     ///
     /// Intentionally never pruned: only these summaries carry a certified
@@ -235,13 +225,6 @@ pub struct CheckpointStoreTables {
     /// Watermarks used to determine the highest verified, fully synced, and
     /// fully executed checkpoints
     pub(crate) watermarks: DBMap<CheckpointWatermark, (CheckpointSequenceNumber, CheckpointDigest)>,
-
-    /// The progress of the one-time move into the per-epoch buckets; dropped
-    /// when the database is opened.
-    // TODO(https://github.com/iotaledger/iota/issues/13576): remove this table.
-    #[rename = "checkpoint_backlog_migration_progress"]
-    #[deprecated_db_map]
-    _checkpoint_backlog_migration_progress: Option<DBMap<(), ()>>,
 }
 
 impl CheckpointStoreTables {

@@ -15,7 +15,7 @@ use iota_transaction_checks::VerifierLimitsSource;
 use iota_types::{
     committee::{Committee, EpochId},
     effects::TransactionEffectsAPI,
-    error::IotaResult,
+    error::{IotaError, IotaResult, UserInputError},
     gas::IotaGasStatus,
     gas_coin::mock_simulation_gas_coin,
     inner_temporary_store::InnerTemporaryStore,
@@ -24,7 +24,9 @@ use iota_types::{
         epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
     },
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
-    transaction::{ObjectReadResult, TransactionAPI, VerifiedTransaction},
+    transaction::{
+        ObjectReadResult, TransactionAPI, TransactionDependencyReadResult, VerifiedTransaction,
+    },
     transaction_executor::{InputCheckRules, SimulateTransactionResult, VmChecks},
 };
 
@@ -142,11 +144,23 @@ impl EpochState {
             &store,
         )?;
 
-        let (input_objects, receiving_objects) = store.read_objects_for_synchronous_execution(
+        let (mut input_objects, receiving_objects) = store.read_objects_for_synchronous_execution(
             &tx_digest,
             &input_object_kinds,
             &receiving_object_refs,
         )?;
+
+        if let Some(dependency) = tx.transaction_dependency() {
+            let effects = store.get_transaction_effects(&dependency).ok_or_else(|| {
+                IotaError::from(UserInputError::TransactionDependencyNotFound {
+                    digest: dependency,
+                })
+            })?;
+            input_objects.set_transaction_dependency(TransactionDependencyReadResult {
+                digest: dependency,
+                succeeded: effects.status().is_success(),
+            });
+        }
 
         // `MoveAuthenticator`s are not supported in Simulacrum, so we set the
         // `authenticator_gas_budget` to 0.
@@ -229,6 +243,18 @@ impl EpochState {
             &input_object_kinds,
             &receiving_object_refs,
         )?;
+
+        // As on a node, a dependency that has not executed yet is assumed to
+        // succeed.
+        if let Some(dependency) = transaction.transaction_dependency() {
+            let succeeded = store
+                .get_transaction_effects(&dependency)
+                .is_none_or(|effects| effects.status().is_success());
+            input_objects.set_transaction_dependency(TransactionDependencyReadResult {
+                digest: dependency,
+                succeeded,
+            });
+        }
 
         // Create a mock gas object if one was not provided
         let mock_gas_id = if transaction.gas().is_empty() {

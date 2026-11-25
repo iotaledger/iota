@@ -42,6 +42,11 @@ pub(crate) trait Checkpointed: CursorType {
     fn checkpoint_viewed_at(&self) -> u64;
 }
 
+/// Trait for cursors that point at a transaction.
+pub(crate) trait TransactionCursor: CursorType {
+    fn tx_sequence_number(&self) -> u64;
+}
+
 impl Checkpointed for JsonCursor<ConsistentIndexCursor> {
     fn checkpoint_viewed_at(&self) -> u64 {
         self.c.into()

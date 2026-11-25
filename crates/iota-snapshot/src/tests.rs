@@ -5,12 +5,14 @@
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
     fs,
-    io::Write,
+    io::{Read, Write},
     num::NonZeroUsize,
+    path::PathBuf,
     sync::{
         Arc, OnceLock,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
+    time::Duration,
 };
 
 use byteorder::{BigEndian, ByteOrder};
@@ -19,10 +21,13 @@ use fastcrypto::{
     traits::KeyPair,
 };
 use futures::{StreamExt, future::AbortHandle, stream::BoxStream};
-use indicatif::MultiProgress;
+use indicatif::{MultiProgress, ProgressDrawTarget};
 use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use iota_core::{
-    authority::authority_store_tables::AuthorityPerpetualTables,
+    authority::{
+        AuthorityStore,
+        authority_store_tables::{AuthorityPerpetualTables, LiveObject},
+    },
     checkpoints::CheckpointStore,
     epoch_end_db_snapshot::EpochEndDbSnapshotRequest,
     global_state_hasher::GlobalStateHasher,
@@ -34,10 +39,10 @@ use iota_core::{
 };
 use iota_sdk_types::{
     Address, CheckpointCommitment, CheckpointContents, CheckpointDigest, CheckpointSummary,
-    EndOfEpochData, GasCostSummary, ObjectId, TransactionDigest, TransactionEffects,
-    TransactionEvents,
+    EndOfEpochData, GasCostSummary, ObjectId, ObjectReference, Owner, TransactionDigest,
+    TransactionEffects, TransactionEvents, Version,
 };
-use iota_storage::object_store::util::SUCCESS_MARKER;
+use iota_storage::object_store::{ObjectStoreGetExt, util::SUCCESS_MARKER};
 use iota_types::{
     committee::{Committee, EpochId},
     crypto::AuthorityKeyPair,
@@ -57,13 +62,15 @@ use object_store::{
     ObjectStore, PutMultipartOptions, PutOptions, PutPayload, PutResult, path::Path as ObjectPath,
 };
 use prometheus_filtered::Registry;
-use tokio::sync::{Semaphore, mpsc, oneshot};
+use tokio::sync::{Semaphore, mpsc, oneshot, watch};
 
 use crate::{
-    EPOCH_INFO_FILE_MAGIC, EpochInfo, EpochInfoV1, EpochInfoV1Entry, FileCompression, FileMetadata,
-    FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, ManifestV2, OBJECT_REF_BYTES,
+    EPOCH_INFO_FILE_MAGIC, EpochInfo, EpochInfoV1, EpochInfoV1Entry, FILE_MAX_BYTES,
+    FileCompression, FileMetadata, FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest,
+    ManifestV2, OBJECT_REF_BYTES, default_insert_concurrency_for_cores,
+    progress::LOG_TARGET_PROGRESS,
     reader::{StateAccumulatorSender, StateSnapshotReaderV1},
-    restore::RestoreWithIndexes,
+    restore::{Restore, RestoreWithIndexes},
     uploader::StateSnapshotUploader,
     verify_epoch_info_chain,
     writer::{BoundaryStoppedWaiting, StateSnapshotWriterV1},
@@ -428,38 +435,7 @@ async fn snapshot_round_trip(
     num_objects: u64,
     file_compression: FileCompression,
 ) -> Result<(), anyhow::Error> {
-    let local_store_config = ObjectStoreConfig {
-        object_store: Some(ObjectStoreType::File),
-        directory: Some(tmp_dir.join("local_dir")),
-        ..Default::default()
-    };
-    let remote_store_config = ObjectStoreConfig {
-        object_store: Some(ObjectStoreType::File),
-        directory: Some(tmp_dir.join("remote_dir")),
-        ..Default::default()
-    };
-
-    let snapshot_writer = StateSnapshotWriterV1::new(
-        &local_store_config,
-        &remote_store_config,
-        checkpoint_store_with_epochs(0),
-        ChainIdentifier::default(),
-        file_compression,
-        NonZeroUsize::new(1).unwrap(),
-    )
-    .await?;
-    let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&tmp_dir.join("db"), None));
-    insert_keys(&perpetual_db, num_objects)?;
-    let root_accumulator =
-        ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
-    snapshot_writer
-        .write_internal(
-            0,
-            perpetual_db.clone(),
-            root_accumulator,
-            db_snapshot_taken(),
-        )
-        .await?;
+    let snapshot = write_snapshot(tmp_dir, num_objects, file_compression, FILE_MAX_BYTES).await?;
 
     // On-disk size assertion: with no compression the uploaded `.ref` file
     // is exactly `MAGIC_BYTES + num_objects * OBJECT_REF_BYTES`. A bug that
@@ -467,7 +443,7 @@ async fn snapshot_round_trip(
     // writer and reader agreed on the wrong size. Reads from the remote
     // store, since `sync_file_to_remote` removes the local copy after upload.
     if file_compression == FileCompression::None && num_objects > 0 {
-        let ref_file = tmp_dir.join("remote_dir").join("epoch_0").join("1_1.ref");
+        let ref_file = snapshot.remote_dir.join("epoch_0").join("1_1.ref");
         let actual_size = fs::metadata(&ref_file)?.len() as usize;
         let expected_size = MAGIC_BYTES + (num_objects as usize) * OBJECT_REF_BYTES;
         assert_eq!(
@@ -482,10 +458,7 @@ async fn snapshot_round_trip(
     // otherwise only surface post-deploy. Gated on `None` compression so the
     // raw on-disk bytes are readable directly.
     if file_compression == FileCompression::None {
-        let epoch_info_file = tmp_dir
-            .join("remote_dir")
-            .join("epoch_0")
-            .join("EPOCH_INFO");
+        let epoch_info_file = snapshot.remote_dir.join("epoch_0").join("EPOCH_INFO");
         let bytes = fs::read(&epoch_info_file)?;
         assert!(
             bytes.len() >= MAGIC_BYTES,
@@ -520,44 +493,12 @@ async fn snapshot_round_trip(
         );
     }
 
-    let local_store_restore_config = ObjectStoreConfig {
-        object_store: Some(ObjectStoreType::File),
-        directory: Some(tmp_dir.join("local_dir_restore")),
-        ..Default::default()
-    };
-    let mut snapshot_reader = StateSnapshotReaderV1::new(
-        0,
-        &remote_store_config,
-        &local_store_restore_config,
-        NonZeroUsize::new(1).unwrap(),
-        MultiProgress::new(),
-        false, // skip_reset_local_store
-    )
-    .await?;
+    let mut snapshot_reader = snapshot.reader(snapshot.store(), 1).await?;
     let restored_perpetual_db = AuthorityPerpetualTables::open(&tmp_dir.join("restored_db"), None);
-    let (_abort_handle, abort_registration) = AbortHandle::new_pair();
-    let (partials_sender, mut partials_receiver) = mpsc::channel(1);
-    let (completion_sender, completion_receiver) = oneshot::channel();
-    let accumulator = tokio::spawn(async move {
-        let mut accumulated_objects = 0u64;
-        while let Some((_, partial_num_objects)) = partials_receiver.recv().await {
-            accumulated_objects += partial_num_objects;
-        }
-        accumulated_objects
-    });
-    snapshot_reader
-        .read(
-            &restored_perpetual_db,
-            abort_registration,
-            Some(StateAccumulatorSender {
-                partials: partials_sender,
-                completion: completion_sender,
-            }),
-        )
-        .await?;
-    completion_receiver.await?;
-    assert_eq!(accumulator.await?, num_objects);
-    compare_live_objects(&perpetual_db, &restored_perpetual_db)?;
+    let (_, accumulated_objects) =
+        read_with_partial_hashes(&mut snapshot_reader, &restored_perpetual_db).await?;
+    assert_eq!(accumulated_objects, num_objects);
+    compare_live_objects(&snapshot.source_db, &restored_perpetual_db)?;
 
     // Snapshot is at epoch 0, so EPOCH_INFO has exactly one entry, which must
     // round-trip into an `EpochInfoV2`.
@@ -735,83 +676,56 @@ async fn snapshot_restore_builds_index_stores() -> Result<(), anyhow::Error> {
     let dir = iota_common::tempdir();
     let tmp_dir = dir.path();
 
-    let local_store_config = ObjectStoreConfig {
-        object_store: Some(ObjectStoreType::File),
-        directory: Some(tmp_dir.join("local_dir")),
-        ..Default::default()
-    };
-    let remote_store_config = ObjectStoreConfig {
-        object_store: Some(ObjectStoreType::File),
-        directory: Some(tmp_dir.join("remote_dir")),
-        ..Default::default()
-    };
-    let snapshot_writer = StateSnapshotWriterV1::new(
-        &local_store_config,
-        &remote_store_config,
-        checkpoint_store_with_epochs(0),
-        ChainIdentifier::default(),
-        FileCompression::Zstd,
-        NonZeroUsize::new(1).unwrap(),
-    )
-    .await?;
-
     // A handful of address-owned objects, so the owner index has something
     // to prove (the immutable objects of the other round-trip tests are
     // intentionally not owner-indexed).
-    let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&tmp_dir.join("db"), None));
     let owner = Address::from_u16(7);
     let mut owned_ids = HashSet::new();
-    let mut id = ObjectId::ZERO;
-    for _ in 0..4 {
-        perpetual_db.insert_store_object_v2_test_only(
-            Object::with_id_owner_for_testing(id, owner),
-            Some(0),
-        )?;
-        owned_ids.insert(id);
-        id = id.next_lexicographical();
-    }
-    let root_accumulator =
-        ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
-    snapshot_writer
-        .write_internal(
-            0,
-            perpetual_db.clone(),
-            root_accumulator,
-            db_snapshot_taken(),
-        )
-        .await?;
-
-    let local_store_restore_config = ObjectStoreConfig {
-        object_store: Some(ObjectStoreType::File),
-        directory: Some(tmp_dir.join("local_dir_restore")),
-        ..Default::default()
-    };
-    let mut snapshot_reader = StateSnapshotReaderV1::new(
-        0,
-        &remote_store_config,
-        &local_store_restore_config,
-        NonZeroUsize::new(1).unwrap(),
-        MultiProgress::new(),
-        false, // skip_reset_local_store
-    )
+    let snapshot = write_snapshot_of(tmp_dir, FileCompression::Zstd, FILE_MAX_BYTES, |db| {
+        let mut id = ObjectId::ZERO;
+        for _ in 0..4 {
+            db.insert_store_object_v2_test_only(
+                Object::with_id_owner_for_testing(id, owner),
+                Some(0),
+            )?;
+            owned_ids.insert(id);
+            id = id.next_lexicographical();
+        }
+        Ok(())
+    })
     .await?;
+    let mut snapshot_reader = snapshot.reader(snapshot.store(), 1).await?;
 
-    let restored_perpetual_db = AuthorityPerpetualTables::open(&tmp_dir.join("restored_db"), None);
+    let restored_perpetual_db = Arc::new(AuthorityPerpetualTables::open(
+        &tmp_dir.join("restored_db"),
+        None,
+    ));
     let index_groups = BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]);
-    let restorer = RpcIndexesRestorer::open(tmp_dir.join(RPC_INDEXES_DIR), index_groups.clone())?;
+    let restorer = Arc::new(RpcIndexesRestorer::open(
+        tmp_dir.join(RPC_INDEXES_DIR),
+        index_groups.clone(),
+        NonZeroUsize::MIN,
+    )?);
     let (_abort_handle, abort_registration) = AbortHandle::new_pair();
     snapshot_reader
         .read_to_db(
-            &RestoreWithIndexes::new(&restored_perpetual_db, Some(&restorer)),
+            &RestoreWithIndexes::new(
+                restored_perpetual_db.clone(),
+                Some(restorer.clone()),
+                NonZeroUsize::MIN,
+            ),
             abort_registration,
             None,
         )
         .await?;
 
     // The tee must not disturb the perpetual-tables restore.
-    compare_live_objects(&perpetual_db, &restored_perpetual_db)?;
+    compare_live_objects(&snapshot.source_db, &restored_perpetual_db)?;
 
-    restorer.finalize(0).await?;
+    Arc::into_inner(restorer)
+        .expect("the restore target is gone")
+        .finalize(0)
+        .await?;
 
     // The restore tool's smoke test must accept a healthy restore.
     RpcIndexesRestorer::verify_restored(
@@ -1603,4 +1517,1848 @@ async fn uploader_writes_the_snapshot_of_a_requested_epoch() -> Result<(), anyho
         "snapshot upload must leave a _SUCCESS marker in the remote epoch dir"
     );
     Ok(())
+}
+
+/// A snapshot written to a file-backed remote store.
+struct WrittenSnapshot {
+    remote_dir: PathBuf,
+    restore_dir: PathBuf,
+    source_db: Arc<AuthorityPerpetualTables>,
+    num_objects: u64,
+    num_partitions: usize,
+}
+
+impl WrittenSnapshot {
+    /// The remote store the snapshot was written to.
+    fn store(&self) -> Arc<dyn ObjectStoreGetExt> {
+        Arc::new(file_store(&self.remote_dir))
+    }
+
+    /// Like [`Self::store`], observed and shaped by the test.
+    fn observed_store(&self) -> ObservedStore {
+        ObservedStore::new(file_store(&self.remote_dir))
+    }
+
+    /// A reader that downloads the snapshot from `remote`, with
+    /// `num_parallel_downloads` downloads at once.
+    async fn reader(
+        &self,
+        remote: Arc<dyn ObjectStoreGetExt>,
+        num_parallel_downloads: usize,
+    ) -> Result<StateSnapshotReaderV1, anyhow::Error> {
+        let local_store_restore_config = ObjectStoreConfig {
+            object_store: Some(ObjectStoreType::File),
+            directory: Some(self.restore_dir.clone()),
+            ..Default::default()
+        };
+        StateSnapshotReaderV1::new_from_store(
+            0,
+            remote,
+            &local_store_restore_config,
+            NonZeroUsize::new(num_parallel_downloads).unwrap(),
+            MultiProgress::with_draw_target(ProgressDrawTarget::hidden()),
+            false, // skip_reset_local_store
+        )
+        .await
+    }
+}
+
+/// Writes a snapshot of `num_objects` immutable objects, cutting object files
+/// at `file_max_bytes`, into `tmp_dir/remote_dir`.
+async fn write_snapshot(
+    tmp_dir: &std::path::Path,
+    num_objects: u64,
+    file_compression: FileCompression,
+    file_max_bytes: usize,
+) -> Result<WrittenSnapshot, anyhow::Error> {
+    write_snapshot_of(tmp_dir, file_compression, file_max_bytes, |db| {
+        insert_keys(db, num_objects)
+    })
+    .await
+}
+
+/// Like [`write_snapshot`], with the objects put into the source tables by
+/// `populate`.
+async fn write_snapshot_of(
+    tmp_dir: &std::path::Path,
+    file_compression: FileCompression,
+    file_max_bytes: usize,
+    populate: impl FnOnce(&AuthorityPerpetualTables) -> Result<(), anyhow::Error>,
+) -> Result<WrittenSnapshot, anyhow::Error> {
+    let local_store_config = ObjectStoreConfig {
+        object_store: Some(ObjectStoreType::File),
+        directory: Some(tmp_dir.join("local_dir")),
+        ..Default::default()
+    };
+    let remote_dir = tmp_dir.join("remote_dir");
+    let remote_store_config = ObjectStoreConfig {
+        object_store: Some(ObjectStoreType::File),
+        directory: Some(remote_dir.clone()),
+        ..Default::default()
+    };
+    let snapshot_writer = StateSnapshotWriterV1::new(
+        &local_store_config,
+        &remote_store_config,
+        checkpoint_store_with_epochs(0),
+        ChainIdentifier::default(),
+        file_compression,
+        NonZeroUsize::new(1).unwrap(),
+    )
+    .await?
+    .with_file_max_bytes(file_max_bytes);
+    let source_db = Arc::new(AuthorityPerpetualTables::open(&tmp_dir.join("db"), None));
+    populate(&source_db)?;
+    let root_accumulator =
+        ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&source_db).digest());
+    snapshot_writer
+        .write_internal(0, source_db.clone(), root_accumulator, db_snapshot_taken())
+        .await?;
+
+    Ok(WrittenSnapshot {
+        num_objects: source_db.iter_live_object_set().count() as u64,
+        num_partitions: object_file_paths(&remote_dir)?.len(),
+        remote_dir,
+        restore_dir: tmp_dir.join("local_dir_restore"),
+        source_db,
+    })
+}
+
+/// The paths of the object files of the snapshot in `remote_dir`.
+fn object_file_paths(remote_dir: &std::path::Path) -> Result<Vec<PathBuf>, anyhow::Error> {
+    let mut paths = Vec::new();
+    for entry in fs::read_dir(remote_dir.join("epoch_0"))? {
+        let path = entry?.path();
+        if path.extension().is_some_and(|ext| ext == "obj") {
+            paths.push(path);
+        }
+    }
+    Ok(paths)
+}
+
+/// Writes a snapshot of 60 immutable objects in several partitions, none of
+/// them without objects.
+async fn write_several_partitions_snapshot(
+    tmp_dir: &std::path::Path,
+) -> Result<WrittenSnapshot, anyhow::Error> {
+    write_several_partitions_snapshot_of(tmp_dir, |db| insert_keys(db, 60)).await
+}
+
+/// Like [`write_several_partitions_snapshot`], with the objects put into the
+/// source tables by `populate`.
+async fn write_several_partitions_snapshot_of(
+    tmp_dir: &std::path::Path,
+    populate: impl FnOnce(&AuthorityPerpetualTables) -> Result<(), anyhow::Error>,
+) -> Result<WrittenSnapshot, anyhow::Error> {
+    /// Small enough that a few dozen test objects span several object files.
+    const SMALL_FILE_MAX_BYTES: usize = 1024;
+    let snapshot = write_snapshot_of(
+        tmp_dir,
+        FileCompression::Zstd,
+        SMALL_FILE_MAX_BYTES,
+        populate,
+    )
+    .await?;
+    assert!(
+        snapshot.num_partitions >= 6,
+        "the fixture must span several partitions, got {}",
+        snapshot.num_partitions
+    );
+    // A file with nothing but its header has no digest entry, which the
+    // reader does not handle. The size is checked after decompression.
+    for path in object_file_paths(&snapshot.remote_dir)? {
+        let mut contents = Vec::new();
+        FileCompression::Zstd
+            .decompress(&path)?
+            .read_to_end(&mut contents)?;
+        assert!(
+            contents.len() > MAGIC_BYTES,
+            "the fixture wrote an object file without objects: {path:?}"
+        );
+    }
+    Ok(snapshot)
+}
+
+/// Reads the snapshot into `restore_target` and returns the union of the
+/// partial state hashes the reader reported, with the number of objects they
+/// cover.
+async fn read_with_partial_hashes(
+    reader: &mut StateSnapshotReaderV1,
+    restore_target: &impl Restore,
+) -> Result<(GlobalStateHash, u64), anyhow::Error> {
+    read_counting_partial_hashes(reader, restore_target, Arc::default()).await
+}
+
+/// Like [`read_with_partial_hashes`], and counts the partial hashes in
+/// `num_partials_seen` as they arrive.
+async fn read_counting_partial_hashes(
+    reader: &mut StateSnapshotReaderV1,
+    restore_target: &impl Restore,
+    num_partials_seen: Arc<AtomicUsize>,
+) -> Result<(GlobalStateHash, u64), anyhow::Error> {
+    let (_abort_handle, abort_registration) = AbortHandle::new_pair();
+    let (partials_sender, mut partials_receiver) = mpsc::channel(1);
+    let (completion_sender, completion_receiver) = oneshot::channel();
+    let accumulator = tokio::spawn(async move {
+        let mut union = GlobalStateHash::default();
+        let mut num_objects = 0u64;
+        while let Some((partial, partial_num_objects)) = partials_receiver.recv().await {
+            num_partials_seen.fetch_add(1, Ordering::SeqCst);
+            union.union(&partial);
+            num_objects += partial_num_objects;
+        }
+        (union, num_objects)
+    });
+    reader
+        .read_to_db(
+            restore_target,
+            abort_registration,
+            Some(StateAccumulatorSender {
+                partials: partials_sender,
+                completion: completion_sender,
+            }),
+        )
+        .await?;
+    completion_receiver.await?;
+    Ok(accumulator.await?)
+}
+
+/// Restores a snapshot of several partitions with `num_parallel_downloads`
+/// downloads at once, and checks the restored objects and the partial state
+/// hashes.
+async fn several_partitions_round_trip(num_parallel_downloads: usize) -> Result<(), anyhow::Error> {
+    let dir = iota_common::tempdir();
+    let snapshot = write_several_partitions_snapshot(dir.path()).await?;
+    let mut reader = snapshot
+        .reader(snapshot.store(), num_parallel_downloads)
+        .await?;
+    let restored_db = AuthorityPerpetualTables::open(&dir.path().join("restored_db"), None);
+    let (partial_hashes, partial_num_objects) =
+        read_with_partial_hashes(&mut reader, &restored_db).await?;
+
+    compare_live_objects(&snapshot.source_db, &restored_db)?;
+    assert_eq!(partial_num_objects, snapshot.num_objects);
+    assert_eq!(
+        partial_hashes.digest(),
+        accumulate_live_object_set(&snapshot.source_db).digest(),
+        "the union of the partial hashes must equal the hash of the live object set"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn several_partitions_round_trip_with_one_download() -> Result<(), anyhow::Error> {
+    several_partitions_round_trip(1).await
+}
+
+#[tokio::test]
+async fn several_partitions_round_trip_with_three_downloads() -> Result<(), anyhow::Error> {
+    several_partitions_round_trip(3).await
+}
+
+/// How long a test waits for something before it fails.
+const WAIT_LIMIT: Duration = Duration::from_secs(10);
+
+/// How often a test checks whether what it waits for has happened.
+const POLL_INTERVAL: Duration = Duration::from_millis(5);
+
+/// A remote store that serves every file from `inner`, and counts and shapes
+/// the downloads of object files (`.obj`): it can delay them, hold every
+/// download after the first `gate_after` ones until [`Self::open_gate`], fail
+/// one of them, or panic in every one of them.
+struct ObservedStore {
+    inner: Arc<DynObjectStore>,
+    delay: Duration,
+    gate_after: Option<usize>,
+    gate: watch::Sender<bool>,
+    fail_download: Option<usize>,
+    download_failed: AtomicBool,
+    panic_on_download: bool,
+    // Served from memory instead of `inner`, keyed by path.
+    preloaded_files: Option<HashMap<String, bytes::Bytes>>,
+    before_first_download: Option<Box<dyn Fn() + Send + Sync>>,
+    num_downloads_started: AtomicUsize,
+    num_downloads_finished: AtomicUsize,
+    num_downloads_in_flight: AtomicUsize,
+    max_num_downloads_in_flight: AtomicUsize,
+    // Downloaded, and not yet through `Restore::insert_partition`.
+    num_held_partitions: AtomicUsize,
+    max_num_held_partitions: AtomicUsize,
+}
+
+impl ObservedStore {
+    fn new(inner: Arc<DynObjectStore>) -> Self {
+        Self {
+            inner,
+            delay: Duration::ZERO,
+            gate_after: None,
+            gate: watch::Sender::new(true),
+            fail_download: None,
+            download_failed: AtomicBool::new(false),
+            panic_on_download: false,
+            preloaded_files: None,
+            before_first_download: None,
+            num_downloads_started: AtomicUsize::new(0),
+            num_downloads_finished: AtomicUsize::new(0),
+            num_downloads_in_flight: AtomicUsize::new(0),
+            max_num_downloads_in_flight: AtomicUsize::new(0),
+            num_held_partitions: AtomicUsize::new(0),
+            max_num_held_partitions: AtomicUsize::new(0),
+        }
+    }
+
+    fn with_delay(mut self, delay: Duration) -> Self {
+        self.delay = delay;
+        self
+    }
+
+    fn with_gate_after(mut self, num_downloads: usize) -> Self {
+        self.gate_after = Some(num_downloads);
+        self.gate = watch::Sender::new(false);
+        self
+    }
+
+    /// The download that starts as number `index` (from 0) fails with a
+    /// permanent error.
+    fn with_failing_download(mut self, index: usize) -> Self {
+        self.fail_download = Some(index);
+        self
+    }
+
+    fn with_panic_on_download(mut self) -> Self {
+        self.panic_on_download = true;
+        self
+    }
+
+    fn with_preloaded_files(mut self, files: HashMap<String, bytes::Bytes>) -> Self {
+        self.preloaded_files = Some(files);
+        self
+    }
+
+    /// `hook` runs when the first download starts, on the thread that polls it.
+    #[cfg(not(msim))]
+    fn with_before_first_download(mut self, hook: impl Fn() + Send + Sync + 'static) -> Self {
+        self.before_first_download = Some(Box::new(hook));
+        self
+    }
+
+    fn download_failed(&self) -> bool {
+        self.download_failed.load(Ordering::SeqCst)
+    }
+
+    fn open_gate(&self) {
+        self.gate.send_replace(true);
+    }
+
+    fn num_downloads_finished(&self) -> usize {
+        self.num_downloads_finished.load(Ordering::SeqCst)
+    }
+
+    fn num_held_partitions(&self) -> usize {
+        self.num_held_partitions.load(Ordering::SeqCst)
+    }
+
+    fn num_downloads_in_flight(&self) -> usize {
+        self.num_downloads_in_flight.load(Ordering::SeqCst)
+    }
+
+    fn max_num_downloads_in_flight(&self) -> usize {
+        self.max_num_downloads_in_flight.load(Ordering::SeqCst)
+    }
+
+    fn max_num_held_partitions(&self) -> usize {
+        self.max_num_held_partitions.load(Ordering::SeqCst)
+    }
+
+    fn partition_inserted(&self) {
+        self.num_held_partitions.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+impl std::fmt::Display for ObservedStore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ObservedStore({})", self.inner)
+    }
+}
+
+#[async_trait::async_trait]
+impl ObjectStoreGetExt for ObservedStore {
+    async fn get_bytes(&self, src: &ObjectPath) -> anyhow::Result<bytes::Bytes> {
+        self.get_bytes_with_progress(src, &|_| {}).await
+    }
+
+    async fn get_bytes_with_progress(
+        &self,
+        src: &ObjectPath,
+        on_bytes: &(dyn Fn(u64) + Send + Sync),
+    ) -> anyhow::Result<bytes::Bytes> {
+        let inner: &dyn ObjectStoreGetExt = &self.inner;
+        if !src.as_ref().ends_with(".obj") {
+            return inner.get_bytes_with_progress(src, on_bytes).await;
+        }
+        let _in_flight = InProgress::start(
+            &self.num_downloads_in_flight,
+            &self.max_num_downloads_in_flight,
+        );
+        assert!(
+            !self.panic_on_download,
+            "download panic injected by the test"
+        );
+        let started = self.num_downloads_started.fetch_add(1, Ordering::SeqCst);
+        if started == 0 {
+            if let Some(hook) = &self.before_first_download {
+                hook();
+            }
+        }
+        if self.fail_download == Some(started) {
+            self.download_failed.store(true, Ordering::SeqCst);
+            return Err(not_found_error(src));
+        }
+        if self.gate_after.is_some_and(|after| started >= after) {
+            self.gate
+                .subscribe()
+                .wait_for(|open| *open)
+                .await
+                .expect("the gate sender lives as long as the store");
+        }
+        tokio::time::sleep(self.delay).await;
+        let bytes = match &self.preloaded_files {
+            Some(files) => {
+                let bytes = files[src.as_ref()].clone();
+                on_bytes(bytes.len() as u64);
+                bytes
+            }
+            None => inner.get_bytes_with_progress(src, on_bytes).await?,
+        };
+        self.num_downloads_finished.fetch_add(1, Ordering::SeqCst);
+        let num_held = self.num_held_partitions.fetch_add(1, Ordering::SeqCst) + 1;
+        self.max_num_held_partitions
+            .fetch_max(num_held, Ordering::SeqCst);
+        Ok(bytes)
+    }
+
+    async fn exists(&self, src: &ObjectPath) -> anyhow::Result<bool> {
+        let inner: &dyn ObjectStoreGetExt = &self.inner;
+        inner.exists(src).await
+    }
+
+    async fn object_size(&self, src: &ObjectPath) -> anyhow::Result<u64> {
+        let inner: &dyn ObjectStoreGetExt = &self.inner;
+        inner.object_size(src).await
+    }
+}
+
+/// Counts one more in `current` until dropped, also when its holder is
+/// cancelled, and raises `max` to the highest count.
+struct InProgress<'a>(&'a AtomicUsize);
+
+impl<'a> InProgress<'a> {
+    fn start(current: &'a AtomicUsize, max: &AtomicUsize) -> Self {
+        let num_in_progress = current.fetch_add(1, Ordering::SeqCst) + 1;
+        max.fetch_max(num_in_progress, Ordering::SeqCst);
+        Self(current)
+    }
+}
+
+impl Drop for InProgress<'_> {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+/// The error of a download of a file that the server does not have. The retry
+/// of the download gives up on it at once.
+fn not_found_error(src: &ObjectPath) -> anyhow::Error {
+    let response = reqwest::Response::from(
+        http::Response::builder()
+            .status(http::StatusCode::NOT_FOUND)
+            .body("")
+            .unwrap(),
+    );
+    let status_error = response.error_for_status().unwrap_err();
+    anyhow::Error::new(status_error).context(format!("failed to get file {src}"))
+}
+
+async fn wait_until(what: &str, condition: impl Fn() -> bool) {
+    wait_until_described(what, String::new, condition).await;
+}
+
+/// Like [`wait_until`]; `describe_state` adds what the test sees when the wait
+/// times out.
+async fn wait_until_described(
+    what: &str,
+    describe_state: impl Fn() -> String,
+    condition: impl Fn() -> bool,
+) {
+    tokio::time::timeout(WAIT_LIMIT, async {
+        while !condition() {
+            tokio::time::sleep(POLL_INTERVAL).await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| panic!("timed out waiting for {what}{}", describe_state()));
+}
+
+/// Like [`wait_until`], for a thread that must not yield to the runtime.
+#[cfg(not(msim))]
+fn wait_until_blocking(what: &str, condition: impl Fn() -> bool) {
+    let deadline = std::time::Instant::now() + WAIT_LIMIT;
+    while !condition() {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "timed out waiting for {what}"
+        );
+        std::thread::sleep(POLL_INTERVAL);
+    }
+}
+
+/// How the other inserts of [`InsertHook::FailOverlapped`] end after the first
+/// one failed.
+#[derive(Clone, Copy)]
+enum OtherInsertsOutcome {
+    Success,
+    Error,
+    Panic,
+}
+
+/// What [`HookedRestore`] does before its first inserts.
+#[derive(Clone, Copy)]
+enum InsertHook {
+    None,
+    /// Opens the store's gate, then waits for an object file download to
+    /// finish.
+    OpenGateAndAwaitDownload,
+    /// Like `OpenGateAndAwaitDownload`, but blocks the thread instead of
+    /// awaiting.
+    #[cfg(not(msim))]
+    OpenGateAndBlockForDownload,
+    /// Before each of the first `num_inserts` inserts: waits until that many
+    /// inserts are in progress and `num_held_partitions` downloaded partitions
+    /// are held, the ones in the inserts included.
+    AwaitOverlap {
+        num_inserts: usize,
+        num_held_partitions: usize,
+    },
+    /// Like `AwaitOverlap` with no held partitions, then the first insert
+    /// fails. The others go on only after that failure, and only when no
+    /// download is in flight. `outcome_of_others` says how they end.
+    FailOverlapped {
+        num_inserts: usize,
+        outcome_of_others: OtherInsertsOutcome,
+    },
+    /// Every one of the first inserts waits until a download has failed, opens
+    /// the store's gate, and ends a little later.
+    HoldUntilDownloadFailed {
+        num_inserts: usize,
+    },
+    /// The first insert yields to the runtime once, then fails.
+    FailAfterYield,
+    /// The first insert fails.
+    FailFirst,
+}
+
+impl InsertHook {
+    /// How many of the first inserts the hook acts on.
+    fn num_affected_inserts(self) -> usize {
+        match self {
+            InsertHook::AwaitOverlap { num_inserts, .. }
+            | InsertHook::FailOverlapped { num_inserts, .. }
+            | InsertHook::HoldUntilDownloadFailed { num_inserts } => num_inserts,
+            _ => 1,
+        }
+    }
+}
+
+/// Restores into a real restore target (by default the perpetual tables), with
+/// a hook before the first inserts. It reports what the restore target
+/// supports, unless [`Self::with_max_concurrent_inserts`] says otherwise.
+struct HookedRestore<R = AuthorityPerpetualTables> {
+    inner: Arc<R>,
+    store: Arc<ObservedStore>,
+    hook: InsertHook,
+    max_concurrent_inserts: Option<NonZeroUsize>,
+    num_inserts: AtomicUsize,
+    num_inserts_in_progress: AtomicUsize,
+    max_num_inserts_in_progress: AtomicUsize,
+    // Inserts that returned `Ok`.
+    num_completed_inserts: AtomicUsize,
+    failed: AtomicBool,
+    num_inserts_started_after_failure: AtomicUsize,
+    overlap_seen: AtomicBool,
+    num_downloads_in_flight_at_first_insert: AtomicUsize,
+    num_downloads_in_flight_at_failure: AtomicUsize,
+}
+
+impl<R: Restore> HookedRestore<R> {
+    fn new(inner: Arc<R>, store: Arc<ObservedStore>, hook: InsertHook) -> Self {
+        Self {
+            inner,
+            store,
+            hook,
+            max_concurrent_inserts: None,
+            num_inserts: AtomicUsize::new(0),
+            num_inserts_in_progress: AtomicUsize::new(0),
+            max_num_inserts_in_progress: AtomicUsize::new(0),
+            num_completed_inserts: AtomicUsize::new(0),
+            failed: AtomicBool::new(false),
+            num_inserts_started_after_failure: AtomicUsize::new(0),
+            overlap_seen: AtomicBool::new(false),
+            num_downloads_in_flight_at_first_insert: AtomicUsize::new(0),
+            num_downloads_in_flight_at_failure: AtomicUsize::new(0),
+        }
+    }
+
+    fn with_max_concurrent_inserts(mut self, num_inserts: usize) -> Self {
+        self.max_concurrent_inserts = Some(NonZeroUsize::new(num_inserts).unwrap());
+        self
+    }
+
+    fn num_inserts_in_progress(&self) -> usize {
+        self.num_inserts_in_progress.load(Ordering::SeqCst)
+    }
+
+    fn max_num_inserts_in_progress(&self) -> usize {
+        self.max_num_inserts_in_progress.load(Ordering::SeqCst)
+    }
+
+    async fn await_overlap(&self, num_inserts: usize, num_held_partitions: usize) {
+        wait_until_described(
+            &format!("{num_inserts} inserts in progress and {num_held_partitions} partitions held"),
+            || {
+                format!(
+                    ", only {} and {}",
+                    self.num_inserts_in_progress(),
+                    self.store.num_held_partitions()
+                )
+            },
+            || {
+                self.overlap_seen.load(Ordering::SeqCst)
+                    || (self.num_inserts_in_progress() >= num_inserts
+                        && self.store.num_held_partitions() >= num_held_partitions)
+            },
+        )
+        .await;
+        // Once any insert has seen the overlap, the others may go on: the first
+        // ones to finish would otherwise end it for the rest.
+        self.overlap_seen.store(true, Ordering::SeqCst);
+    }
+}
+
+impl<R: Restore + Send + Sync> Restore for HookedRestore<R> {
+    async fn insert_partition(
+        &self,
+        file_metadata: FileMetadata,
+        bytes: bytes::Bytes,
+        expected_checksum: &[u8; 32],
+    ) -> anyhow::Result<()> {
+        let index = self.num_inserts.fetch_add(1, Ordering::SeqCst);
+        let first = index == 0;
+        if self.failed.load(Ordering::SeqCst) {
+            self.num_inserts_started_after_failure
+                .fetch_add(1, Ordering::SeqCst);
+        }
+        let _in_progress = InProgress::start(
+            &self.num_inserts_in_progress,
+            &self.max_num_inserts_in_progress,
+        );
+        let result = async {
+            if first {
+                self.num_downloads_in_flight_at_first_insert
+                    .store(self.store.num_downloads_in_flight(), Ordering::SeqCst);
+            }
+            let hook = if index < self.hook.num_affected_inserts() {
+                self.hook
+            } else {
+                InsertHook::None
+            };
+            match hook {
+                InsertHook::None => {}
+                InsertHook::OpenGateAndAwaitDownload => {
+                    let num_finished_before = self.store.num_downloads_finished();
+                    self.store.open_gate();
+                    wait_until("a download to finish during the insert", || {
+                        self.store.num_downloads_finished() > num_finished_before
+                    })
+                    .await;
+                }
+                #[cfg(not(msim))]
+                InsertHook::OpenGateAndBlockForDownload => {
+                    let num_finished_before = self.store.num_downloads_finished();
+                    self.store.open_gate();
+                    wait_until_blocking(
+                        "a download to finish while the insert blocks its thread",
+                        || self.store.num_downloads_finished() > num_finished_before,
+                    );
+                }
+                InsertHook::AwaitOverlap {
+                    num_inserts,
+                    num_held_partitions,
+                } => self.await_overlap(num_inserts, num_held_partitions).await,
+                InsertHook::FailOverlapped {
+                    num_inserts,
+                    outcome_of_others,
+                } => {
+                    self.await_overlap(num_inserts, 0).await;
+                    if first {
+                        self.num_downloads_in_flight_at_failure
+                            .store(self.store.num_downloads_in_flight(), Ordering::SeqCst);
+                        self.failed.store(true, Ordering::SeqCst);
+                        anyhow::bail!("insert refused by the test");
+                    }
+                    // The others end only after the reader has stopped the downloads.
+                    wait_until("the downloads to stop after the failure", || {
+                        self.failed.load(Ordering::SeqCst)
+                            && self.store.num_downloads_in_flight() == 0
+                    })
+                    .await;
+                    match outcome_of_others {
+                        OtherInsertsOutcome::Success => {}
+                        OtherInsertsOutcome::Error => {
+                            anyhow::bail!("later failure in the test")
+                        }
+                        OtherInsertsOutcome::Panic => panic!("insert panics in the test"),
+                    }
+                }
+                InsertHook::HoldUntilDownloadFailed { .. } => {
+                    wait_until("a download to fail", || self.store.download_failed()).await;
+                    self.store.open_gate();
+                    tokio::time::sleep(POLL_INTERVAL * 4).await;
+                }
+                InsertHook::FailAfterYield => {
+                    // Wakes its own task at once, unlike `tokio::task::yield_now`,
+                    // which defers the wake-up: the insert is then ready to run
+                    // again before the reader's next poll.
+                    let mut yielded = false;
+                    std::future::poll_fn(|cx| {
+                        if yielded {
+                            return std::task::Poll::Ready(());
+                        }
+                        yielded = true;
+                        cx.waker().wake_by_ref();
+                        std::task::Poll::Pending
+                    })
+                    .await;
+                    self.failed.store(true, Ordering::SeqCst);
+                    anyhow::bail!("insert refused by the test");
+                }
+                InsertHook::FailFirst => {
+                    self.failed.store(true, Ordering::SeqCst);
+                    anyhow::bail!("insert refused by the test");
+                }
+            }
+            self.inner
+                .insert_partition(file_metadata, bytes, expected_checksum)
+                .await
+        }
+        .await;
+        self.store.partition_inserted();
+        if result.is_ok() {
+            self.num_completed_inserts.fetch_add(1, Ordering::SeqCst);
+        }
+        result
+    }
+
+    fn max_concurrent_inserts(&self) -> NonZeroUsize {
+        self.max_concurrent_inserts
+            .unwrap_or_else(|| self.inner.max_concurrent_inserts())
+    }
+}
+
+/// A snapshot of several partitions, a reader that downloads it through an
+/// [`ObservedStore`], and an empty database to restore into.
+struct RestoreFixture {
+    snapshot: WrittenSnapshot,
+    store: Arc<ObservedStore>,
+    reader: StateSnapshotReaderV1,
+    restored_db: Arc<AuthorityPerpetualTables>,
+    // Last, so that the temporary directory is removed after the databases in
+    // the other fields have closed.
+    _dir: tempfile::TempDir,
+}
+
+impl RestoreFixture {
+    /// `configure_store` sets up the store the reader downloads from.
+    async fn new(
+        configure_store: impl FnOnce(ObservedStore) -> ObservedStore,
+        num_parallel_downloads: usize,
+    ) -> Result<Self, anyhow::Error> {
+        let dir = iota_common::tempdir();
+        let snapshot = write_several_partitions_snapshot(dir.path()).await?;
+        let store = Arc::new(configure_store(snapshot.observed_store()));
+        let reader = snapshot
+            .reader(store.clone(), num_parallel_downloads)
+            .await?;
+        let restored_db = Arc::new(AuthorityPerpetualTables::open(
+            &dir.path().join("restored_db"),
+            None,
+        ));
+        Ok(Self {
+            snapshot,
+            store,
+            reader,
+            restored_db,
+            _dir: dir,
+        })
+    }
+
+    fn restore_target(&self, hook: InsertHook) -> HookedRestore {
+        HookedRestore::new(self.restored_db.clone(), self.store.clone(), hook)
+    }
+
+    async fn read(&mut self, restore_target: &impl Restore) -> Result<(), anyhow::Error> {
+        let (_abort_handle, abort_registration) = AbortHandle::new_pair();
+        self.reader
+            .read_to_db(restore_target, abort_registration, None)
+            .await
+    }
+
+    fn assert_restored(&self) -> Result<(), anyhow::Error> {
+        compare_live_objects(&self.snapshot.source_db, &self.restored_db)
+    }
+}
+
+async fn downloads_progress_while_inserting(hook: InsertHook) -> Result<(), anyhow::Error> {
+    // The first download passes; the others wait until the first insert
+    // starts, so they cannot have finished before it.
+    let mut fixture = RestoreFixture::new(|store| store.with_gate_after(1), 2).await?;
+    let restore_target = fixture.restore_target(hook);
+    fixture.read(&restore_target).await?;
+    fixture.assert_restored()
+}
+
+/// While a partition is inserted, the other downloads must keep running; the
+/// insert waits with an `.await`.
+#[tokio::test]
+async fn downloads_progress_while_a_partition_is_inserted() -> Result<(), anyhow::Error> {
+    downloads_progress_while_inserting(InsertHook::OpenGateAndAwaitDownload).await
+}
+
+/// Same, but the insert blocks the thread that polls `read_to_db` (the
+/// `block_on` thread of the runtime) instead of awaiting, while the downloads
+/// run on the worker threads. It does not cover an insert that runs on a
+/// worker thread.
+#[cfg(not(msim))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn downloads_progress_while_a_partition_is_inserted_on_a_blocked_thread()
+-> Result<(), anyhow::Error> {
+    downloads_progress_while_inserting(InsertHook::OpenGateAndBlockForDownload).await
+}
+
+/// At most N downloads run at once, at most K inserts run at once, and at
+/// most N + K downloaded partitions are held in memory (N waiting, K in
+/// inserts). The first K inserts wait until the bounds are reached, so a
+/// larger count would show in the maxima.
+#[tokio::test]
+async fn n_downloads_k_inserts_and_n_plus_k_held_partitions_are_the_most_at_once()
+-> Result<(), anyhow::Error> {
+    const NUM_PARALLEL_DOWNLOADS: usize = 2;
+    for max_concurrent_inserts in [1, 3] {
+        let mut fixture = RestoreFixture::new(
+            |store| store.with_delay(Duration::from_millis(5)),
+            NUM_PARALLEL_DOWNLOADS,
+        )
+        .await?;
+        let restore_target = fixture
+            .restore_target(InsertHook::AwaitOverlap {
+                num_inserts: max_concurrent_inserts,
+                num_held_partitions: NUM_PARALLEL_DOWNLOADS + max_concurrent_inserts,
+            })
+            .with_max_concurrent_inserts(max_concurrent_inserts);
+        fixture.read(&restore_target).await?;
+        fixture.assert_restored()?;
+        assert_eq!(
+            fixture.store.max_num_downloads_in_flight(),
+            NUM_PARALLEL_DOWNLOADS,
+            "downloads in flight, K = {max_concurrent_inserts}"
+        );
+        assert_eq!(
+            restore_target.max_num_inserts_in_progress(),
+            max_concurrent_inserts,
+            "inserts in progress, K = {max_concurrent_inserts}"
+        );
+        assert_eq!(
+            fixture.store.max_num_held_partitions(),
+            NUM_PARALLEL_DOWNLOADS + max_concurrent_inserts,
+            "held partitions, K = {max_concurrent_inserts}"
+        );
+    }
+    Ok(())
+}
+
+/// Two inserts run at the same time when the target allows it. Each of the
+/// first two inserts waits until both are in progress.
+#[tokio::test]
+async fn inserts_run_at_the_same_time_when_the_target_allows_it() -> Result<(), anyhow::Error> {
+    let mut fixture = RestoreFixture::new(|store| store, 2).await?;
+    let restore_target = fixture
+        .restore_target(InsertHook::AwaitOverlap {
+            num_inserts: 2,
+            num_held_partitions: 0,
+        })
+        .with_max_concurrent_inserts(2);
+    fixture.read(&restore_target).await?;
+    fixture.assert_restored()
+}
+
+/// A target that keeps the default of the trait gets one insert at a time,
+/// although the next downloads have finished and could be inserted. The first
+/// insert waits until they have.
+#[tokio::test]
+async fn a_target_with_the_default_max_concurrent_inserts_gets_one_insert_at_a_time()
+-> Result<(), anyhow::Error> {
+    const NUM_PARALLEL_DOWNLOADS: usize = 3;
+    let mut fixture = RestoreFixture::new(|store| store, NUM_PARALLEL_DOWNLOADS).await?;
+    let restore_target = fixture.restore_target(InsertHook::AwaitOverlap {
+        num_inserts: 1,
+        num_held_partitions: NUM_PARALLEL_DOWNLOADS + 1,
+    });
+    assert_eq!(restore_target.max_concurrent_inserts().get(), 1);
+    fixture.read(&restore_target).await?;
+    fixture.assert_restored()?;
+    assert_eq!(restore_target.max_num_inserts_in_progress(), 1);
+    Ok(())
+}
+
+/// After a failure, an insert that was taken but has not started must not
+/// start. The inserts are taken from downloads that finish at once, and the
+/// first one fails after it has yielded. Which branch of the reader's
+/// `select!` is polled first is random, so one run hits the case only some of
+/// the time: the scenario repeats.
+///
+/// The test cannot see whether a run reached the case (an insert was taken
+/// and had not started when the failure was recorded): that is inside the
+/// reader, and a taken insert that stops returns before it calls the restore
+/// target.
+#[tokio::test]
+async fn no_insert_starts_after_a_failure() -> Result<(), anyhow::Error> {
+    const NUM_RUNS: usize = 30;
+    let dir = iota_common::tempdir();
+    let snapshot = write_several_partitions_snapshot(dir.path()).await?;
+    let object_files = preloaded_object_files(&snapshot)?;
+    let mut num_runs_with_a_late_start = 0;
+    for run in 0..NUM_RUNS {
+        let store = Arc::new(
+            snapshot
+                .observed_store()
+                .with_preloaded_files(object_files.clone()),
+        );
+        let mut reader = snapshot.reader(store.clone(), 2).await?;
+        let restored_db = Arc::new(AuthorityPerpetualTables::open(
+            &dir.path().join(format!("restored_db_{run}")),
+            None,
+        ));
+        let restore_target = HookedRestore::new(restored_db, store, InsertHook::FailAfterYield)
+            .with_max_concurrent_inserts(2);
+        let (_abort_handle, abort_registration) = AbortHandle::new_pair();
+        let error = reader
+            .read_to_db(&restore_target, abort_registration, None)
+            .await
+            .expect_err("the insert fails");
+        assert!(format!("{error:#}").contains("insert refused by the test"));
+        if restore_target
+            .num_inserts_started_after_failure
+            .load(Ordering::SeqCst)
+            > 0
+        {
+            num_runs_with_a_late_start += 1;
+        }
+    }
+    assert_eq!(
+        num_runs_with_a_late_start, 0,
+        "in {num_runs_with_a_late_start} of {NUM_RUNS} runs an insert started after the failure"
+    );
+    Ok(())
+}
+
+/// A fixture and a restore target of three inserts at once. The first insert
+/// fails while the other two run; `outcome_of_others` says how those end.
+async fn fixture_with_a_failed_insert_and_two_running(
+    outcome_of_others: OtherInsertsOutcome,
+) -> Result<(RestoreFixture, HookedRestore), anyhow::Error> {
+    let fixture = RestoreFixture::new(|store| store.with_gate_after(3), 2).await?;
+    let restore_target = fixture
+        .restore_target(InsertHook::FailOverlapped {
+            num_inserts: 3,
+            outcome_of_others,
+        })
+        .with_max_concurrent_inserts(3);
+    Ok((fixture, restore_target))
+}
+
+/// Writes to `log_path` the log lines of this thread that `iota-tool` shows
+/// without `--verbose`, until the returned guard is dropped.
+fn capture_default_tool_logs(
+    log_path: &std::path::Path,
+) -> Result<tracing::subscriber::DefaultGuard, anyhow::Error> {
+    let subscriber = tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::new(format!(
+            "off,{LOG_TARGET_PROGRESS}=info"
+        )))
+        .with_writer(Arc::new(fs::File::create(log_path)?))
+        .with_ansi(false)
+        .finish();
+    Ok(tracing::subscriber::set_default(subscriber))
+}
+
+/// A failed insert while others run: the read returns the error with the
+/// context of the object file, no insert is in progress by then, and the
+/// inserts that ran have run to their end. The reader stops the downloads
+/// before it waits for the running inserts: those end only after no download
+/// is in flight any more. Three downloads pass the gate, the later ones are in
+/// flight when the insert fails.
+#[tokio::test]
+async fn a_failed_insert_stops_the_downloads_and_waits_for_the_running_inserts()
+-> Result<(), anyhow::Error> {
+    let (mut fixture, restore_target) =
+        fixture_with_a_failed_insert_and_two_running(OtherInsertsOutcome::Success).await?;
+    let error = fixture
+        .read(&restore_target)
+        .await
+        .expect_err("the insert fails");
+    let message = format!("{error:#}");
+    assert!(message.contains("insert refused by the test"), "{message}");
+    assert!(
+        message.contains("failed to insert object file"),
+        "{message}"
+    );
+    assert!(
+        restore_target
+            .num_downloads_in_flight_at_failure
+            .load(Ordering::SeqCst)
+            > 0,
+        "downloads must have been in flight when the insert failed"
+    );
+    assert_eq!(
+        restore_target.num_inserts_in_progress(),
+        0,
+        "no insert runs after the error"
+    );
+    // A dropped insert would also leave none in progress, so count the ones
+    // that ran to their end: all but the failed one.
+    assert_eq!(
+        restore_target.num_completed_inserts.load(Ordering::SeqCst),
+        restore_target.num_inserts.load(Ordering::SeqCst) - 1,
+        "the running inserts must finish before the error is returned"
+    );
+    assert_eq!(restore_target.max_num_inserts_in_progress(), 3);
+    assert_eq!(
+        restore_target.num_inserts.load(Ordering::SeqCst),
+        3,
+        "no insert starts after the error"
+    );
+    assert_eq!(fixture.store.num_downloads_in_flight(), 0);
+    Ok(())
+}
+
+/// A panic of a running insert ends the restore before the read returns the
+/// first error. So the reader reports that error before it waits for the
+/// running inserts, in a way that `iota-tool` shows without `--verbose`.
+#[tokio::test]
+async fn the_first_error_is_reported_before_a_running_insert_panics() -> Result<(), anyhow::Error> {
+    use futures::FutureExt;
+    let log_dir = iota_common::tempdir();
+    let log_path = log_dir.path().join("log");
+    let _log_guard = capture_default_tool_logs(&log_path)?;
+    let (mut fixture, restore_target) =
+        fixture_with_a_failed_insert_and_two_running(OtherInsertsOutcome::Panic).await?;
+    std::panic::AssertUnwindSafe(fixture.read(&restore_target))
+        .catch_unwind()
+        .await
+        .expect_err("a running insert panics");
+    let logs = fs::read_to_string(&log_path)?;
+    assert!(logs.contains("insert refused by the test"), "{logs}");
+    Ok(())
+}
+
+/// When the failure comes with no insert taken, the reader has nothing to wait
+/// for: it does not show the error itself, so the caller reports it once.
+#[tokio::test]
+async fn a_failure_with_no_insert_taken_is_not_reported_by_the_reader() -> Result<(), anyhow::Error>
+{
+    let log_dir = iota_common::tempdir();
+    let log_path = log_dir.path().join("log");
+    let _log_guard = capture_default_tool_logs(&log_path)?;
+    let mut fixture = RestoreFixture::new(|store| store, 2).await?;
+    let restore_target = fixture.restore_target(InsertHook::FailFirst);
+    fixture
+        .read(&restore_target)
+        .await
+        .expect_err("the insert fails");
+    let logs = fs::read_to_string(&log_path)?;
+    assert!(!logs.is_empty(), "the capture must hold the progress lines");
+    assert!(!logs.contains("insert refused by the test"), "{logs}");
+    Ok(())
+}
+
+/// Other inserts fail after the first failure: the read returns the first
+/// error, not a later one.
+#[tokio::test]
+async fn the_read_returns_the_first_error_when_other_inserts_fail_later()
+-> Result<(), anyhow::Error> {
+    let (mut fixture, restore_target) =
+        fixture_with_a_failed_insert_and_two_running(OtherInsertsOutcome::Error).await?;
+    let error = fixture
+        .read(&restore_target)
+        .await
+        .expect_err("the inserts fail");
+    let message = format!("{error:#}");
+    assert!(message.contains("insert refused by the test"), "{message}");
+    assert!(!message.contains("later failure in the test"), "{message}");
+    assert_eq!(restore_target.num_inserts.load(Ordering::SeqCst), 3);
+    assert_eq!(
+        restore_target.num_completed_inserts.load(Ordering::SeqCst),
+        0,
+        "the other two inserts must not end with success"
+    );
+    Ok(())
+}
+
+/// A download that fails with a permanent error while an insert runs: the read
+/// returns the download error, only after the running insert ran to its end,
+/// and no insert starts after the failure. The first download passes, the
+/// second is held at the gate, the third fails at once.
+#[tokio::test]
+async fn a_failed_download_waits_for_the_running_inserts() -> Result<(), anyhow::Error> {
+    let log_dir = iota_common::tempdir();
+    let log_path = log_dir.path().join("log");
+    let _log_guard = capture_default_tool_logs(&log_path)?;
+    let mut fixture =
+        RestoreFixture::new(|store| store.with_gate_after(1).with_failing_download(2), 2).await?;
+    let restore_target = fixture
+        .restore_target(InsertHook::HoldUntilDownloadFailed { num_inserts: 2 })
+        .with_max_concurrent_inserts(2);
+    let error = tokio::time::timeout(WAIT_LIMIT, fixture.read(&restore_target))
+        .await
+        .expect("the restore must end after a failed download")
+        .expect_err("a failed download ends the restore with an error");
+    let message = format!("{error:#}");
+    assert!(
+        message.contains("Failed to download object file") && message.contains("404"),
+        "unexpected error: {message}"
+    );
+    assert_eq!(restore_target.num_inserts.load(Ordering::SeqCst), 1);
+    // One insert runs when the download fails, so the reader shows the error before the wait.
+    let logs = fs::read_to_string(&log_path)?;
+    assert!(
+        logs.contains("waiting for the running inserts: Failed to download object file"),
+        "{logs}"
+    );
+    assert_eq!(
+        restore_target.num_completed_inserts.load(Ordering::SeqCst),
+        1,
+        "the running insert must finish before the error is returned"
+    );
+    assert_eq!(restore_target.num_inserts_in_progress(), 0);
+    assert_eq!(fixture.store.num_downloads_in_flight(), 0);
+    Ok(())
+}
+
+/// Dropping the `read_to_db` future must stop the downloads.
+#[tokio::test]
+async fn dropping_the_read_future_stops_the_downloads() -> Result<(), anyhow::Error> {
+    const NUM_PARALLEL_DOWNLOADS: usize = 3;
+    // Every download waits at the closed gate.
+    let mut fixture =
+        RestoreFixture::new(|store| store.with_gate_after(0), NUM_PARALLEL_DOWNLOADS).await?;
+    let store = fixture.store.clone();
+    let restore_target = fixture.restore_target(InsertHook::None);
+    let mut read = Box::pin(fixture.read(&restore_target));
+    tokio::select! {
+        result = &mut read => panic!("the restore ended while the downloads were held: {result:?}"),
+        () = wait_until("the downloads to start", || {
+            store.num_downloads_in_flight() == NUM_PARALLEL_DOWNLOADS
+        }) => {}
+    }
+    drop(read);
+    wait_until(
+        "the downloads to stop after the read future was dropped",
+        || store.num_downloads_in_flight() == 0,
+    )
+    .await;
+    Ok(())
+}
+
+/// A failed insert must stop the downloads that are still running.
+#[tokio::test]
+async fn a_failed_insert_stops_the_downloads() -> Result<(), anyhow::Error> {
+    // The first download passes, the others stay at the closed gate.
+    let mut fixture = RestoreFixture::new(|store| store.with_gate_after(1), 3).await?;
+    let restore_target = fixture.restore_target(InsertHook::FailFirst);
+    let error = fixture
+        .read(&restore_target)
+        .await
+        .expect_err("the insert fails");
+    assert!(format!("{error:#}").contains("insert refused by the test"));
+    assert!(
+        restore_target
+            .num_downloads_in_flight_at_first_insert
+            .load(Ordering::SeqCst)
+            > 0,
+        "other downloads must have been running when the insert failed"
+    );
+    wait_until("the downloads to stop after the failed insert", || {
+        fixture.store.num_downloads_in_flight() == 0
+    })
+    .await;
+    Ok(())
+}
+
+/// A download that fails with a permanent error ends the restore with that
+/// error and stops the other downloads. The restore must not go on without the
+/// partition.
+#[tokio::test]
+async fn a_failed_download_ends_the_restore_and_stops_the_other_downloads()
+-> Result<(), anyhow::Error> {
+    // The first download passes, the second fails, the third stays at the
+    // closed gate.
+    let mut fixture =
+        RestoreFixture::new(|store| store.with_gate_after(2).with_failing_download(1), 3).await?;
+    let restore_target = fixture.restore_target(InsertHook::None);
+    let error = tokio::time::timeout(WAIT_LIMIT, fixture.read(&restore_target))
+        .await
+        .expect("the restore must end after a failed download")
+        .expect_err("a failed download ends the restore with an error");
+    let message = format!("{error:#}");
+    assert!(
+        message.contains("Failed to download object file") && message.contains("404"),
+        "unexpected error: {message}"
+    );
+    wait_until("the downloads to stop after the failed download", || {
+        fixture.store.num_downloads_in_flight() == 0
+    })
+    .await;
+    Ok(())
+}
+
+/// A panic in a download reaches the caller of `read_to_db`.
+#[tokio::test]
+async fn a_panic_in_a_download_reaches_the_caller() -> Result<(), anyhow::Error> {
+    use futures::FutureExt;
+    let mut fixture = RestoreFixture::new(|store| store.with_panic_on_download(), 2).await?;
+    let restore_target = fixture.restore_target(InsertHook::None);
+    let outcome = std::panic::AssertUnwindSafe(fixture.read(&restore_target))
+        .catch_unwind()
+        .await;
+    let payload = outcome.expect_err("the panic must reach the caller");
+    let message = payload
+        .downcast_ref::<String>()
+        .map(String::as_str)
+        .or_else(|| payload.downcast_ref::<&str>().copied())
+        .unwrap_or_default();
+    assert!(
+        message.contains("download panic injected by the test"),
+        "unexpected panic payload: {message:?}"
+    );
+    Ok(())
+}
+
+/// `RestoreWithIndexes::insert_partition` must do its work on the blocking
+/// pool, not on a runtime thread. The runtime below has one blocking thread,
+/// which the test keeps busy, and the test yields to the runtime while it
+/// polls the insert again: an insert on the blocking pool stays pending, while
+/// an insert in a task on the runtime finishes.
+#[cfg(not(msim))]
+#[test]
+fn restore_with_indexes_inserts_on_the_blocking_pool() -> Result<(), anyhow::Error> {
+    let dir = iota_common::tempdir();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .max_blocking_threads(1)
+        .build()?;
+    let _runtime_context = runtime.enter();
+    let (blocker_started_sender, blocker_started_receiver) = std::sync::mpsc::channel::<()>();
+    // Declared after the runtime, so a failed assertion drops it first and
+    // frees the blocking thread that the runtime waits for.
+    let (release_blocker_sender, release_blocker_receiver) = std::sync::mpsc::channel::<()>();
+
+    let snapshot = runtime.block_on(write_snapshot(
+        dir.path(),
+        10,
+        FileCompression::None,
+        usize::MAX,
+    ))?;
+    assert_eq!(snapshot.num_partitions, 1);
+    // The uncompressed object file of the only partition holds every object.
+    let bytes = bytes::Bytes::from(fs::read(
+        snapshot.remote_dir.join("epoch_0").join("1_1.obj"),
+    )?);
+    // `insert_partition` does not read the digest of the file.
+    let unchecked_file_digest = [0; 32];
+    let file_metadata = FileMetadata {
+        file_type: FileType::Object,
+        bucket_num: 1,
+        part_num: 1,
+        file_compression: FileCompression::None,
+        sha3_digest: unchecked_file_digest,
+    };
+    let live_objects: Vec<_> = snapshot
+        .source_db
+        .iter_live_object_set()
+        .collect::<Result<_, _>>()?;
+    let partition_checksum = partition_checksum_of(&live_objects);
+
+    let restored_db = Arc::new(AuthorityPerpetualTables::open(
+        &dir.path().join("restored_db"),
+        None,
+    ));
+    let restorer = Arc::new(RpcIndexesRestorer::open(
+        dir.path().join(RPC_INDEXES_DIR),
+        BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
+        NonZeroUsize::MIN,
+    )?);
+    let restore_target =
+        RestoreWithIndexes::new(restored_db.clone(), Some(restorer), NonZeroUsize::MIN);
+
+    let _blocker = runtime.spawn_blocking(move || {
+        blocker_started_sender.send(()).ok();
+        release_blocker_receiver.recv().ok();
+    });
+    runtime.block_on(async {
+        blocker_started_receiver
+            .recv_timeout(WAIT_LIMIT)
+            .expect("the blocking thread must start");
+        let mut insert = std::pin::pin!(restore_target.insert_partition(
+            file_metadata,
+            bytes,
+            &partition_checksum
+        ));
+        for _ in 0..10 {
+            assert!(
+                futures::poll!(insert.as_mut()).is_pending(),
+                "insert_partition finished on a runtime thread while the blocking pool was busy"
+            );
+            tokio::task::yield_now().await;
+        }
+        release_blocker_sender.send(()).unwrap();
+        tokio::time::timeout(WAIT_LIMIT, insert)
+            .await
+            .expect("insert_partition must finish once the blocking thread is free")
+    })?;
+    compare_live_objects(&snapshot.source_db, &restored_db)?;
+    Ok(())
+}
+
+/// The object files of the snapshot, keyed by their path in the store, to serve
+/// from memory.
+fn preloaded_object_files(
+    snapshot: &WrittenSnapshot,
+) -> Result<HashMap<String, bytes::Bytes>, anyhow::Error> {
+    let mut object_files = HashMap::new();
+    for path in object_file_paths(&snapshot.remote_dir)? {
+        let name = path.file_name().unwrap().to_string_lossy().into_owned();
+        object_files.insert(
+            format!("epoch_0/{name}"),
+            bytes::Bytes::from(fs::read(path)?),
+        );
+    }
+    Ok(object_files)
+}
+
+/// A snapshot of several partitions and a restore target, on a runtime with
+/// one blocking thread. When the first `.obj` download starts, the store
+/// occupies that thread until `release_blocker_sender` sends. The object files
+/// are served from memory, so the downloads do not need the thread.
+#[cfg(not(msim))]
+struct BusyBlockingPoolFixture {
+    // Dropped before the runtime, so a failed assertion frees the blocking
+    // thread that the runtime waits for.
+    release_blocker_sender: std::sync::mpsc::Sender<()>,
+    store: Arc<ObservedStore>,
+    restore_target: HookedRestore,
+    snapshot: WrittenSnapshot,
+    runtime: tokio::runtime::Runtime,
+    // Last, so that the temporary directory is removed after the databases
+    // have closed and the jobs on the blocking pool have ended.
+    _dir: tempfile::TempDir,
+}
+
+#[cfg(not(msim))]
+impl BusyBlockingPoolFixture {
+    fn new(hook: InsertHook) -> Result<Self, anyhow::Error> {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .max_blocking_threads(1)
+            .build()?;
+        let dir = iota_common::tempdir();
+        let snapshot = runtime.block_on(write_several_partitions_snapshot(dir.path()))?;
+
+        let (release_blocker_sender, release_blocker_receiver) = std::sync::mpsc::channel::<()>();
+        let release_blocker_receiver = std::sync::Mutex::new(Some(release_blocker_receiver));
+        let occupy_blocking_thread = move || {
+            let release_blocker_receiver = release_blocker_receiver
+                .lock()
+                .unwrap()
+                .take()
+                .expect("the hook runs once");
+            let (blocker_started_sender, blocker_started_receiver) =
+                std::sync::mpsc::channel::<()>();
+            tokio::task::spawn_blocking(move || {
+                blocker_started_sender.send(()).ok();
+                release_blocker_receiver.recv().ok();
+            });
+            blocker_started_receiver
+                .recv_timeout(WAIT_LIMIT)
+                .expect("the blocking thread must start");
+        };
+        let store = Arc::new(
+            snapshot
+                .observed_store()
+                .with_preloaded_files(preloaded_object_files(&snapshot)?)
+                .with_before_first_download(occupy_blocking_thread),
+        );
+        let restored_db = {
+            let _runtime_context = runtime.enter();
+            Arc::new(AuthorityPerpetualTables::open(
+                &dir.path().join("restored_db"),
+                None,
+            ))
+        };
+        let restore_target = HookedRestore::new(restored_db, store.clone(), hook);
+        Ok(Self {
+            release_blocker_sender,
+            store,
+            restore_target,
+            snapshot,
+            runtime,
+            _dir: dir,
+        })
+    }
+}
+
+/// While the blocking pool is busy, the only partial state hashes that may
+/// arrive are those of the partitions whose hashing took the blocking thread
+/// before the test occupied it. That is never all of them.
+///
+/// This proves that hashing a partition and sending its partial hash wait for
+/// the pool. It does not prove that opening and decoding the `.ref` file do:
+/// the test stays green if that part runs on the async side.
+#[cfg(not(msim))]
+#[test]
+fn state_hashes_of_ref_files_are_computed_on_the_blocking_pool() -> Result<(), anyhow::Error> {
+    const NUM_PARALLEL_DOWNLOADS: usize = 2;
+    let fixture = BusyBlockingPoolFixture::new(InsertHook::None)?;
+    let BusyBlockingPoolFixture {
+        release_blocker_sender,
+        store,
+        restore_target,
+        snapshot,
+        runtime,
+        ..
+    } = &fixture;
+
+    let (partial_hashes, num_objects) = runtime.block_on(async {
+        let mut reader = snapshot
+            .reader(store.clone(), NUM_PARALLEL_DOWNLOADS)
+            .await?;
+        let num_partials_seen = Arc::new(AtomicUsize::new(0));
+        let read =
+            read_counting_partial_hashes(&mut reader, restore_target, num_partials_seen.clone());
+        let controller = async {
+            wait_until("every partition to be inserted", || {
+                restore_target.num_inserts.load(Ordering::SeqCst) == snapshot.num_partitions
+            })
+            .await;
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            let num_partials = num_partials_seen.load(Ordering::SeqCst);
+            assert!(
+                num_partials < snapshot.num_partitions,
+                "all {num_partials} partial hashes arrived while the blocking pool was busy"
+            );
+            release_blocker_sender.send(()).unwrap();
+        };
+        let (read_result, ()) = tokio::join!(read, controller);
+        read_result
+    })?;
+
+    assert_eq!(num_objects, snapshot.num_objects);
+    assert_eq!(
+        partial_hashes.digest(),
+        accumulate_live_object_set(&snapshot.source_db).digest()
+    );
+    Ok(())
+}
+
+/// After `read_to_db` has returned an error, no partial state hash may arrive,
+/// and every sender of partial hashes must be dropped, also for the partitions
+/// whose hashing still waits for the blocking thread. The completion must not
+/// be sent. The first insert fails while the test occupies the only blocking
+/// thread, and the test frees the thread after `read_to_db` has returned.
+///
+/// The test does not check that a hashing job waits for the thread when the
+/// error is returned: that depends on the order in which the runtime polls
+/// the tasks.
+#[cfg(not(msim))]
+#[test]
+fn a_failed_restore_stops_the_state_hash_computation() -> Result<(), anyhow::Error> {
+    let fixture = BusyBlockingPoolFixture::new(InsertHook::FailFirst)?;
+    let BusyBlockingPoolFixture {
+        release_blocker_sender,
+        store,
+        restore_target,
+        snapshot,
+        runtime,
+        ..
+    } = &fixture;
+
+    runtime.block_on(async {
+        let mut reader = snapshot.reader(store.clone(), 2).await?;
+        let (_abort_handle, abort_registration) = AbortHandle::new_pair();
+        let (partials_sender, mut partials_receiver) = mpsc::channel(1);
+        let (completion_sender, completion_receiver) = oneshot::channel();
+        let error = reader
+            .read_to_db(
+                restore_target,
+                abort_registration,
+                Some(StateAccumulatorSender {
+                    partials: partials_sender,
+                    completion: completion_sender,
+                }),
+            )
+            .await
+            .expect_err("the insert fails");
+        assert!(format!("{error:#}").contains("insert refused by the test"));
+        // Partial hashes sent before the error may still be in the channel.
+        while partials_receiver.try_recv().is_ok() {}
+        release_blocker_sender.send(()).unwrap();
+        let after_error = tokio::time::timeout(WAIT_LIMIT, partials_receiver.recv())
+            .await
+            .expect("every sender of partial hashes must be dropped after the error");
+        assert!(
+            after_error.is_none(),
+            "a partial hash arrived after read_to_db returned an error"
+        );
+        let completion = tokio::time::timeout(WAIT_LIMIT, completion_receiver)
+            .await
+            .expect("the completion sender must be dropped after the error");
+        assert!(
+            completion.is_err(),
+            "the completion was sent although the restore failed"
+        );
+        Ok(())
+    })
+}
+
+/// The checksum of a partition that holds `live_objects`: the sha3 hash of
+/// their object digests, in their order.
+fn partition_checksum_of<'a>(live_objects: impl IntoIterator<Item = &'a LiveObject>) -> [u8; 32] {
+    let mut hasher = Sha3_256::default();
+    for live_object in live_objects {
+        hasher.update(live_object.object_reference().digest.bytes());
+    }
+    hasher.finalize().digest
+}
+
+/// A partition whose objects do not match the expected checksum is an error,
+/// and nothing of it is written: no object and no live owned object marker.
+#[tokio::test]
+async fn a_partition_with_a_wrong_checksum_is_an_error_and_writes_nothing()
+-> Result<(), anyhow::Error> {
+    let dir = iota_common::tempdir();
+    let db = AuthorityPerpetualTables::open(&dir.path().join("db"), None);
+    let live_objects: Vec<_> =
+        std::iter::successors(Some(ObjectId::ZERO), |id| Some(id.next_lexicographical()))
+            .take(3)
+            .map(|id| LiveObject {
+                object: Object::with_id_owner_for_testing(id, Address::from_u16(7)),
+                previous_transaction_checkpoint: Some(0),
+            })
+            .collect();
+    let checksum = partition_checksum_of(&live_objects);
+    let mut wrong_checksum = checksum;
+    wrong_checksum[0] ^= 1;
+
+    AuthorityStore::bulk_insert_live_objects(
+        &db,
+        live_objects.clone().into_iter(),
+        &wrong_checksum,
+    )
+    .expect_err("a wrong checksum must be an error");
+    assert_eq!(db.iter_live_object_set().count(), 0);
+    assert!(db.live_owned_object_markers_test_only()?.is_empty());
+
+    // The same objects with their checksum are written, so the error above
+    // comes from the checksum.
+    AuthorityStore::bulk_insert_live_objects(&db, live_objects.into_iter(), &checksum)?;
+    assert_eq!(db.iter_live_object_set().count(), 3);
+    assert_eq!(db.live_owned_object_markers_test_only()?.len(), 3);
+    Ok(())
+}
+
+/// The restore must give every live object that is not a child object a live
+/// owned object marker, and no other object one. Compares with what the test
+/// put into the source.
+#[tokio::test]
+async fn restored_live_owned_object_markers_match_the_source_objects() -> Result<(), anyhow::Error>
+{
+    let dir = iota_common::tempdir();
+    let mut expected_markers = HashSet::new();
+    let snapshot = write_several_partitions_snapshot_of(dir.path(), |db| {
+        let mut id = ObjectId::ZERO;
+        for i in 0..60u16 {
+            let (owner, gets_marker) = match i % 3 {
+                0 => (Owner::Immutable, true),
+                1 => (Owner::Address(Address::from_u16(7)), true),
+                // Owned by an object, so it is a child object.
+                _ => (Owner::Object(ObjectId::ZERO), false),
+            };
+            // Each object has a version of its own, so that a marker with a
+            // wrong version does not match.
+            let version = Version::from_u64(u64::from(i) + 1);
+            let object = Object::with_id_owner_version_for_testing(id, version, owner);
+            db.insert_store_object_v2_test_only(object.clone(), Some(0))?;
+            if gets_marker {
+                expected_markers.insert(object.object_ref());
+            }
+            id = id.next_lexicographical();
+        }
+        // Shared objects get a marker too.
+        for _ in 0..3 {
+            let version = Version::from_u64(1);
+            let object =
+                Object::with_id_owner_version_for_testing(id, version, Owner::Shared(version));
+            db.insert_store_object_v2_test_only(object.clone(), Some(0))?;
+            expected_markers.insert(object.object_ref());
+            id = id.next_lexicographical();
+        }
+        Ok(())
+    })
+    .await?;
+    let mut reader = snapshot.reader(snapshot.store(), 2).await?;
+    let restored_db = AuthorityPerpetualTables::open(&dir.path().join("restored_db"), None);
+    read_with_partial_hashes(&mut reader, &restored_db).await?;
+
+    let markers: HashSet<_> = restored_db
+        .live_owned_object_markers_test_only()?
+        .into_iter()
+        .collect();
+    assert_eq!(markers, expected_markers);
+    Ok(())
+}
+
+/// The result of [`restore_with_rpc_indexes`].
+struct IndexedRestore {
+    db: Arc<AuthorityPerpetualTables>,
+    index_dir: PathBuf,
+    partial_hashes: GlobalStateHash,
+    max_num_inserts_in_progress: usize,
+}
+
+/// Opens a restorer for both index groups in `index_dir`.
+fn open_rpc_indexes_restorer(
+    index_dir: PathBuf,
+    partitions_at_once: usize,
+) -> Arc<RpcIndexesRestorer> {
+    Arc::new(
+        RpcIndexesRestorer::open(
+            index_dir,
+            BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
+            NonZeroUsize::new(partitions_at_once).unwrap(),
+        )
+        .unwrap(),
+    )
+}
+
+/// Restores `snapshot` under `tmp_dir` through the real `RestoreWithIndexes`
+/// and a real `RpcIndexesRestorer`, both sized for `max_concurrent_inserts`
+/// partitions at once. With more than one insert at once, each of the first
+/// two inserts waits until two are in progress.
+async fn restore_with_rpc_indexes(
+    snapshot: &WrittenSnapshot,
+    tmp_dir: &std::path::Path,
+    max_concurrent_inserts: usize,
+) -> Result<IndexedRestore, anyhow::Error> {
+    const NUM_PARALLEL_DOWNLOADS: usize = 4;
+    let max_concurrent_inserts = NonZeroUsize::new(max_concurrent_inserts).unwrap();
+    let store = Arc::new(snapshot.observed_store());
+    let mut reader = snapshot
+        .reader(store.clone(), NUM_PARALLEL_DOWNLOADS)
+        .await?;
+    let db = Arc::new(AuthorityPerpetualTables::open(&tmp_dir.join("db"), None));
+    let index_dir = tmp_dir.join(RPC_INDEXES_DIR);
+    let restorer = open_rpc_indexes_restorer(index_dir.clone(), max_concurrent_inserts.get());
+    let restore_target = Arc::new(RestoreWithIndexes::new(
+        db.clone(),
+        Some(restorer.clone()),
+        max_concurrent_inserts,
+    ));
+    assert_eq!(
+        restore_target.max_concurrent_inserts(),
+        max_concurrent_inserts
+    );
+    let hook = if max_concurrent_inserts.get() > 1 {
+        InsertHook::AwaitOverlap {
+            num_inserts: 2,
+            num_held_partitions: 0,
+        }
+    } else {
+        InsertHook::None
+    };
+    let hooked_restore_target = HookedRestore::new(restore_target, store, hook);
+    let (partial_hashes, _) = read_with_partial_hashes(&mut reader, &hooked_restore_target).await?;
+    let max_num_inserts_in_progress = hooked_restore_target.max_num_inserts_in_progress();
+    drop(hooked_restore_target);
+    Arc::into_inner(restorer)
+        .expect("the restore target is gone")
+        .finalize(0)
+        .await?;
+    Ok(IndexedRestore {
+        db,
+        index_dir,
+        partial_hashes,
+        max_num_inserts_in_progress,
+    })
+}
+
+/// The object ids that the owner index of the restored index store lists for
+/// each owner.
+fn owner_index_rows(
+    restored: &IndexedRestore,
+    owners: &[Address],
+) -> Result<Vec<(Address, BTreeSet<ObjectId>)>, anyhow::Error> {
+    let store = RpcIndexesStore::new_without_init(
+        restored.index_dir.clone(),
+        None,
+        BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
+    );
+    owners
+        .iter()
+        .map(|owner| {
+            let ids = store
+                .get_owner_objects(*owner, None, 1000, None, usize::MAX, &restored.db)?
+                .0
+                .into_iter()
+                .map(|(object, _)| object.id())
+                .collect();
+            Ok((*owner, ids))
+        })
+        .collect()
+}
+
+fn live_owned_object_marker_rows(
+    restored: &IndexedRestore,
+) -> Result<BTreeSet<ObjectReference>, anyhow::Error> {
+    Ok(restored
+        .db
+        .live_owned_object_markers_test_only()?
+        .into_iter()
+        .collect())
+}
+
+fn object_rows(restored: &IndexedRestore) -> Result<BTreeSet<ObjectReference>, anyhow::Error> {
+    restored
+        .db
+        .iter_live_object_set()
+        .map(|live_object| Ok(live_object?.object_reference()))
+        .collect()
+}
+
+/// Restoring with four inserts at once gives the same rows as restoring with
+/// one: objects, live object markers, state hash and owner index rows. Each
+/// side is also compared with what the test put into the source, because two
+/// restores that both miss a row would agree with each other.
+#[tokio::test]
+async fn restoring_four_partitions_at_once_gives_the_rows_of_one_at_a_time()
+-> Result<(), anyhow::Error> {
+    let dir = iota_common::tempdir();
+    let owners = [1u16, 2, 3].map(Address::from_u16);
+    let mut expected_owner_rows: Vec<(Address, BTreeSet<ObjectId>)> = owners
+        .iter()
+        .map(|owner| (*owner, BTreeSet::new()))
+        .collect();
+    let mut expected_objects = BTreeSet::new();
+    let mut expected_markers = BTreeSet::new();
+    let snapshot = write_several_partitions_snapshot_of(dir.path(), |db| {
+        let mut id = ObjectId::ZERO;
+        for i in 0..60usize {
+            let is_child_object = i % 10 == 5;
+            let object = if is_child_object {
+                // Owned by an object, so a child object without a marker.
+                Object::with_object_owner_for_testing(id, ObjectId::ZERO)
+            } else if i % 4 == 0 {
+                Object::immutable_with_id_for_testing(id)
+            } else {
+                let owner_index = i % 3;
+                expected_owner_rows[owner_index].1.insert(id);
+                Object::with_id_owner_for_testing(id, owners[owner_index])
+            };
+            db.insert_store_object_v2_test_only(object.clone(), Some(0))?;
+            expected_objects.insert(object.object_ref());
+            if !is_child_object {
+                expected_markers.insert(object.object_ref());
+            }
+            id = id.next_lexicographical();
+        }
+        Ok(())
+    })
+    .await?;
+
+    let one_at_a_time = restore_with_rpc_indexes(&snapshot, &dir.path().join("k1"), 1).await?;
+    let four_at_once = restore_with_rpc_indexes(&snapshot, &dir.path().join("k4"), 4).await?;
+    assert_eq!(one_at_a_time.max_num_inserts_in_progress, 1);
+    assert!(
+        four_at_once.max_num_inserts_in_progress >= 2,
+        "no two inserts overlapped with four inserts at once"
+    );
+
+    let source_hash = accumulate_live_object_set(&snapshot.source_db).digest();
+    assert_eq!(one_at_a_time.partial_hashes.digest(), source_hash);
+    assert_eq!(four_at_once.partial_hashes.digest(), source_hash);
+
+    let one_at_a_time_rows = (
+        object_rows(&one_at_a_time)?,
+        live_owned_object_marker_rows(&one_at_a_time)?,
+        owner_index_rows(&one_at_a_time, &owners)?,
+    );
+    let four_at_once_rows = (
+        object_rows(&four_at_once)?,
+        live_owned_object_marker_rows(&four_at_once)?,
+        owner_index_rows(&four_at_once, &owners)?,
+    );
+    assert_eq!(one_at_a_time_rows, four_at_once_rows);
+    assert_eq!(one_at_a_time_rows.0, expected_objects);
+    assert_eq!(one_at_a_time_rows.2, expected_owner_rows);
+    assert!(expected_owner_rows.iter().all(|(_, ids)| !ids.is_empty()));
+    assert_eq!(one_at_a_time_rows.1, expected_markers);
+    assert!(!expected_markers.is_empty());
+    Ok(())
+}
+
+/// A restorer opened for fewer partitions at once than the inserts the restore
+/// target is asked for is a programming error.
+#[tokio::test]
+#[should_panic(expected = "partitions at once")]
+async fn a_restore_target_with_a_restorer_opened_for_fewer_partitions_at_once_panics() {
+    let dir = iota_common::tempdir();
+    let db = Arc::new(AuthorityPerpetualTables::open(&dir.path().join("db"), None));
+    let restorer = open_rpc_indexes_restorer(dir.path().join(RPC_INDEXES_DIR), 2);
+    RestoreWithIndexes::new(db, Some(restorer), NonZeroUsize::new(3).unwrap());
+}
+
+/// The default number of inserts at once is the number of logical cores minus
+/// one, at least 1 and at most 4.
+#[test]
+fn the_default_insert_concurrency_is_the_cores_minus_one_from_1_to_4() {
+    for (cores, expected) in [(1, 1), (2, 1), (3, 2), (4, 3), (5, 4), (32, 4)] {
+        assert_eq!(
+            default_insert_concurrency_for_cores(cores).get(),
+            expected,
+            "{cores} cores"
+        );
+    }
+}
+
+#[tokio::test]
+async fn the_restore_target_returns_the_number_of_concurrent_inserts_it_was_given() {
+    let dir = iota_common::tempdir();
+    let db = Arc::new(AuthorityPerpetualTables::open(&dir.path().join("db"), None));
+    let restorer = open_rpc_indexes_restorer(dir.path().join(RPC_INDEXES_DIR), 4);
+    let max_concurrent_inserts = NonZeroUsize::new(3).unwrap();
+    assert_eq!(
+        RestoreWithIndexes::new(db.clone(), Some(restorer), max_concurrent_inserts)
+            .max_concurrent_inserts(),
+        max_concurrent_inserts
+    );
+    assert_eq!(
+        RestoreWithIndexes::new(db, None, max_concurrent_inserts).max_concurrent_inserts(),
+        max_concurrent_inserts
+    );
 }

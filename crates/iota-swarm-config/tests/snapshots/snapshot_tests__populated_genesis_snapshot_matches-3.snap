@@ -4,5 +4,4 @@ expression: genesis.clock()
 ---
 id:
   id: "0x0000000000000000000000000000000000000000000000000000000000000006"
-timestamp_ms: 10
-
+timestamp_ms: "10"

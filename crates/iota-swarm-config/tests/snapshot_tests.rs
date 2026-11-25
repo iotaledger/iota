@@ -8,9 +8,9 @@
 // be marked as a breaking change and reviewers should be aware of this.
 //
 // Owners and operators of production configuration files can add themselves to
-// .github/CODEOWNERS for the corresponding snapshot tests, so they can get
-// notified of changes. PRs that modifies snapshot files should wait for reviews
-// from code owners (if any) before merging.
+// .github/OWNERS for the corresponding snapshot tests, so authors know whom to
+// ask for a review. PRs that modifies snapshot files should wait for reviews
+// from the listed owners (if any) before merging.
 //
 // To review snapshot changes, and fix snapshot differences,
 // 0. Install cargo-insta

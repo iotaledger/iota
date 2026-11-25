@@ -5,26 +5,30 @@ use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
 use iota_config::node::AuthorityOverloadConfig;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, ObjectId, SharedObjectReference, Transaction, TransactionDigest};
+use iota_sdk_types::{Address, ObjectId, Transaction, TransactionDigest};
+use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    attestation::Attestation,
+    attestation::{Attestation, AttestedTransaction},
     base_types::dbg_addr,
     crypto::{AccountPrivateKey, get_key_pair},
+    effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
+    executable_transaction::VerifiedExecutableTransaction,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     messages_grpc::TxStatusUpdate,
-    object::{OBJECT_START_VERSION, Object},
+    object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     traffic_control::Weight,
-    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope},
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope},
     utils::to_sender_signed_transaction,
 };
 use tokio::sync::mpsc;
+use typed_store::Map;
 
 use super::{ValidatorService, weigh_owned_input_rejection};
 use crate::{
     authority::{
-        AuthorityState, abstract_account_test_utils::AbstractAccountTestEnv,
+        AuthorityState, ExecutionEnv, abstract_account_test_utils::AbstractAccountTestEnv,
         authority_per_epoch_store::AuthorityPerEpochStore,
         test_authority_builder::TestAuthorityBuilder,
     },
@@ -230,11 +234,13 @@ async fn test_submit_single_tx_attest_failure_rejected_without_reaching_consensu
 }
 
 /// Submits to `submit_single_tx`, with `enable_validator_attestation` on, a
-/// transaction that passes its own size check, but whose attestation, one
-/// object reference per shared input, makes the consensus transaction larger
-/// than consensus accepts. Asserts that the validator rejects it with the size
-/// limit and a traffic weight of one, without taking a soft lock or handing
-/// anything to the consensus adapter.
+/// transaction that passes its own size check and fits consensus, but is
+/// larger than consensus accepts once attested. With the limits of the
+/// protocol config, the largest attested transaction fits, so the test lowers
+/// the consensus limit to the transaction's own limit and pads the
+/// transaction to exactly that size without its attestation. Asserts that the
+/// validator rejects it with the size limit and a traffic weight of one,
+/// without taking a soft lock or handing anything to the consensus adapter.
 #[tokio::test]
 async fn test_submit_single_tx_rejects_an_attested_transaction_too_large_for_consensus() {
     telemetry_subscribers::init_for_testing();
@@ -243,24 +249,21 @@ async fn test_submit_single_tx_rejects_an_attested_transaction_too_large_for_con
         config.set_enable_pcool_flow_for_testing(true);
         config.set_enable_validator_attestation_for_testing(true);
         config.set_checkpoint_summary_version_specific_data_for_testing(2);
+        config.set_consensus_max_transaction_size_bytes_for_testing(config.max_tx_size_bytes());
         config
     });
 
-    // A read-only shared input takes about 43 bytes in the transaction and 73
-    // in the attestation's object reference. With the pure padding, the
-    // transaction stays under `max_tx_size_bytes` and the attested transaction
-    // exceeds `max_transaction_size_bytes`.
-    const SHARED_INPUTS: usize = 2_040;
-    const PADDING_INPUTS: u8 = 3;
-    const PADDING_BYTES: usize = 12_000;
+    // The pure padding brings the transaction close to the lowered limit. The
+    // last padding input is then sized so that the consensus transaction
+    // without its attestation is exactly as large as the limit. Every input
+    // stays under `max_pure_argument_size`.
+    const PADDING_INPUTS: u8 = 8;
+    const PADDING_BYTES: usize = 15_000;
+    const LAST_PADDING_BYTES_BEFORE_SIZING: usize = 1_000;
 
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
-    let shared_objects: Vec<_> = (0..SHARED_INPUTS)
-        .map(|_| Object::shared_for_testing())
-        .collect();
-    let mut objects = shared_objects.clone();
-    objects.push(Object::with_id_owner_for_testing(gas_id, sender));
+    let objects = [Object::with_id_owner_for_testing(gas_id, sender)];
 
     let authority_state = TestAuthorityBuilder::new()
         .with_starting_objects(&objects)
@@ -288,35 +291,52 @@ async fn test_submit_single_tx_rejects_an_attested_transaction_too_large_for_con
     let metrics = Arc::new(ValidatorServiceMetrics::new_for_tests());
     let soft_locks = Arc::new(PreConsensusSoftLocks::new());
 
-    let mut builder = ProgrammableTransactionBuilder::new();
-    for object in &shared_objects {
-        builder
-            .input(CallArg::Shared(SharedObjectReference::new(
-                object.id(),
-                OBJECT_START_VERSION,
-                false,
-            )))
-            .unwrap();
-    }
-    for padding in 0..PADDING_INPUTS {
-        builder.pure_bytes(vec![padding; PADDING_BYTES], false);
-    }
-    builder.transfer_iota(dbg_addr(2), Some(1));
-
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let gas = authority_state.get_object(&gas_id).unwrap();
-    let tx_data = Transaction::new_programmable(
-        sender,
-        vec![gas.object_ref()],
-        builder.finish(),
-        rgp * 1_000_000,
-        rgp,
-    );
+    let gas_ref = authority_state.get_object(&gas_id).unwrap().object_ref();
+    let build_transaction = |last_padding_bytes: usize| {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        for padding in 0..PADDING_INPUTS {
+            builder.pure_bytes(vec![padding; PADDING_BYTES], false);
+        }
+        builder.pure_bytes(vec![PADDING_INPUTS; last_padding_bytes], false);
+        builder.transfer_iota(dbg_addr(2), Some(1));
+
+        Transaction::new_programmable(
+            sender,
+            vec![gas_ref],
+            builder.finish(),
+            rgp * 1_000_000,
+            rgp,
+        )
+    };
+    let unattested_size = |tx: &TransactionEnvelope| {
+        let consensus_tx = ConsensusTransaction::new_attested_user_transaction(
+            AttestedTransaction::new(tx.clone(), None),
+        );
+
+        u64::try_from(bcs::serialized_size(&consensus_tx).unwrap()).unwrap()
+    };
     let protocol_config = epoch_store.protocol_config();
+    let limit = protocol_config.max_transaction_size_bytes();
+    let before_sizing = to_sender_signed_transaction(
+        build_transaction(LAST_PADDING_BYTES_BEFORE_SIZING),
+        &sender_key,
+    );
+    let missing_bytes = limit
+        .checked_sub(unattested_size(&before_sizing))
+        .expect("the padding must leave room to reach the limit");
+    let tx_data = build_transaction(
+        LAST_PADDING_BYTES_BEFORE_SIZING + usize::try_from(missing_bytes).unwrap(),
+    );
     tx_data
         .check_serialized_size(protocol_config)
         .expect("the transaction alone must pass its size check");
     let tx = to_sender_signed_transaction(tx_data, &sender_key);
+    assert_eq!(
+        unattested_size(&tx),
+        limit,
+        "without its attestation, the consensus transaction must be exactly at the limit"
+    );
 
     let (update, weight) = ValidatorService::submit_single_tx(
         &authority_state,
@@ -508,6 +528,19 @@ fn enable_attestation() -> impl Drop {
     })
 }
 
+/// Enables the P-COOL flow and transaction dependencies, with validator
+/// attestation as `attestation` says, until the returned guard is dropped.
+fn enable_transaction_dependencies(attestation: bool) -> impl Drop {
+    ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(attestation);
+        config.set_checkpoint_summary_version_specific_data_for_testing(2);
+        config.set_enable_transaction_dependencies_for_testing(true);
+
+        config
+    })
+}
+
 /// Returns an overload config that allows `max_concurrent` attestation dry
 /// runs at once and `max_queued` submissions waiting for one, with a wait
 /// limit longer than any test waits.
@@ -647,6 +680,48 @@ fn digest_of(consensus_transaction: ConsensusTransaction) -> TransactionDigest {
     *attested.transaction.digest()
 }
 
+/// Executes `transaction` on `validator` with success, without recording it
+/// as a root of a commit.
+fn execute_without_root_commit(validator: &TestValidator, transaction: TransactionEnvelope) {
+    let executable = VerifiedExecutableTransaction::new_from_checkpoint(
+        validator
+            .epoch_store
+            .verify_transaction(transaction)
+            .unwrap(),
+        validator.epoch_store.epoch(),
+        1,
+    );
+    validator
+        .epoch_store
+        .assign_to_a_new_commit_for_testing(&[executable.key()]);
+    let (effects, _) = validator
+        .state
+        .try_execute_immediately(&executable, ExecutionEnv::new(), &validator.epoch_store)
+        .unwrap();
+    assert!(effects.status().is_success(), "{effects:?}");
+}
+
+/// Asserts that a submission was rejected with the retriable
+/// `TransactionDependencyNotFound` for `dependency`, and returns its weight.
+fn assert_dependency_not_found(
+    (update, weight): (TxStatusUpdate, Weight),
+    dependency: TransactionDigest,
+) -> f32 {
+    assert!(
+        matches!(
+            &update,
+            TxStatusUpdate::Rejected {
+                error: IotaError::UserInput {
+                    error: UserInputError::TransactionDependencyNotFound { digest },
+                },
+            } if *digest == dependency
+        ),
+        "expected the dependency not to be found, got {update:?}"
+    );
+
+    weight.value()
+}
+
 /// Waits until `count` submissions wait for a dry run on `validator`.
 async fn wait_until_queued(validator: &TestValidator, count: i64) {
     tokio::time::timeout(Duration::from_secs(30), async {
@@ -674,7 +749,11 @@ async fn assert_conflicting_submissions_get_one_dry_run(
     });
     let mut results = Vec::new();
     for submission in submissions {
-        results.push(submission.await.unwrap());
+        results.push(
+            submission
+                .await
+                .expect("the submission task must not panic"),
+        );
     }
 
     let submitted = results
@@ -907,6 +986,53 @@ async fn move_account_transaction_on_held_coin_gets_no_dry_run() {
         1,
         "only the first transaction may get a dry run"
     );
+    assert!(submitted.try_recv().is_err());
+}
+
+/// A Move account transaction whose authenticator needs more gas than
+/// `max_auth_gas` is refused by the authenticators' own run, before its locks
+/// are taken and before any dry run, with the error admission gives, which
+/// weighs one.
+#[tokio::test]
+async fn move_account_transaction_over_max_auth_gas_is_refused_before_any_dry_run() {
+    telemetry_subscribers::init_for_testing();
+    // Ten gas units at the reference gas price, far below what the ed25519
+    // verification of the account's authenticator costs.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(true);
+        config.set_checkpoint_summary_version_specific_data_for_testing(2);
+        config.set_max_auth_gas_for_testing(10_000);
+
+        config
+    });
+
+    let mut env = AbstractAccountTestEnv::new().await;
+    let transaction = env.account_transaction();
+    let (validator, mut submitted) = TestValidator::from_state(env.authority.clone());
+
+    let (update, weight) = validator.submit(transaction).await;
+    let TxStatusUpdate::Rejected {
+        error: IotaError::MoveAuthenticatorExecutionFailure { error },
+    } = &update
+    else {
+        panic!("expected a failed Move authentication, got {update:?}");
+    };
+    assert!(
+        error.contains("Insufficient Gas"),
+        "the authenticator must run out of max_auth_gas, got: {error}"
+    );
+    assert_eq!(
+        weight.value(),
+        1.0,
+        "a failed Move authentication weighs one"
+    );
+    assert_eq!(
+        validator.state.metrics.attestation_dry_runs_total.get(),
+        0,
+        "the authenticators' own run must refuse it before any dry run"
+    );
+    assert_eq!(validator.soft_locks.lock_count(), 0);
     assert!(submitted.try_recv().is_err());
 }
 
@@ -1153,4 +1279,281 @@ fn used_owned_input_weighs_one_after_dry_run() {
 
     assert_eq!(weigh_owned_input_rejection(&error, true).value(), 1.0);
     assert_eq!(weigh_owned_input_rejection(&error, false).value(), 0.0);
+}
+
+/// Submits to `submit_single_tx`, with `enable_validator_attestation` on,
+/// transactions whose dependency this validator does not know. One that
+/// another check rejects for good gets that error, a valid one the retriable
+/// `TransactionDependencyNotFound`, and neither reaches consensus.
+#[tokio::test]
+async fn test_submit_single_tx_reports_an_unknown_dependency_after_the_other_checks() {
+    telemetry_subscribers::init_for_testing();
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(true);
+        config.set_checkpoint_summary_version_specific_data_for_testing(2);
+        config.set_enable_transaction_dependencies_for_testing(true);
+        config
+    });
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let authority_state = TestAuthorityBuilder::new()
+        .with_starting_objects(&[Object::with_id_owner_for_testing(gas_id, sender)])
+        .build()
+        .await;
+
+    let mut mock = MockConsensusClient::new();
+    mock.expect_submit().never();
+
+    let consensus_adapter = Arc::new(ConsensusAdapter::new(
+        Arc::new(mock),
+        CheckpointStore::new_for_tests(),
+        authority_state.name,
+        Arc::new(ConnectionMonitorStatusForTests {}),
+        100_000,
+        100_000,
+        None,
+        None,
+        ConsensusAdapterMetrics::new_test(),
+        50,
+    ));
+
+    let epoch_store = authority_state.load_epoch_store_one_call_per_task();
+    let metrics = Arc::new(ValidatorServiceMetrics::new_for_tests());
+    let soft_locks = Arc::new(PreConsensusSoftLocks::new());
+
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let gas = authority_state.get_object(&gas_id).unwrap();
+    let dependency = TransactionDigest::random();
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.transfer_iota(dbg_addr(2), Some(1));
+    let transfer = builder.finish();
+
+    let submit = async |gas_price: u64| {
+        let tx = TestTransactionBuilder::new(sender, gas.object_ref(), gas_price)
+            .programmable(transfer.clone())
+            .with_transaction_dependency(dependency, epoch_store.epoch())
+            .build_and_sign(&sender_key);
+        let (update, _weight) = ValidatorService::submit_single_tx(
+            &authority_state,
+            &consensus_adapter,
+            &metrics,
+            &epoch_store,
+            &soft_locks,
+            tx,
+        )
+        .await;
+        match update {
+            TxStatusUpdate::Rejected {
+                error: IotaError::UserInput { error },
+            } => error,
+            update => panic!("expected a user input error, got {update:?}"),
+        }
+    };
+
+    let error = submit(rgp - 1).await;
+    assert!(
+        matches!(error, UserInputError::GasPriceUnderRGP { .. }),
+        "{error:?}"
+    );
+    assert_eq!(
+        submit(rgp).await,
+        UserInputError::TransactionDependencyNotFound { digest: dependency }
+    );
+}
+
+/// A dependency that executed with success here does not admit its dependent
+/// by itself: post-consensus validation drops the dependent unless the
+/// dependency is a root of a commit. Until this validator has it as one, the
+/// dependent gets the retriable `TransactionDependencyNotFound` without a dry
+/// run and does not reach consensus.
+#[tokio::test]
+async fn dependent_is_admitted_only_once_its_executed_dependency_is_a_commit_root() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = enable_transaction_dependencies(true);
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let (ids, objects) = objects_owned_by(sender, 3);
+    let (validator, mut submitted) =
+        TestValidator::new(&objects, AuthorityOverloadConfig::default()).await;
+
+    let dependency = transfer(&validator.state, sender, &sender_key, ids[0], ids[1]);
+    let dependency_digest = *dependency.digest();
+    execute_without_root_commit(&validator, dependency);
+
+    let rgp = validator.state.reference_gas_price_for_testing().unwrap();
+    let gas = validator.state.get_object(&ids[2]).unwrap();
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.transfer_iota(dbg_addr(2), Some(1));
+    let dependent = TestTransactionBuilder::new(sender, gas.object_ref(), rgp)
+        .programmable(builder.finish())
+        .with_transaction_dependency(dependency_digest, validator.epoch_store.epoch())
+        .build_and_sign(&sender_key);
+    let dependent_digest = *dependent.digest();
+
+    assert_dependency_not_found(validator.submit(dependent.clone()).await, dependency_digest);
+    assert_eq!(validator.state.metrics.attestation_dry_runs_total.get(), 0);
+    assert!(submitted.try_recv().is_err());
+
+    validator
+        .epoch_store
+        .tables()
+        .unwrap()
+        .root_commits
+        .insert(&dependency_digest, &1)
+        .unwrap();
+
+    let (update, _) = validator.submit(dependent).await;
+    assert!(
+        matches!(update, TxStatusUpdate::Submitted),
+        "expected Submitted, got {update:?}"
+    );
+    assert_eq!(digest_of(submitted.recv().await.unwrap()), dependent_digest);
+    assert_eq!(validator.state.metrics.attestation_dry_runs_total.get(), 1);
+}
+
+/// A dependent whose dependency is not found is rejected at weight zero
+/// without running its Move authenticators, here ones that would fail.
+#[tokio::test]
+async fn dependent_of_a_dependency_not_found_is_rejected_without_running_its_authenticators() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = enable_transaction_dependencies(true);
+
+    let mut env = AbstractAccountTestEnv::new().await;
+    let (validator, mut submitted) = TestValidator::from_state(env.authority.clone());
+    // Signed with a key the account has never held.
+    let (_, unrelated_key): (_, AccountPrivateKey) = get_key_pair();
+
+    let unknown = TransactionDigest::random();
+    let dependent = env.dependent_account_transaction_signed_with(unknown, &unrelated_key);
+    let weight = assert_dependency_not_found(validator.submit(dependent).await, unknown);
+    assert_eq!(weight, 0.0);
+
+    // With a dependency that has no effects here, a failed authentication is
+    // reported as the dependency not found as well. One that executed without
+    // being a root of a commit is not found either, and its effects make a
+    // failed authentication reported as such, so only this rejection shows
+    // that the authenticators did not run.
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let (ids, objects) = objects_owned_by(sender, 2);
+    validator.state.insert_genesis_objects(&objects);
+    let executed = transfer(&validator.state, sender, &sender_key, ids[0], ids[1]);
+    let executed_digest = *executed.digest();
+    execute_without_root_commit(&validator, executed);
+    let dependent = env.dependent_account_transaction_signed_with(executed_digest, &unrelated_key);
+    let weight = assert_dependency_not_found(validator.submit(dependent).await, executed_digest);
+    assert_eq!(weight, 0.0);
+
+    assert!(submitted.try_recv().is_err());
+}
+
+/// Submits a Move account's key rotation and, while it is in flight, a
+/// dependent of it signed with the new key. The dependent's authentication
+/// fails until the rotation executes here, so it is rejected with the
+/// retriable `TransactionDependencyNotFound`. The rejection weighs one: the
+/// validator ran the authenticators for nothing.
+async fn assert_failed_authentication_weighs_one_while_dependency_is_in_flight(attestation: bool) {
+    telemetry_subscribers::init_for_testing();
+    let _guard = enable_transaction_dependencies(attestation);
+
+    let mut env = AbstractAccountTestEnv::new().await;
+    let (_, new_key): (_, AccountPrivateKey) = get_key_pair();
+    let rotation = env.rotate_owner_key_transaction(&new_key);
+    let rotation_digest = *rotation.digest();
+    let dependent = env.dependent_account_transaction_signed_with(rotation_digest, &new_key);
+    let (validator, mut submitted) = TestValidator::from_state(env.authority.clone());
+
+    let (update, _) = validator.submit(rotation).await;
+    assert!(
+        matches!(update, TxStatusUpdate::Submitted),
+        "expected Submitted, got {update:?}"
+    );
+    assert_eq!(digest_of(submitted.recv().await.unwrap()), rotation_digest);
+
+    let weight = assert_dependency_not_found(validator.submit(dependent).await, rotation_digest);
+    assert_eq!(weight, 1.0);
+    assert!(submitted.try_recv().is_err());
+}
+
+/// [`assert_failed_authentication_weighs_one_while_dependency_is_in_flight()`]
+/// without validator attestation, where the validation checks run the
+/// authenticators.
+#[tokio::test]
+async fn failed_authentication_weighs_one_while_dependency_is_in_flight() {
+    assert_failed_authentication_weighs_one_while_dependency_is_in_flight(false).await;
+}
+
+/// Like [`failed_authentication_weighs_one_while_dependency_is_in_flight()`],
+/// with validator attestation, where the attestation runs the authenticators.
+#[tokio::test]
+async fn failed_authentication_weighs_one_while_dependency_is_in_flight_with_attestation() {
+    assert_failed_authentication_weighs_one_while_dependency_is_in_flight(true).await;
+}
+
+/// A dependent of a transaction this validator recorded as dropped is
+/// rejected for good, unless the deny rules or the coin deny list dropped the
+/// transaction: both can change in the epoch, so it can be kept when it is
+/// submitted again, and the dependent gets the retriable
+/// `TransactionDependencyNotFound`.
+#[tokio::test]
+async fn dependent_of_a_denied_dependency_gets_a_retriable_error() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = enable_transaction_dependencies(true);
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let (ids, objects) = objects_owned_by(sender, 1);
+    let (validator, mut submitted) =
+        TestValidator::new(&objects, AuthorityOverloadConfig::default()).await;
+    let rgp = validator.state.reference_gas_price_for_testing().unwrap();
+    let gas = validator.state.get_object(&ids[0]).unwrap();
+    let submit_dependent_of = async |drop: UserInputError| {
+        let dependency = TransactionDigest::random();
+        validator
+            .epoch_store
+            .insert_dropped_digests_for_testing(&[(dependency, drop.into())]);
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.transfer_iota(dbg_addr(2), Some(1));
+        let dependent = TestTransactionBuilder::new(sender, gas.object_ref(), rgp)
+            .programmable(builder.finish())
+            .with_transaction_dependency(dependency, validator.epoch_store.epoch())
+            .build_and_sign(&sender_key);
+
+        (dependency, validator.submit(dependent).await)
+    };
+
+    let (dependency, (update, _)) =
+        submit_dependent_of(UserInputError::InputObjectNotAvailableAtCommit {
+            object_id: ids[0],
+            version: Some(gas.version()),
+        })
+        .await;
+    assert!(
+        matches!(
+            &update,
+            TxStatusUpdate::Rejected {
+                error: IotaError::UserInput {
+                    error: UserInputError::TransactionDependencyFailed { digest },
+                },
+            } if *digest == dependency
+        ),
+        "expected the dependency to have failed, got {update:?}"
+    );
+
+    let coin_type = "0x2::iota::IOTA".to_string();
+    for denial in [
+        UserInputError::TransactionDenied {
+            error: "denied".to_string(),
+        },
+        UserInputError::AddressDeniedForCoin {
+            address: sender,
+            coin_type: coin_type.clone(),
+        },
+        UserInputError::CoinTypeGlobalPause { coin_type },
+    ] {
+        let (dependency, result) = submit_dependent_of(denial).await;
+        assert_eq!(assert_dependency_not_found(result, dependency), 0.0);
+    }
+    assert!(submitted.try_recv().is_err());
 }

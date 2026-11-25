@@ -121,6 +121,10 @@ impl GasPriceFeedbackTester {
         protocol_config.set_congestion_control_gas_price_feedback_mechanism_for_testing(
             enable_gas_price_feedback_mechanism,
         );
+        // Transaction dependencies require the gas price feedback mechanism.
+        if !enable_gas_price_feedback_mechanism {
+            protocol_config.set_enable_transaction_dependencies_for_testing(false);
+        }
 
         let authority_state = TestAuthorityBuilder::new()
             .with_reference_gas_price(REFERENCE_GAS_PRICE_FOR_TESTS)

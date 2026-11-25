@@ -109,6 +109,12 @@ pub enum ExecutionMode {
     /// A transaction that aborts commits nothing — not even the gas charge — so
     /// across multiple runs the store does not reflect a node's post-abort
     /// state.
+    ///
+    /// A transaction dependency is assumed to have succeeded, since the store
+    /// keeps no executed transactions. A dependent of a transaction that
+    /// failed therefore runs its commands and commits its writes here, where a
+    /// node fails it with `TransactionDependencyFailed` without running any
+    /// command.
     Execute,
 }
 

@@ -159,8 +159,10 @@ impl Indexer {
 
         // Fill the cache before the server accepts requests, so that read requests
         // don't have to deal with not filled cache.
-        let watermark_task = WatermarkTask::new(store.clone(), watermark_cache);
-        watermark_task.update_watermarks().await?;
+        tracing::info!("Starting watermark background task to track pruning state");
+        WatermarkTask::new(store.clone(), watermark_cache)
+            .start(cancel.clone())
+            .await?;
 
         let handle = build_json_rpc_server(
             store,
@@ -172,9 +174,6 @@ impl Indexer {
         )
         .await
         .expect("json rpc server should not run into errors upon start.");
-
-        tracing::info!("Starting watermark background task to track pruning state");
-        watermark_task.start(cancel.clone());
 
         tracing::info!("Starting system package task");
         let system_package_task =

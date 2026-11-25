@@ -276,7 +276,8 @@ pub fn handler_processed_keys(effects: &TransactionEffects) -> Vec<ObjectKey> {
 }
 
 /// Whether a created, mutated or unwrapped object needs a row. If so, the
-/// row is `Live`.
+/// row is `Live`. The attestation judge reads a transaction's commit from
+/// the row of its gas coin and stops the node without one.
 fn needs_handler_row(write_kind: WriteKind, owned_ref: &OwnedObjectReference) -> bool {
     match (write_kind, owned_ref.owner()) {
         // Mutations of shared objects write no row: validation only asks
@@ -1221,6 +1222,7 @@ mod tests {
             Some(Version::from_u64(DELETED_SHARED_CONSUMED_VERSION))
         );
         assert_eq!(version(&fixture.mutated_owned), lamport);
+        // The attestation judge takes a transaction's commit from this row.
         assert_eq!(rows[&fixture.gas].kind, HandlerProcessedObjectKind::Live);
         assert_eq!(
             rows[&fixture.unwrapped].kind,

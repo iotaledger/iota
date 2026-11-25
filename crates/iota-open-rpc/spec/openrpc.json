@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "1.37.0-alpha"
+    "version": "1.38.0-alpha"
   },
   "methods": [
     {
@@ -1288,15 +1288,15 @@
           "params": [
             {
               "name": "version",
-              "value": 41
+              "value": 42
             }
           ],
           "result": {
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "41",
-              "protocolVersion": "41",
+              "maxSupportedProtocolVersion": "42",
+              "protocolVersion": "42",
               "featureFlags": {
                 "accept_passkey_in_multisig": true,
                 "additional_borrow_checks": true,
@@ -1337,11 +1337,15 @@
                 "disallow_randomness_in_move_authenticator": true,
                 "disallow_self_identifier": true,
                 "disallow_self_identifier_in_transactions": true,
+                "enable_builtin_move_authenticators": true,
+                "enable_claim_account_transaction": false,
                 "enable_group_ops_native_function_msm": true,
                 "enable_move_authentication": true,
                 "enable_move_authentication_for_sponsor": true,
                 "enable_pcool_flow": true,
                 "enable_poseidon": true,
+                "enable_smart_accounts": true,
+                "enable_transaction_dependencies": true,
                 "enable_validator_attestation": true,
                 "enable_vdf": true,
                 "hardened_otw_check": true,
@@ -1370,6 +1374,7 @@
                 "relocate_event_module": true,
                 "report_move_authentication_error": true,
                 "rethrow_serialization_type_layout_errors": true,
+                "secp256r1_ecrecover_checks_x_below_p": true,
                 "select_committee_from_eligible_validators": true,
                 "select_committee_supporting_next_epoch_version": true,
                 "separate_gas_price_feedback_mechanism_for_randomness": true,
@@ -1391,7 +1396,12 @@
                 "address_to_u256_cost_base": {
                   "u64": "52"
                 },
-                "attestation_max_refuted_units_squared": null,
+                "attestation_freshness_window_commits": {
+                  "u64": "12000"
+                },
+                "attestation_max_refuted_units_squared": {
+                  "u64": "100000000"
+                },
                 "attestor_accuracy_tolerance_percentage": null,
                 "auth_context_authenticator_function_info_v1_cost_base": {
                   "u64": "270"
@@ -1517,6 +1527,8 @@
                 "checkpoint_summary_version_specific_data": {
                   "u64": "2"
                 },
+                "claim_account_max_computation_units": null,
+                "claim_account_storage_bytes_bound": null,
                 "config_read_setting_impl_cost_base": {
                   "u64": "100"
                 },
@@ -1628,6 +1640,9 @@
                 "ecdsa_k1_ecrecover_sha256_msg_cost_per_byte": {
                   "u64": "2"
                 },
+                "ecdsa_k1_secp256k1_validate_pubkey_cost_base": {
+                  "u64": "176"
+                },
                 "ecdsa_k1_secp256k1_verify_keccak256_cost_base": {
                   "u64": "1470"
                 },
@@ -1664,6 +1679,9 @@
                 "ecdsa_r1_ecrecover_sha256_msg_cost_per_byte": {
                   "u64": "2"
                 },
+                "ecdsa_r1_secp256r1_validate_pubkey_cost_base": {
+                  "u64": "325"
+                },
                 "ecdsa_r1_secp256r1_verify_keccak256_cost_base": {
                   "u64": "4225"
                 },
@@ -1690,6 +1708,9 @@
                 },
                 "ecvrf_ecvrf_verify_cost_base": {
                   "u64": "4848"
+                },
+                "ed25519_ed25519_validate_pubkey_cost_base": {
+                  "u64": "170"
                 },
                 "ed25519_ed25519_verify_cost_base": {
                   "u64": "1802"
@@ -1900,7 +1921,7 @@
                   "u32": "512"
                 },
                 "max_auth_gas": {
-                  "u64": "250000"
+                  "u64": "1000000"
                 },
                 "max_back_edges_per_function": {
                   "u64": "10000"
@@ -2105,6 +2126,9 @@
                 "move_binary_format_version": {
                   "u32": "7"
                 },
+                "multisig_multisig_validate_pubkey_cost_base": {
+                  "u64": "72"
+                },
                 "obj_access_cost_delete_per_byte": {
                   "u64": "40"
                 },
@@ -2159,6 +2183,21 @@
                 "poseidon_bn254_cost_per_block": {
                   "u64": "388"
                 },
+                "public_key_to_iota_address_impl_cost_base": {
+                  "u64": "341"
+                },
+                "public_key_verify_builtin_authenticator_signature_impl_cost_base": {
+                  "u64": "0"
+                },
+                "public_key_verify_personal_message_signature_impl_cost_base": {
+                  "u64": "4225"
+                },
+                "public_key_verify_personal_message_signature_impl_msg_cost_per_byte": {
+                  "u64": "2"
+                },
+                "public_key_verify_personal_message_signature_impl_sig_cost_per_byte": {
+                  "u64": "2"
+                },
                 "random_beacon_dkg_timeout_round": {
                   "u32": "3000"
                 },
@@ -2179,6 +2218,9 @@
                 },
                 "scorer_version": {
                   "u16": "2"
+                },
+                "smart_account_builtin_authenticator_key_proof_message_cost_base": {
+                  "u64": "52"
                 },
                 "storage_gas_price": {
                   "u64": "76"
@@ -2222,6 +2264,9 @@
                 "transfer_transfer_internal_cost_base": {
                   "u64": "52"
                 },
+                "tx_context_chain_identifier_cost_base": {
+                  "u64": "30"
+                },
                 "tx_context_derive_id_cost_base": {
                   "u64": "52"
                 },
@@ -2256,6 +2301,9 @@
                   "u64": "30"
                 },
                 "tx_context_sponsor_cost_base": {
+                  "u64": "30"
+                },
+                "tx_context_tx_nonce_cost_base": {
                   "u64": "30"
                 },
                 "type_name_get_base_cost": {
@@ -2361,7 +2409,7 @@
           "name": "Read API"
         }
       ],
-      "description": "Return the transaction response object.",
+      "description": "Return the transaction response object. The method will throw an error if the node does not have the transaction, or its effects when they are needed for the requested fields, or if the requested transaction or effects can't be converted. A requested field that can't be loaded otherwise, such as events or balance changes, is left out and the reason is added to `errors`. `timestampMs` is left out when the node no longer has the checkpoint's summary. Balance and object changes are derived from the object versions the transaction read, so they can only be returned while the node still keeps those versions; by default, nodes keep past object versions for fewer epochs than transactions.",
       "params": [
         {
           "name": "digest",
@@ -2766,7 +2814,7 @@
           "name": "Read API"
         }
       ],
-      "description": "Returns an ordered list of transaction responses The method will throw an error if the input contains any duplicate or the input size exceeds QUERY_MAX_RESULT_LIMIT",
+      "description": "Returns an ordered list of transaction responses The method will throw an error if the input contains any duplicate or the input size exceeds QUERY_MAX_RESULT_LIMIT. On a fullnode, the list has one response per digest, in the order of the input, and data missing for one transaction does not fail the request: if the node does not have a transaction or its effects, or a requested field such as events or balance changes can't be loaded or converted, the response for that digest leaves out the affected fields and the reason is added to its `errors`. Balance and object changes are derived from the object versions the transaction read, so they can only be returned while the node still keeps those versions; by default, nodes keep past object versions for fewer epochs than transactions.",
       "params": [
         {
           "name": "digests",
@@ -7789,6 +7837,25 @@
                   {
                     "type": "null"
                   }
+                ]
+              }
+            }
+          },
+          {
+            "description": "The transaction this transaction depends on: it executes after that transaction, and fails if that transaction failed. Not usable by a command.",
+            "type": "object",
+            "required": [
+              "digest",
+              "type"
+            ],
+            "properties": {
+              "digest": {
+                "$ref": "#/components/schemas/Base58"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "transactionDependency"
                 ]
               }
             }

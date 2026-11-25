@@ -9,6 +9,7 @@
 
 use std::{
     collections::BTreeMap,
+    ops::Bound,
     path::Path,
     sync::{
         Arc,
@@ -351,24 +352,43 @@ impl HistoricObjects {
         }
     }
 
-    /// Whether `epoch`'s bucket holds a version under `key`, that is whether a
-    /// commit of that epoch relocated it; `false` also when there is no bucket
-    /// for `epoch`. Reads only that bucket, so the answer does not depend on
-    /// how many epochs the node retains.
-    ///
-    /// One exception: a node upgraded from a release before the per-epoch
-    /// history buckets (1.36) moved every version superseded before the
-    /// upgrade into the bucket of the epoch it upgraded in. For that epoch,
-    /// `true` can also mean the version was superseded before the upgrade.
-    pub fn relocated_in_epoch(&self, epoch: EpochId, key: &ObjectKey) -> IotaResult<bool> {
-        let Some(bucket) = self.buckets.get(epoch) else {
-            return Ok(false);
+    /// The lowest version of `id` above `version` among those relocated into
+    /// `epoch`'s bucket and the tombstones written during `epoch`, `None`
+    /// when there is none, or `epoch` has no bucket or an expiring one. Reads
+    /// only that bucket.
+    pub fn lowest_version_above_in_epoch(
+        &self,
+        epoch: EpochId,
+        id: &ObjectId,
+        version: Version,
+    ) -> IotaResult<Option<Version>> {
+        let Some(bucket) = self
+            .buckets
+            .get(epoch)
+            .filter(|bucket| !bucket.is_expiring())
+        else {
+            return Ok(None);
         };
-        match bucket.objects.contains_key(key) {
-            // The bucket was dropped during the read.
-            Err(TypedStoreError::UnregisteredColumn(_)) => Ok(false),
-            read => read.map_err(|e| IotaError::Storage(e.to_string())),
-        }
+        let above = || {
+            (
+                Bound::Excluded(ObjectKey(*id, version)),
+                Bound::Included(ObjectKey::max_for_id(id)),
+            )
+        };
+        let relocated =
+            absent_if_dropped(bucket.objects.safe_range_iter(above()).next().transpose())
+                .map_err(|e| IotaError::Storage(e.to_string()))?
+                .map(|(key, _)| key.1);
+        let tombstone = absent_if_dropped(
+            bucket
+                .tombstones
+                .safe_range_iter(above())
+                .next()
+                .transpose(),
+        )
+        .map_err(|e| IotaError::Storage(e.to_string()))?
+        .map(|(key, _)| key.1);
+        Ok(relocated.into_iter().chain(tombstone).min())
     }
 
     /// Fills each `None` in `objects` — the live table's answers for `keys`, in
