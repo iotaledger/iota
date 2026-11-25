@@ -1825,6 +1825,60 @@ fn test_claim_account_gas_budget_is_checked_unless_the_budget_is_unbounded() {
     .expect("an unbounded budget may be below the minimum");
 }
 
+/// With the execution of a `ClaimAccount` in place, a dry run runs a claim
+/// whose gas budget is exactly the minimum, and a dev inspect runs one whose
+/// gas budget is below it.
+#[tokio::test]
+async fn test_simulate_runs_a_claim_account_at_and_below_its_minimum_gas_budget() {
+    use iota_types::transaction::claim_account_min_gas_budget;
+
+    let _guard =
+        ProtocolConfig::apply_overrides_for_testing(|_, config| enable_claim_account(config));
+    let (claim, sender) = ed25519_claim();
+    let (_validator, fullnode, _object_basics) =
+        init_state_with_ids_and_object_basics_with_fullnode(vec![]).await;
+    let epoch_store = fullnode.epoch_store_for_testing();
+    let min_budget = claim_account_min_gas_budget(
+        epoch_store.protocol_config(),
+        epoch_store.reference_gas_price(),
+        claim.public_key_raw_bytes.len() as u64,
+    );
+
+    let result = simulate_claim_account(
+        &fullnode,
+        &claim,
+        sender,
+        min_budget,
+        0,
+        min_budget,
+        VmChecks::Enabled,
+    )
+    .unwrap_or_else(|e| panic!("a dry run should accept a claim budget at the minimum: {e}"));
+    assert!(
+        result.effects.status().is_success(),
+        "{:?}",
+        result.effects.status()
+    );
+
+    let result = simulate_claim_account(
+        &fullnode,
+        &claim,
+        sender,
+        min_budget,
+        0,
+        min_budget - 1,
+        VmChecks::Disabled,
+    )
+    .unwrap_or_else(|e| {
+        panic!("a dev inspect should accept a claim budget below the minimum: {e}")
+    });
+    assert!(
+        result.effects.status().is_success(),
+        "{:?}",
+        result.effects.status()
+    );
+}
+
 /// A child object named as an owned input is rejected by both check modes: it
 /// has to be reached through its parent, not passed directly.
 #[tokio::test]

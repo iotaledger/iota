@@ -17,9 +17,10 @@ mod checked {
     use iota_move_natives::all_natives;
     use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
     use iota_sdk_types::{
-        Address, Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
-        EndOfEpochTransactionKind, ExecutionStatus, GasCostSummary, GasPayment, GenesisTransaction,
-        Identifier, MoveAuthenticator, ObjectId, ProgrammableTransaction, RandomnessStateUpdate,
+        AccountClaimKind, Address, Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3,
+        ChangeEpochV4, ClaimAccountTransaction, Command, EndOfEpochTransactionKind,
+        ExecutionStatus, GasCostSummary, GasPayment, GenesisTransaction, Identifier,
+        MoveAuthenticator, ObjectId, ProgrammableTransaction, RandomnessStateUpdate,
         SharedObjectReference, StructTag, SystemPackage, TransactionDenyRulesUpdate,
         TransactionDigest, TransactionEffects, TransactionKind, TypeTag, Version,
     };
@@ -1978,6 +1979,20 @@ mod checked {
                 .map_err(|e| (e, vec![]))?;
                 Ok((Mode::empty_results(), vec![]))
             }
+            TransactionKind::ClaimAccount(claim_tx) => {
+                setup_claim_account(
+                    &claim_tx,
+                    temporary_store,
+                    tx_ctx,
+                    move_vm,
+                    gas_charger,
+                    protocol_config,
+                    metrics,
+                    trace_builder_opt,
+                )
+                .map_err(|e| (e, vec![]))?;
+                Ok((Mode::empty_results(), vec![]))
+            }
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
             ),
@@ -2532,6 +2547,81 @@ mod checked {
             builder.finish()
         };
         programmable_transactions::execution::execute::<execution_mode::System>(
+            protocol_config,
+            metrics,
+            move_vm,
+            temporary_store,
+            tx_ctx,
+            gas_charger,
+            pt,
+            trace_builder_opt,
+        )
+        .map_err(|(e, _)| e)?;
+        Ok(())
+    }
+
+    /// Executes a [`ClaimAccountTransaction`] by calling the framework's
+    /// private `claim_account_v1` function.
+    ///
+    /// This runs in [`execution_mode::PrivateCall`] because that function is
+    /// private on purpose: a claimed account object has an id equal to a
+    /// signature-derivable address, and the `ClaimAccount` transaction kind
+    /// must stay the only way such an object can be created.
+    #[allow(clippy::too_many_arguments)]
+    fn setup_claim_account(
+        claim_tx: &ClaimAccountTransaction,
+        temporary_store: &mut TemporaryStore<'_>,
+        tx_ctx: Rc<RefCell<TxContext>>,
+        move_vm: &Arc<MoveVM>,
+        gas_charger: &mut GasCharger,
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
+    ) -> Result<(), ExecutionError> {
+        let claim = match &claim_tx.kind {
+            AccountClaimKind::SmartAccount(claim) => claim,
+            _ => unimplemented!(
+                "a new AccountClaimKind enum variant was added and needs to be handled"
+            ),
+        };
+
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            // `TransactionKind::validity_check` already checked that the claimed
+            // public key is valid, which `public_key::create` checks again.
+            let (Ok(scheme), Ok(raw_bytes)) = (
+                builder.pure(claim.public_key_scheme),
+                builder.pure(&claim.public_key_raw_bytes),
+            ) else {
+                invariant_violation!(
+                    "Unable to serialize the claimed public key's scheme flag and raw bytes as \
+                     pure inputs of the `ClaimAccount` call"
+                )
+            };
+            let scheme = builder.programmable_move_call(
+                ObjectId::FRAMEWORK,
+                Identifier::from_static("signature_scheme"),
+                Identifier::from_static("from_flag"),
+                vec![],
+                vec![scheme],
+            );
+            let public_key = builder.programmable_move_call(
+                ObjectId::FRAMEWORK,
+                Identifier::from_static("public_key"),
+                Identifier::from_static("create"),
+                vec![],
+                vec![scheme, raw_bytes],
+            );
+            builder.programmable_move_call(
+                ObjectId::FRAMEWORK,
+                Identifier::from_static("smart_account_builtin_authenticator"),
+                Identifier::from_static("claim_account_v1"),
+                vec![],
+                vec![public_key],
+            );
+            builder.finish()
+        };
+        programmable_transactions::execution::execute::<execution_mode::PrivateCall>(
             protocol_config,
             metrics,
             move_vm,
