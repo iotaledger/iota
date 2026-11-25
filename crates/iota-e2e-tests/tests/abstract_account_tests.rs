@@ -6176,30 +6176,23 @@ async fn run_stale_smart_account_transactions(
         .authority_aggregator()
         .authority_clients[&paused_validator]
         .clone();
-    let mut submissions = Vec::with_capacity(stale_txs.len());
+    // The validator answers each submission once it has refused the
+    // transaction or submitted it to consensus. The transactions are submitted
+    // one at a time, in the order given, so that of two paid by the same gas
+    // coin version, the first always takes the lock.
+    let mut answers = Vec::with_capacity(stale_txs.len());
     for tx_data in stale_txs {
         let sig = builtin_sig_for_keypair(&old_kp, &tx_data, account)?;
         let tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx_data, vec![sig]));
         let digest = *tx.digest();
-        let client = paused_client.clone();
-        submissions.push((
-            digest,
-            tokio::spawn(async move {
-                client
-                    .authority_client()
-                    .submit_tx(vec![tx], Some(client_ip))
-                    .await
-            }),
-        ));
-    }
-
-    // The validator answers each submission once it has refused the
-    // transaction or submitted it to consensus.
-    let mut answers = Vec::with_capacity(submissions.len());
-    for (digest, submission) in submissions {
-        let updates = tokio::time::timeout(Duration::from_secs(60), submission)
-            .await
-            .expect("the paused validator must answer each submission within 60s")??;
+        let updates = tokio::time::timeout(
+            Duration::from_secs(60),
+            paused_client
+                .authority_client()
+                .submit_tx(vec![tx], Some(client_ip)),
+        )
+        .await
+        .expect("the paused validator must answer each submission within 60s")?;
         let Some((_, update)) = updates.into_iter().last() else {
             panic!("the paused validator must answer the submission of {digest}");
         };
