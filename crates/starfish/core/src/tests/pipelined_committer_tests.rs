@@ -753,7 +753,6 @@ fn basic_test_setup() -> (
         LeaderSwapTable::default(),
     ));
 
-    // Create committer with 1 leader per round
     let committer =
         UniversalCommitterBuilder::new(context.clone(), leader_schedule, dag_state.clone()).build();
 

@@ -378,7 +378,6 @@ async fn direct_skip_no_leader_votes() {
     dag_builder.print();
     dag_builder.persist_all_blocks(dag_state.clone());
 
-    // Create committer with 1 leader per round
     let mut committer =
         UniversalCommitterBuilder::new(dag_builder.context, leader_schedule, dag_state).build();
 
@@ -492,7 +491,6 @@ async fn indirect_commit() {
     dag_builder.print();
     dag_builder.persist_all_blocks(dag_state.clone());
 
-    // Create committer with 1 leader per round
     let mut committer =
         UniversalCommitterBuilder::new(dag_builder.context, leader_schedule, dag_state).build();
 
@@ -567,7 +565,6 @@ async fn indirect_skip() {
     dag_builder.print();
     dag_builder.persist_all_blocks(dag_state.clone());
 
-    // Create committer with 1 leader per round
     let mut committer =
         UniversalCommitterBuilder::new(dag_builder.context, leader_schedule, dag_state).build();
 
@@ -645,7 +642,6 @@ async fn undecided() {
     dag_builder.print();
     dag_builder.persist_all_blocks(dag_state.clone());
 
-    // Create committer with 1 leader per round
     let mut committer =
         UniversalCommitterBuilder::new(dag_builder.context, leader_schedule, dag_state).build();
 
@@ -839,7 +835,6 @@ fn basic_test_setup() -> (
         LeaderSwapTable::default(),
     ));
 
-    // Create committer with 1 leader per round
     let committer =
         UniversalCommitterBuilder::new(context.clone(), leader_schedule, dag_state.clone()).build();
 
@@ -867,7 +862,6 @@ fn basic_dag_builder_test_setup() -> TestSetup {
         LeaderSwapTable::default(),
     ));
 
-    // Create committer with 1 leader per round
     let committer = UniversalCommitterBuilder::new(
         dag_builder.context.clone(),
         leader_schedule,
