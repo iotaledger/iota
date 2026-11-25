@@ -1041,13 +1041,24 @@ async fn sync_with_checkpoints_gap() -> anyhow::Result<()> {
 
 /// Checkpoints with more transactions than
 /// `checkpoint_content_download_tx_concurrency` are still synced, one at a
-/// time.
+/// time, and a limit that fits some checkpoints lets that many download at
+/// once.
 #[tokio::test]
 async fn checkpoints_over_tx_concurrency_limit_keep_syncing() {
     telemetry_subscribers::init_for_testing();
 
+    // Every checkpoint has one transaction.
+    sync_with_tx_concurrency_limit(0, 1).await;
+    sync_with_tx_concurrency_limit(2, 2).await;
+}
+
+/// Syncs one-transaction checkpoints from a peer with
+/// `checkpoint_content_download_tx_concurrency` set to `tx_concurrency_limit`,
+/// and checks that the highest number of contents requests the peer handled at
+/// the same time is `expected_max_in_flight`.
+async fn sync_with_tx_concurrency_limit(tx_concurrency_limit: u64, expected_max_in_flight: usize) {
     let (committee, (ordered_checkpoints, contents, _, _)) =
-        make_committee_and_checkpoints(0, 4, 4, None, random_contents);
+        make_committee_and_checkpoints(0, 4, 6, None, random_contents);
 
     let store_1 = store_with_genesis_state(
         ordered_checkpoints[0].clone(),
@@ -1079,7 +1090,7 @@ async fn checkpoints_over_tx_concurrency_limit_keep_syncing() {
     let (event_loop_1, _handle_1) = builder_1.build(network_1.clone());
 
     let config_2 = StateSyncConfig {
-        checkpoint_content_download_tx_concurrency: Some(0),
+        checkpoint_content_download_tx_concurrency: Some(tx_concurrency_limit),
         wait_interval_when_no_peer_to_sync_content_ms: Some(50),
         ..Default::default()
     };
@@ -1098,7 +1109,7 @@ async fn checkpoints_over_tx_concurrency_limit_keep_syncing() {
     for checkpoint in &ordered_checkpoints[1..] {
         let actual = timeout(Duration::from_secs(10), synced.recv())
             .await
-            .expect("checkpoints over the transaction concurrency limit must keep syncing")
+            .expect("checkpoints must keep syncing under the transaction concurrency limit")
             .unwrap();
         assert_eq!(actual.digest(), checkpoint.digest());
         assert!(
@@ -1107,7 +1118,7 @@ async fn checkpoints_over_tx_concurrency_limit_keep_syncing() {
                 .is_some()
         );
     }
-    assert_eq!(max_in_flight.load(Ordering::SeqCst), 1);
+    assert_eq!(max_in_flight.load(Ordering::SeqCst), expected_max_in_flight);
 }
 
 /// A peer that serves `inner` and records the highest number of checkpoint
