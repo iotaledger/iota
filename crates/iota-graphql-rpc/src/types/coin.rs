@@ -19,7 +19,7 @@ use crate::{
     filter,
     raw_query::RawQuery,
     types::{
-        available_range::AvailableRange,
+        available_range::LedgerView,
         balance::{self, Balance},
         base64::Base64,
         big_int::BigInt,
@@ -345,7 +345,7 @@ impl Coin {
     /// Object ID as the cursor, and can optionally be filtered by an owner.
     pub(crate) async fn paginate(
         db: &Db,
-        page: Page<object::Cursor>,
+        mut page: Page<object::Cursor>,
         coin_type: TypeTag,
         owner: Option<IotaAddress>,
         checkpoint_viewed_at: u64,
@@ -359,21 +359,27 @@ impl Coin {
 
         let max_available_range = db.max_available_range;
 
-        let Some((prev, next, results)) = db
+        let Some((checkpoint_viewed_at, (prev, next, results))) = db
             .execute_repeatable(move |conn| {
-                if !AvailableRange::is_checkpoint_in_backward_history_range(
-                    conn,
-                    checkpoint_viewed_at,
-                    max_available_range,
-                )? {
+                let ledger_view = LedgerView::resolve(conn, max_available_range)?;
+                let Some(checkpoint_viewed_at) =
+                    ledger_view.resolve_checkpoint(checkpoint_viewed_at)
+                else {
                     return Ok::<_, diesel::result::Error>(None);
                 };
 
-                Ok(Some(page.paginate_raw_query::<StoredBackwardObject>(
-                    conn,
+                if matches!(ledger_view, LedgerView::Live(_)) {
+                    page.set_live_view(checkpoint_viewed_at);
+                }
+
+                Ok(Some((
                     checkpoint_viewed_at,
-                    coins_query(coin_type, owner, checkpoint_viewed_at, &page),
-                )?))
+                    page.paginate_raw_query::<StoredBackwardObject>(
+                        conn,
+                        checkpoint_viewed_at,
+                        coins_query(coin_type, owner, checkpoint_viewed_at, &page),
+                    )?,
+                )))
             })
             .await?
         else {

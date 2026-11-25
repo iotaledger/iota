@@ -15,7 +15,7 @@ use iota_sdk_types::{Address, StructTag};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    available_range::AvailableRange,
+    available_range::LedgerView,
     balance::{self, Balance},
     base64::Base64,
     big_int::BigInt,
@@ -526,13 +526,12 @@ impl IotaNames {
             ..Default::default()
         };
 
-        let Some((checkpoint_timestamp_ms, results)) = db
+        let Some((checkpoint_viewed_at, checkpoint_timestamp_ms, results)) = db
             .execute_repeatable(move |conn| {
-                if !AvailableRange::is_checkpoint_in_backward_history_range(
-                    conn,
-                    checkpoint_viewed_at,
-                    max_available_range,
-                )? {
+                let ledger_view = LedgerView::resolve(conn, max_available_range)?;
+                let Some(checkpoint_viewed_at) =
+                    ledger_view.resolve_checkpoint(checkpoint_viewed_at)
+                else {
                     return Ok::<_, diesel::result::Error>(None);
                 };
 
@@ -549,7 +548,7 @@ impl IotaNames {
                     .map(|o| o.into_stored_history(checkpoint_viewed_at))
                     .collect();
 
-                Ok(Some((timestamp_ms, objects)))
+                Ok(Some((checkpoint_viewed_at, timestamp_ms, objects)))
             })
             .await?
         else {
