@@ -2338,7 +2338,14 @@ impl AuthorityPerEpochStore {
     }
 
     pub(crate) fn set_cut_off_validators(&self, validators: BTreeSet<AuthorityName>) {
-        *self.cut_off_validators.write() = validators;
+        let mut cut_off_validators = self.cut_off_validators.write();
+        for validator in validators.difference(&cut_off_validators) {
+            info!(
+                validator = ?validator.concise(),
+                "validator cut off for the rest of the epoch, as of the last executed checkpoint"
+            );
+        }
+        *cut_off_validators = validators;
     }
 
     /// `attestation_max_refuted_units_squared`, when set and this node keeps
