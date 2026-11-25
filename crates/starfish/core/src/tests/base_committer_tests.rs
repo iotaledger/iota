@@ -8,9 +8,9 @@ use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
 
 use crate::{
-    base_committer::base_committer_builder::BaseCommitterBuilder,
     block_header::{BlockHeaderAPI, TestBlockHeader, VerifiedBlockHeader},
     commit::{LeaderStatus, WAVE_LENGTH},
+    committer::Committer,
     context::Context,
     dag_state::{DagState, DataSource},
     storage::mem_store::MemStore,
@@ -27,7 +27,7 @@ async fn try_direct_commit() {
         context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
 
     // Build fully connected dag with empty blocks. Adding 8 rounds to the dag
     // so that we have 2 completed waves and one incomplete wave.
@@ -54,7 +54,7 @@ async fn try_direct_commit() {
                 panic!("Expected a committed leader at round {round}")
             };
         } else {
-            // The base committer should mark the potential leader in r6 as undecided
+            // The committer should mark the potential leader in r6 as undecided
             // as there is no way to get enough certificates because we did not build
             // the dag layer for the certifying round of wave 3.
             if let LeaderStatus::Undecided(undecided_slot) = leader_status {
@@ -76,7 +76,7 @@ async fn idempotence() {
         context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
 
     // Build fully connected dag with empty blocks. Adding 5 rounds to the dag
     // aka the certifying round of wave 1.
@@ -118,7 +118,7 @@ async fn multiple_direct_commit() {
         context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
 
     let mut ancestors = None;
     for n in 1..=10 {
@@ -157,7 +157,7 @@ async fn direct_skip() {
         context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
 
     // Add enough blocks to reach the leader round of wave 1.
     let leader_round_wave_1 = 3;
@@ -207,7 +207,7 @@ async fn indirect_commit() {
         context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
 
     // Add enough blocks to reach the leader round of wave 1.
     let leader_round_wave_1 = 3;
@@ -355,7 +355,7 @@ async fn indirect_skip() {
         context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
 
     // Add enough blocks to reach the leader round of wave 2.
     let leader_round_wave_2 = 6;
@@ -482,7 +482,7 @@ async fn undecided() {
         context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
 
     // Add enough blocks to reach the leader round of wave 1.
     let leader_round_wave_1 = 3;
@@ -570,7 +570,7 @@ async fn test_byzantine_direct_commit() {
         context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
 
     // Add enough blocks to reach leader round of wave 4
     let leader_round_wave_4 = 12;

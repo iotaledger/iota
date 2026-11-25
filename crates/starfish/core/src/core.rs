@@ -47,6 +47,7 @@ use crate::{
     commit_observer::{CommitObserver, CommittedSubDagSource},
     commit_syncer::fast::FastSyncOutput,
     commit_vote_monitor::CommitVoteMonitor,
+    committer::Committer,
     context::Context,
     dag_state::{DagState, DataSource},
     encoder::{ShardEncoder, create_encoder},
@@ -55,9 +56,6 @@ use crate::{
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     transaction::TransactionConsumer,
     transaction_ref::TransactionRef,
-    universal_committer::{
-        UniversalCommitter, universal_committer_builder::UniversalCommitterBuilder,
-    },
 };
 
 pub(crate) struct Core {
@@ -79,7 +77,7 @@ pub(crate) struct Core {
     quorum_subscribers_exists: bool,
 
     /// Used to make commit decisions for leader blocks in the dag.
-    committer: UniversalCommitter,
+    committer: Committer,
     /// The last new round for which core has sent out a signal.
     last_signaled_round: Round,
     /// The blocks of the last included ancestors per authority. This vector is
@@ -87,7 +85,7 @@ pub(crate) struct Core {
     /// proposal only ancestors of higher rounds. By default, is initialised
     /// with `None` values.
     last_included_ancestors: Vec<Option<BlockRef>>,
-    /// The last decided leader returned from the universal committer. Important
+    /// The last decided leader returned from the committer. Important
     /// to note that this does not signify that the leader has been
     /// persisted yet as it still has to go through CommitObserver and
     /// persist the commit in store. On recovery/restart
@@ -243,12 +241,7 @@ impl Core {
         commit_vote_monitor: Arc<CommitVoteMonitor>,
     ) -> Self {
         let last_finalized_leader = dag_state.read().last_commit_leader();
-        let committer = UniversalCommitterBuilder::new(
-            context.clone(),
-            leader_schedule.clone(),
-            dag_state.clone(),
-        )
-        .build();
+        let committer = Committer::new(context.clone(), leader_schedule.clone(), dag_state.clone());
 
         // Recover the last proposed block
         let last_proposed_block_header = dag_state.read().get_last_proposed_block_header();
@@ -993,7 +986,7 @@ impl Core {
         let leader_authority = &self
             .context
             .committee
-            .authority(self.first_leader(quorum_round))
+            .authority(self.leader(quorum_round))
             .hostname;
         self.context
             .metrics
@@ -1095,10 +1088,7 @@ impl Core {
 
         // Only leader blocks feed the optimistic-commit path, so only they
         // choose what to carry by what the voters are expected to hold.
-        let am_leader_at_round = self
-            .leaders(round)
-            .iter()
-            .any(|slot| slot.authority == self.context.own_index);
+        let am_leader_at_round = self.leader(round) == self.context.own_index;
         let adaptive_acknowledgments =
             am_leader_at_round && self.context.adaptive_acknowledgments_enabled();
 
@@ -1726,10 +1716,7 @@ impl Core {
         self.acknowledgment_stats
             .halve_if_due(self.dag_state.read().threshold_clock_round());
         for header in block_headers {
-            let leader_block = self
-                .leaders(header.round())
-                .iter()
-                .any(|slot| slot.authority == header.author());
+            let leader_block = self.leader(header.round()) == header.author();
             self.acknowledgment_stats
                 .record_header(&self.context, header, leader_block);
         }
@@ -1790,19 +1777,9 @@ impl Core {
     /// DAG. Starfish has exactly one leader per round, so this is either
     /// `Some(leader_block)` or `None`.
     fn leader_header(&self, round: Round) -> Option<VerifiedBlockHeader> {
-        let leader = self.leaders(round).into_iter().next()?;
         self.dag_state
             .read()
-            .get_cached_block_header_at_slot(Slot::new(round, leader.authority))
-    }
-
-    /// Returns the leaders of the provided round.
-    fn leaders(&self, round: Round) -> Vec<Slot> {
-        self.committer
-            .get_leaders(round)
-            .into_iter()
-            .map(|authority_index| Slot::new(round, authority_index))
-            .collect()
+            .get_cached_block_header_at_slot(self.committer.elect_leader(round))
     }
 
     /// Lowest ancestor round we are willing to reference from a block we
@@ -1813,9 +1790,9 @@ impl Core {
         self.context.min_ref_round(clock_round)
     }
 
-    /// Returns the 1st leader of the round.
-    fn first_leader(&self, round: Round) -> AuthorityIndex {
-        self.leaders(round).first().unwrap().authority
+    /// Returns the leader of the round.
+    fn leader(&self, round: Round) -> AuthorityIndex {
+        self.committer.elect_leader(round).authority
     }
 
     fn last_proposed_timestamp_ms(&self) -> BlockTimestampMs {
@@ -4403,7 +4380,7 @@ mod test {
         // Before the leader of round 3 proposes, make the two other voters
         // receive the author's blocks 4 rounds late, so they would lack its
         // round-2 block when voting at round 4.
-        let leader = cores[0].core.leaders(3)[0].authority;
+        let leader = cores[0].core.leader(3);
         let author = AuthorityIndex::new_for_test(((leader.value() + 1) % 4) as u8);
         let lacked_ref = last_round_blocks
             .iter()
@@ -4616,7 +4593,7 @@ mod test {
         }
         let round_2_blocks = last_round_blocks;
 
-        let leader = cores[0].core.first_leader(2);
+        let leader = cores[0].core.leader(2);
         let late = cores
             .iter()
             .position(|fixture| fixture.core.context.own_index != leader)

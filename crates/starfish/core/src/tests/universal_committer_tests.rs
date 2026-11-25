@@ -15,12 +15,10 @@ use crate::{
     commit::DecidedLeader,
     context::Context,
     dag_state::{DagState, DataSource},
-    leader_schedule::{LeaderSchedule, LeaderSwapTable},
     storage::mem_store::MemStore,
     test_dag::build_dag,
     test_dag_builder::DagBuilder,
     test_dag_parser::parse_dag,
-    universal_committer::universal_committer_builder::UniversalCommitterBuilder,
 };
 // TODO: use one same mechanism for constructing a DAG
 
@@ -46,7 +44,7 @@ async fn direct_commit() {
     // decided
     let last_finalized = Slot::new(0, 0);
 
-    // The universal committer should mark the potential leaders in leader round 6
+    // The committer should mark the potential leaders in leader round 6
     // as undecided because there is no way to get enough certificates for
     // leaders of leader round 6 without completing wave (6-7-8).
     let sequence = test_setup.committer.try_decide(last_finalized);
@@ -58,7 +56,8 @@ async fn direct_commit() {
             block.author(),
             test_setup
                 .committer
-                .get_leaders(first_non_genesis_leader_round)[0]
+                .elect_leader(first_non_genesis_leader_round)
+                .authority
         )
     } else {
         panic!("Expected a committed leader")
@@ -85,13 +84,7 @@ async fn indirect_commit_with_missing_old_own_ancestor() {
         context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let leader_schedule = LeaderSchedule::new(context.clone(), LeaderSwapTable::default());
-    let mut committer = UniversalCommitterBuilder::new(
-        context.clone(),
-        Arc::new(leader_schedule),
-        dag_state.clone(),
-    )
-    .build();
+    let mut committer = super::Committer::new_for_test(context.clone(), dag_state.clone());
     let verifier = SignedBlockVerifier::new(context.clone(), Arc::new(NoopTransactionVerifier));
     let mut block_manager = BlockManager::new(context.clone(), dag_state.clone());
     let missing_ancestor =
@@ -114,7 +107,7 @@ async fn indirect_commit_with_missing_old_own_ancestor() {
                 _ => {}
             }
             ancestors.sort_by_key(|ancestor| ancestor.author.value() != author as usize);
-            let leader_authority = committer.get_leaders(round - 1)[0];
+            let leader_authority = committer.elect_leader(round - 1).authority;
             let strong_vote = ancestors
                 .iter()
                 .any(|ancestor| ancestor.round == round - 1 && ancestor.author == leader_authority)
@@ -167,11 +160,11 @@ async fn indirect_commit_with_missing_old_own_ancestor() {
     );
     assert!(block_manager.blocks_to_fetch().is_empty());
     assert!(matches!(
-        committer.committer.try_direct_decide(Slot::new(15, 3)),
+        committer.try_direct_decide(Slot::new(15, 3)),
         LeaderStatus::Undecided(_)
     ));
     assert!(matches!(
-        committer.committer.try_direct_decide(Slot::new(18, 2)),
+        committer.try_direct_decide(Slot::new(18, 2)),
         LeaderStatus::Commit(_, _, _)
     ));
 
@@ -206,7 +199,9 @@ async fn idempotence() {
         assert_eq!(first_sequence[0].round(), first_non_genesis_leader_round);
         assert_eq!(
             block.author(),
-            committer.get_leaders(first_non_genesis_leader_round)[0]
+            committer
+                .elect_leader(first_non_genesis_leader_round)
+                .authority
         )
     } else {
         panic!("Expected a committed leader")
@@ -221,7 +216,9 @@ async fn idempotence() {
         assert_eq!(first_sequence[0].round(), first_non_genesis_leader_round);
         assert_eq!(
             block.author(),
-            committer.get_leaders(first_non_genesis_leader_round)[0]
+            committer
+                .elect_leader(first_non_genesis_leader_round)
+                .authority
         )
     } else {
         panic!("Expected a committed leader")
@@ -254,7 +251,7 @@ async fn idempotence() {
     assert_eq!(second_sequence.len(), 4);
     if let DecidedLeader::Commit(ref block, _, _) = second_sequence[3] {
         assert_eq!(block.round(), round_5);
-        assert_eq!(block.author(), committer.get_leaders(round_5)[0]);
+        assert_eq!(block.author(), committer.elect_leader(round_5).authority);
     } else {
         panic!("Expected a committed leader")
     };
@@ -287,7 +284,10 @@ async fn multiple_direct_commit() {
         assert_eq!(sequence.len(), 1);
         if let DecidedLeader::Commit(ref block, _, _) = sequence[0] {
             assert_eq!(block.round(), leader_round);
-            assert_eq!(block.author(), committer.get_leaders(leader_round)[0]);
+            assert_eq!(
+                block.author(),
+                committer.elect_leader(leader_round).authority
+            );
         } else {
             panic!("Expected a committed leader")
         }
@@ -321,7 +321,10 @@ async fn direct_commit_late_call() {
         let leader_round = i as Round + 1;
         if let DecidedLeader::Commit(ref block, _, _) = leader_block {
             assert_eq!(block.round(), leader_round);
-            assert_eq!(block.author(), committer.get_leaders(leader_round)[0]);
+            assert_eq!(
+                block.author(),
+                committer.elect_leader(leader_round).authority
+            );
         } else {
             panic!("Expected a committed leader")
         };
@@ -372,16 +375,11 @@ async fn direct_skip_no_leader_votes() {
         dag_builder.context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let leader_schedule = Arc::new(LeaderSchedule::new(
-        dag_builder.context.clone(),
-        LeaderSwapTable::default(),
-    ));
 
     dag_builder.print();
     dag_builder.persist_all_blocks(dag_state.clone());
 
-    let mut committer =
-        UniversalCommitterBuilder::new(dag_builder.context, leader_schedule, dag_state).build();
+    let mut committer = super::Committer::new_for_test(dag_builder.context, dag_state);
 
     let last_finalized = Slot::new(0, 0);
     let sequence = committer.try_decide(last_finalized);
@@ -485,16 +483,11 @@ async fn indirect_commit() {
         dag_builder.context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let leader_schedule = Arc::new(LeaderSchedule::new(
-        dag_builder.context.clone(),
-        LeaderSwapTable::default(),
-    ));
 
     dag_builder.print();
     dag_builder.persist_all_blocks(dag_state.clone());
 
-    let mut committer =
-        UniversalCommitterBuilder::new(dag_builder.context, leader_schedule, dag_state).build();
+    let mut committer = super::Committer::new_for_test(dag_builder.context, dag_state);
 
     // Ensure we indirectly commit the leader of round 3 via the directly committed
     // leader of round 6.
@@ -505,7 +498,7 @@ async fn indirect_commit() {
 
     for (idx, decided_leader) in sequence.iter().enumerate() {
         let leader_round = idx as Round + 1;
-        let expected_leader = committer.get_leaders(leader_round)[0];
+        let expected_leader = committer.elect_leader(leader_round).authority;
         if let DecidedLeader::Commit(ref block, _, _) = decided_leader {
             assert_eq!(block.round(), leader_round);
             assert_eq!(block.author(), expected_leader);
@@ -559,16 +552,11 @@ async fn indirect_skip() {
         dag_builder.context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let leader_schedule = Arc::new(LeaderSchedule::new(
-        dag_builder.context.clone(),
-        LeaderSwapTable::default(),
-    ));
 
     dag_builder.print();
     dag_builder.persist_all_blocks(dag_state.clone());
 
-    let mut committer =
-        UniversalCommitterBuilder::new(dag_builder.context, leader_schedule, dag_state).build();
+    let mut committer = super::Committer::new_for_test(dag_builder.context, dag_state);
 
     // Ensure we indirectly skip the leader of round 4 via the directly committed
     // leader of round 7.
@@ -636,16 +624,11 @@ async fn undecided() {
         dag_builder.context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let leader_schedule = Arc::new(LeaderSchedule::new(
-        dag_builder.context.clone(),
-        LeaderSwapTable::default(),
-    ));
 
     dag_builder.print();
     dag_builder.persist_all_blocks(dag_state.clone());
 
-    let mut committer =
-        UniversalCommitterBuilder::new(dag_builder.context, leader_schedule, dag_state).build();
+    let mut committer = super::Committer::new_for_test(dag_builder.context, dag_state);
 
     // Ensure we indirectly commit the leader of round3 via the directly committed
     // leader of round 6.
@@ -693,7 +676,7 @@ async fn test_byzantine_validator() {
     // validators.
 
     // Filter out leader A12
-    let leader_12 = committer.get_leaders(leader_round_12)[0];
+    let leader_12 = committer.elect_leader(leader_round_12).authority;
     let references_without_leader_12: Vec<_> = references_leader_round_12
         .into_iter()
         .filter(|x| x.author != leader_12)
@@ -824,7 +807,10 @@ async fn test_byzantine_validator() {
     assert_eq!(sequence.len(), 12);
     if let DecidedLeader::Commit(ref block, _, _) = sequence[11] {
         assert_eq!(block.round(), leader_round_12);
-        assert_eq!(block.author(), committer.get_leaders(leader_round_12)[0])
+        assert_eq!(
+            block.author(),
+            committer.elect_leader(leader_round_12).authority
+        )
     } else {
         panic!("Expected a committed leader")
     };
@@ -855,7 +841,7 @@ async fn test_byzantine_validator() {
     // Ensure we skip B13 as there is no way to have a certified link to any one
     // of the multiple blocks at slot B13.
     let skipped_leader_round = 13;
-    let leader = committer.get_leaders(skipped_leader_round)[0];
+    let leader = committer.elect_leader(skipped_leader_round).authority;
     if let DecidedLeader::Skip(ref slot) = sequence[0] {
         assert_eq!(slot.round, skipped_leader_round);
         assert_eq!(slot.authority, leader);
@@ -867,11 +853,7 @@ async fn test_byzantine_validator() {
 // TODO: Add byzantine variant of tests for indirect/direct
 // commit/skip/undecided decisions
 
-fn basic_test_setup() -> (
-    Arc<Context>,
-    Arc<RwLock<DagState>>,
-    super::UniversalCommitter,
-) {
+fn basic_test_setup() -> (Arc<Context>, Arc<RwLock<DagState>>, super::Committer) {
     telemetry_subscribers::init_for_testing();
     // Committee of 4 with even stake
     let context = Arc::new(Context::new_for_test(4).0);
@@ -879,13 +861,7 @@ fn basic_test_setup() -> (
         context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let leader_schedule = Arc::new(LeaderSchedule::new(
-        context.clone(),
-        LeaderSwapTable::default(),
-    ));
-
-    let committer =
-        UniversalCommitterBuilder::new(context.clone(), leader_schedule, dag_state.clone()).build();
+    let committer = super::Committer::new_for_test(context.clone(), dag_state.clone());
 
     (context, dag_state, committer)
 }
@@ -893,7 +869,7 @@ fn basic_test_setup() -> (
 struct TestSetup {
     dag_builder: DagBuilder,
     dag_state: Arc<RwLock<DagState>>,
-    committer: super::UniversalCommitter,
+    committer: super::Committer,
 }
 
 // TODO: Make this the basic_test_setup()
@@ -906,17 +882,8 @@ fn basic_dag_builder_test_setup() -> TestSetup {
         dag_builder.context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let leader_schedule = Arc::new(LeaderSchedule::new(
-        dag_builder.context.clone(),
-        LeaderSwapTable::default(),
-    ));
 
-    let committer = UniversalCommitterBuilder::new(
-        dag_builder.context.clone(),
-        leader_schedule,
-        dag_state.clone(),
-    )
-    .build();
+    let committer = super::Committer::new_for_test(dag_builder.context.clone(), dag_state.clone());
 
     TestSetup {
         dag_builder,

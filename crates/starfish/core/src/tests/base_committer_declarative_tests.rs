@@ -8,9 +8,9 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 
 use crate::{
-    base_committer::base_committer_builder::BaseCommitterBuilder,
     block_header::BlockHeaderAPI,
     commit::{CommitMetastate, LeaderStatus},
+    committer::Committer,
     dag_state::DagState,
     storage::mem_store::MemStore,
     test_dag_parser::parse_dag,
@@ -52,8 +52,7 @@ async fn direct_commit() {
         dag_builder.context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let mut committer =
-        BaseCommitterBuilder::new(dag_builder.context.clone(), dag_state.clone()).build();
+    let mut committer = Committer::new_for_test(dag_builder.context.clone(), dag_state.clone());
     dag_builder.persist_all_blocks(dag_state);
 
     let leader_round = 3;
@@ -95,8 +94,7 @@ async fn direct_skip() {
         dag_builder.context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let mut committer =
-        BaseCommitterBuilder::new(dag_builder.context.clone(), dag_state.clone()).build();
+    let mut committer = Committer::new_for_test(dag_builder.context.clone(), dag_state.clone());
     dag_builder.persist_all_blocks(dag_state);
 
     let leader_round = 3;
@@ -137,8 +135,7 @@ async fn direct_undecided() {
         dag_builder.context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let mut committer =
-        BaseCommitterBuilder::new(dag_builder.context.clone(), dag_state.clone()).build();
+    let mut committer = Committer::new_for_test(dag_builder.context.clone(), dag_state.clone());
     dag_builder.persist_all_blocks(dag_state);
 
     let leader_round = 3;
@@ -213,8 +210,7 @@ async fn indirect_commit() {
         dag_builder.context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let mut committer =
-        BaseCommitterBuilder::new(dag_builder.context.clone(), dag_state.clone()).build();
+    let mut committer = Committer::new_for_test(dag_builder.context.clone(), dag_state.clone());
     dag_builder.persist_all_blocks(dag_state);
 
     let leader_round = 3;
@@ -295,8 +291,7 @@ async fn indirect_skip() {
         dag_builder.context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let mut committer =
-        BaseCommitterBuilder::new(dag_builder.context.clone(), dag_state.clone()).build();
+    let mut committer = Committer::new_for_test(dag_builder.context.clone(), dag_state.clone());
     dag_builder.persist_all_blocks(dag_state);
 
     let leader_round = 3;

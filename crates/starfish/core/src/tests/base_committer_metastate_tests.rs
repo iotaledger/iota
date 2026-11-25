@@ -8,20 +8,19 @@ use starfish_config::AuthorityIndex;
 
 use crate::{
     authority_set::AuthoritySet,
-    base_committer::{BaseCommitter, base_committer_builder::BaseCommitterBuilder},
     block_header::{
         BlockHeader, BlockHeaderV2, BlockRef, BlockTimestampMs, CommitmentVerifiedTransactions,
         GENESIS_ROUND, Round, Slot, StrongVote, TransactionsCommitment, VerifiedBlockHeader,
         genesis_block_headers,
     },
     commit::{CommitMetastate, DecidedLeader, LeaderStatus, WAVE_LENGTH},
+    committer::Committer,
     context::Context,
     core::Core,
     dag_state::{DagState, DataSource},
     leader_schedule::{LeaderSchedule, LeaderSwapTable},
     linearizer::Linearizer,
     storage::mem_store::MemStore,
-    universal_committer::universal_committer_builder::UniversalCommitterBuilder,
 };
 
 /// Verified V2 header for tests. `timestamp_ms` distinguishes equivocating
@@ -111,7 +110,7 @@ fn strong_blame() -> Option<AuthoritySet> {
 
 /// Assert that direct-committing `slot` yields `Commit(_, expected)`.
 fn assert_direct_commit_metastate(
-    committer: &mut crate::base_committer::BaseCommitter,
+    committer: &mut Committer,
     slot: Slot,
     expected: CommitMetastate,
 ) {
@@ -174,7 +173,7 @@ fn test_context() -> (Arc<Context>, Arc<RwLock<DagState>>) {
 fn build_metastate_dag(
     context: Arc<Context>,
     dag_state: Arc<RwLock<DagState>>,
-    committer: &mut crate::base_committer::BaseCommitter,
+    committer: &mut Committer,
     voter_strong_votes: [Option<AuthoritySet>; 4],
 ) -> crate::block_header::Slot {
     let leader_round = 3;
@@ -223,7 +222,7 @@ fn build_metastate_dag(
 async fn determine_metastate_optimistic_when_strong_qc_quorum() {
     telemetry_subscribers::init_for_testing();
     let (context, dag_state) = test_context();
-    let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
 
     // Four strong votes at r+1 → every r+2 certifier observes a StrongQC →
     // 2f+1 StrongQC quorum → Optimistic.
@@ -235,7 +234,7 @@ async fn determine_metastate_optimistic_when_strong_qc_quorum() {
 async fn strong_qc_quorum_collects_strong_voter_authorities_from_dag() {
     telemetry_subscribers::init_for_testing();
     let (context, dag_state) = test_context();
-    let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
 
     // 3 strong votes + 1 strong blame: every r+2 certifier still observes a
     // 2f+1 strong-vote quorum at r+1 (Optimistic), but the strong-voter list
@@ -262,7 +261,7 @@ async fn strong_qc_quorum_collects_strong_voter_authorities_from_dag() {
 async fn determine_metastate_standard_when_strong_blame_quorum() {
     telemetry_subscribers::init_for_testing();
     let (context, dag_state) = test_context();
-    let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
 
     // 3 strong blames + 1 strong vote → no StrongQC quorum, 2f+1 strong-blame
     // quorum → Standard.
@@ -280,7 +279,7 @@ async fn determine_metastate_standard_when_strong_blame_quorum() {
 async fn determine_metastate_pending_when_neither_quorum() {
     telemetry_subscribers::init_for_testing();
     let (context, dag_state) = test_context();
-    let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
 
     // 2 strong votes + 2 strong blames → neither side reaches 2f+1 = 3 → Pending.
     let blame = strong_blame();
@@ -306,7 +305,7 @@ enum LeaderChoice {
 fn build_equivocating_metastate_dag(
     context: Arc<Context>,
     dag_state: Arc<RwLock<DagState>>,
-    committer: &mut crate::base_committer::BaseCommitter,
+    committer: &mut Committer,
     voter_config: [(LeaderChoice, Option<AuthoritySet>); 4],
 ) -> (crate::block_header::Slot, BlockRef, BlockRef) {
     let leader_round = 3;
@@ -410,7 +409,7 @@ fn build_equivocating_metastate_dag(
 async fn determine_metastate_pending_when_equivocating_strong_vote_is_filtered() {
     telemetry_subscribers::init_for_testing();
     let (context, dag_state) = test_context();
-    let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
 
     // Discriminator for the `is_vote()` filter in `has_strong_qc_quorum`:
     // - 2 voters are strong votes for `L_A`
@@ -448,7 +447,7 @@ async fn determine_metastate_pending_when_equivocating_strong_vote_is_filtered()
 async fn determine_metastate_pending_when_equivocating_strong_blame_is_filtered() {
     telemetry_subscribers::init_for_testing();
     let (context, dag_state) = test_context();
-    let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
 
     // Discriminator for the `is_vote()` filter in `has_strong_blame_quorum`:
     // - 2 voters blame `L_A`
@@ -487,7 +486,7 @@ async fn determine_metastate_pending_when_equivocating_strong_blame_is_filtered(
 fn build_through_voting_round(
     context: &Context,
     dag_state: &Arc<RwLock<DagState>>,
-    committer: &mut crate::base_committer::BaseCommitter,
+    committer: &mut Committer,
     voter_strong_votes: [Option<AuthoritySet>; 4],
 ) -> (crate::block_header::Slot, Vec<BlockRef>) {
     let leader_round = 3;
@@ -528,7 +527,7 @@ fn certifier(author: u8, voter_refs: Vec<BlockRef>) -> VerifiedBlockHeader {
 fn build_wave_one_with_single_strong_qc(
     context: &Context,
     dag_state: &Arc<RwLock<DagState>>,
-    committer: &mut crate::base_committer::BaseCommitter,
+    committer: &mut Committer,
 ) -> (Slot, [BlockRef; 4]) {
     let (leader_slot, voters) = build_through_voting_round(
         context,
@@ -556,7 +555,7 @@ fn build_wave_one_with_single_strong_qc(
 async fn indirect_metastate_optimistic_when_anchor_path_contains_strong_qc() {
     telemetry_subscribers::init_for_testing();
     let (context, dag_state) = test_context();
-    let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
 
     let (leader_slot, [c0, c1, c2, _c3]) =
         build_wave_one_with_single_strong_qc(&context, &dag_state, &mut committer);
@@ -590,7 +589,7 @@ async fn indirect_metastate_optimistic_when_anchor_path_contains_strong_qc() {
 async fn indirect_metastate_standard_when_strong_qc_outside_anchor_path() {
     telemetry_subscribers::init_for_testing();
     let (context, dag_state) = test_context();
-    let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
 
     let (leader_slot, [_c0, c1, c2, c3]) =
         build_wave_one_with_single_strong_qc(&context, &dag_state, &mut committer);
@@ -638,28 +637,9 @@ async fn leader_status_is_resolved_classification() {
     assert!(!LeaderStatus::Undecided(slot).is_resolved());
 }
 
-fn build_universal_committer(
-    context: Arc<Context>,
-    dag_state: Arc<RwLock<DagState>>,
-) -> crate::universal_committer::UniversalCommitter {
-    let leader_schedule = Arc::new(LeaderSchedule::new(
-        context.clone(),
-        LeaderSwapTable::default(),
-    ));
-    UniversalCommitterBuilder::new(context, leader_schedule, dag_state).build()
-}
-
 /// Round-3 leader's metastate in `decided`. Panics if not a Commit.
-fn round_3_metastate(
-    universal: &crate::universal_committer::UniversalCommitter,
-    decided: &[DecidedLeader],
-) -> CommitMetastate {
-    let leader_authority = universal
-        .get_leaders(3)
-        .into_iter()
-        .next()
-        .expect("round-3 has a leader");
-    let slot = Slot::new(3, leader_authority);
+fn round_3_metastate(committer: &Committer, decided: &[DecidedLeader]) -> CommitMetastate {
+    let slot = committer.elect_leader(3);
     let decided = decided
         .iter()
         .find(|d| d.slot() == slot)
@@ -674,21 +654,20 @@ fn round_3_metastate(
 async fn pending_leader_resolves_to_optimistic() {
     telemetry_subscribers::init_for_testing();
     let (context, dag_state) = test_context();
-    let mut universal = build_universal_committer(context.clone(), dag_state.clone());
-    let mut base = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
 
     let (round_3_slot, round_5_refs) =
-        build_wave_one_with_single_strong_qc(&context, &dag_state, &mut base);
+        build_wave_one_with_single_strong_qc(&context, &dag_state, &mut committer);
 
     // No wave-2 anchor yet — direct says Pending and can't upgrade.
-    assert_direct_commit_metastate(&mut base, round_3_slot, CommitMetastate::Pending);
+    assert_direct_commit_metastate(&mut committer, round_3_slot, CommitMetastate::Pending);
 
     // Wave 2 pulls the StrongQC (c0) into the round-6 anchor's r+2 path.
     build_v2_layers(&context, &dag_state, Some(round_5_refs.to_vec()), 8);
 
-    let decided = universal.try_decide(Slot::new(GENESIS_ROUND, 0u8));
+    let decided = committer.try_decide(Slot::new(GENESIS_ROUND, 0u8));
     assert_eq!(
-        round_3_metastate(&universal, &decided),
+        round_3_metastate(&committer, &decided),
         CommitMetastate::Optimistic,
     );
 }
@@ -697,20 +676,19 @@ async fn pending_leader_resolves_to_optimistic() {
 async fn pending_leader_resolves_to_standard() {
     telemetry_subscribers::init_for_testing();
     let (context, dag_state) = test_context();
-    let mut universal = build_universal_committer(context.clone(), dag_state.clone());
-    let mut base = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
 
     // Wave 1 only — strong_vote = None everywhere → direct says Pending.
     let round_5_refs = build_v2_layers(&context, &dag_state, None, 5);
-    let round_3_slot = base.elect_leader(3);
-    assert_direct_commit_metastate(&mut base, round_3_slot, CommitMetastate::Pending);
+    let round_3_slot = committer.elect_leader(3);
+    assert_direct_commit_metastate(&mut committer, round_3_slot, CommitMetastate::Pending);
 
     // Wave 2 arrives. The round-6 anchor's r+2 path has only regular QCs.
     build_v2_layers(&context, &dag_state, Some(round_5_refs), 8);
 
-    let decided = universal.try_decide(Slot::new(GENESIS_ROUND, 0u8));
+    let decided = committer.try_decide(Slot::new(GENESIS_ROUND, 0u8));
     assert_eq!(
-        round_3_metastate(&universal, &decided),
+        round_3_metastate(&committer, &decided),
         CommitMetastate::Standard,
     );
 }
@@ -856,8 +834,7 @@ async fn optimistic_commits_ref_without_actual_transactions() {
         ..LeaderSwapTable::default()
     };
     let alt_schedule = Arc::new(LeaderSchedule::new(context.clone(), alt_table));
-    let mut committer =
-        BaseCommitter::new(context.clone(), alt_schedule.clone(), dag_state.clone());
+    let mut committer = Committer::new(context.clone(), alt_schedule.clone(), dag_state.clone());
 
     let leader_b_slot = committer.elect_leader(3);
     assert_eq!(leader_b_slot.authority, auth_1);
@@ -888,25 +865,25 @@ async fn optimistic_commits_ref_without_actual_transactions() {
 async fn decision_cache_answers_repeated_checks_until_evicted() {
     telemetry_subscribers::init_for_testing();
     let (context, dag_state) = test_context();
-    let mut base = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
     let metrics = &context.metrics.node_metrics;
 
     let (round_3_slot, round_5_refs) =
-        build_wave_one_with_single_strong_qc(&context, &dag_state, &mut base);
-    let first = base.try_direct_decide(round_3_slot);
+        build_wave_one_with_single_strong_qc(&context, &dag_state, &mut committer);
+    let first = committer.try_direct_decide(round_3_slot);
 
     // Blocks accepted later leave the entries about round 5 valid.
     build_v2_layers(&context, &dag_state, Some(round_5_refs.to_vec()), 8);
     let misses = metrics.decision_cache_misses_total.get();
     let hits = metrics.decision_cache_hits_total.get();
-    assert_eq!(base.try_direct_decide(round_3_slot), first);
+    assert_eq!(committer.try_direct_decide(round_3_slot), first);
     assert_eq!(metrics.decision_cache_misses_total.get(), misses);
     assert!(metrics.decision_cache_hits_total.get() > hits);
 
     // Evicting the slot's certifying round forces the same answers to be
     // recomputed.
-    base.evict_cache_below(round_3_slot.round + WAVE_LENGTH);
-    assert_eq!(base.try_direct_decide(round_3_slot), first);
+    committer.evict_cache_below(round_3_slot.round + WAVE_LENGTH);
+    assert_eq!(committer.try_direct_decide(round_3_slot), first);
     assert!(metrics.decision_cache_misses_total.get() > misses);
 }
 
@@ -914,10 +891,10 @@ async fn decision_cache_answers_repeated_checks_until_evicted() {
 async fn decision_cache_classifies_a_certifier_accepted_after_a_check_once() {
     telemetry_subscribers::init_for_testing();
     let (context, dag_state) = test_context();
-    let mut base = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
     let metrics = &context.metrics.node_metrics;
     let (leader_slot, voters) =
-        build_through_voting_round(&context, &dag_state, &mut base, [strong_vote(); 4]);
+        build_through_voting_round(&context, &dag_state, &mut committer, [strong_vote(); 4]);
 
     // Quorum stake at r+2 but only two certificates: the slot stays open and
     // the three classifications are cached.
@@ -928,7 +905,7 @@ async fn decision_cache_classifies_a_certifier_accepted_after_a_check_once() {
         dag_state.write().accept_block_header(c, DataSource::Test);
     }
     assert!(matches!(
-        base.try_direct_decide(leader_slot),
+        committer.try_direct_decide(leader_slot),
         LeaderStatus::Undecided(_)
     ));
     assert_eq!(metrics.decision_cache_misses_total.get(), 3);
@@ -936,7 +913,7 @@ async fn decision_cache_classifies_a_certifier_accepted_after_a_check_once() {
     // The third certificate arrives: it is the only new classification.
     let c3 = certifier(3, voters);
     dag_state.write().accept_block_header(c3, DataSource::Test);
-    assert_direct_commit_metastate(&mut base, leader_slot, CommitMetastate::Optimistic);
+    assert_direct_commit_metastate(&mut committer, leader_slot, CommitMetastate::Optimistic);
     assert_eq!(metrics.decision_cache_misses_total.get(), 4);
     assert_eq!(metrics.decision_cache_hits_total.get(), 3);
 }
@@ -954,7 +931,7 @@ async fn decision_cache_serves_repeated_checks_of_pending_leaders() {
         context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let mut universal = build_universal_committer(context.clone(), dag_state.clone());
+    let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
 
     let mut ancestors: Vec<BlockRef> = genesis_block_headers(&context)
         .iter()
@@ -963,17 +940,14 @@ async fn decision_cache_serves_repeated_checks_of_pending_leaders() {
     let mut last_finalized = Slot::new(GENESIS_ROUND, 0u8);
     let (mut optimistic, mut standard, mut other) = (0usize, 0usize, 0usize);
     for round in 1..=ROUNDS {
-        let leader = universal.get_leaders(round - 1).into_iter().next();
+        let leader_authority = committer.elect_leader(round - 1).authority;
         let pending_leader = (round - 1) % 4 == 0;
         let mut refs = Vec::with_capacity(COMMITTEE);
         for author in 0..COMMITTEE as u8 {
-            let strong_vote =
-                leader
-                    .filter(|_| !pending_leader || author % 3 == 0)
-                    .map(|leader_authority| StrongVote {
-                        leader_authority,
-                        missing: AuthoritySet::new(),
-                    });
+            let strong_vote = (!pending_leader || author % 3 == 0).then(|| StrongVote {
+                leader_authority,
+                missing: AuthoritySet::new(),
+            });
             let block = v2_block(
                 round,
                 author,
@@ -986,7 +960,7 @@ async fn decision_cache_serves_repeated_checks_of_pending_leaders() {
                 .write()
                 .accept_block_header(block, DataSource::Test);
             loop {
-                let decided = universal.try_decide(last_finalized);
+                let decided = committer.try_decide(last_finalized);
                 let Some(last) = decided.last() else { break };
                 last_finalized = last.slot();
                 for leader in &decided {
