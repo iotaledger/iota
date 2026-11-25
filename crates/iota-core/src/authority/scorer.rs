@@ -3,13 +3,15 @@
 
 use std::sync::Arc;
 
-use arc_swap::ArcSwap;
+use arc_swap::{ArcSwap, ArcSwapOption};
 use iota_protocol_config::ProtocolConfig;
 use iota_types::messages_consensus::{
     MisbehaviorObservations, MisbehaviorObservationsV1, MisbehaviorObservationsV2,
 };
 
-use crate::authority::authority_per_epoch_store::report_aggregator::ReportAggregator;
+use crate::authority::authority_per_epoch_store::{
+    ConsensusStats, ConsensusStatsV2, report_aggregator::ReportAggregator,
+};
 
 /// Must match MAX_SCORE in validator_set.move in iota-framework.
 pub(crate) const MAX_SCORE: u64 = u16::MAX as u64 + 1;
@@ -27,6 +29,9 @@ pub struct Scoreboard {
     // Published as a single `Arc<Vec<u64>>` so readers always see a consistent
     // snapshot across all authorities (no torn reads mixing old and new scores).
     current_scores: ArcSwap<Vec<u64>>,
+    // Set once, in the commit that completes the EndOfPublish quorum, by a
+    // scorer version that scores there.
+    final_scores: ArcSwapOption<Vec<u64>>,
     // The voting power of each authority in the committee.
     voting_power: Vec<u64>,
     // The active scorer version; carries its own parameters and implementation.
@@ -41,13 +46,16 @@ impl Scoreboard {
 
         Self {
             current_scores,
+            final_scores: ArcSwapOption::empty(),
             voting_power,
             scorer,
         }
     }
 
     /// Recomputes all authority scores from the aggregated reports in the
-    /// `ReportAggregator` and atomically publishes the new vector.
+    /// `ReportAggregator` and atomically publishes the new vector. Scorer
+    /// version 3 publishes nothing here; it scores through
+    /// [`Self::finalize_scores()`].
     pub(crate) fn update_scores(&self, aggregator: &ReportAggregator) {
         if let Some(scores) = self.scorer.update_scores(&self.voting_power, aggregator) {
             // Single pointer swap publishes the whole vector; checkpoint readers
@@ -56,12 +64,87 @@ impl Scoreboard {
         }
     }
 
+    /// Computes the scores of a scorer version that scores once, in the
+    /// commit that completes the EndOfPublish quorum: from the reports up to
+    /// and including that commit, and the consensus stats after it. `round` is
+    /// the leader round of that commit. Publishes and returns the scores;
+    /// returns `None` for other scorer versions.
+    ///
+    /// # Panics
+    ///
+    /// For scorer version 3, if `stats` are not `ConsensusStatsV2`, or if
+    /// `round` is 0.
+    pub(crate) fn finalize_scores(
+        &self,
+        aggregator: &ReportAggregator,
+        quorum_threshold: u64,
+        stats: &ConsensusStats,
+        round: u64,
+    ) -> Option<Vec<u64>> {
+        let VersionedScorer::V3(scorer) = &self.scorer else {
+            return None;
+        };
+        let ConsensusStats::V2(stats) = stats else {
+            panic!("scorer version 3 needs the absence counts of `ConsensusStatsV2`");
+        };
+        let reports: Vec<Option<Arc<MisbehaviorObservations>>> = aggregator.reports();
+        let reports_v2: Vec<Option<&MisbehaviorObservationsV2>> = reports
+            .iter()
+            .map(|report| {
+                report.as_deref().map(|observations| match observations {
+                    MisbehaviorObservations::V2(o) => o,
+                    other @ MisbehaviorObservations::V1(_) => panic!(
+                        "V3 scorer received {other:?} — the aggregator only \
+                         accepts the epoch's report version"
+                    ),
+                })
+            })
+            .collect();
+        let scores = scorer.final_scores(
+            &self.voting_power,
+            quorum_threshold,
+            &reports_v2,
+            stats,
+            round,
+        );
+        self.final_scores.store(Some(Arc::new(scores.clone())));
+        Some(scores)
+    }
+
+    /// Publishes final scores computed before a restart.
+    pub(crate) fn restore_final_scores(&self, scores: Vec<u64>) {
+        self.final_scores.store(Some(Arc::new(scores)));
+    }
+
     /// The latest published scores: the entry at position `i` is the score of
     /// the authority whose [`Committee::authority_index()`] is `i`.
     ///
     /// [`Committee::authority_index()`]: iota_types::committee::Committee::authority_index
     pub(crate) fn current_scores(&self) -> Vec<u64> {
-        self.current_scores.load().as_ref().clone()
+        match self.final_scores.load_full() {
+            Some(scores) => scores.as_ref().clone(),
+            None => self.current_scores.load().as_ref().clone(),
+        }
+    }
+
+    /// The scores for the change-epoch transaction, in the order of
+    /// [`Self::current_scores()`].
+    ///
+    /// # Panics
+    ///
+    /// If the scorer version scores in the commit that completes the
+    /// EndOfPublish quorum and has not done so yet. That commit comes before
+    /// the last checkpoint of the epoch.
+    pub(crate) fn scores_for_change_epoch(&self) -> Vec<u64> {
+        match &self.scorer {
+            VersionedScorer::V3(_) => self
+                .final_scores
+                .load_full()
+                .expect("scorer version 3 scores in the EndOfPublish quorum commit")
+                .as_ref()
+                .clone(),
+            VersionedScorer::V1(_) | VersionedScorer::V2(_) => self.current_scores(),
+        }
     }
 }
 
@@ -107,13 +190,17 @@ pub(crate) fn scores_by_committee_member_index(
 /// owns its parameters and the math for the matching `MisbehaviorObservations`
 /// version. `Scoreboard` delegates here and stores the result.
 ///
-/// Per-version variants are tied to the corresponding observations variant:
-/// `V1(ScorerV1)` consumes only `MisbehaviorObservationsV1`. The unwrap from
+/// Each variant consumes one observations variant: `V1(ScorerV1)` only
+/// `MisbehaviorObservationsV1`, `V2` and `V3` only `MisbehaviorObservationsV2`.
+/// The unwrap from
 /// the `MisbehaviorObservations` enum happens here at the dispatch boundary,
 /// so per-version scorer impls take typed inputs and never re-match.
 enum VersionedScorer {
     V1(ScorerV1),
     V2(ScorerV2),
+    /// Reads `MisbehaviorObservationsV2` and scores once, through
+    /// [`Scoreboard::finalize_scores()`].
+    V3(ScorerV3),
 }
 
 impl VersionedScorer {
@@ -121,12 +208,17 @@ impl VersionedScorer {
         match protocol_config.scorer_version_as_option() {
             None | Some(1) => Self::V1(ScorerV1::v1_parameters()),
             Some(2) => Self::V2(ScorerV2::v2_parameters()),
+            Some(3) => Self::V3(ScorerV3::v3_parameters(u64::from(
+                protocol_config.gc_depth(),
+            ))),
             Some(version) => panic!("Unsupported scorer version {version}"),
         }
     }
 
     /// Computes the new score vector. Returns `None` when no reports have been
-    /// received yet (the published vector is left untouched in that case).
+    /// received yet, and always for version 3, which scores only through
+    /// [`Scoreboard::finalize_scores()`] (the published vector is left
+    /// untouched in that case).
     ///
     /// All aggregated reports match the scorer's version: the aggregator is
     /// built from the same `scorer_version` and rejects other wire variants,
@@ -136,12 +228,13 @@ impl VersionedScorer {
         voting_power: &[u64],
         aggregator: &ReportAggregator,
     ) -> Option<Vec<u64>> {
-        let reporters = aggregator.reporters_with_voting_power(voting_power);
-        if reporters.is_empty() {
-            return None;
-        }
+        let reporters = || {
+            let reporters = aggregator.reporters_with_voting_power(voting_power);
+            (!reporters.is_empty()).then_some(reporters)
+        };
         match self {
             Self::V1(scorer) => {
+                let reporters = reporters()?;
                 let reporters_v1: Vec<(&MisbehaviorObservationsV1, VotingPower)> = reporters
                     .iter()
                     .map(|(observations, vp)| match observations.as_ref() {
@@ -156,6 +249,7 @@ impl VersionedScorer {
                 Some(scorer.score_from_median(voting_power, &median))
             }
             Self::V2(scorer) => {
+                let reporters = reporters()?;
                 let reporters_v2: Vec<(&MisbehaviorObservationsV2, VotingPower)> = reporters
                     .iter()
                     .map(|(observations, vp)| match observations.as_ref() {
@@ -169,6 +263,7 @@ impl VersionedScorer {
                 let median = scorer.median_report(voting_power, &reporters_v2);
                 Some(scorer.score_from_median(voting_power, &median))
             }
+            Self::V3(_) => None,
         }
     }
 }
@@ -306,7 +401,7 @@ impl ScorerV1 {
         voting_power: &[u64],
         median: &MisbehaviorObservationsV1,
     ) -> Vec<u64> {
-        score_from_medians(
+        score_from_counts(
             &self.metric_pairs(median),
             voting_power.len(),
             self.baseline_score,
@@ -465,12 +560,208 @@ impl ScorerV2 {
         voting_power: &[u64],
         median: &MisbehaviorObservationsV2,
     ) -> Vec<u64> {
-        score_from_medians(
+        score_from_counts(
             &self.metric_pairs(median),
             voting_power.len(),
             self.baseline_score,
         )
     }
+}
+
+/// Shares of the epoch's rounds are in parts per million.
+const PARTS_PER_MILLION: u64 = 1_000_000;
+
+/// V3 scoring parameters and implementation, for `MisbehaviorObservationsV2`
+/// reports and the consensus stats of the commit that completes the
+/// EndOfPublish quorum.
+///
+/// Each authority gets two credits, one for the share of the epoch's rounds
+/// in absences and one for the share without a committed header of its own.
+/// Its score is the lower credit times the score from the reported faults, so
+/// an authority absent for the whole epoch scores 0.
+struct ScorerV3 {
+    /// Credit for the share of the epoch's rounds in absences, in parts per
+    /// million.
+    absent_rounds: Thresholds,
+    /// Credit for the share of the epoch's rounds without a committed header,
+    /// in parts per million.
+    rounds_without_committed_header: Thresholds,
+    faulty_blocks_provable: MetricParams,
+    /// `faulty_blocks_unprovable` plus `invalid_bundle_parts`, summed per
+    /// reporter.
+    sending_peer_faults: MetricParams,
+    equivocations: MetricParams,
+    /// The unallocated remainder of the weight budget, as in `ScorerV1`.
+    baseline_score: u64,
+    /// No commit adds a header more than this many rounds below its leader
+    /// round.
+    gc_depth: u64,
+}
+
+impl ScorerV3 {
+    fn v3_parameters(gc_depth: u64) -> Self {
+        // Absent for the whole epoch gives no credit.
+        let absent_rounds = Thresholds::new(PARTS_PER_MILLION * 7 / 100, PARTS_PER_MILLION);
+        // Honest authorities skip some rounds, so the allowance is wider.
+        let rounds_without_committed_header =
+            Thresholds::new(PARTS_PER_MILLION * 20 / 100, PARTS_PER_MILLION);
+        let faulty_blocks_provable = MetricParams {
+            allowance: 1,
+            maximum: 5,
+            kind: MetricKind::Minor {
+                weight: SCALE_FACTOR * 30 / 100,
+            },
+        };
+        let sending_peer_faults = MetricParams {
+            allowance: 2,
+            maximum: 10,
+            kind: MetricKind::Minor {
+                weight: SCALE_FACTOR * 10 / 100,
+            },
+        };
+        let equivocations = MetricParams {
+            allowance: 0,
+            maximum: 1,
+            kind: MetricKind::Major,
+        };
+
+        let baseline_score = validate_params_and_baseline(&[
+            &faulty_blocks_provable,
+            &sending_peer_faults,
+            &equivocations,
+        ]);
+
+        Self {
+            absent_rounds,
+            rounds_without_committed_header,
+            faulty_blocks_provable,
+            sending_peer_faults,
+            equivocations,
+            baseline_score,
+            gc_depth,
+        }
+    }
+
+    /// Scores each authority. `reports` holds each authority's merged report,
+    /// by reporter index. `stats` are the consensus stats after the commit
+    /// that completes the EndOfPublish quorum, and `round` is its leader
+    /// round.
+    fn final_scores(
+        &self,
+        voting_power: &[u64],
+        quorum_threshold: u64,
+        reports: &[Option<&MisbehaviorObservationsV2>],
+        stats: &ConsensusStatsV2,
+        round: u64,
+    ) -> Vec<u64> {
+        assert!(round > 0, "a commit has a leader round above 0");
+        let committee_size = voting_power.len();
+        let provable = quorum_values(voting_power, quorum_threshold, reports, |o, a| {
+            o.faulty_blocks_provable[a]
+        });
+        let sending_peer = quorum_values(voting_power, quorum_threshold, reports, |o, a| {
+            o.faulty_blocks_unprovable[a].saturating_add(o.invalid_bundle_parts[a])
+        });
+        let equivocations = quorum_values(voting_power, quorum_threshold, reports, |o, a| {
+            o.equivocations[a]
+        });
+        let fault_scores = score_from_counts(
+            &[
+                (provable.as_slice(), &self.faulty_blocks_provable),
+                (sending_peer.as_slice(), &self.sending_peer_faults),
+                (equivocations.as_slice(), &self.equivocations),
+            ],
+            committee_size,
+            self.baseline_score,
+        );
+
+        // No later commit can add a header at or below this round, so the
+        // last gap of each authority is closed here.
+        let closed_round = round.saturating_sub(self.gc_depth);
+        fault_scores
+            .into_iter()
+            .enumerate()
+            .map(|(authority, fault_score)| {
+                let last_gap =
+                    closed_round.saturating_sub(stats.last_committed_header_round[authority]);
+                let absent_rounds = if last_gap >= stats.absent_rounds_min_gap {
+                    stats.absent_rounds[authority].saturating_add(last_gap)
+                } else {
+                    stats.absent_rounds[authority]
+                };
+                let rounds_without_committed_header =
+                    round.saturating_sub(stats.num_committed_header_rounds[authority]);
+                let presence = self.absent_rounds.credit(share(absent_rounds, round)).min(
+                    self.rounds_without_committed_header
+                        .credit(share(rounds_without_committed_header, round)),
+                );
+                presence * fault_score / MAX_SCORE
+            })
+            .collect()
+    }
+}
+
+/// Full credit (`MAX_SCORE`) up to `allowance`, none at `maximum`, linear in
+/// between.
+struct Thresholds {
+    allowance: u64,
+    maximum: u64,
+}
+
+impl Thresholds {
+    fn new(allowance: u64, maximum: u64) -> Self {
+        assert!(allowance < maximum, "allowance must be < maximum");
+        assert!(
+            maximum <= u64::MAX / MAX_SCORE,
+            "maximum must be <= u64::MAX / MAX_SCORE to keep arithmetic safe"
+        );
+        Self { allowance, maximum }
+    }
+
+    fn credit(&self, value: u64) -> u64 {
+        linear_credit(value, self.allowance, self.maximum, MAX_SCORE)
+    }
+}
+
+/// `value` as parts per million of `total`, capped at the whole. `total` must
+/// be above 0.
+fn share(value: u64, total: u64) -> u64 {
+    let share = u128::from(value) * u128::from(PARTS_PER_MILLION) / u128::from(total);
+    share.min(u128::from(PARTS_PER_MILLION)) as u64
+}
+
+/// For each authority, the highest value that the other authorities' reports
+/// about it reach with `quorum_threshold` voting power: the largest `x` such
+/// that reporters holding at least that power all reported at least `x`. 0 if
+/// they hold less.
+fn quorum_values(
+    voting_power: &[u64],
+    quorum_threshold: u64,
+    reports: &[Option<&MisbehaviorObservationsV2>],
+    value_of: impl Fn(&MisbehaviorObservationsV2, usize) -> u64,
+) -> Vec<u64> {
+    (0..voting_power.len())
+        .map(|subject| {
+            let mut values: Vec<(u64, u64)> = reports
+                .iter()
+                .zip(voting_power)
+                .enumerate()
+                .filter(|(reporter, _)| *reporter != subject)
+                .filter_map(|(_, (report, &power))| {
+                    report.map(|report| (value_of(report, subject), power))
+                })
+                .collect();
+            values.sort_unstable_by_key(|&(value, _)| std::cmp::Reverse(value));
+            let mut power = 0;
+            values
+                .into_iter()
+                .find_map(|(value, reporter_power)| {
+                    power += reporter_power;
+                    (power >= quorum_threshold).then_some(value)
+                })
+                .unwrap_or(0)
+        })
+        .collect()
 }
 
 /// Init-time invariant checks for a scorer's full parameter set. Cheaper than
@@ -543,16 +834,16 @@ fn weighted_median_rows(committee_size: usize, rows: &[(&[u64], VotingPower)]) -
     median_for_metric
 }
 
-/// Maps per-category `(median row, params)` entries of a median report to the
-/// per-authority final score vector.
+/// Maps per-category `(count per authority, params)` entries to a score per
+/// authority.
 ///
 /// A score is an integer in `[0, MAX_SCORE]`. Each minor metric's score is
 /// also in `[0, MAX_SCORE]`; the weights satisfy
 /// `sum(minor_weights) + baseline_score = SCALE_FACTOR`, so we need
 /// `MAX_SCORE * SCALE_FACTOR < 2^64` to avoid overflow (asserted at init).
 /// Major metrics are multiplicative (factor 0 or 1).
-fn score_from_medians(
-    medians_with_params: &[(&[u64], &MetricParams)],
+fn score_from_counts(
+    counts_with_params: &[(&[u64], &MetricParams)],
     committee_size: usize,
     baseline_score: u64,
 ) -> Vec<u64> {
@@ -560,7 +851,7 @@ fn score_from_medians(
 
     // Phase 1: weighted-minor accumulation. Values are in
     // [0, MAX_SCORE * SCALE_FACTOR].
-    for (row, params) in medians_with_params {
+    for (row, params) in counts_with_params {
         if let MetricKind::Minor { weight } = params.kind {
             for (authority, &count) in row.iter().enumerate() {
                 final_scores[authority] += params.metric_to_score(count, MAX_SCORE) * weight;
@@ -574,7 +865,7 @@ fn score_from_medians(
     }
 
     // Phase 2: multiplicative major-metric gates (factor 0 or 1).
-    for (row, params) in medians_with_params {
+    for (row, params) in counts_with_params {
         if matches!(params.kind, MetricKind::Major) {
             for (authority, score) in final_scores.iter_mut().enumerate() {
                 *score *= params.metric_to_score(row[authority], 1);
@@ -611,16 +902,21 @@ impl MetricParams {
     /// linearly interpolates in between. `max_score` is `MAX_SCORE` for the
     /// minor phase and `1` for the major phase.
     fn metric_to_score(&self, value: u64, max_score: u64) -> u64 {
-        if value <= self.allowance {
-            max_score
-        } else if value >= self.maximum {
-            0
-        } else {
-            // `maximum - allowance > 0` and the multiplication staying in u64
-            // are guaranteed by assertions in `ScorerV1::v1_parameters`.
-            self.maximum.saturating_sub(value).saturating_mul(max_score)
-                / self.maximum.saturating_sub(self.allowance)
-        }
+        linear_credit(value, self.allowance, self.maximum, max_score)
+    }
+}
+
+/// `max_score` if `value <= allowance`, `0` if `value >= maximum`, and
+/// linear in between.
+fn linear_credit(value: u64, allowance: u64, maximum: u64, max_score: u64) -> u64 {
+    if value <= allowance {
+        max_score
+    } else if value >= maximum {
+        0
+    } else {
+        // `maximum - allowance > 0` and the multiplication staying in u64
+        // are asserted where the parameters are built.
+        maximum.saturating_sub(value).saturating_mul(max_score) / maximum.saturating_sub(allowance)
     }
 }
 
@@ -633,10 +929,11 @@ mod tests {
     };
 
     use crate::authority::authority_per_epoch_store::{
+        ConsensusStats, ConsensusStatsV2,
         misbehavior::MisbehaviorReportVersion,
         report_aggregator::ReportAggregator,
         scorer::{
-            MAX_SCORE, Scoreboard, ScorerV1, ScorerV2, VotingPower,
+            MAX_SCORE, Scoreboard, ScorerV1, ScorerV2, ScorerV3, VotingPower, quorum_values,
             scores_by_committee_member_index,
         },
     };
@@ -1149,5 +1446,351 @@ mod tests {
             ),
             vec![0, MAX_SCORE, MAX_SCORE]
         );
+    }
+
+    /// Four authorities with equal voting power: the other three reach the
+    /// quorum (7500 of 6667), two of them do not.
+    const V3_VOTING_POWER: [u64; 4] = [2500; 4];
+    const V3_QUORUM: u64 = 6667;
+    const V3_ROUND: u64 = 1000;
+    const V3_GC_DEPTH: u64 = 10;
+    const V3_MIN_GAP: u64 = 50;
+
+    /// Stats in which every authority has a header in every round.
+    fn v3_present_stats() -> ConsensusStatsV2 {
+        let mut stats = ConsensusStatsV2::new(4, V3_MIN_GAP);
+        stats.last_committed_header_round = vec![V3_ROUND; 4];
+        stats.num_committed_header_rounds = vec![V3_ROUND; 4];
+        stats
+    }
+
+    fn v3_scores(
+        reports: &[Option<MisbehaviorObservationsV2>],
+        stats: &ConsensusStatsV2,
+    ) -> Vec<u64> {
+        let reports: Vec<Option<&MisbehaviorObservationsV2>> =
+            reports.iter().map(Option::as_ref).collect();
+        ScorerV3::v3_parameters(V3_GC_DEPTH).final_scores(
+            &V3_VOTING_POWER,
+            V3_QUORUM,
+            &reports,
+            stats,
+            V3_ROUND,
+        )
+    }
+
+    /// A report with the given provable, unprovable, equivocation and bundle
+    /// part counts about authority 0, and none about the others.
+    fn v3_report_about_0(
+        provable: u64,
+        unprovable: u64,
+        equivocations: u64,
+        bundle_parts: u64,
+    ) -> Option<MisbehaviorObservationsV2> {
+        let about_0 = |count| vec![count, 0, 0, 0];
+        Some(observations_v2(&[
+            about_0(provable),
+            about_0(unprovable),
+            vec![0; 4],
+            about_0(equivocations),
+            about_0(bundle_parts),
+        ]))
+    }
+
+    #[test]
+    fn v3_present_authorities_without_reports_score_full() {
+        assert_eq!(
+            v3_scores(&[None, None, None, None], &v3_present_stats()),
+            vec![MAX_SCORE; 4]
+        );
+    }
+
+    #[test]
+    fn v3_absent_for_the_whole_epoch_scores_zero() {
+        let mut stats = v3_present_stats();
+        stats.last_committed_header_round[0] = 0;
+        stats.num_committed_header_rounds[0] = 0;
+        assert_eq!(
+            v3_scores(&[None, None, None, None], &stats),
+            vec![0, MAX_SCORE, MAX_SCORE, MAX_SCORE]
+        );
+
+        // Also in an epoch too short for the last gap to close.
+        let reports: Vec<Option<&MisbehaviorObservationsV2>> = vec![None; 4];
+        let scores = ScorerV3::v3_parameters(V3_GC_DEPTH).final_scores(
+            &V3_VOTING_POWER,
+            V3_QUORUM,
+            &reports,
+            &ConsensusStatsV2::new(4, V3_MIN_GAP),
+            V3_GC_DEPTH - 1,
+        );
+        assert_eq!(scores, vec![0; 4]);
+    }
+
+    #[test]
+    fn v3_presence_falls_with_the_share_of_absent_rounds() {
+        // Absent for half the epoch: the absence credit
+        // 65536 * (1_000_000 - 500_000) / (1_000_000 - 70_000) = 35234 is
+        // below the credit for rounds without a committed header,
+        // 65536 * 500_000 / 800_000 = 40960.
+        let mut stats = v3_present_stats();
+        stats.absent_rounds[0] = 500;
+        stats.num_committed_header_rounds[0] = 500;
+        assert_eq!(v3_scores(&[None, None, None, None], &stats)[0], 35234);
+    }
+
+    #[test]
+    fn v3_closes_the_last_gap_at_the_end_of_publish_quorum() {
+        // With a minimum gap of 80, authority 0's last gap of 80 rounds up to
+        // round 990 counts as an absence of 8 % of the rounds, above the
+        // allowance of 7 %; one round less is too short to count.
+        let min_gap = 80;
+        let mut stats = ConsensusStatsV2::new(4, min_gap);
+        stats.last_committed_header_round = vec![V3_ROUND; 4];
+        stats.num_committed_header_rounds = vec![V3_ROUND; 4];
+        let last = V3_ROUND - V3_GC_DEPTH - min_gap;
+        stats.last_committed_header_round[0] = last;
+        stats.num_committed_header_rounds[0] = last;
+        // 65536 * (1_000_000 - 80_000) / 930_000 = 64831.
+        assert_eq!(v3_scores(&[None, None, None, None], &stats)[0], 64831);
+        stats.last_committed_header_round[0] += 1;
+        stats.num_committed_header_rounds[0] += 1;
+        assert_eq!(v3_scores(&[None, None, None, None], &stats)[0], MAX_SCORE);
+    }
+
+    #[test]
+    fn v3_charges_only_what_a_quorum_of_other_reporters_reached() {
+        let stats = v3_present_stats();
+        // Provable faults at the maximum leave the baseline and the sending
+        // peer weight: (39323 + 6553) = 45876.
+        let charged = 45876;
+
+        // Two of the three other reporters are not a quorum.
+        let two_high = [
+            None,
+            v3_report_about_0(5, 0, 0, 0),
+            v3_report_about_0(5, 0, 0, 0),
+            v3_report_about_0(0, 0, 0, 0),
+        ];
+        assert_eq!(v3_scores(&two_high, &stats)[0], MAX_SCORE);
+
+        // All three are.
+        let three_high = [
+            None,
+            v3_report_about_0(5, 0, 0, 0),
+            v3_report_about_0(5, 0, 0, 0),
+            v3_report_about_0(5, 0, 0, 0),
+        ];
+        assert_eq!(v3_scores(&three_high, &stats)[0], charged);
+
+        // The authority's report about itself is ignored, so it neither
+        // completes a quorum nor hides a fault.
+        let mut with_self = two_high;
+        with_self[0] = v3_report_about_0(5, 0, 0, 0);
+        assert_eq!(v3_scores(&with_self, &stats)[0], MAX_SCORE);
+        let mut hiding = three_high.clone();
+        hiding[0] = v3_report_about_0(0, 0, 0, 0);
+        assert_eq!(v3_scores(&hiding, &stats)[0], charged);
+
+        // Missing reports give full credit.
+        assert_eq!(
+            v3_scores(&[None, three_high[1].clone(), None, None], &stats)[0],
+            MAX_SCORE
+        );
+    }
+
+    #[test]
+    fn v3_sums_the_faults_of_the_sending_peer_per_reporter() {
+        // Each reporter saw 10 faults, split differently between the two
+        // fields, so only the sums reach a quorum. Faults of the sending peer
+        // at the maximum leave the baseline and the provable weight:
+        // 39323 + 19660 = 58983.
+        let reports = [
+            None,
+            v3_report_about_0(0, 10, 0, 0),
+            v3_report_about_0(0, 0, 0, 10),
+            v3_report_about_0(0, 5, 0, 5),
+        ];
+        assert_eq!(v3_scores(&reports, &v3_present_stats())[0], 58983);
+    }
+
+    #[test]
+    fn v3_equivocation_reached_by_a_quorum_scores_zero() {
+        let stats = v3_present_stats();
+        let mut reports = [
+            None,
+            v3_report_about_0(0, 0, 1, 0),
+            v3_report_about_0(0, 0, 1, 0),
+            v3_report_about_0(0, 0, 1, 0),
+        ];
+        assert_eq!(v3_scores(&reports, &stats)[0], 0);
+        reports[3] = None;
+        assert_eq!(v3_scores(&reports, &stats)[0], MAX_SCORE);
+    }
+
+    #[test]
+    fn v3_scoreboard_publishes_scores_only_at_the_end_of_publish_quorum() {
+        let mut config = mock_protocol_config_with_scorer(3);
+        config.set_consensus_absent_rounds_min_gap_for_testing(V3_MIN_GAP);
+        let scoreboard = Scoreboard::new(V3_VOTING_POWER.to_vec(), &config);
+        let aggregator = ReportAggregator::new(MisbehaviorReportVersion::from_protocol(&config), 4);
+        let report = VersionedMisbehaviorReport::new_v2(
+            iota_types::base_types::AuthorityName::default(),
+            0,
+            v3_report_about_0(0, 0, 1, 0).unwrap(),
+        );
+        set_reports(
+            &aggregator,
+            &[(report.clone(), 1), (report.clone(), 2), (report, 3)],
+        );
+
+        scoreboard.update_scores(&aggregator);
+        assert_eq!(scoreboard.current_scores(), vec![MAX_SCORE; 4]);
+
+        let scores = scoreboard.finalize_scores(
+            &aggregator,
+            V3_QUORUM,
+            &ConsensusStats::V2(v3_present_stats()),
+            V3_ROUND,
+        );
+        let expected = vec![0, MAX_SCORE, MAX_SCORE, MAX_SCORE];
+        assert_eq!(scores, Some(expected.clone()));
+        assert_eq!(scoreboard.scores_for_change_epoch(), expected);
+    }
+
+    #[test]
+    #[should_panic(expected = "scorer version 3 scores in the EndOfPublish quorum commit")]
+    fn v3_change_epoch_needs_the_scores_of_the_end_of_publish_quorum() {
+        let mut config = mock_protocol_config_with_scorer(3);
+        config.set_consensus_absent_rounds_min_gap_for_testing(V3_MIN_GAP);
+        Scoreboard::new(V3_VOTING_POWER.to_vec(), &config).scores_for_change_epoch();
+    }
+
+    #[test]
+    fn earlier_scorers_do_not_score_at_the_end_of_publish_quorum() {
+        for version in [1, 2] {
+            let config = mock_protocol_config_with_scorer(version);
+            let scoreboard = Scoreboard::new(V3_VOTING_POWER.to_vec(), &config);
+            let aggregator =
+                ReportAggregator::new(MisbehaviorReportVersion::from_protocol(&config), 4);
+            let scores = scoreboard.finalize_scores(
+                &aggregator,
+                V3_QUORUM,
+                &ConsensusStats::V2(v3_present_stats()),
+                V3_ROUND,
+            );
+            assert_eq!(scores, None, "scorer version {version}");
+        }
+    }
+
+    #[test]
+    fn v3_quorum_value_needs_the_quorum_of_voting_power() {
+        // Authority 0 is reported by authorities with 2000, 3000 and 4000
+        // voting power, with 5, 3 and 1 faults.
+        let voting_power = [1000, 2000, 3000, 4000];
+        let observations: Vec<MisbehaviorObservationsV2> = [5, 3, 1]
+            .into_iter()
+            .map(|provable| {
+                observations_v2(&[
+                    vec![provable, 0, 0, 0],
+                    vec![0; 4],
+                    vec![0; 4],
+                    vec![0; 4],
+                    vec![0; 4],
+                ])
+            })
+            .collect();
+        let mut reports: Vec<Option<&MisbehaviorObservationsV2>> = vec![None];
+        reports.extend(observations.iter().map(Some));
+        let value_about_0 = |quorum| {
+            quorum_values(&voting_power, quorum, &reports, |o, a| {
+                o.faulty_blocks_provable[a]
+            })[0]
+        };
+        // 2000 + 3000 reached 3.
+        assert_eq!(value_about_0(5000), 3);
+        // One more unit of voting power needs the third reporter.
+        assert_eq!(value_about_0(5001), 1);
+        // All reporters together hold 9000.
+        assert_eq!(value_about_0(9000), 1);
+        assert_eq!(value_about_0(9001), 0);
+    }
+
+    #[test]
+    fn v3_saturates_the_sum_of_the_faults_of_the_sending_peer() {
+        let reports = [
+            None,
+            v3_report_about_0(0, u64::MAX, 0, 1),
+            v3_report_about_0(0, u64::MAX, 0, 1),
+            v3_report_about_0(0, u64::MAX, 0, 1),
+        ];
+        assert_eq!(v3_scores(&reports, &v3_present_stats())[0], 58983);
+    }
+
+    #[test]
+    fn v3_presence_counts_short_skips_through_rounds_without_a_committed_header() {
+        // 300 skipped rounds in gaps too short to be absences: the credit
+        // 65536 * (1_000_000 - 300_000) / 800_000 = 57344 is the lower one.
+        let mut stats = v3_present_stats();
+        stats.num_committed_header_rounds[0] = 700;
+        assert_eq!(v3_scores(&[None, None, None, None], &stats)[0], 57344);
+    }
+
+    #[test]
+    fn v3_rounds_the_presence_and_the_fault_score_separately() {
+        // Presence: 71 absent rounds give 65536 * 929_000 / 930_000 = 65465.
+        // Faults: 2 provable and 3 of the sending peer give
+        // (39323 * 65536 + 19660 * 49152 + 6553 * 57344) / 65536 = 59801.
+        // 65465 * 59801 / 65536 = 59736; one division at the end would give
+        // 59737.
+        // One gap of 71 rounds, the rest with a header.
+        let mut stats = v3_present_stats();
+        stats.absent_rounds[0] = 71;
+        stats.num_committed_header_rounds[0] = V3_ROUND - 71;
+        let reports = [
+            None,
+            v3_report_about_0(2, 3, 0, 0),
+            v3_report_about_0(2, 3, 0, 0),
+            v3_report_about_0(2, 3, 0, 0),
+        ];
+        assert_eq!(v3_scores(&reports, &stats)[0], 59736);
+    }
+
+    #[test]
+    fn earlier_scorers_pass_their_current_scores_to_the_change_epoch() {
+        // One report of an equivocation by authority 0.
+        let equivocation = || vec![1, 0, 0];
+        for (version, report) in [
+            (
+                1,
+                report_v1(&[vec![0; 3], vec![0; 3], vec![0; 3], equivocation()]),
+            ),
+            (
+                2,
+                report_v2(&[
+                    vec![0; 3],
+                    vec![0; 3],
+                    vec![0; 3],
+                    equivocation(),
+                    vec![0; 3],
+                ]),
+            ),
+        ] {
+            let config = mock_protocol_config_with_scorer(version);
+            let scoreboard = Scoreboard::new(vec![10, 20, 30], &config);
+            let aggregator =
+                ReportAggregator::new(MisbehaviorReportVersion::from_protocol(&config), 3);
+            set_reports(&aggregator, &[(report, 1)]);
+            scoreboard.update_scores(&aggregator);
+            assert_eq!(
+                scoreboard.scores_for_change_epoch(),
+                scoreboard.current_scores()
+            );
+            assert_eq!(
+                scoreboard.scores_for_change_epoch()[0],
+                0,
+                "scorer version {version}"
+            );
+        }
     }
 }

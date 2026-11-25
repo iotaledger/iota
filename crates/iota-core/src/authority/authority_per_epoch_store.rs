@@ -1238,6 +1238,12 @@ pub struct AuthorityEpochTables {
     /// construction.
     pub(crate) received_reports_state:
         DBMap<u8, report_aggregator::DBReceivedReportsStatePerAuthority>,
+
+    /// The scores computed in the commit that completes the EndOfPublish
+    /// quorum, by a scorer version that scores there (singleton, keyed by
+    /// `SINGLETON_KEY`). Written in that commit's batch; read when the store
+    /// opens.
+    pub(crate) final_validator_scores: DBMap<u64, Vec<u64>>,
 }
 
 fn signed_transactions_table_default_config() -> DBOptions {
@@ -1580,6 +1586,13 @@ impl AuthorityPerEpochStore {
         // correct for the fresh-epoch path.
         if protocol_config.calculate_validator_scores() {
             scoreboard.update_scores(&report_aggregator);
+            if let Some(scores) = tables
+                .final_validator_scores
+                .get(&SINGLETON_KEY)
+                .expect("AuthorityEpochTables should be readable")
+            {
+                scoreboard.restore_final_scores(scores);
+            }
         }
 
         let s = Arc::new(Self {
@@ -1803,9 +1816,11 @@ impl AuthorityPerEpochStore {
     }
 
     /// Feeds `report` into this epoch's report aggregator as if `reporter`
-    /// had sent it through consensus, then republishes the score vector. The
-    /// aggregator row is not persisted, so the report does not survive a
-    /// restart of the node.
+    /// had sent it through consensus, then recomputes the scores of scorer
+    /// versions 1 and 2. Scorer version 3 scores only in the commit that
+    /// completes the EndOfPublish quorum, so this call leaves its scores
+    /// unchanged. The aggregator row is not persisted, so the report does not
+    /// survive a restart of the node.
     #[cfg(any(test, feature = "test-utils"))]
     pub fn process_misbehavior_report_for_testing(
         &self,
@@ -1819,8 +1834,9 @@ impl AuthorityPerEpochStore {
         self.scoreboard.update_scores(&self.report_aggregator);
     }
 
-    /// The score vector the checkpoint builder passes to the change-epoch
-    /// transaction, one entry per consensus authority index.
+    /// The latest published scores, one entry per consensus authority index.
+    /// Under scorer version 3 they stay at `MAX_SCORE` until the commit that
+    /// completes the EndOfPublish quorum.
     #[cfg(any(test, feature = "test-utils"))]
     pub fn current_scores_for_testing(&self) -> Vec<u64> {
         self.scoreboard.current_scores()
@@ -4667,6 +4683,15 @@ impl AuthorityPerEpochStore {
         self.consensus_notify_read.notify(&key, &());
     }
 
+    /// The final validator scores of each commit still in the consensus
+    /// quarantine, oldest first.
+    #[cfg(test)]
+    pub(crate) fn queued_final_validator_scores_for_tests(&self) -> Vec<Option<Vec<u64>>> {
+        self.consensus_quarantine
+            .read()
+            .queued_final_validator_scores_for_test()
+    }
+
     #[cfg(test)]
     pub(crate) fn push_consensus_output_for_tests(&self, output: ConsensusCommitOutput) {
         self.consensus_quarantine
@@ -5661,6 +5686,11 @@ impl AuthorityPerEpochStore {
         system_transactions.extend(sequenced_transactions);
         let sequenced_non_randomness_transactions = system_transactions;
 
+        // Only `process_consensus_transactions` below stops accepting consensus
+        // certificates, in the commit where EndOfPublish reaches a quorum.
+        let accepted_consensus_certs = self
+            .get_reconfig_state_read_lock_guard()
+            .should_accept_consensus_certs();
         let (
             verified_non_randomness_transactions,
             verified_randomness_transactions,
@@ -5701,9 +5731,24 @@ impl AuthorityPerEpochStore {
         // All validators see the same `report_state_snapshots` emptiness, so
         // they all skip / run in lock-step — `current_scores` stays consistent
         // across the network.
-        if self.protocol_config().calculate_validator_scores() && output.has_report_state_changes()
-        {
-            self.scoreboard.update_scores(&self.report_aggregator);
+        if self.protocol_config().calculate_validator_scores() {
+            if output.has_report_state_changes() {
+                self.scoreboard.update_scores(&self.report_aggregator);
+            }
+            let completes_end_of_publish_quorum = accepted_consensus_certs
+                && lock
+                    .as_ref()
+                    .is_some_and(|lock| !lock.should_accept_consensus_certs());
+            if completes_end_of_publish_quorum {
+                if let Some(scores) = self.scoreboard.finalize_scores(
+                    &self.report_aggregator,
+                    self.committee.quorum_threshold(),
+                    &consensus_stats.stats,
+                    consensus_commit_info.round,
+                ) {
+                    output.record_final_validator_scores(scores);
+                }
+            }
         }
         self.process_user_signatures(
             verified_non_randomness_transactions

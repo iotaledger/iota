@@ -1819,6 +1819,153 @@ mod tests {
         assert_eq!(consensus_handler.last_consensus_stats, after_both);
     }
 
+    /// Scorer version 3 scores once, in the commit that completes the
+    /// EndOfPublish quorum, from the reports up to that commit and the
+    /// committed headers after it. A restart before that commit is flushed
+    /// computes the same scores again.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn scorer_v3_scores_in_the_end_of_publish_quorum_commit() {
+        use iota_types::messages_consensus::{
+            MisbehaviorObservationsV2, VersionedMisbehaviorReport,
+        };
+
+        use crate::authority::authority_per_epoch_store::scorer::MAX_SCORE;
+
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_scorer_version_for_testing(3);
+            config.set_consensus_absent_rounds_min_gap_for_testing(10);
+            config.set_calculate_validator_scores_for_testing(true);
+            config
+        });
+        let network_config =
+            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+                .committee_size(NonZeroUsize::new(4).unwrap())
+                .build();
+        let state = TestAuthorityBuilder::new()
+            .with_network_config(&network_config, 0)
+            .build()
+            .await;
+        let epoch_store = state.epoch_store_for_testing().clone();
+        let consensus_committee = get_consensus_committee(epoch_store.epoch_start_state());
+        let backpressure_manager = BackpressureManager::new_for_tests();
+        let new_handler = |epoch_store: Arc<AuthorityPerEpochStore>| {
+            ConsensusHandler::new(
+                epoch_store,
+                state.clone(),
+                Arc::new(CheckpointServiceNoop {}),
+                state.execution_scheduler().clone(),
+                state.get_object_cache_reader().clone(),
+                Arc::new(ArcSwap::default()),
+                consensus_committee.clone(),
+                Arc::new(AuthorityMetrics::new(&Registry::new())),
+                backpressure_manager.subscribe(),
+            )
+        };
+        let name = |index: u8| {
+            *epoch_store
+                .committee()
+                .authority_by_index(index.into())
+                .unwrap()
+        };
+        // A report from `reporter` that `offender` equivocated, or an empty
+        // one.
+        let report =
+            |reporter: u8, offender: Option<usize>| {
+                let mut equivocations = vec![0; 4];
+                if let Some(offender) = offender {
+                    equivocations[offender] = 1;
+                }
+                let observations = MisbehaviorObservationsV2 {
+                    faulty_blocks_provable: vec![0; 4],
+                    faulty_blocks_unprovable: vec![0; 4],
+                    missing_proposals: vec![0; 4],
+                    equivocations,
+                    invalid_bundle_parts: vec![0; 4],
+                };
+                (
+                    reporter,
+                    ConsensusTransaction::new_misbehavior_report(
+                        VersionedMisbehaviorReport::new_v2(name(reporter), 0, observations),
+                    ),
+                )
+            };
+        let end_of_publish = |author: u8| {
+            (
+                author,
+                ConsensusTransaction::new_end_of_publish(name(author)),
+            )
+        };
+        let commits = [
+            commit_with_transactions(
+                1,
+                1,
+                vec![report(1, Some(0)), report(2, Some(0)), report(0, None)],
+            ),
+            // Authority 3's report completes the report quorum after the
+            // EndOfPublish messages complete theirs, and its header is its
+            // only one.
+            commit_with_transactions(
+                2,
+                2,
+                vec![
+                    end_of_publish(0),
+                    end_of_publish(1),
+                    end_of_publish(2),
+                    report(3, Some(0)),
+                ],
+            ),
+            commit_with_transactions(
+                3,
+                3,
+                vec![report(0, Some(1)), report(2, Some(1)), report(3, Some(1))],
+            ),
+        ];
+        // Authority 0 equivocated. Authority 3 has a committed header in one of
+        // the 2 rounds: 65536 * (1_000_000 - 500_000) / (1_000_000 - 200_000).
+        let expected = vec![0, MAX_SCORE, MAX_SCORE, 40960];
+        let reports = |epoch_store: &AuthorityPerEpochStore| {
+            (0..4)
+                .map(|authority| {
+                    epoch_store
+                        .report_aggregator
+                        .received_reports_state_per_authority_snapshot(authority)
+                })
+                .collect::<Vec<_>>()
+        };
+
+        let mut consensus_handler = new_handler(epoch_store.clone());
+        for commit in &commits[..2] {
+            consensus_handler
+                .handle_consensus_output_for_test(commit.clone())
+                .await;
+        }
+        assert_eq!(epoch_store.scoreboard.scores_for_change_epoch(), expected);
+        // Only that commit stores them.
+        assert_eq!(
+            epoch_store.queued_final_validator_scores_for_tests(),
+            vec![None, Some(expected.clone())]
+        );
+        // A later commit changes neither the reports nor the scores.
+        let reports_after_quorum = reports(&epoch_store);
+        consensus_handler
+            .handle_consensus_output_for_test(commits[2].clone())
+            .await;
+        assert_eq!(reports(&epoch_store), reports_after_quorum);
+        assert_eq!(epoch_store.scoreboard.scores_for_change_epoch(), expected);
+        drop(consensus_handler);
+
+        // Nothing was flushed, so the restart replays the commits.
+        let reopened = reopen_for_handler(&state, &network_config, &epoch_store).await;
+        assert_eq!(reopened.scoreboard.current_scores(), vec![MAX_SCORE; 4]);
+        let mut consensus_handler = new_handler(reopened.clone());
+        for commit in &commits {
+            consensus_handler
+                .handle_consensus_output_for_test(commit.clone())
+                .await;
+        }
+        assert_eq!(reopened.scoreboard.scores_for_change_epoch(), expected);
+    }
+
     /// [`authority_per_epoch_store_tests::reopen`] for a handler: the commit
     /// boundary insists on a randomness manager, so the reopened store gets
     /// one whose DKG never completes, which keeps randomness out of the
