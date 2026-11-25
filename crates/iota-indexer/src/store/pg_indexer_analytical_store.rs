@@ -14,7 +14,7 @@ use iota_sdk_types::ObjectId;
 use tap::tap::TapFallible;
 use tracing::{error, info};
 
-use super::{IndexerAnalyticalStore, WatermarkLowerBounds};
+use super::IndexerAnalyticalStore;
 use crate::{
     db::ConnectionPool,
     errors::{Context, IndexerError},
@@ -32,7 +32,7 @@ use crate::{
             StoredTransactionTimestamp, TxSeq,
         },
         tx_count_metrics::StoredTxCountMetrics,
-        watermarks::StoredWatermark,
+        watermarks::{StoredWatermark, WatermarkLowerBounds},
     },
     schema::{
         active_addresses, address_metrics, addresses, checkpoints, epoch_peak_tps,

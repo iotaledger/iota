@@ -15,18 +15,10 @@ use crate::{
             StoredTransactionTimestamp, TxSeq,
         },
         tx_count_metrics::StoredTxCountMetrics,
+        watermarks::WatermarkLowerBounds,
     },
     types::IndexerResult,
 };
-
-/// The lowest epoch, checkpoint and transaction still available in a set of
-/// tables, taken from their pruning watermarks.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct WatermarkLowerBounds {
-    pub min_available_epoch: i64,
-    pub min_available_cp: i64,
-    pub min_available_tx: i64,
-}
 
 /// Provides methods to get and persist metrics. Utility methods for calculating
 /// metrics are also provided.

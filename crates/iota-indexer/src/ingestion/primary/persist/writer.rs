@@ -8,10 +8,9 @@ use tracing::{error, info, instrument};
 
 use super::{CheckpointBatch, CheckpointDataToCommit, EpochToCommit, data};
 use crate::{
-    ingestion::common::persist::{
-        CHECKPOINT_COMMIT_BATCH_SIZE, CommitterTables, CommitterWatermark,
-    },
+    ingestion::common::persist::{CHECKPOINT_COMMIT_BATCH_SIZE, CommitterTables},
     metrics::IndexerMetrics,
+    models::watermarks::WatermarkUpperBounds,
     store::{IndexerStore, PgIndexerStore},
     types::IndexerResult,
 };
@@ -101,7 +100,7 @@ impl PrimaryWriter {
 
         let first_checkpoint_seq = checkpoint_batch.first().as_ref().unwrap().sequence_number;
 
-        let committer_watermark = CommitterWatermark::from(checkpoint_batch.last().unwrap());
+        let committer_watermark = WatermarkUpperBounds::from(checkpoint_batch.last().unwrap());
         let mut committer_tables = Vec::from_iter(CommitterTables::BASIC);
         if objects_history.is_some() {
             committer_tables.extend(CommitterTables::OBJECTS_HISTORY);
@@ -299,7 +298,7 @@ impl PrimaryWriter {
         );
         self.metrics
             .latest_tx_checkpoint_sequence_number
-            .set(committer_watermark.max_committed_cp as i64);
+            .set(committer_watermark.max_committed_cp);
         self.metrics
             .total_tx_checkpoint_committed
             .inc_by(checkpoint_num as u64);
@@ -308,7 +307,7 @@ impl PrimaryWriter {
             .inc_by(tx_count as u64);
         self.metrics.transaction_per_checkpoint.observe(
             tx_count as f64
-                / (committer_watermark.max_committed_cp - first_checkpoint_seq + 1) as f64,
+                / (committer_watermark.max_committed_cp - first_checkpoint_seq as i64 + 1) as f64,
         );
         // 1000.0 is not necessarily the batch size, it's to roughly map average tx
         // commit latency to [0.1, 1] seconds, which is well covered by
