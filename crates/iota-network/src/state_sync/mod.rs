@@ -1657,7 +1657,7 @@ where
                 // Queued requests can hold more summaries from the sender,
                 // taken from the cache before it was marked. Request them
                 // again; summaries already fetched from other peers are
-                // cached.
+                // read from the cache if it had room for them.
                 requests = FuturesOrdered::new();
                 requests.push_back(fetch_summary(next, true));
                 sequence_numbers_to_fetch =

@@ -224,7 +224,9 @@ pub struct StateSyncConfig {
 
     /// Maximum size in bytes of a request to any state sync RPC as received,
     /// and of a checkpoint summary from a peer once decompressed. Larger
-    /// requests are rejected and larger summaries are not stored.
+    /// requests are rejected, and larger summaries are neither stored nor
+    /// synced from peers, so this must stay above the size of the largest
+    /// real summary.
     ///
     /// If unspecified, this will default to `262,144` (256 KiB). Must be at
     /// least [`MIN_CHECKPOINT_SUMMARY_SIZE`].
