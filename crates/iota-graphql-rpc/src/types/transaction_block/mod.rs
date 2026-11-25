@@ -119,7 +119,9 @@ impl TransactionBlockInner {
     }
 }
 
-/// An input filter selecting for either system or programmable transactions.
+/// An input filter selecting transactions by kind: system transactions,
+/// programmable transactions, claims of an account, or one kind of system
+/// transaction.
 #[derive(Enum, Copy, Clone, Eq, PartialEq, Debug)]
 pub(crate) enum TransactionBlockKindInput {
     /// A system transaction can be one of several types of transactions.

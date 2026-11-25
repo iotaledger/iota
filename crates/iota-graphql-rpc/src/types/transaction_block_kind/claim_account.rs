@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use async_graphql::*;
+use async_graphql::{Object, SimpleObject, Union};
 use iota_sdk_types::{
     AccountClaimKind as NativeAccountClaimKind,
     ClaimAccountTransaction as NativeClaimAccountTransaction,
@@ -12,8 +12,6 @@ use crate::types::base64::Base64;
 #[derive(Clone, Eq, PartialEq)]
 pub(crate) struct ClaimAccountTransaction {
     pub native: NativeClaimAccountTransaction,
-    /// The checkpoint sequence number this was viewed at.
-    pub checkpoint_viewed_at: u64,
 }
 
 /// A transaction that claims the sender's address as an account object.
@@ -23,7 +21,7 @@ impl ClaimAccountTransaction {
     async fn kind(&self) -> ClaimAccountKind {
         match &self.native.kind {
             NativeAccountClaimKind::SmartAccount(smart) => {
-                ClaimAccountKind::SmartAccount(SmartAccountClaimTransaction {
+                ClaimAccountKind::SmartAccount(SmartAccountClaim {
                     public_key_scheme: smart.public_key_scheme,
                     public_key_raw_bytes: Base64::from(smart.public_key_raw_bytes.as_slice()),
                 })
@@ -38,12 +36,12 @@ impl ClaimAccountTransaction {
 /// The type of account created by a claim.
 #[derive(Union, Clone, Eq, PartialEq)]
 pub(crate) enum ClaimAccountKind {
-    SmartAccount(SmartAccountClaimTransaction),
+    SmartAccount(SmartAccountClaim),
 }
 
 /// Parameters the claimed SmartAccount was created with.
 #[derive(SimpleObject, Clone, Eq, PartialEq)]
-pub(crate) struct SmartAccountClaimTransaction {
+pub(crate) struct SmartAccountClaim {
     /// The signature scheme flag byte of the public key (0=Ed25519,
     /// 1=Secp256k1, 2=Secp256r1, 3=MultiSig, 6=Passkey).
     pub public_key_scheme: u8,

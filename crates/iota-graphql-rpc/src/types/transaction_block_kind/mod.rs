@@ -26,8 +26,8 @@ pub(crate) mod programmable;
 pub(crate) mod randomness_state_update;
 pub(crate) mod transaction_deny_rules_update;
 
-/// The kind of transaction block, either a programmable transaction or a system
-/// transaction.
+/// The kind of transaction block: a programmable transaction, a claim of the
+/// sender's address as an account object, or a system transaction.
 #[derive(Union, PartialEq, Clone, Eq)]
 pub(crate) enum TransactionBlockKind {
     ConsensusCommitPrologue(ConsensusCommitPrologueTransaction),
@@ -85,10 +85,9 @@ impl TransactionBlockKind {
                     checkpoint_viewed_at,
                 },
             )),
-            K::ClaimAccount(claim) => Ok(T::ClaimAccount(ClaimAccountTransaction {
-                native: claim,
-                checkpoint_viewed_at,
-            })),
+            K::ClaimAccount(claim) => {
+                Ok(T::ClaimAccount(ClaimAccountTransaction { native: claim }))
+            }
             _ => Err(Error::Internal(
                 "unknown TransactionKind variant".to_string(),
             )),
