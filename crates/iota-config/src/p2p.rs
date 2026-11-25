@@ -142,9 +142,11 @@ pub struct StateSyncConfig {
     pub checkpoint_content_download_concurrency: Option<usize>,
 
     /// Set the upper bound on the number of individual transactions contained
-    /// in checkpoint contents to be downloaded concurrently. If both this
-    /// value and `checkpoint_content_download_concurrency` are set, the
-    /// lower of the two will apply.
+    /// in checkpoint contents to be downloaded concurrently. This limit
+    /// applies in addition to `checkpoint_content_download_concurrency`. A
+    /// checkpoint with more transactions than this value is still downloaded
+    /// when no other checkpoint contents are being downloaded, so this one
+    /// checkpoint can go over the bound.
     ///
     /// If unspecified, this will default to `50,000`.
     #[serde(skip_serializing_if = "Option::is_none")]
