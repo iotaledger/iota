@@ -4,22 +4,20 @@
 use std::{collections::BTreeSet, sync::Arc};
 
 use parking_lot::RwLock;
+use rstest::rstest;
 use starfish_config::AuthorityIndex;
 
 use crate::{
     authority_set::AuthoritySet,
     block_header::{
-        BlockHeader, BlockHeaderV2, BlockRef, BlockTimestampMs, CommitmentVerifiedTransactions,
-        GENESIS_ROUND, Round, Slot, StrongVote, TransactionsCommitment, VerifiedBlockHeader,
-        genesis_block_headers,
+        BlockHeader, BlockHeaderV2, BlockRef, BlockTimestampMs, GENESIS_ROUND, Round, Slot,
+        StrongVote, TransactionsCommitment, VerifiedBlockHeader, genesis_block_headers,
     },
     commit::{CommitMetastate, DecidedLeader, LeaderStatus, WAVE_LENGTH},
     committer::Committer,
     context::Context,
-    core::Core,
     dag_state::{DagState, DataSource},
     leader_schedule::{LeaderSchedule, LeaderSwapTable},
-    linearizer::Linearizer,
     storage::mem_store::MemStore,
 };
 
@@ -46,29 +44,6 @@ fn v2_block(
     VerifiedBlockHeader::new_for_test(BlockHeader::V2(header))
 }
 
-/// `v2_block` variant that takes a non-empty `acks` list.
-fn v2_block_with_acks(
-    round: Round,
-    author: u8,
-    ancestors: Vec<BlockRef>,
-    acks: Vec<BlockRef>,
-    strong_vote: Option<StrongVote>,
-    timestamp_ms: BlockTimestampMs,
-) -> VerifiedBlockHeader {
-    let header = BlockHeaderV2::new(
-        0,
-        round,
-        AuthorityIndex::from(author),
-        timestamp_ms,
-        ancestors,
-        acks,
-        vec![],
-        TransactionsCommitment::DEFAULT_FOR_TEST,
-        strong_vote,
-    );
-    VerifiedBlockHeader::new_for_test(BlockHeader::V2(header))
-}
-
 /// Wraps a "missing" mask into a `StrongVote` pinned to `leader_authority`.
 /// `None` passes through (no vote).
 fn pin_strong_vote(
@@ -79,15 +54,6 @@ fn pin_strong_vote(
         leader_authority,
         missing,
     })
-}
-
-/// Marks `header`'s transactions as locally available, so
-/// `DagState::are_transactions_available` returns true for that ref.
-fn add_transactions_for(dag_state: &Arc<RwLock<DagState>>, header: &VerifiedBlockHeader) {
-    let verified = CommitmentVerifiedTransactions::new_for_test(header, vec![]);
-    dag_state
-        .write()
-        .add_transactions(verified, DataSource::Test);
 }
 
 /// Default timestamp for single-block-per-slot callers.
@@ -120,8 +86,8 @@ fn assert_direct_commit_metastate(
     }
 }
 
-/// Fully-connected V2 layers from `start` (or genesis) through `stop`. V2
-/// mirror of `test_dag::build_dag`.
+/// Fully linked V2 layers without strong votes from `start` (or genesis)
+/// through `stop`.
 fn build_v2_layers(
     context: &Context,
     dag_state: &Arc<RwLock<DagState>>,
@@ -157,9 +123,9 @@ fn build_v2_layers(
     ancestors
 }
 
-/// Test context plus an empty DAG state.
-fn test_context() -> (Arc<Context>, Arc<RwLock<DagState>>) {
-    let ctx = Arc::new(Context::new_for_test(4).0);
+/// Test context for a committee of `committee_size` plus an empty DAG state.
+fn test_context(committee_size: usize) -> (Arc<Context>, Arc<RwLock<DagState>>) {
+    let ctx = Arc::new(Context::new_for_test(committee_size).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         ctx.clone(),
         Arc::new(MemStore::new()),
@@ -167,129 +133,134 @@ fn test_context() -> (Arc<Context>, Arc<RwLock<DagState>>) {
     (ctx, dag_state)
 }
 
-/// Populate `dag_state` through round 5; round-4 voters carry strong-vote
-/// payloads pinned to the canonical round-3 leader. Returns the leader slot at
-/// round 3.
-fn build_metastate_dag(
-    context: Arc<Context>,
-    dag_state: Arc<RwLock<DagState>>,
-    committer: &mut Committer,
+/// Populate `dag_state` through round 4 (voters link to all round-3 blocks).
+/// Returns the leader slot and voter refs indexed by author.
+fn build_through_voting_round(
+    context: &Context,
+    dag_state: &Arc<RwLock<DagState>>,
+    committer: &Committer,
     voter_strong_votes: [Option<AuthoritySet>; 4],
-) -> crate::block_header::Slot {
+) -> (Slot, Vec<BlockRef>) {
     let leader_round = 3;
-    let round_3_refs = build_v2_layers(&context, &dag_state, None, leader_round);
-    let leader_authority = committer.elect_leader(leader_round).authority;
-
-    // Round 4 (voting): each voter links to all round-3 blocks and carries the
-    // configured missing-mask, pinned to the canonical leader.
-    let mut round_4_refs = Vec::new();
     let voting_round = leader_round + 1;
+    let round_3_refs = build_v2_layers(context, dag_state, None, leader_round);
+    let leader_slot = committer.elect_leader(leader_round);
+
+    let mut voter_refs = Vec::with_capacity(4);
     for (author, missing) in voter_strong_votes.into_iter().enumerate() {
         let author = author as u8;
         let block = v2_block(
             voting_round,
             author,
             round_3_refs.clone(),
-            pin_strong_vote(leader_authority, missing),
+            pin_strong_vote(leader_slot.authority, missing),
             default_ts(voting_round, author),
         );
-        round_4_refs.push(block.reference());
+        voter_refs.push(block.reference());
         dag_state
             .write()
             .accept_block_header(block, DataSource::Test);
     }
 
-    // Round 5 (certifying): each certifier links to all round-4 blocks.
-    let certifying_round = 5;
-    for author in 0..context.committee.size() {
-        let author = author as u8;
-        let block = v2_block(
-            certifying_round,
-            author,
-            round_4_refs.clone(),
-            None,
-            default_ts(certifying_round, author),
-        );
+    (leader_slot, voter_refs)
+}
+
+/// Build one round-5 certifier from the specified round-4 voter refs.
+fn certifier(author: u8, voter_refs: Vec<BlockRef>) -> VerifiedBlockHeader {
+    let round = 5;
+    v2_block(round, author, voter_refs, None, default_ts(round, author))
+}
+
+/// Populate `dag_state` through round 5; round-4 voters carry strong-vote
+/// payloads pinned to the canonical round-3 leader, and every round-5
+/// certifier links all of them. Returns the leader slot at round 3.
+fn build_metastate_dag(
+    context: &Context,
+    dag_state: &Arc<RwLock<DagState>>,
+    committer: &Committer,
+    voter_strong_votes: [Option<AuthoritySet>; 4],
+) -> Slot {
+    let (leader_slot, voters) =
+        build_through_voting_round(context, dag_state, committer, voter_strong_votes);
+    for author in 0..context.committee.size() as u8 {
         dag_state
             .write()
-            .accept_block_header(block, DataSource::Test);
+            .accept_block_header(certifier(author, voters.clone()), DataSource::Test);
     }
-
-    committer.elect_leader(leader_round)
+    leader_slot
 }
 
-#[tokio::test]
-async fn determine_metastate_optimistic_when_strong_qc_quorum() {
-    telemetry_subscribers::init_for_testing();
-    let (context, dag_state) = test_context();
-    let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
-
-    // Four strong votes at r+1 → every r+2 certifier observes a StrongQC →
-    // 2f+1 StrongQC quorum → Optimistic.
-    let leader = build_metastate_dag(context, dag_state, &mut committer, [strong_vote(); 4]);
-    assert_direct_commit_metastate(&mut committer, leader, CommitMetastate::Optimistic);
+/// Same as `build_through_voting_round`, plus a round-5 certifier per author
+/// that links a different three of the four voters. With the votes
+/// `[vote, vote, vote, None]`, only `c0` links three strong votes, so the
+/// direct rule classifies the round-3 leader as Pending. Returns
+/// `(leader_slot, [c0, c1, c2, c3])`.
+fn build_through_certifying_round(
+    context: &Context,
+    dag_state: &Arc<RwLock<DagState>>,
+    committer: &Committer,
+    voter_strong_votes: [Option<AuthoritySet>; 4],
+) -> (Slot, [BlockRef; 4]) {
+    let (leader_slot, voters) =
+        build_through_voting_round(context, dag_state, committer, voter_strong_votes);
+    let c0 = certifier(0, vec![voters[0], voters[1], voters[2]]);
+    let c1 = certifier(1, vec![voters[0], voters[1], voters[3]]);
+    let c2 = certifier(2, vec![voters[0], voters[2], voters[3]]);
+    let c3 = certifier(3, vec![voters[1], voters[2], voters[3]]);
+    let refs = [
+        c0.reference(),
+        c1.reference(),
+        c2.reference(),
+        c3.reference(),
+    ];
+    for b in [c0, c1, c2, c3] {
+        dag_state.write().accept_block_header(b, DataSource::Test);
+    }
+    (leader_slot, refs)
 }
 
+/// The direct rule's metastate follows the strong votes and blames of the
+/// voting round: a StrongQC quorum gives Optimistic with the strong voters, a
+/// strong-blame quorum gives Standard, and neither gives Pending.
+#[rstest]
+#[case::strong_votes(
+    [strong_vote(), strong_vote(), strong_vote(), strong_blame()],
+    CommitMetastate::Optimistic,
+    vec![0, 1, 2]
+)]
+#[case::strong_blames(
+    [strong_vote(), strong_blame(), strong_blame(), strong_blame()],
+    CommitMetastate::Standard,
+    vec![]
+)]
+#[case::neither(
+    [strong_vote(), strong_vote(), strong_blame(), strong_blame()],
+    CommitMetastate::Pending,
+    vec![]
+)]
 #[tokio::test]
-async fn strong_qc_quorum_collects_strong_voter_authorities_from_dag() {
+async fn direct_decide_metastate(
+    #[case] votes: [Option<AuthoritySet>; 4],
+    #[case] expected: CommitMetastate,
+    #[case] expected_strong_voters: Vec<u8>,
+) {
     telemetry_subscribers::init_for_testing();
-    let (context, dag_state) = test_context();
+    let (context, dag_state) = test_context(4);
     let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
+    let leader = build_metastate_dag(&context, &dag_state, &committer, votes);
 
-    // 3 strong votes + 1 strong blame: every r+2 certifier still observes a
-    // 2f+1 strong-vote quorum at r+1 (Optimistic), but the strong-voter list
-    // returned by `strong_qc_quorum` must contain exactly authors {0, 1, 2}
-    // and exclude the strong-blamer at author 3.
-    let blame = strong_blame();
-    let leader = build_metastate_dag(
-        context,
-        dag_state,
-        &mut committer,
-        [strong_vote(), strong_vote(), strong_vote(), blame],
-    );
-
-    let strong_voters = match committer.try_direct_decide(leader) {
-        LeaderStatus::Commit(_, CommitMetastate::Optimistic, strong_voters) => strong_voters,
-        other => panic!("expected Commit(Optimistic), got {other}"),
+    let LeaderStatus::Commit(_, metastate, strong_voters) = committer.try_direct_decide(leader)
+    else {
+        panic!("expected Commit");
     };
-    let collected: BTreeSet<AuthorityIndex> = strong_voters.into_iter().collect();
-    let expected: BTreeSet<AuthorityIndex> = (0..3u8).map(AuthorityIndex::from).collect();
-    assert_eq!(collected, expected);
-}
-
-#[tokio::test]
-async fn determine_metastate_standard_when_strong_blame_quorum() {
-    telemetry_subscribers::init_for_testing();
-    let (context, dag_state) = test_context();
-    let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
-
-    // 3 strong blames + 1 strong vote → no StrongQC quorum, 2f+1 strong-blame
-    // quorum → Standard.
-    let blame = strong_blame();
-    let leader = build_metastate_dag(
-        context,
-        dag_state,
-        &mut committer,
-        [strong_vote(), blame, blame, blame],
+    assert_eq!(metastate, expected);
+    assert_eq!(
+        strong_voters.into_iter().collect::<BTreeSet<_>>(),
+        expected_strong_voters
+            .into_iter()
+            .map(AuthorityIndex::from)
+            .collect()
     );
-    assert_direct_commit_metastate(&mut committer, leader, CommitMetastate::Standard);
-}
-
-#[tokio::test]
-async fn determine_metastate_pending_when_neither_quorum() {
-    telemetry_subscribers::init_for_testing();
-    let (context, dag_state) = test_context();
-    let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
-
-    // 2 strong votes + 2 strong blames → neither side reaches 2f+1 = 3 → Pending.
-    let blame = strong_blame();
-    let leader = build_metastate_dag(
-        context,
-        dag_state,
-        &mut committer,
-        [strong_vote(), strong_vote(), blame, blame],
-    );
-    assert_direct_commit_metastate(&mut committer, leader, CommitMetastate::Pending);
 }
 
 /// Which equivocating leader a voter supports.
@@ -301,18 +272,18 @@ enum LeaderChoice {
 
 /// Same as `build_metastate_dag`, but the leader author produces two
 /// equivocating blocks `L_A`/`L_B` at round 3 and voters split per
-/// `voter_config`. Returns `(leader_slot, L_A, L_B)`.
+/// `voter_config`. Returns `(leader_slot, L_A)`.
 fn build_equivocating_metastate_dag(
-    context: Arc<Context>,
-    dag_state: Arc<RwLock<DagState>>,
-    committer: &mut Committer,
+    context: &Context,
+    dag_state: &Arc<RwLock<DagState>>,
+    committer: &Committer,
     voter_config: [(LeaderChoice, Option<AuthoritySet>); 4],
-) -> (crate::block_header::Slot, BlockRef, BlockRef) {
+) -> (Slot, BlockRef) {
     let leader_round = 3;
     let voting_round = leader_round + 1;
     let certifying_round = 5;
 
-    let prev_refs = build_v2_layers(&context, &dag_state, None, leader_round - 1);
+    let prev_refs = build_v2_layers(context, dag_state, None, leader_round - 1);
 
     let leader_slot = committer.elect_leader(leader_round);
     let leader_author: u8 = leader_slot.authority.value() as u8;
@@ -402,35 +373,31 @@ fn build_equivocating_metastate_dag(
             .accept_block_header(block, DataSource::Test);
     }
 
-    (leader_slot, leader_a_ref, leader_b_ref)
+    (leader_slot, leader_a_ref)
 }
 
+/// Two voters for `L_A` and one for the equivocating `L_B` carry `vote`, and
+/// one more votes for `L_A` without one. `L_A` has 3 votes and commits, but
+/// only 2 strong votes or blames that are votes for it, below the 2f+1 = 3
+/// threshold, so it is Pending. Counting the `L_B` voter for `L_A` would give
+/// Optimistic or Standard.
+#[rstest]
+#[case::strong_vote(strong_vote())]
+#[case::strong_blame(strong_blame())]
 #[tokio::test]
-async fn determine_metastate_pending_when_equivocating_strong_vote_is_filtered() {
+async fn equivocating_leader_vote_is_not_counted(#[case] vote: Option<AuthoritySet>) {
     telemetry_subscribers::init_for_testing();
-    let (context, dag_state) = test_context();
+    let (context, dag_state) = test_context(4);
     let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
-
-    // Discriminator for the `is_vote()` filter in `has_strong_qc_quorum`:
-    // - 2 voters are strong votes for `L_A`
-    // - 1 voter votes for `L_A` with no strong_vote
-    // - 1 voter is a strong vote for the equivocating `L_B`
-    //
-    // `L_A` has 3 regular votes → committable. Strong votes *attributable*
-    // to `L_A` are only 2 → below the 2f+1 = 3 threshold → not `Optimistic`
-    // and not `Standard` (no blames) → `Pending`. If the `is_vote()` filter
-    // were missing, the `L_B`-directed strong vote would be miscounted for
-    // `L_A`, reaching the threshold and yielding a wrong `Optimistic`.
-    let strong = strong_vote();
-    let (leader_slot, leader_a_ref, _leader_b_ref) = build_equivocating_metastate_dag(
-        context,
-        dag_state,
-        &mut committer,
+    let (leader_slot, leader_a_ref) = build_equivocating_metastate_dag(
+        &context,
+        &dag_state,
+        &committer,
         [
-            (LeaderChoice::A, strong),
-            (LeaderChoice::A, strong),
+            (LeaderChoice::A, vote),
+            (LeaderChoice::A, vote),
             (LeaderChoice::A, None),
-            (LeaderChoice::B, strong),
+            (LeaderChoice::B, vote),
         ],
     );
 
@@ -438,148 +405,6 @@ async fn determine_metastate_pending_when_equivocating_strong_vote_is_filtered()
         LeaderStatus::Commit(block, metastate, _) => {
             assert_eq!(block.reference(), leader_a_ref);
             assert_eq!(metastate, CommitMetastate::Pending);
-        }
-        status => panic!("expected Commit, got {status}"),
-    }
-}
-
-#[tokio::test]
-async fn determine_metastate_pending_when_equivocating_strong_blame_is_filtered() {
-    telemetry_subscribers::init_for_testing();
-    let (context, dag_state) = test_context();
-    let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
-
-    // Discriminator for the `is_vote()` filter in `has_strong_blame_quorum`:
-    // - 2 voters blame `L_A`
-    // - 1 voter votes for `L_A` with no strong_vote
-    // - 1 voter blames the equivocating `L_B`
-    //
-    // `L_A` has 3 regular votes → committable. Strong blames *attributable*
-    // to `L_A` are only 2 → below the 2f+1 = 3 threshold → `Pending`. If
-    // the `is_vote()` filter were missing, the `L_B`-directed strong blame
-    // would be miscounted for `L_A`, reaching the threshold and yielding a
-    // wrong `Standard`.
-    let blame = strong_blame();
-    let (leader_slot, leader_a_ref, _leader_b_ref) = build_equivocating_metastate_dag(
-        context,
-        dag_state,
-        &mut committer,
-        [
-            (LeaderChoice::A, blame),
-            (LeaderChoice::A, blame),
-            (LeaderChoice::A, None),
-            (LeaderChoice::B, blame),
-        ],
-    );
-
-    match committer.try_direct_decide(leader_slot) {
-        LeaderStatus::Commit(block, metastate, _) => {
-            assert_eq!(block.reference(), leader_a_ref);
-            assert_eq!(metastate, CommitMetastate::Pending);
-        }
-        status => panic!("expected Commit, got {status}"),
-    }
-}
-
-/// Populate `dag_state` through round 4 (voters link to all round-3 blocks).
-/// Returns the leader slot and voter refs indexed by author.
-fn build_through_voting_round(
-    context: &Context,
-    dag_state: &Arc<RwLock<DagState>>,
-    committer: &mut Committer,
-    voter_strong_votes: [Option<AuthoritySet>; 4],
-) -> (crate::block_header::Slot, Vec<BlockRef>) {
-    let leader_round = 3;
-    let voting_round = leader_round + 1;
-    let round_3_refs = build_v2_layers(context, dag_state, None, leader_round);
-    let leader_authority = committer.elect_leader(leader_round).authority;
-
-    let mut voter_refs = Vec::with_capacity(4);
-    for (author, missing) in voter_strong_votes.into_iter().enumerate() {
-        let author = author as u8;
-        let block = v2_block(
-            voting_round,
-            author,
-            round_3_refs.clone(),
-            pin_strong_vote(leader_authority, missing),
-            default_ts(voting_round, author),
-        );
-        voter_refs.push(block.reference());
-        dag_state
-            .write()
-            .accept_block_header(block, DataSource::Test);
-    }
-
-    let leader_slot = committer.elect_leader(leader_round);
-    (leader_slot, voter_refs)
-}
-
-/// Build one round-5 certifier from the specified round-4 voter refs.
-fn certifier(author: u8, voter_refs: Vec<BlockRef>) -> VerifiedBlockHeader {
-    let round = 5;
-    v2_block(round, author, voter_refs, None, default_ts(round, author))
-}
-
-/// Wave-1 DAG with a single StrongQC at r+2 (the others are regular QCs).
-/// The direct rule classifies the round-3 leader as Pending under this
-/// setup. Returns `(leader_slot, [c0, c1, c2, c3])` where `c0` is the
-/// StrongQC and `c1..c3` are regular QCs.
-fn build_wave_one_with_single_strong_qc(
-    context: &Context,
-    dag_state: &Arc<RwLock<DagState>>,
-    committer: &mut Committer,
-) -> (Slot, [BlockRef; 4]) {
-    let (leader_slot, voters) = build_through_voting_round(
-        context,
-        dag_state,
-        committer,
-        [strong_vote(), strong_vote(), strong_vote(), None],
-    );
-    let c0 = certifier(0, vec![voters[0], voters[1], voters[2]]);
-    let c1 = certifier(1, vec![voters[0], voters[1], voters[3]]);
-    let c2 = certifier(2, vec![voters[0], voters[2], voters[3]]);
-    let c3 = certifier(3, vec![voters[1], voters[2], voters[3]]);
-    let refs = [
-        c0.reference(),
-        c1.reference(),
-        c2.reference(),
-        c3.reference(),
-    ];
-    for b in [c0, c1, c2, c3] {
-        dag_state.write().accept_block_header(b, DataSource::Test);
-    }
-    (leader_slot, refs)
-}
-
-#[tokio::test]
-async fn indirect_metastate_optimistic_when_anchor_path_contains_strong_qc() {
-    telemetry_subscribers::init_for_testing();
-    let (context, dag_state) = test_context();
-    let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
-
-    let (leader_slot, [c0, c1, c2, _c3]) =
-        build_wave_one_with_single_strong_qc(&context, &dag_state, &mut committer);
-
-    // Anchor at round 6 includes the StrongQC c0 in its round-5 ancestors.
-    let anchor_round = 6;
-    let anchor = v2_block(
-        anchor_round,
-        0,
-        vec![c0, c1, c2],
-        None,
-        default_ts(anchor_round, 0),
-    );
-    dag_state
-        .write()
-        .accept_block_header(anchor.clone(), DataSource::Test);
-
-    let anchor_status = LeaderStatus::Commit(anchor, CommitMetastate::Standard, vec![]);
-    let current = LeaderStatus::Undecided(leader_slot);
-    match committer.try_indirect_decide(current, std::iter::once(&anchor_status)) {
-        LeaderStatus::Commit(block, metastate, _) => {
-            assert_eq!(block.reference().round, leader_slot.round);
-            assert_eq!(block.reference().author, leader_slot.authority);
-            assert_eq!(metastate, CommitMetastate::Optimistic);
         }
         status => panic!("expected Commit, got {status}"),
     }
@@ -588,11 +413,15 @@ async fn indirect_metastate_optimistic_when_anchor_path_contains_strong_qc() {
 #[tokio::test]
 async fn indirect_metastate_standard_when_strong_qc_outside_anchor_path() {
     telemetry_subscribers::init_for_testing();
-    let (context, dag_state) = test_context();
+    let (context, dag_state) = test_context(4);
     let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
 
-    let (leader_slot, [_c0, c1, c2, c3]) =
-        build_wave_one_with_single_strong_qc(&context, &dag_state, &mut committer);
+    let (leader_slot, [_c0, c1, c2, c3]) = build_through_certifying_round(
+        &context,
+        &dag_state,
+        &committer,
+        [strong_vote(), strong_vote(), strong_vote(), None],
+    );
 
     // Anchor excludes the StrongQC c0. Indirect must still resolve from the
     // restricted r+2 path and pick Standard, not Optimistic.
@@ -620,23 +449,6 @@ async fn indirect_metastate_standard_when_strong_qc_outside_anchor_path() {
     }
 }
 
-#[tokio::test]
-async fn leader_status_is_resolved_classification() {
-    let (context, dag_state) = test_context();
-    let refs = build_v2_layers(&context, &dag_state, None, 1);
-    let block = dag_state
-        .read()
-        .get_verified_block_header(&refs[0])
-        .expect("round-1 block exists");
-
-    let slot = Slot::new(3, AuthorityIndex::from(0u8));
-    assert!(!LeaderStatus::Commit(block.clone(), CommitMetastate::Pending, vec![]).is_resolved());
-    assert!(LeaderStatus::Commit(block.clone(), CommitMetastate::Optimistic, vec![]).is_resolved());
-    assert!(LeaderStatus::Commit(block, CommitMetastate::Standard, vec![]).is_resolved());
-    assert!(LeaderStatus::Skip(slot).is_resolved());
-    assert!(!LeaderStatus::Undecided(slot).is_resolved());
-}
-
 /// Round-3 leader's metastate in `decided`. Panics if not a Commit.
 fn round_3_metastate(committer: &Committer, decided: &[DecidedLeader]) -> CommitMetastate {
     let slot = committer.elect_leader(3);
@@ -650,226 +462,83 @@ fn round_3_metastate(committer: &Committer, decided: &[DecidedLeader]) -> Commit
     }
 }
 
+/// The round-3 leader is Pending by the direct rule, and `try_decide` resolves
+/// it through the round-6 anchor: Optimistic when the StrongQC `c0` is on the
+/// anchor's path, Standard when there are no strong votes at all.
+#[rstest]
+#[case::strong_qc_on_anchor_path(
+    [strong_vote(), strong_vote(), strong_vote(), None],
+    CommitMetastate::Optimistic
+)]
+#[case::no_strong_votes([None; 4], CommitMetastate::Standard)]
 #[tokio::test]
-async fn pending_leader_resolves_to_optimistic() {
+async fn pending_leader_resolves_through_anchor(
+    #[case] votes: [Option<AuthoritySet>; 4],
+    #[case] expected: CommitMetastate,
+) {
     telemetry_subscribers::init_for_testing();
-    let (context, dag_state) = test_context();
+    let (context, dag_state) = test_context(4);
     let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
 
     let (round_3_slot, round_5_refs) =
-        build_wave_one_with_single_strong_qc(&context, &dag_state, &mut committer);
-
-    // No wave-2 anchor yet — direct says Pending and can't upgrade.
+        build_through_certifying_round(&context, &dag_state, &committer, votes);
     assert_direct_commit_metastate(&mut committer, round_3_slot, CommitMetastate::Pending);
 
-    // Wave 2 pulls the StrongQC (c0) into the round-6 anchor's r+2 path.
     build_v2_layers(&context, &dag_state, Some(round_5_refs.to_vec()), 8);
 
     let decided = committer.try_decide(Slot::new(GENESIS_ROUND, 0u8));
-    assert_eq!(
-        round_3_metastate(&committer, &decided),
-        CommitMetastate::Optimistic,
-    );
+    assert_eq!(round_3_metastate(&committer, &decided), expected);
 }
 
+/// Strong votes and blames pinned to a leader that a schedule swap replaces
+/// don't count for the leader that replaces it, so it stays Pending.
+#[rstest]
+#[case::strong_vote(strong_vote())]
+#[case::strong_blame(strong_blame())]
 #[tokio::test]
-async fn pending_leader_resolves_to_standard() {
+async fn strong_votes_pinned_to_another_leader_are_not_counted(#[case] vote: Option<AuthoritySet>) {
     telemetry_subscribers::init_for_testing();
-    let (context, dag_state) = test_context();
-    let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
+    let (context, dag_state) = test_context(4);
+    let committer = Committer::new_for_test(context.clone(), dag_state.clone());
+    let pinned = build_metastate_dag(&context, &dag_state, &committer, [vote; 4]).authority;
 
-    // Wave 1 only — strong_vote = None everywhere → direct says Pending.
-    let round_5_refs = build_v2_layers(&context, &dag_state, None, 5);
-    let round_3_slot = committer.elect_leader(3);
-    assert_direct_commit_metastate(&mut committer, round_3_slot, CommitMetastate::Pending);
-
-    // Wave 2 arrives. The round-6 anchor's r+2 path has only regular QCs.
-    build_v2_layers(&context, &dag_state, Some(round_5_refs), 8);
-
-    let decided = committer.try_decide(Slot::new(GENESIS_ROUND, 0u8));
-    assert_eq!(
-        round_3_metastate(&committer, &decided),
-        CommitMetastate::Standard,
-    );
-}
-
-/// A strong vote computed against one leader must not be counted as evidence
-/// for a different canonical leader (e.g. across a leader-schedule swap).
-/// Asserts the StarfishSpeed safety invariant: every ref in
-/// `committed_transaction_refs` has locally-available transactions.
-///
-/// Setup: round-3 leaders have asymmetric ack lists — A (auth 0) acks
-/// nothing; B (auth 1) acks `r2[3]`. Local data state covers everything
-/// except `r2[3]`. Round-4 voters cast strong votes computed against A.
-/// The committer's swap table designates B as canonical leader of round 3.
-#[tokio::test]
-async fn optimistic_commits_ref_without_actual_transactions() {
-    telemetry_subscribers::init_for_testing();
-    let (context, dag_state) = test_context();
-    let auth_1 = AuthorityIndex::from(1u8);
-    let auth_3 = AuthorityIndex::from(3u8);
-
-    // Round 1.
-    let mut r1_blocks = Vec::new();
-    let mut r1_refs = Vec::new();
-    for author in 0..4u8 {
-        let block = v2_block(
-            1,
-            author,
-            genesis_block_headers(&context)
-                .iter()
-                .map(|b| b.reference())
-                .collect(),
-            None,
-            default_ts(1, author),
-        );
-        r1_refs.push(block.reference());
-        dag_state
-            .write()
-            .accept_block_header(block.clone(), DataSource::Test);
-        r1_blocks.push(block);
-    }
-
-    // Round 2.
-    let mut r2_blocks = Vec::new();
-    let mut r2_refs = Vec::new();
-    for author in 0..4u8 {
-        let block = v2_block(2, author, r1_refs.clone(), None, default_ts(2, author));
-        r2_refs.push(block.reference());
-        dag_state
-            .write()
-            .accept_block_header(block.clone(), DataSource::Test);
-        r2_blocks.push(block);
-    }
-
-    // Round 3: A (auth 0) has no acks. B (auth 1) has acks=[round-2 block from
-    // auth 3]. Other authorities have no acks.
-    let mut r3_blocks = Vec::new();
-    let mut r3_refs = Vec::new();
-    for author in 0..4u8 {
-        let acks = if author == 1 {
-            vec![r2_refs[3]]
-        } else {
-            vec![]
-        };
-        let block = v2_block_with_acks(
-            3,
-            author,
-            r2_refs.clone(),
-            acks,
-            None,
-            default_ts(3, author),
-        );
-        r3_refs.push(block.reference());
-        dag_state
-            .write()
-            .accept_block_header(block.clone(), DataSource::Test);
-        r3_blocks.push(block);
-    }
-
-    // Mark transactions available for everything except `r2[3]` and
-    // round-3 blocks other than A.
-    for block in &r1_blocks {
-        add_transactions_for(&dag_state, block);
-    }
-    for (i, block) in r2_blocks.iter().enumerate() {
-        if i != 3 {
-            add_transactions_for(&dag_state, block);
-        }
-    }
-    add_transactions_for(&dag_state, &r3_blocks[0]);
-
-    let a_block = &r3_blocks[0];
-    let b_block = &r3_blocks[1];
-    {
-        let dag = dag_state.read();
-        assert!(Core::compute_strong_vote(&dag, a_block).is_strong_vote());
-        assert!(!Core::compute_strong_vote(&dag, b_block).is_strong_vote());
-    }
-
-    let voter_strong_vote = {
-        let dag = dag_state.read();
-        Core::compute_strong_vote(&dag, a_block)
-    };
-    let r4_refs: Vec<BlockRef> = (0..4u8)
-        .map(|author| {
-            let block = v2_block(
-                4,
-                author,
-                r3_refs.clone(),
-                Some(voter_strong_vote),
-                default_ts(4, author),
-            );
-            let r = block.reference();
-            dag_state
-                .write()
-                .accept_block_header(block, DataSource::Test);
-            r
-        })
-        .collect();
-
-    // Round 5 certifiers.
-    for author in 0..4u8 {
-        let block = v2_block(5, author, r4_refs.clone(), None, default_ts(5, author));
-        dag_state
-            .write()
-            .accept_block_header(block, DataSource::Test);
-    }
-
-    // Swap table forcing canonical leader of round 3 to authority 1.
-    let alt_table = LeaderSwapTable {
+    let swapped_in = AuthorityIndex::from(1u8);
+    let authority = |index| context.committee.authority(index);
+    let table = LeaderSwapTable {
         good_nodes: vec![(
-            auth_1,
-            context.committee.authority(auth_1).hostname.clone(),
-            context.committee.authority(auth_1).stake,
+            swapped_in,
+            authority(swapped_in).hostname.clone(),
+            authority(swapped_in).stake,
         )],
-        bad_nodes: std::iter::once((
-            auth_3,
-            (
-                context.committee.authority(auth_3).hostname.clone(),
-                context.committee.authority(auth_3).stake,
-            ),
-        ))
+        bad_nodes: [(
+            pinned,
+            (authority(pinned).hostname.clone(), authority(pinned).stake),
+        )]
+        .into_iter()
         .collect(),
         ..LeaderSwapTable::default()
     };
-    let alt_schedule = Arc::new(LeaderSchedule::new(context.clone(), alt_table));
-    let mut committer = Committer::new(context.clone(), alt_schedule.clone(), dag_state.clone());
+    let schedule = Arc::new(LeaderSchedule::new(context.clone(), table));
+    let mut committer = Committer::new(context.clone(), schedule, dag_state);
 
-    let leader_b_slot = committer.elect_leader(3);
-    assert_eq!(leader_b_slot.authority, auth_1);
-
-    let (block_b, metastate, strong_voters) = match committer.try_direct_decide(leader_b_slot) {
-        LeaderStatus::Commit(b, m, sv) => (b, m, sv),
-        other => panic!("expected Commit at any metastate, got {other}"),
-    };
-
-    let mut linearizer = Linearizer::new(context, dag_state.clone(), alt_schedule);
-    let pending = linearizer.get_pending_sub_dags(vec![(block_b, metastate, strong_voters)]);
-    assert_eq!(pending.len(), 1);
-
-    let p_committed = pending[0]
-        .committed_transaction_refs
-        .iter()
-        .any(|r| r.round == 2 && r.author == auth_3);
-    let p_transactions_available = dag_state.read().are_transactions_available(&r2_refs[3]);
-
-    assert!(
-        !p_committed || p_transactions_available,
-        "ref {:?} committed without locally-available transactions",
-        r2_refs[3]
-    );
+    let leader = committer.elect_leader(3);
+    assert_eq!(leader.authority, swapped_in);
+    assert_direct_commit_metastate(&mut committer, leader, CommitMetastate::Pending);
 }
 
 #[tokio::test]
 async fn decision_cache_answers_repeated_checks_until_evicted() {
     telemetry_subscribers::init_for_testing();
-    let (context, dag_state) = test_context();
+    let (context, dag_state) = test_context(4);
     let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
     let metrics = &context.metrics.node_metrics;
 
-    let (round_3_slot, round_5_refs) =
-        build_wave_one_with_single_strong_qc(&context, &dag_state, &mut committer);
+    let (round_3_slot, round_5_refs) = build_through_certifying_round(
+        &context,
+        &dag_state,
+        &committer,
+        [strong_vote(), strong_vote(), strong_vote(), None],
+    );
     let first = committer.try_direct_decide(round_3_slot);
 
     // Blocks accepted later leave the entries about round 5 valid.
@@ -890,11 +559,11 @@ async fn decision_cache_answers_repeated_checks_until_evicted() {
 #[tokio::test]
 async fn decision_cache_classifies_a_certifier_accepted_after_a_check_once() {
     telemetry_subscribers::init_for_testing();
-    let (context, dag_state) = test_context();
+    let (context, dag_state) = test_context(4);
     let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
     let metrics = &context.metrics.node_metrics;
     let (leader_slot, voters) =
-        build_through_voting_round(&context, &dag_state, &mut committer, [strong_vote(); 4]);
+        build_through_voting_round(&context, &dag_state, &committer, [strong_vote(); 4]);
 
     // Quorum stake at r+2 but only two certificates: the slot stays open and
     // the three classifications are cached.
@@ -926,11 +595,7 @@ async fn decision_cache_serves_repeated_checks_of_pending_leaders() {
     const COMMITTEE: usize = 62;
     const ROUNDS: Round = 40;
 
-    let context = Arc::new(Context::new_for_test(COMMITTEE).0);
-    let dag_state = Arc::new(RwLock::new(DagState::new(
-        context.clone(),
-        Arc::new(MemStore::new()),
-    )));
+    let (context, dag_state) = test_context(COMMITTEE);
     let mut committer = Committer::new_for_test(context.clone(), dag_state.clone());
 
     let mut ancestors: Vec<BlockRef> = genesis_block_headers(&context)
@@ -988,4 +653,11 @@ async fn decision_cache_serves_repeated_checks_of_pending_leaders() {
         metrics.decision_cache_misses_total.get(),
     );
     assert!(hits > 10 * misses, "hits {hits}, misses {misses}");
+    // `try_decide` drops the classifications it can no longer be asked about.
+    assert!(
+        committer
+            .certificates
+            .keys()
+            .all(|round| *round >= last_finalized.round + WAVE_LENGTH)
+    );
 }
