@@ -23,10 +23,6 @@ use crate::{
 };
 
 #[cfg(test)]
-#[path = "tests/base_committer_tests.rs"]
-mod base_committer_tests;
-
-#[cfg(test)]
 #[path = "tests/base_committer_declarative_tests.rs"]
 mod base_committer_declarative_tests;
 

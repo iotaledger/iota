@@ -6,7 +6,6 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 use rand::{RngExt, SeedableRng, rngs::StdRng};
-use starfish_config::AuthorityIndex;
 
 use crate::{
     authority_set::AuthoritySet,
@@ -83,35 +82,6 @@ pub(crate) fn build_dag(
     }
 
     ancestors
-}
-
-// TODO: Add layer_round as input parameter so ancestors can be from any round.
-pub(crate) fn build_dag_layer(
-    context: &Arc<Context>,
-    // A list of (authority, parents) pairs. For each authority, we add a block
-    // linking to the specified parents.
-    connections: Vec<(AuthorityIndex, Vec<BlockRef>)>,
-    dag_state: Arc<RwLock<DagState>>,
-) -> Vec<BlockRef> {
-    let leader_schedule = LeaderSchedule::new(context.clone(), LeaderSwapTable::default());
-    let version = TestBlockHeaderVersion::V2;
-    let mut references = Vec::new();
-    for (authority, ancestors) in connections {
-        let round = ancestors.first().unwrap().round + 1;
-        let author = authority.value() as u8;
-        let block = VerifiedBlockHeader::new_for_test(
-            TestBlockHeader::new(round, author)
-                .set_version(version)
-                .set_strong_vote(strong_vote_for_leader(&leader_schedule, round, &ancestors))
-                .set_ancestors(ancestors)
-                .build(),
-        );
-        references.push(block.reference());
-        dag_state
-            .write()
-            .accept_block_header(block, DataSource::Test);
-    }
-    references
 }
 
 /// The strong vote for a block at `round` linking `ancestors`. Blocks built
