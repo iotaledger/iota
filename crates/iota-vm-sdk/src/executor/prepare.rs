@@ -88,6 +88,9 @@ pub(super) fn prepare_transaction(
                 load_receiving_objects(store, receiving_object_refs)?,
             ))
         },
+        // The store keeps no executed transactions, so a dependency is assumed
+        // to have succeeded.
+        |_| Ok(true),
     )?;
 
     if check_coin_deny_list {
@@ -194,6 +197,7 @@ pub(super) fn execute_with_move_authenticators(
             env.limits_metrics.clone(),
             false,
             env.certificate_deny_set,
+            env.chain_identifier,
             &env.epoch_id,
             env.epoch_timestamp_ms,
             gas_data,
@@ -326,6 +330,7 @@ pub(super) fn authenticate_only(
         store,
         &env.protocol_config,
         env.limits_metrics.clone(),
+        env.chain_identifier,
         &env.epoch_id,
         env.epoch_timestamp_ms,
         gas_data,

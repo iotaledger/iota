@@ -36,6 +36,7 @@ mod checked {
         base_types::TxContext,
         clock::CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME,
         committee::EpochId,
+        digests::ChainIdentifier,
         error::{ExecutionError, ExecutionErrorKind},
         execution::{
             AuthenticateThenExecuteOutput, ExecutionResults, ExecutionResultsV1, ExecutionTiming,
@@ -96,6 +97,7 @@ mod checked {
         transaction_signer: Address,
         transaction_digest: TransactionDigest,
         move_vm: &Arc<MoveVM>,
+        chain_identifier: ChainIdentifier,
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         protocol_config: &ProtocolConfig,
@@ -121,6 +123,7 @@ mod checked {
         let transaction_dependencies = input_objects.transaction_dependencies();
         let contains_deleted_input = input_objects.contains_deleted_objects();
         let cancelled_objects = input_objects.get_cancelled_objects();
+        let failed_dependency = input_objects.failed_transaction_dependency();
 
         let temporary_store = TemporaryStore::new(
             store,
@@ -132,6 +135,7 @@ mod checked {
         );
 
         let sponsor = resolve_sponsor(&gas_data, &transaction_signer);
+        let nonce = gas_data.nonce();
         let gas_price = gas_status.gas_price();
         let rgp = gas_status.reference_gas_price();
         let gas_charger = GasCharger::new(
@@ -141,17 +145,22 @@ mod checked {
             protocol_config,
         );
 
-        let tx_ctx = TxContext::new_from_components(
-            &transaction_signer,
-            &transaction_digest,
-            epoch_id,
-            epoch_timestamp_ms,
-            rgp,
-            gas_price,
-            gas_data.budget,
-            sponsor,
-            protocol_config,
-        );
+        let tx_ctx = {
+            let mut tx_ctx = TxContext::new_from_components(
+                &transaction_signer,
+                &transaction_digest,
+                epoch_id,
+                epoch_timestamp_ms,
+                rgp,
+                gas_price,
+                gas_data.budget,
+                sponsor,
+                chain_identifier,
+                protocol_config,
+            );
+            tx_ctx.set_nonce(nonce);
+            tx_ctx
+        };
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
 
         execute_transaction_to_effects_inner::<Mode>(
@@ -163,6 +172,7 @@ mod checked {
             transaction_dependencies,
             contains_deleted_input,
             cancelled_objects,
+            failed_dependency,
             transaction_kind,
             transaction_signer,
             transaction_digest,
@@ -189,6 +199,7 @@ mod checked {
         mut transaction_dependencies: BTreeSet<TransactionDigest>,
         contains_deleted_input: bool,
         cancelled_objects: Option<(CancelledObjects, Version)>,
+        failed_dependency: Option<TransactionDigest>,
         transaction_kind: TransactionKind,
         transaction_signer: Address,
         transaction_digest: TransactionDigest,
@@ -227,6 +238,7 @@ mod checked {
             deny_cert,
             contains_deleted_input,
             cancelled_objects,
+            failed_dependency,
             trace_builder_opt,
             pre_execution_result_opt,
         );
@@ -301,8 +313,19 @@ mod checked {
     ///     moves to its next version.
     ///   - Else, if the authentication is successful, it continues with the normal transaction
     ///     execution.
+    /// Unlike a transaction cancelled at sequencing, one whose transaction
+    /// dependency did not succeed is authenticated, and its effects carry
+    /// `TransactionDependencyFailed` from the checks on its inputs, as for a
+    /// deleted input.
     /// It combines the input objects from both the authentication and
     /// transaction.
+    ///
+    /// The authenticators and the body are metered on `gas_status`. With
+    /// validator attestation (`enable_validator_attestation`), the
+    /// authenticators share at most `max_auth_gas` of it, as before consensus.
+    /// When they run out of it, the status is `InsufficientGas`, as when the
+    /// budget runs out, and the source of the error returned names
+    /// `max_auth_gas`.
     #[instrument(
         name = "tx_authenticate_then_execute_to_effects",
         level = "debug",
@@ -315,6 +338,8 @@ mod checked {
         metrics: Arc<LimitsMetrics>,
         enable_expensive_checks: bool,
         certificate_deny_set: &HashSet<TransactionDigest>,
+        // Chain
+        chain_identifier: ChainIdentifier,
         // Epoch
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
@@ -357,6 +382,7 @@ mod checked {
         // inputs
         let contains_deleted_input = input_objects.contains_deleted_objects();
         let mut cancelled_objects = input_objects.get_cancelled_objects();
+        let failed_dependency = input_objects.failed_transaction_dependency();
 
         // Prepare the temporary store.
         let mut temporary_store = TemporaryStore::new(
@@ -371,6 +397,7 @@ mod checked {
         // Prepare the gas charger.
         let sponsor = resolve_sponsor(&gas_data, &transaction_signer);
         let gas_owner = gas_data.owner;
+        let nonce = gas_data.nonce();
         let gas_price = gas_status.gas_price();
         let rgp = gas_status.reference_gas_price();
         let mut gas_charger = GasCharger::new(
@@ -380,7 +407,10 @@ mod checked {
             protocol_config,
         );
 
-        // Prepare the transaction context.
+        // Prepare the transaction context. It gets the nonce only once the
+        // authenticators have run: they get the same context, and a nonce is
+        // unique among executed transactions only, while authenticators also
+        // run for transactions that are never executed.
         let tx_ctx = TxContext::new_from_components(
             &transaction_signer,
             &transaction_digest,
@@ -390,6 +420,7 @@ mod checked {
             gas_price,
             gas_data.budget,
             sponsor,
+            chain_identifier,
             protocol_config,
         );
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
@@ -427,9 +458,17 @@ mod checked {
         // authenticators are not run, and a failure to resolve them is not
         // reported. The cancellation is reported as is, not as an
         // authentication failure, and only once: the transaction execution
-        // gets no cancelled objects to check.
-        let cancellation_check =
-            run_inputs_checks(protocol_config, false, false, cancelled_objects.take());
+        // gets no cancelled objects to check. A failed transaction dependency
+        // is left to the input checks after authentication: only an
+        // authenticator that ran shows whether a Move account authorized
+        // paying for the transaction.
+        let cancellation_check = run_inputs_checks(
+            protocol_config,
+            false,
+            false,
+            cancelled_objects.take(),
+            None,
+        );
 
         // Next to the result, whether the gas owner authorized the transaction.
         // An owner that signed it did, as its signature is checked before
@@ -459,128 +498,21 @@ mod checked {
                 (Err(error), gas_owner_authorized)
             }
             Ok(()) => {
-                let (authentication_result, gas_owner_authorized) = match authenticators {
-                    MoveAuthenticatorsForExecution::ResolutionFailed {
-                        error,
-                        accounts,
-                        gas_owner: gas_owner_authenticator,
-                    } => {
-                        if !accounts.contains(&gas_owner) {
-                            (Err(error), true)
-                        } else {
-                            match gas_owner_authenticator
-                                .filter(|_| enable_pcool)
-                                .map(|gas_owner_authenticator| *gas_owner_authenticator)
-                            {
-                                Some(MoveAuthenticatorForExecution {
-                                    authenticator,
-                                    function_ref,
-                                    input_objects: authenticator_input_objects,
-                                }) => {
-                                    let AuthenticatorFunctionRefForExecution {
-                                        authenticator_function_ref,
-                                        loaded_object_id,
-                                        loaded_object_metadata,
-                                    } = function_ref;
-                                    temporary_store.save_loaded_runtime_objects(BTreeMap::from([
-                                        (loaded_object_id, loaded_object_metadata),
-                                    ]));
-                                    match run_authenticator(
-                                        &mut temporary_store,
-                                        &mut gas_charger,
-                                        trace_builder_opt,
-                                        authenticator,
-                                        authenticator_function_ref,
-                                        authenticator_input_objects,
-                                    ) {
-                                        Ok(()) => (Err(error), true),
-                                        Err(gas_owner_error) => (Err(gas_owner_error), false),
-                                    }
-                                }
-                                None => (Err(error), false),
-                            }
-                        }
-                    }
-                    MoveAuthenticatorsForExecution::Resolved(authenticators) => {
-                        // Prepare the authenticators for execution.
-                        // Store the loaded object metadata in the `TemporaryStore` before the
-                        // authenticators are executed.
-                        // The temporary store must contain all the required information at this
-                        // point.
-                        let mut authenticators = authenticators
-                            .into_iter()
-                            .map(
-                                |MoveAuthenticatorForExecution {
-                                     authenticator,
-                                     function_ref,
-                                     input_objects: authenticator_input_objects,
-                                 }| {
-                                    let AuthenticatorFunctionRefForExecution {
-                                        authenticator_function_ref,
-                                        loaded_object_id,
-                                        loaded_object_metadata,
-                                    } = function_ref;
-
-                                    // Save the loaded object metadata, i.e., the field object
-                                    // containing the AuthenticatorFunctionRef, in the temporary
-                                    // store.
-                                    temporary_store.save_loaded_runtime_objects(BTreeMap::from([
-                                        (loaded_object_id, loaded_object_metadata),
-                                    ]));
-
-                                    (
-                                        authenticator,
-                                        authenticator_function_ref,
-                                        authenticator_input_objects,
-                                    )
-                                },
-                            )
-                            .collect::<Vec<_>>();
-
-                        if enable_pcool {
-                            if let Some(position) =
-                                authenticators.iter().position(|(authenticator, ..)| {
-                                    authenticator.address() == gas_owner
-                                })
-                            {
-                                let gas_owner_authenticator = authenticators.remove(position);
-                                authenticators.insert(0, gas_owner_authenticator);
-                            }
-                        }
-
-                        let mut gas_owner_authorized = !authenticators
-                            .iter()
-                            .any(|(authenticator, ..)| authenticator.address() == gas_owner);
-
-                        // Authentication execution.
-                        // It does not alter the state, if not for command execution gas charging,
-                        // and produces no effects other than possible errors.
-
-                        // Run each authenticator in sequence; the first failure aborts the chain.
-                        let result = authenticators.into_iter().try_for_each(
-                            |(
-                                authenticator,
-                                authenticator_function_ref,
-                                authenticator_input_objects,
-                            )| {
-                                let account = authenticator.address();
-                                let result = run_authenticator(
-                                    &mut temporary_store,
-                                    &mut gas_charger,
-                                    trace_builder_opt,
-                                    authenticator,
-                                    authenticator_function_ref,
-                                    authenticator_input_objects,
-                                );
-                                if result.is_ok() && account == gas_owner {
-                                    gas_owner_authorized = true;
-                                }
-                                result
-                            },
-                        );
-                        (result, gas_owner_authorized)
-                    }
-                };
+                // The authenticators share at most `max_auth_gas`, as before
+                // consensus; the rest of the budget is there again to charge
+                // for a failure or to run the body.
+                let (authentication_result, gas_owner_authorized) =
+                    with_max_auth_gas(protocol_config, &mut gas_charger, |gas_charger| {
+                        run_move_authenticators(
+                            &mut temporary_store,
+                            gas_charger,
+                            trace_builder_opt,
+                            authenticators,
+                            gas_owner,
+                            enable_pcool,
+                            run_authenticator,
+                        )
+                    });
 
                 // A resolution failure goes through the same reporting as an
                 // authenticator that fails, so a client sees `MoveAuthentication` for
@@ -616,6 +548,7 @@ mod checked {
                         transaction_dependencies,
                         contains_deleted_input,
                         cancelled_objects,
+                        failed_dependency,
                         transaction_digest,
                         epoch_id,
                         protocol_config,
@@ -642,6 +575,8 @@ mod checked {
         // We can now start the creation of the transaction effects, either for an
         // authentication failure or for a normal execution of the transaction.
 
+        tx_ctx.borrow_mut().set_nonce(nonce);
+
         // Run the transaction execution and return the effects.
         let (inner_temp_store, gas_status, effects, timings, execution_result) =
             execute_transaction_to_effects_inner::<Mode>(
@@ -653,6 +588,7 @@ mod checked {
                 transaction_dependencies,
                 contains_deleted_input,
                 cancelled_objects,
+                failed_dependency,
                 transaction_kind,
                 transaction_signer,
                 transaction_digest,
@@ -673,6 +609,210 @@ mod checked {
             execution_result,
             authentication_error,
         )
+    }
+
+    /// Runs the Move authenticators of a transaction bound for execution, each
+    /// through `run_authenticator`, and returns the result next to whether the
+    /// gas owner authorized the transaction. Before an authenticator runs, the
+    /// object holding its function reference is recorded as loaded in
+    /// `temporary_store`.
+    fn run_move_authenticators<'s>(
+        temporary_store: &mut TemporaryStore<'s>,
+        gas_charger: &mut GasCharger,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
+        authenticators: MoveAuthenticatorsForExecution,
+        gas_owner: Address,
+        enable_pcool: bool,
+        run_authenticator: impl Fn(
+            &mut TemporaryStore<'s>,
+            &mut GasCharger,
+            &mut Option<MoveTraceBuilder>,
+            MoveAuthenticator,
+            AuthenticatorFunctionRef,
+            CheckedInputObjects,
+        ) -> Result<(), ExecutionError>,
+    ) -> (Result<(), ExecutionError>, bool) {
+        match authenticators {
+            MoveAuthenticatorsForExecution::ResolutionFailed {
+                error,
+                accounts,
+                gas_owner: gas_owner_authenticator,
+            } => {
+                if !accounts.contains(&gas_owner) {
+                    (Err(error), true)
+                } else {
+                    match gas_owner_authenticator
+                        .filter(|_| enable_pcool)
+                        .map(|gas_owner_authenticator| *gas_owner_authenticator)
+                    {
+                        Some(MoveAuthenticatorForExecution {
+                            authenticator,
+                            function_ref,
+                            input_objects: authenticator_input_objects,
+                        }) => {
+                            let AuthenticatorFunctionRefForExecution {
+                                authenticator_function_ref,
+                                loaded_object_id,
+                                loaded_object_metadata,
+                            } = function_ref;
+                            temporary_store.save_loaded_runtime_objects(BTreeMap::from([(
+                                loaded_object_id,
+                                loaded_object_metadata,
+                            )]));
+                            match run_authenticator(
+                                temporary_store,
+                                gas_charger,
+                                trace_builder_opt,
+                                authenticator,
+                                authenticator_function_ref,
+                                authenticator_input_objects,
+                            ) {
+                                Ok(()) => (Err(error), true),
+                                Err(gas_owner_error) => (Err(gas_owner_error), false),
+                            }
+                        }
+                        None => (Err(error), false),
+                    }
+                }
+            }
+            MoveAuthenticatorsForExecution::Resolved(authenticators) => {
+                // Prepare the authenticators for execution.
+                // Store the loaded object metadata in the `TemporaryStore` before the
+                // authenticators are executed.
+                // The temporary store must contain all the required information at this
+                // point.
+                let mut authenticators = authenticators
+                    .into_iter()
+                    .map(
+                        |MoveAuthenticatorForExecution {
+                             authenticator,
+                             function_ref,
+                             input_objects: authenticator_input_objects,
+                         }| {
+                            let AuthenticatorFunctionRefForExecution {
+                                authenticator_function_ref,
+                                loaded_object_id,
+                                loaded_object_metadata,
+                            } = function_ref;
+
+                            // Save the loaded object metadata, i.e., the field object
+                            // containing the AuthenticatorFunctionRef, in the temporary
+                            // store.
+                            temporary_store.save_loaded_runtime_objects(BTreeMap::from([(
+                                loaded_object_id,
+                                loaded_object_metadata,
+                            )]));
+
+                            (
+                                authenticator,
+                                authenticator_function_ref,
+                                authenticator_input_objects,
+                            )
+                        },
+                    )
+                    .collect::<Vec<_>>();
+
+                if enable_pcool {
+                    move_gas_owner_authenticator_first(&mut authenticators, gas_owner);
+                }
+
+                let mut gas_owner_authorized = !authenticators
+                    .iter()
+                    .any(|(authenticator, ..)| authenticator.address() == gas_owner);
+
+                // Authentication execution.
+                // It does not alter the state, if not for command execution gas charging,
+                // and produces no effects other than possible errors.
+
+                // Run each authenticator in sequence; the first failure aborts the chain.
+                let result = authenticators.into_iter().try_for_each(
+                    |(authenticator, authenticator_function_ref, authenticator_input_objects)| {
+                        let account = authenticator.address();
+                        let result = run_authenticator(
+                            temporary_store,
+                            gas_charger,
+                            trace_builder_opt,
+                            authenticator,
+                            authenticator_function_ref,
+                            authenticator_input_objects,
+                        );
+                        if result.is_ok() && account == gas_owner {
+                            gas_owner_authorized = true;
+                        }
+                        result
+                    },
+                );
+                (result, gas_owner_authorized)
+            }
+        }
+    }
+
+    /// Moves the gas owner's authenticator, when it has one, in front of the
+    /// others, which keep their order.
+    fn move_gas_owner_authenticator_first(
+        authenticators: &mut Vec<(
+            MoveAuthenticator,
+            AuthenticatorFunctionRef,
+            CheckedInputObjects,
+        )>,
+        gas_owner: Address,
+    ) {
+        if let Some(position) = authenticators
+            .iter()
+            .position(|(authenticator, ..)| authenticator.address() == gas_owner)
+        {
+            let gas_owner_authenticator = authenticators.remove(position);
+            authenticators.insert(0, gas_owner_authenticator);
+        }
+    }
+
+    /// Runs the Move authenticators through `run`. With validator attestation
+    /// (`enable_validator_attestation`) they share at most `max_auth_gas` of
+    /// the gas left; the rest is there again once `run`
+    /// returns. When they run out of `max_auth_gas`, the source of the error
+    /// names it.
+    fn with_max_auth_gas<T>(
+        protocol_config: &ProtocolConfig,
+        gas_charger: &mut GasCharger,
+        run: impl FnOnce(&mut GasCharger) -> (Result<(), ExecutionError>, T),
+    ) -> (Result<(), ExecutionError>, T) {
+        let max_auth_gas = protocol_config
+            .enable_validator_attestation()
+            .then(|| protocol_config.max_auth_gas());
+        let ((result, output), gas_limited) = gas_charger.with_gas_limit(max_auth_gas, run);
+        let result = result.map_err(|error| match max_auth_gas {
+            Some(max_auth_gas) if gas_limited => {
+                name_max_auth_gas_when_out_of_gas(error, max_auth_gas)
+            }
+            _ => error,
+        });
+        (result, output)
+    }
+
+    /// Says in the source of `error` that the Move authenticators ran out of
+    /// `max_auth_gas`, when `error` is them running out of gas while limited to
+    /// it. The status is that of running out of the gas budget, but a larger
+    /// budget does not give the authenticators more gas.
+    fn name_max_auth_gas_when_out_of_gas(
+        error: ExecutionError,
+        max_auth_gas: u64,
+    ) -> ExecutionError {
+        if !matches!(error.kind(), ExecutionErrorKind::InsufficientGas) {
+            return error;
+        }
+        let message = format!(
+            "the Move authenticators ran out of max_auth_gas ({max_auth_gas}), which a larger gas budget does not raise"
+        );
+        let message = match error.source() {
+            Some(source) => format!("{message}: {source}"),
+            None => message,
+        };
+        let out_of_max_auth_gas =
+            ExecutionError::new_with_source(ExecutionErrorKind::InsufficientGas, message);
+        match error.command() {
+            Some(command) => out_of_max_auth_gas.with_command_index(command),
+            None => out_of_max_auth_gas,
+        }
     }
 
     /// Whether a gas owner that is a Move account and did not authorize the
@@ -708,8 +848,8 @@ mod checked {
     /// object, with a zero gas cost; no other gas coin is merged into it.
     ///
     /// The checks every transaction runs on its inputs come first, as when gas
-    /// is charged, so a deleted or cancelled input is reported the same way
-    /// whoever pays.
+    /// is charged, so a deleted or cancelled input, or a transaction
+    /// dependency that did not succeed, is reported the same way whoever pays.
     fn execute_without_gas_charge_to_effects<Mode: ExecutionMode>(
         mut temporary_store: TemporaryStore,
         mut gas_charger: GasCharger,
@@ -717,6 +857,7 @@ mod checked {
         mut transaction_dependencies: BTreeSet<TransactionDigest>,
         contains_deleted_input: bool,
         cancelled_objects: Option<(CancelledObjects, Version)>,
+        failed_dependency: Option<TransactionDigest>,
         transaction_digest: TransactionDigest,
         epoch_id: &EpochId,
         protocol_config: &ProtocolConfig,
@@ -735,6 +876,7 @@ mod checked {
             deny_cert,
             contains_deleted_input,
             cancelled_objects,
+            failed_dependency,
         )
         .err()
         .unwrap_or(authentication_error);
@@ -773,12 +915,19 @@ mod checked {
     /// information of an authenticator. If the execution fails, it returns
     /// an execution error; otherwise it returns an empty value. The gas
     /// status the authentication was metered on is returned alongside.
+    ///
+    /// With validator attestation (`enable_validator_attestation`) the
+    /// authenticators are metered as at execution, whatever `gas_status`
+    /// holds: they share at most `max_auth_gas`, and the gas owner's runs
+    /// first.
     #[instrument(name = "tx_validate", level = "debug", skip_all)]
     pub fn authenticate_transaction(
         store: &dyn BackingStore,
         // Configuration
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
+        // Chain
+        chain_identifier: ChainIdentifier,
         // Epoch
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
@@ -813,7 +962,8 @@ mod checked {
             GasCharger::new(transaction_digest, vec![], gas_status, protocol_config);
 
         // Prepare the transaction context, equal for both authentication and
-        // transaction execution.
+        // transaction execution. It has no nonce: authenticators also run for
+        // transactions that are never executed.
         let tx_ctx = TxContext::new_from_components(
             &transaction_signer,
             &transaction_digest,
@@ -823,6 +973,7 @@ mod checked {
             gas_price,
             gas_data.budget,
             sponsor,
+            chain_identifier,
             protocol_config,
         );
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
@@ -836,30 +987,41 @@ mod checked {
             *epoch_id,
         );
 
+        // The authenticators share one gas limit, so what each of them finds
+        // left depends on the order they run in.
+        let mut authenticators = authenticators;
+        if protocol_config.enable_validator_attestation() {
+            move_gas_owner_authenticator_first(&mut authenticators, gas_data.owner);
+        }
+
         // Run each authenticator in sequence; return on first failure.
-        let authentication_execution_result = authenticators.into_iter().try_for_each(
-            |(authenticator, authenticator_function_ref, authenticator_input_objects)| {
-                match authenticator_function_ref {
-                    AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
-                        authenticate_transaction_inner(
-                            &mut temporary_store,
-                            protocol_config,
-                            metrics.clone(),
-                            &mut gas_charger,
-                            authenticator,
-                            authenticator_function_ref_v1,
-                            &authenticator_input_objects.into_inner(),
-                            transaction_kind.clone(),
-                            transaction_digest,
-                            auth_context_data.clone(),
-                            tx_ctx.clone(),
-                            trace_builder_opt,
-                            move_vm,
-                        )
-                    }
-                }
-            },
-        );
+        let (authentication_execution_result, ()) =
+            with_max_auth_gas(protocol_config, &mut gas_charger, |gas_charger| {
+                let result = authenticators.into_iter().try_for_each(
+                    |(authenticator, authenticator_function_ref, authenticator_input_objects)| {
+                        match authenticator_function_ref {
+                            AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
+                                authenticate_transaction_inner(
+                                    &mut temporary_store,
+                                    protocol_config,
+                                    metrics.clone(),
+                                    gas_charger,
+                                    authenticator,
+                                    authenticator_function_ref_v1,
+                                    &authenticator_input_objects.into_inner(),
+                                    transaction_kind.clone(),
+                                    transaction_digest,
+                                    auth_context_data.clone(),
+                                    tx_ctx.clone(),
+                                    trace_builder_opt,
+                                    move_vm,
+                                )
+                            }
+                        }
+                    },
+                );
+                (result, ())
+            });
 
         let result = report_authentication_error(authentication_execution_result, protocol_config);
         (gas_charger.into_gas_status(), result)
@@ -1008,11 +1170,14 @@ mod checked {
         // It must NOT charge gas for reading the Move authenticator input objects from
         // the storage. It will be done later during the transaction execution.
         // Then execute the authentication.
+        // A failed transaction dependency is checked with the transaction's
+        // inputs after authentication, so none is checked here.
         run_inputs_checks(
             protocol_config,
             deny_cert,
             contains_deleted_input,
             cancelled_objects,
+            None,
         )
         .and_then(|()| {
             let authenticator_move_call =
@@ -1092,6 +1257,7 @@ mod checked {
         deny_cert: bool,
         contains_deleted_input: bool,
         cancelled_objects: Option<(CancelledObjects, Version)>,
+        failed_dependency: Option<TransactionDigest>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         pre_execution_result_opt: Option<
             Result<
@@ -1132,6 +1298,7 @@ mod checked {
                         deny_cert,
                         contains_deleted_input,
                         cancelled_objects,
+                        failed_dependency,
                     )
                     .map_err(|e| (e, vec![]))?;
 
@@ -1374,6 +1541,7 @@ mod checked {
         deny_cert: bool,
         contains_deleted_input: bool,
         cancelled_objects: Option<(CancelledObjects, Version)>,
+        failed_dependency: Option<TransactionDigest>,
     ) -> Result<(), ExecutionError> {
         if deny_cert {
             Err(ExecutionError::new(
@@ -1429,6 +1597,11 @@ mod checked {
                 )),
                 _ => panic!("invalid cancellation reason Version: {reason}"),
             }
+        } else if let Some(dependency) = failed_dependency {
+            Err(ExecutionError::new(
+                ExecutionErrorKind::TransactionDependencyFailed { dependency },
+                None,
+            ))
         } else {
             Ok(())
         }

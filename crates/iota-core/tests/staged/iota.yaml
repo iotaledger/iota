@@ -4,6 +4,12 @@ AccountAddress:
     TUPLEARRAY:
       CONTENT: U8
       SIZE: 32
+AccountClaimKind:
+  ENUM:
+    0:
+      SmartAccount:
+        NEWTYPE:
+          TYPENAME: SmartAccountClaim
 Address:
   NEWTYPESTRUCT:
     TUPLEARRAY:
@@ -71,6 +77,10 @@ CallArg:
       Object:
         NEWTYPE:
           TYPENAME: ObjectArg
+    2:
+      TransactionDependency:
+        NEWTYPE:
+          TYPENAME: TransactionDigest
 CanceledTransaction:
   STRUCT:
     - digest:
@@ -236,6 +246,10 @@ CheckpointVersionSpecificDataV2:
           TYPENAME: AttestationEntry
     - attestation_totals:
         TYPENAME: AttestationTotals
+ClaimAccountTransaction:
+  STRUCT:
+    - kind:
+        TYPENAME: AccountClaimKind
 Command:
   ENUM:
     0:
@@ -553,6 +567,11 @@ ExecutionError:
         STRUCT:
           - object_id:
               TYPENAME: ObjectId
+    45:
+      TransactionDependencyFailed:
+        STRUCT:
+          - dependency:
+              TYPENAME: TransactionDigest
 ExecutionStatus:
   ENUM:
     0:
@@ -860,6 +879,10 @@ SignedTransaction:
         TYPENAME: Transaction
     - signatures:
         SEQ: BYTES
+SmartAccountClaim:
+  STRUCT:
+    - public_key_scheme: U8
+    - public_key_raw_bytes: BYTES
 SplitCoins:
   STRUCT:
     - coin:
@@ -1001,6 +1024,10 @@ TransactionKind:
       TransactionDenyRulesUpdate:
         NEWTYPE:
           TYPENAME: TransactionDenyRulesUpdate
+    7:
+      ClaimAccount:
+        NEWTYPE:
+          TYPENAME: ClaimAccountTransaction
 TransactionV1:
   STRUCT:
     - kind:

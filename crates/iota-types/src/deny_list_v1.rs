@@ -7,17 +7,20 @@ use std::{
     fmt,
 };
 
-use iota_sdk_move_types::iota_framework::{
-    config::Config,
-    deny_list::{AddressKey, ConfigKey, ConfigWriteCap, GlobalPauseKey},
-    dynamic_object_field::Wrapper,
+use iota_sdk_move_types::{
+    MoveType,
+    iota_framework::{
+        config::Config,
+        deny_list::{AddressKey, ConfigKey, ConfigWriteCap, GlobalPauseKey},
+        dynamic_object_field::Wrapper,
+    },
 };
 use iota_sdk_types::{Address, Identifier, ObjectId, StructTag, Version};
 use serde::{Serialize, de::DeserializeOwned};
 use tracing::{error, instrument};
 
 use crate::{
-    IOTA_DENY_LIST_OBJECT_ID, MoveTypeTagTrait,
+    IOTA_DENY_LIST_OBJECT_ID,
     base_types::EpochId,
     config::Setting,
     dynamic_field::get_dynamic_field_from_store,
@@ -384,7 +387,7 @@ fn read_config_setting<K, V>(
     cur_epoch: Option<EpochId>,
 ) -> Option<V>
 where
-    K: MoveTypeTagTrait + Serialize + DeserializeOwned + fmt::Debug,
+    K: MoveType + Serialize + DeserializeOwned + fmt::Debug,
     V: Clone + Serialize + DeserializeOwned + fmt::Debug,
 {
     try_read_config_setting(object_store, config, setting_name, cur_epoch)
@@ -401,7 +404,7 @@ fn try_read_config_setting<K, V>(
     cur_epoch: Option<EpochId>,
 ) -> IotaResult<Option<V>>
 where
-    K: MoveTypeTagTrait + Serialize + DeserializeOwned + fmt::Debug,
+    K: MoveType + Serialize + DeserializeOwned + fmt::Debug,
     V: Clone + Serialize + DeserializeOwned + fmt::Debug,
 {
     let setting: Option<Setting<V>> = absent_if_missing(get_dynamic_field_from_store(
@@ -438,11 +441,17 @@ pub fn coin_types_for_denylist_check<'a>(
 ) -> BTreeSet<String> {
     objects
         .into_iter()
-        .filter_map(|obj| {
-            obj.as_opt_struct()
-                .and_then(|move_object| coin_type_for_denylist_check(move_object.struct_tag()))
-        })
+        .filter_map(coin_type_of_object_for_denylist_check)
         .collect()
+}
+
+/// Returns the coin type of `object` in canonical string form, as
+/// [`coin_type_for_denylist_check`] gives it for the object's type. It
+/// returns `None` for an object that is not a Move object.
+pub fn coin_type_of_object_for_denylist_check(object: &Object) -> Option<String> {
+    object
+        .as_opt_struct()
+        .and_then(|move_object| coin_type_for_denylist_check(move_object.struct_tag()))
 }
 
 /// Returns the coin type of `struct_tag` in canonical string form. It returns

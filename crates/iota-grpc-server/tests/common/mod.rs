@@ -28,7 +28,7 @@ use iota_grpc_types::v1::{
     transaction_execution_service::{ExecuteTransactionItem, ExecuteTransactionsRequest},
     types::{Address as ProtoAddress, ObjectId as ProtoObjectId},
 };
-use iota_node_storage::GrpcStateReader;
+use iota_node_storage::{GrpcStateReader, TransactionKeyValueStoreTrait};
 use iota_sdk_types::{
     Address, CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSummary,
     Event, Identifier, MoveStruct, ObjectId, Owner, StructTag, Transaction, TransactionDigest,
@@ -50,7 +50,7 @@ use iota_types::{
     quorum_driver_types::{
         ExecuteTransactionRequestV1, ExecuteTransactionResponseV1, QuorumDriverError,
     },
-    storage::error::Result as StorageResult,
+    storage::{ObjectKey, error::Result as StorageResult},
     traffic_control::ClientIdSource,
     transaction::VerifiedTransaction,
     transaction_executor::{SimulateTransactionResult, TransactionExecutor, VmChecks},
@@ -164,50 +164,72 @@ pub fn objects_for_effects(
     (input_objects, output_objects)
 }
 
-/// Build checkpoint transactions, each optionally carrying `events_per_tx`
-/// events.
+/// Build `count` copies of one checkpoint transaction, optionally carrying
+/// `events_per_tx` events. Every copy has the same digest, so the result only
+/// suits tests that need the transactions for their size or their number.
 pub fn build_checkpoint_transactions_with_events(
     count: usize,
     events_per_tx: usize,
 ) -> Vec<CheckpointTransaction> {
-    let mut transactions = Vec::with_capacity(count);
-    for _ in 0..count {
-        let (sender, key): (_, AccountPrivateKey) = get_key_pair();
-        let gas = random_object_ref();
-        let transaction = TestTransactionBuilder::new(sender, gas, 1000)
-            .transfer(random_object_ref(), sender)
-            .build_and_sign(&key);
-        let effects = TestEffectsBuilder::new(transaction.data()).build();
-        let events = if events_per_tx > 0 {
-            let mut data = Vec::with_capacity(events_per_tx);
-            for _ in 0..events_per_tx {
-                data.push(Event {
-                    package_id: ObjectId::ZERO,
-                    module: Identifier::from_static("test_module"),
-                    sender,
-                    struct_tag: StructTag::new(
-                        Address::ZERO,
-                        Identifier::from_static("test_module"),
-                        Identifier::from_static("TestEvent"),
-                        vec![],
-                    ),
-                    contents: vec![0u8; 64], // 64 bytes of dummy content
-                });
-            }
-            Some(TransactionEvents(data))
-        } else {
-            None
-        };
-        let (input_objects, output_objects) = objects_for_effects(sender, &effects);
-        transactions.push(CheckpointTransaction {
+    // Key generation and signing are slow, so build one transaction and copy
+    // it.
+    let (sender, key): (_, AccountPrivateKey) = get_key_pair();
+    let gas = random_object_ref();
+    let transaction = TestTransactionBuilder::new(sender, gas, 1000)
+        .transfer(random_object_ref(), sender)
+        .build_and_sign(&key);
+    let effects = TestEffectsBuilder::new(transaction.data()).build();
+    let events = (events_per_tx > 0).then(|| {
+        TransactionEvents(vec![
+            Event {
+                package_id: ObjectId::ZERO,
+                module: Identifier::from_static("test_module"),
+                sender,
+                struct_tag: StructTag::new(
+                    Address::ZERO,
+                    Identifier::from_static("test_module"),
+                    Identifier::from_static("TestEvent"),
+                    vec![],
+                ),
+                contents: vec![0u8; 64], // 64 bytes of dummy content
+            };
+            events_per_tx
+        ])
+    });
+    let (input_objects, output_objects) = objects_for_effects(sender, &effects);
+    vec![
+        CheckpointTransaction {
             transaction,
             effects,
             events,
             input_objects,
             output_objects,
-        });
+        };
+        count
+    ]
+}
+
+/// Replaces the contents of `transaction`'s input and output objects with
+/// `len` bytes of a test type, keeping the ids, versions and owners the
+/// effects refer to.
+pub fn set_object_contents_len(transaction: &mut CheckpointTransaction, len: usize) {
+    let object_type = StructTag::new(
+        Address::ZERO,
+        Identifier::from_static("test_module"),
+        Identifier::from_static("TestObject"),
+        vec![],
+    );
+    for object in transaction
+        .input_objects
+        .iter_mut()
+        .chain(transaction.output_objects.iter_mut())
+    {
+        // A Move object's contents start with its id.
+        let mut contents = object.id().into_bytes().to_vec();
+        contents.resize(len, 0);
+        let data = MoveStruct::new(object_type.clone().into(), object.version(), contents).unwrap();
+        *object = Object::new_move(data, object.owner, object.previous_transaction);
     }
-    transactions
 }
 
 /// Create a transaction and its effects so `get_transactions` can return it.
@@ -381,14 +403,12 @@ pub struct MockGrpcStateReader {
 
     // -- Set-based checkpoint mode (for streaming tests) --
     pub checkpoints: Arc<Mutex<HashSet<CheckpointSequenceNumber>>>,
-    /// Sequence numbers whose `stream_checkpoint_transactions` should return
-    /// `large_checkpoint_transactions` instead of the default empty vec.
-    pub large_checkpoints: Arc<Mutex<HashSet<CheckpointSequenceNumber>>>,
-    /// Transactions returned for "large" checkpoints.
-    pub large_checkpoint_transactions: Vec<CheckpointTransaction>,
 
     // -- Objects --
     pub objects: HashMap<ObjectId, Object>,
+    /// Objects by version, which `try_get_object_by_key` reads before
+    /// `objects`.
+    pub object_versions: HashMap<ObjectKey, Object>,
 
     // -- Owned objects (for list_owned_objects pagination tests) --
     /// Pre-sorted in owner index key order. The iterator respects cursor-based
@@ -414,6 +434,8 @@ pub struct MockGrpcStateReader {
     // -- Transactions --
     pub transactions: HashMap<TransactionDigest, Arc<VerifiedTransaction>>,
     pub effects: HashMap<TransactionDigest, TransactionEffects>,
+    pub events: HashMap<TransactionDigest, TransactionEvents>,
+    pub transaction_checkpoints: HashMap<TransactionDigest, CheckpointSequenceNumber>,
 
     // -- Pruning --
     pub lowest_available_checkpoint: u64,
@@ -437,15 +459,6 @@ impl MockGrpcStateReader {
         !self.checkpoints.lock().unwrap().is_empty()
     }
 
-    /// Mark a checkpoint sequence number as using large data.
-    pub fn mark_checkpoint_as_large(&self, seq: CheckpointSequenceNumber) {
-        self.large_checkpoints.lock().unwrap().insert(seq);
-    }
-
-    fn is_large_checkpoint(&self, seq: CheckpointSequenceNumber) -> bool {
-        self.large_checkpoints.lock().unwrap().contains(&seq)
-    }
-
     /// Builder: set the lowest available checkpoint (for pruning tests).
     pub fn with_lowest_available_checkpoint(mut self, seq: u64) -> Self {
         self.lowest_available_checkpoint = seq;
@@ -462,9 +475,13 @@ impl iota_types::storage::ObjectStore for MockGrpcStateReader {
     fn try_get_object_by_key(
         &self,
         object_id: &ObjectId,
-        _version: Version,
+        version: Version,
     ) -> StorageResult<Option<Object>> {
-        Ok(self.objects.get(object_id).cloned())
+        Ok(self
+            .object_versions
+            .get(&ObjectKey(*object_id, version))
+            .or_else(|| self.objects.get(object_id))
+            .cloned())
     }
 }
 
@@ -580,9 +597,9 @@ impl iota_types::storage::ReadStore for MockGrpcStateReader {
 
     fn try_get_events(
         &self,
-        _digest: &TransactionDigest,
+        digest: &TransactionDigest,
     ) -> StorageResult<Option<TransactionEvents>> {
-        Ok(None)
+        Ok(self.events.get(digest).cloned())
     }
 
     fn try_get_full_checkpoint_contents_by_sequence_number(
@@ -604,19 +621,10 @@ impl iota_types::storage::ReadStore for MockGrpcStateReader {
         checkpoint: VerifiedCheckpoint,
         checkpoint_contents: CheckpointContents,
     ) -> CheckpointData {
-        let seq = checkpoint.sequence_number;
-        if self.is_large_checkpoint(seq) {
-            CheckpointData {
-                checkpoint_summary: checkpoint.into_inner(),
-                checkpoint_contents,
-                transactions: self.large_checkpoint_transactions.clone(),
-            }
-        } else {
-            CheckpointData {
-                checkpoint_summary: checkpoint.into_inner(),
-                checkpoint_contents,
-                transactions: self.checkpoint_transactions.clone(),
-            }
+        CheckpointData {
+            checkpoint_summary: checkpoint.into_inner(),
+            checkpoint_contents,
+            transactions: self.checkpoint_transactions.clone(),
         }
     }
 
@@ -665,9 +673,9 @@ impl GrpcStateReader for MockGrpcStateReader {
 
     fn get_transaction_checkpoint(
         &self,
-        _digest: &TransactionDigest,
+        digest: &TransactionDigest,
     ) -> StorageResult<Option<CheckpointSequenceNumber>> {
-        Ok(None)
+        Ok(self.transaction_checkpoints.get(digest).copied())
     }
 
     fn get_struct_layout(
@@ -799,9 +807,13 @@ pub async fn start_test_server_with(
     traffic_controller: Option<Arc<iota_traffic_controller::TrafficController>>,
     client_id_source: Option<ClientIdSource>,
     metrics: Option<iota_grpc_server::GrpcServerMetrics>,
+    transaction_fallback: Option<Arc<dyn TransactionKeyValueStoreTrait + Send + Sync>>,
     config_customizer: impl FnOnce(&mut GrpcApiConfig),
 ) -> (GrpcServerHandle, Arc<GrpcReader>) {
-    let grpc_reader = Arc::new(GrpcReader::new(state_reader, Some("test".to_string())));
+    let grpc_reader = Arc::new(
+        GrpcReader::new(state_reader, Some("test".to_string()))
+            .with_transaction_fallback(transaction_fallback),
+    );
     let localhost = local_ip_utils::localhost_for_testing();
     let port = local_ip_utils::get_available_port(&localhost);
     let mut config = GrpcApiConfig {
@@ -842,6 +854,7 @@ pub async fn start_test_server(
         None,
         None,
         Some(test_metrics()),
+        None,
         config_customizer,
     )
     .await
@@ -850,6 +863,24 @@ pub async fn start_test_server(
 /// The metrics a test server has, as the node gives them to the server.
 fn test_metrics() -> iota_grpc_server::GrpcServerMetrics {
     iota_grpc_server::GrpcServerMetrics::new(&prometheus_filtered::Registry::new())
+}
+
+/// Like [`start_test_server`], but with `transaction_fallback` as the
+/// key-value store serving data the state reader has pruned.
+pub async fn start_test_server_with_transaction_fallback(
+    state_reader: Arc<MockGrpcStateReader>,
+    transaction_fallback: Option<Arc<dyn TransactionKeyValueStoreTrait + Send + Sync>>,
+) -> (GrpcServerHandle, Arc<GrpcReader>) {
+    start_test_server_with(
+        state_reader,
+        None,
+        None,
+        None,
+        Some(test_metrics()),
+        transaction_fallback,
+        |_| {},
+    )
+    .await
 }
 
 /// Like [`start_test_server`], but with the given traffic controller wired
@@ -868,6 +899,7 @@ pub async fn start_test_server_with_traffic_controller(
         Some(traffic_controller),
         Some(client_id_source),
         Some(test_metrics()),
+        None,
         |_| {},
     )
     .await

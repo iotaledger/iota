@@ -193,10 +193,8 @@ impl ValidatorConfigBuilder {
             network_key_pair: KeyPairWithPath::new(validator.network_key_pair.into()),
             account_key_pair: KeyPairWithPath::new(validator.account_key_pair),
             protocol_key_pair: KeyPairWithPath::new(validator.protocol_key_pair.into()),
-            // A validator serves no JSON-RPC (`build_http_server` returns
-            // early on one), so this address is never bound. It is derived
-            // from the network address rather than picked, so that the same
-            // genesis config always gives the same node config.
+            // Never bound: validators serve no JSON-RPC. Derived, not picked,
+            // so the same genesis config gives the same node config.
             json_rpc_address: SocketAddr::new(
                 network_address
                     .to_socket_addr()
@@ -242,6 +240,7 @@ impl ValidatorConfigBuilder {
             enable_validator_tx_finalizer: true,
             enable_soft_locking: true,
             verifier_signing_config: VerifierSigningConfig::default(),
+            post_consensus_validation_readers: None,
             enable_db_write_stall: None,
             iota_names_config: None,
             enable_grpc_api: false,
@@ -671,6 +670,7 @@ impl FullnodeConfigBuilder {
             // submit path); kept at the default so the config mirrors production.
             enable_soft_locking: true,
             verifier_signing_config: VerifierSigningConfig::default(),
+            post_consensus_validation_readers: None,
             enable_db_write_stall: None,
             iota_names_config: self.iota_names_config,
             enable_grpc_api: self.enable_grpc_api,

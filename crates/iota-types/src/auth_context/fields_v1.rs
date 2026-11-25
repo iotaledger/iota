@@ -145,6 +145,12 @@ impl MoveObjectArg {
 
 /// Mirrors [`crate::transaction::CallArg`], matching the BCS layout expected
 /// by the Move-side `ptb_call_arg::CallArg`.
+///
+/// A transaction dependency input has no variant of its own. It is shown as
+/// `Pure` holding the BCS bytes of the digest, exactly like an unused pure
+/// input with the same bytes. A Move authenticator therefore cannot use the
+/// inputs to check that a transaction depends on a given digest; only the
+/// bytes returned by `auth_context::tx_data_bytes` tell the two apart.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MoveCallArg {
     Pure(Vec<u8>),
@@ -164,6 +170,13 @@ impl From<&CallArg> for MoveCallArg {
                 mutable: obj_arg.mutable,
             }),
             CallArg::Receiving(obj_arg) => MoveCallArg::Object(MoveObjectArg::Receiving(*obj_arg)),
+            // The Move enum cannot gain a variant in a framework upgrade, so a
+            // transaction dependency is shown as pure data: the BCS bytes of
+            // its digest, which Move reads as a `vector<u8>`. The input keeps
+            // its index, and no command can use it.
+            CallArg::TransactionDependency(digest) => MoveCallArg::Pure(
+                bcs::to_bytes(digest).expect("a transaction digest serializes to BCS"),
+            ),
             _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         }
     }

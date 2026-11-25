@@ -12,6 +12,7 @@ use iota_sdk_types::{
 };
 use iota_transaction_checks::simulate;
 use iota_types::{
+    digests::ChainIdentifier,
     effects::TransactionEffectsAPI,
     gas::IotaGasStatus,
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
@@ -48,6 +49,7 @@ pub struct LocalVm {
     pub(super) reference_gas_price: u64,
     pub(super) epoch_id: u64,
     pub(super) epoch_timestamp_ms: u64,
+    pub(super) chain_identifier: ChainIdentifier,
     pub(super) limits_metrics: Arc<LimitsMetrics>,
     pub(super) bytecode_verifier_metrics: Arc<BytecodeVerifierMetrics>,
     store: Box<dyn Store>,
@@ -94,6 +96,7 @@ impl LocalVm {
             reference_gas_price: ctx.reference_gas_price,
             epoch_id: ctx.epoch_id,
             epoch_timestamp_ms: ctx.epoch_timestamp_ms,
+            chain_identifier: ctx.chain_identifier,
             limits_metrics: Arc::new(new_limits_metrics()),
             bytecode_verifier_metrics: Arc::new(new_bytecode_verifier_metrics()),
             store: Box::new(store),
@@ -144,6 +147,7 @@ impl LocalVm {
     ) -> Result<ExecutionResult, VmSdkError> {
         let env = ExecutionEnv::new(self, &opts.debug)?;
         let sim_env = env.simulation_env(&opts.deny_config);
+        let mut trace_builder = env.trace_enabled().then(MoveTraceBuilder::new);
         let (sim, transaction) = {
             let backend = StoreBackend::new(self.store.as_ref());
             let prepared = prepare_transaction(
@@ -154,11 +158,15 @@ impl LocalVm {
                 &[],
                 opts.check_coin_deny_list,
             )?;
-            simulate::execute_simulation(&sim_env, env.executor.as_ref(), &backend, prepared)
+            simulate::execute_simulation(
+                &sim_env,
+                env.executor.as_ref(),
+                &backend,
+                prepared,
+                &mut trace_builder,
+            )
         };
-        // The dev-inspect entry point accepts no `MoveTraceBuilder`, so this path
-        // never captures a trace; pass `None`. See `DebugConfig::with_tracing`.
-        let artifacts = env.collect_artifacts(None)?;
+        let artifacts = env.collect_artifacts(trace_builder.map(ExecutionTrace::from_builder))?;
         self.finish(
             sim,
             transaction,
@@ -224,7 +232,8 @@ impl LocalVm {
         )?;
 
         let sim_env = env.simulation_env(&opts.deny_config);
-        let (sim, executed, signature_status, trace) = {
+        let mut trace_builder = env.trace_enabled().then(MoveTraceBuilder::new);
+        let (sim, executed, signature_status) = {
             let backend = StoreBackend::new(self.store.as_ref());
             let prepared = prepare_transaction(
                 &sim_env,
@@ -236,20 +245,16 @@ impl LocalVm {
             )?;
             if move_authenticators.is_empty() {
                 // Standard schemes were verified cryptographically above; the
-                // run's outcome cannot retroactively invalidate them. Runs
-                // through the dev-inspect entry point, so no trace is captured.
+                // run's outcome cannot retroactively invalidate them.
                 let (sim, executed) = simulate::execute_simulation(
                     &sim_env,
                     env.executor.as_ref(),
                     &backend,
                     prepared,
+                    &mut trace_builder,
                 );
-                (sim, executed, SignatureStatus::Verified, None)
+                (sim, executed, SignatureStatus::Verified)
             } else {
-                // Only the authenticator path threads a `MoveTraceBuilder`
-                // through the engine, so a trace is built only here.
-                let mut trace_builder = env.trace_enabled().then(MoveTraceBuilder::new);
-
                 let (sim, authenticator_outcome, executed) = execute_with_move_authenticators(
                     &sim_env,
                     env.executor.as_ref(),
@@ -264,11 +269,10 @@ impl LocalVm {
                     sim,
                     executed,
                     SignatureStatus::from_authentication(authenticator_outcome),
-                    trace_builder.map(ExecutionTrace::from_builder),
                 )
             }
         };
-        let artifacts = env.collect_artifacts(trace)?;
+        let artifacts = env.collect_artifacts(trace_builder.map(ExecutionTrace::from_builder))?;
 
         self.finish(sim, executed, opts.mode, signature_status, artifacts)
     }
@@ -282,8 +286,9 @@ impl LocalVm {
     /// metered at the signing gas cap (`max_auth_gas`); commits nothing.
     ///
     /// Complements [`execute_signed`](Self::execute_signed), which models the
-    /// post-consensus path and is never capped at `max_auth_gas`; a transaction
-    /// is accepted on-chain only if it passes both. See
+    /// post-consensus path, where the authenticators get the full budget, or at
+    /// most `max_auth_gas` of it with validator attestation; a transaction is
+    /// accepted on-chain only if it passes both. See
     /// `docs/execution-model.md` for the full phase/budget mapping.
     ///
     /// Standard-scheme signatures are verified cryptographically first, as at
@@ -545,9 +550,18 @@ fn ensure_move_authentication_supported(
 #[cfg(test)]
 mod tests {
     use iota_protocol_config::{Chain, MAX_PROTOCOL_VERSION, ProtocolConfig, ProtocolVersion};
+    use iota_sdk_types::{
+        Address, MoveStruct, ObjectId, Owner, Transaction, TransactionDigest, TransactionExpiration,
+    };
+    use iota_types::{
+        effects::TransactionEffectsAPI,
+        object::{MoveStructExt, OBJECT_START_VERSION, Object},
+        programmable_transaction_builder::ProgrammableTransactionBuilder,
+        transaction::{TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI},
+    };
 
-    use super::ensure_move_authentication_supported;
-    use crate::error::VmSdkError;
+    use super::{LocalVm, ensure_move_authentication_supported};
+    use crate::{ChainContext, ExecuteOptions, InMemoryStore, Store, error::VmSdkError};
 
     #[test]
     fn move_authentication_support_ignored_without_authenticators() {
@@ -582,5 +596,46 @@ mod tests {
         );
         assert!(new.max_auth_gas_as_option().is_some());
         assert!(ensure_move_authentication_supported(&new, true).is_ok());
+    }
+
+    /// The store keeps no executed transactions, so a transaction dependency
+    /// is assumed to have succeeded and is listed in the effects'
+    /// dependencies.
+    #[test]
+    fn transaction_dependency_is_assumed_to_succeed() {
+        const GAS_PRICE: u64 = 1000;
+        let sender = Address::ZERO;
+        let gas = Object::new_move(
+            MoveStruct::new_gas_coin(OBJECT_START_VERSION, ObjectId::random(), 1_000_000_000_000),
+            Owner::Address(sender),
+            TransactionDigest::ZERO,
+        );
+        let mut store = InMemoryStore::with_framework();
+        store.insert(gas.clone());
+        let ctx = ChainContext::new(ProtocolVersion::MAX, Chain::Unknown)
+            .with_reference_gas_price(GAS_PRICE);
+        let mut vm = LocalVm::new(ctx, store).unwrap();
+        vm.protocol_config
+            .set_enable_transaction_dependencies_for_testing(true);
+
+        let dependency = TransactionDigest::new([7; 32]);
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.transfer_iota(Address::from(ObjectId::random()), Some(1_000));
+        builder.transaction_dependency(dependency);
+        let mut transaction = Transaction::new_programmable(
+            sender,
+            vec![gas.object_ref()],
+            builder.finish(),
+            TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE * GAS_PRICE,
+            GAS_PRICE,
+        );
+        if let Transaction::V1(transaction) = &mut transaction {
+            transaction.expiration = TransactionExpiration::Epoch(0);
+        }
+
+        let result = vm.execute(transaction, ExecuteOptions::execute()).unwrap();
+
+        assert!(result.status.is_success(), "{:?}", result.status);
+        assert!(result.effects.dependencies().contains(&dependency));
     }
 }

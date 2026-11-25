@@ -17,7 +17,9 @@ use iota_transaction_checks::{
 };
 use iota_types::{
     committee::{Committee, EpochId},
-    error::IotaResult,
+    digests::ChainIdentifier,
+    effects::TransactionEffectsAPI,
+    error::{IotaError, IotaResult, UserInputError},
     gas::IotaGasStatus,
     inner_temporary_store::InnerTemporaryStore,
     iota_system_state::{
@@ -25,7 +27,7 @@ use iota_types::{
         epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
     },
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
-    transaction::{TransactionAPI, VerifiedTransaction},
+    transaction::{TransactionAPI, TransactionDependencyReadResult, VerifiedTransaction},
     transaction_executor::{InputCheckRules, SimulateTransactionResult, VmChecks},
 };
 
@@ -120,6 +122,7 @@ impl EpochState {
     pub fn execute_transaction(
         &self,
         store: &dyn SimulatorStore,
+        chain_identifier: ChainIdentifier,
         deny_config: &TransactionDenyConfig,
         verifier_signing_config: &VerifierSigningConfig,
         transaction: &VerifiedTransaction,
@@ -143,11 +146,23 @@ impl EpochState {
             &store,
         )?;
 
-        let (input_objects, receiving_objects) = store.read_objects_for_synchronous_execution(
+        let (mut input_objects, receiving_objects) = store.read_objects_for_synchronous_execution(
             &tx_digest,
             &input_object_kinds,
             &receiving_object_refs,
         )?;
+
+        if let Some(dependency) = tx.transaction_dependency() {
+            let effects = store.get_transaction_effects(&dependency).ok_or_else(|| {
+                IotaError::from(UserInputError::TransactionDependencyNotFound {
+                    digest: dependency,
+                })
+            })?;
+            input_objects.set_transaction_dependency(TransactionDependencyReadResult {
+                digest: dependency,
+                succeeded: effects.status().is_success(),
+            });
+        }
 
         // `MoveAuthenticator`s are not supported in Simulacrum, so we set the
         // `authenticator_gas_budget` to 0.
@@ -177,6 +192,7 @@ impl EpochState {
                 self.limits_metrics.clone(),
                 false,           // enable_expensive_checks
                 &HashSet::new(), // certificate_deny_set
+                chain_identifier,
                 &self.epoch_start_state.epoch(),
                 self.epoch_start_state.epoch_start_timestamp_ms(),
                 checked_input_objects,
@@ -197,6 +213,7 @@ impl EpochState {
     pub fn simulate_transaction(
         &self,
         store: &dyn SimulatorStore,
+        chain_identifier: ChainIdentifier,
         deny_config: &TransactionDenyConfig,
         verifier_signing_config: &VerifierSigningConfig,
         transaction: Transaction,
@@ -208,6 +225,7 @@ impl EpochState {
             reference_gas_price: self.epoch_start_state.reference_gas_price(),
             epoch_id: self.epoch_start_state.epoch(),
             epoch_timestamp_ms: self.epoch_start_state.epoch_start_timestamp_ms(),
+            chain_identifier,
             deny_config,
             certificate_deny_set: &HashSet::new(),
             verifier_signing_config,
@@ -228,12 +246,18 @@ impl EpochState {
                     receiving_object_refs,
                 )
             },
+            |dependency| {
+                Ok(store
+                    .get_transaction_effects(&dependency)
+                    .is_none_or(|effects| effects.status().is_success()))
+            },
         )?;
         Ok(simulate::execute_simulation(
             &env,
             self.executor.as_ref(),
             store.backing_store(),
             prepared,
+            &mut None,
         )
         .0)
     }

@@ -13,6 +13,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     deny_rule_governance::DenyRuleConfig,
+    digests::ChainIdentifier,
     effects::TransactionEffectsAPI,
     error::{ExecutionError, IotaError, UserInputError},
     execution::ExecutionResult,
@@ -23,10 +24,11 @@ use iota_types::{
     storage::{BackingStore, extend_input_objects_with_loaded_runtime_objects},
     transaction::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult, ReceivingObjects,
-        TransactionAPI, merge_authenticator_input_objects,
+        TransactionAPI, TransactionDependencyReadResult, merge_authenticator_input_objects,
     },
     transaction_executor::{InputCheckRules, SimulateTransactionResult, VmChecks},
 };
+use move_trace_format::format::MoveTraceBuilder;
 
 use crate::{
     VerifierLimitsSource, check_transaction_input, check_user_transaction_validity,
@@ -39,6 +41,7 @@ pub struct SimulationEnv<'a> {
     pub reference_gas_price: u64,
     pub epoch_id: EpochId,
     pub epoch_timestamp_ms: u64,
+    pub chain_identifier: ChainIdentifier,
     pub deny_config: &'a dyn DenyRuleConfig,
     pub certificate_deny_set: &'a HashSet<TransactionDigest>,
     pub verifier_signing_config: &'a VerifierSigningConfig,
@@ -110,7 +113,10 @@ pub struct PreparedSimulation {
 ///
 /// `signatures` are deny-checked along with the transaction, and so are the
 /// input objects of the `MoveAuthenticator`s among them. `load_objects` loads
-/// the transaction's input and receiving objects.
+/// the transaction's input and receiving objects. `dependency_succeeded` tells
+/// whether the transaction's dependency succeeded; a dependency that has not
+/// executed yet should count as succeeded, so that a dependent can be
+/// simulated before it.
 pub fn prepare_simulation<E: From<SimulationCheckError>>(
     env: &SimulationEnv<'_>,
     store: &dyn BackingStore,
@@ -122,6 +128,7 @@ pub fn prepare_simulation<E: From<SimulationCheckError>>(
         &[InputObjectKind],
         &[ObjectReference],
     ) -> Result<(InputObjects, ReceivingObjects), E>,
+    dependency_succeeded: impl FnOnce(TransactionDigest) -> Result<bool, E>,
 ) -> Result<PreparedSimulation, E> {
     let protocol_config = env.protocol_config;
 
@@ -157,6 +164,12 @@ pub fn prepare_simulation<E: From<SimulationCheckError>>(
 
     let (mut input_objects, receiving_objects) =
         load_objects(&input_object_kinds, &receiving_object_refs)?;
+    if let Some(digest) = transaction.transaction_dependency() {
+        input_objects.set_transaction_dependency(TransactionDependencyReadResult {
+            digest,
+            succeeded: dependency_succeeded(digest)?,
+        });
+    }
 
     let mock_gas_id = if transaction.gas().is_empty() {
         if !fill_in_gas {
@@ -231,6 +244,7 @@ pub fn execute_simulation(
     executor: &dyn Executor,
     store: &dyn BackingStore,
     prepared: PreparedSimulation,
+    trace_builder_opt: &mut Option<MoveTraceBuilder>,
 ) -> (SimulateTransactionResult, Transaction) {
     let PreparedSimulation {
         transaction,
@@ -247,6 +261,7 @@ pub fn execute_simulation(
         env.limits_metrics.clone(),
         false, // expensive_checks
         env.certificate_deny_set,
+        env.chain_identifier,
         &env.epoch_id,
         env.epoch_timestamp_ms,
         checked_input_objects,
@@ -256,6 +271,7 @@ pub fn execute_simulation(
         signer,
         transaction.digest(),
         checks.disabled(),
+        trace_builder_opt,
     );
     let result = simulation_result(
         store,

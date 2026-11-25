@@ -60,7 +60,7 @@ module Test::M {
 
 //# run-graphql
 # C: Checkpoint.transactionBlocks on a pruned checkpoint — no fallback.
-# The parent `checkpoint(...)` resolves to null, so no nested field is
+# The parent `checkpoint(...)` fails with DATA_PRUNED, so no nested field is
 # fetched.
 {
   checkpoint(id: { sequenceNumber: 1 }) {

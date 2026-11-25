@@ -27,7 +27,9 @@ use tonic::service::Routes;
 use crate::{
     GrpcCheckpointDataBroadcaster, GrpcReader, GrpcServerMetrics, LedgerGrpcService,
     MovePackageGrpcService, StateGrpcService, TransactionExecutionGrpcService,
-    metrics::GrpcMetricsLayer, server_timing::ServerTimingLayer,
+    constants::{IOTA_SDK_GRPC_CLIENT_VERSION_MIN, X_IOTA_SDK_GRPC_CLIENT_VERSION_MIN},
+    metrics::GrpcMetricsLayer,
+    server_timing::ServerTimingLayer,
     traffic_control::TrafficControlLayer,
 };
 
@@ -221,13 +223,17 @@ pub async fn start_grpc_server(
         );
     }
 
-    // Order matters: the address copy before traffic control, which reads it;
-    // metrics before traffic control, to count blocked requests; `GrpcTimeout`
-    // inside both, so they see the status of a call that ends at its deadline;
-    // server-timing innermost, to time only the requests that traffic control
-    // lets through.
+    // Order matters:
+    // - the address copy before traffic control, which reads it;
+    // - the minimum client version outside every layer that can answer a request itself, so those
+    //   responses carry it too;
+    // - metrics before traffic control, to count blocked requests;
+    // - `GrpcTimeout` inside metrics and traffic control, so they see the status of a call that
+    //   ends at its deadline;
+    // - server-timing innermost, to time only the requests that traffic control lets through.
     let service = tower::ServiceBuilder::new()
         .map_request(insert_tonic_connect_info)
+        .map_response(insert_client_version_min)
         .option_layer(
             metrics.map(|m| GrpcMetricsLayer::new(Arc::new(m), &service_methods::ALL_METHOD_PATHS)),
         )
@@ -265,4 +271,13 @@ pub async fn start_grpc_server(
         checkpoint_data_broadcaster,
         address: actual_addr,
     })
+}
+
+/// Adds the lowest supported `iota-sdk-grpc-client` version to a response.
+fn insert_client_version_min<B>(mut response: http::Response<B>) -> http::Response<B> {
+    response.headers_mut().insert(
+        X_IOTA_SDK_GRPC_CLIENT_VERSION_MIN,
+        http::HeaderValue::from_static(IOTA_SDK_GRPC_CLIENT_VERSION_MIN),
+    );
+    response
 }

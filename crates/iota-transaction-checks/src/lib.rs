@@ -30,7 +30,7 @@ mod checked {
         transaction::{
             CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
             ObjectReadResultKind, ProgrammableTransactionExt, ReceivingObjectReadResult,
-            ReceivingObjects, TransactionAPI,
+            ReceivingObjects, TransactionAPI, check_claim_account_gas_budget,
         },
         transaction_executor::InputCheckRules,
     };
@@ -99,7 +99,10 @@ mod checked {
     /// checks except the two on the gas payment objects: that there is at least
     /// one, and the version check on each of them. A caller can then supply the
     /// gas payment itself. The limit on the number of gas payment objects still
-    /// applies.
+    /// applies. The minimum gas budget of a `ClaimAccount` is left out as well,
+    /// so that a caller can fill in the gas price and the gas budget first:
+    /// [`check_transaction_input`] checks it, unless its caller leaves the gas
+    /// budget unbounded.
     ///
     /// Signing rejects a system transaction before [`check_transaction_input`]
     /// runs, and [`check_transaction_input`] itself accepts one, so a caller
@@ -144,6 +147,12 @@ mod checked {
         is_execute_transaction_to_effects: bool,
         input_checks: InputCheckRules,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
+        // The transaction's validity check applies this at signing. A
+        // simulation leaves it out of that check, because it only fills in the
+        // gas price and the gas budget its caller left unset afterwards.
+        if !input_checks.unbounded_gas_budget {
+            check_claim_account_gas_budget(transaction, protocol_config)?;
+        }
         let gas_status = check_transaction_input_inner(
             protocol_config,
             reference_gas_price,
@@ -227,7 +236,9 @@ mod checked {
         )?;
         // NB: We do not check receiving objects when executing. Only at signing
         // time do we check. NB: move verifier is only checked at
-        // signing time, not at execution.
+        // signing time, not at execution. NB: the minimum gas budget of a
+        // `ClaimAccount` is not checked here, the transaction's validity check
+        // covers it.
 
         Ok((gas_status, input_objects.into_checked()))
     }
@@ -287,7 +298,9 @@ mod checked {
             .iter()
             .try_for_each(check_move_authenticator_objects)?;
 
-        // Check transaction inputs next.
+        // Check transaction inputs next. As in `check_certificate_input`, the
+        // minimum gas budget of a `ClaimAccount` is not checked here, the
+        // transaction's validity check covers it.
         let gas_status = check_transaction_input_inner(
             protocol_config,
             reference_gas_price,

@@ -17,7 +17,7 @@ use tonic::Status;
 use typed_store_error::TypedStoreError;
 
 use crate::{
-    attestation::AuthorityIndex,
+    attestation::{AuthorityIndex, SharedInputIndex},
     base_types::*,
     committee::{Committee, EpochId, StakeUnit},
     messages_checkpoint::CheckpointSequenceNumber,
@@ -355,7 +355,6 @@ pub enum UserInputError {
         "Invalid authenticator function ref field value found for the account {account_object_id}"
     )]
     InvalidAuthenticatorFunctionRefField { account_object_id: ObjectId },
-
     #[error("Package {package_id} is in the `MoveAuthenticator` input that is unsupported")]
     PackageIsInMoveAuthenticatorInput { package_id: ObjectId },
     #[error(
@@ -394,6 +393,32 @@ pub enum UserInputError {
         object_id: ObjectId,
         version: Option<Version>,
     },
+    #[error(
+        "Transaction {digest} that this transaction depends on is not among the executed transactions"
+    )]
+    TransactionDependencyNotFound { digest: TransactionDigest },
+    #[error(
+        "Transaction {digest} that this transaction depends on failed, was cancelled, or was rejected"
+    )]
+    TransactionDependencyFailed { digest: TransactionDigest },
+    #[error(
+        "Transaction {digest} that this transaction depends on executed in epoch {executed_epoch}; a dependency must be a transaction of the current epoch"
+    )]
+    TransactionDependencyNotInCurrentEpoch {
+        digest: TransactionDigest,
+        executed_epoch: EpochId,
+    },
+    #[error(
+        "Invalid argument at command {command_idx}, argument {argument_idx}: a transaction dependency input cannot be used by a command"
+    )]
+    TransactionDependencyInputUsed {
+        command_idx: usize,
+        argument_idx: usize,
+    },
+    #[error(
+        "A transaction with a transaction dependency input must set an epoch expiration equal to the current epoch"
+    )]
+    TransactionDependencyRequiresExpiration,
 }
 
 /// Formats `version` as " at version {version}", or as nothing when it is
@@ -782,6 +807,31 @@ pub enum IotaError {
          `attestation_max_refuted_units_squared`"
     )]
     AttestorCutOff { attestor: AuthorityIndex },
+
+    #[error(
+        "Attestation records a version at {index:?}, where the transaction names \
+         no shared object"
+    )]
+    AttestationIndexNamesNoSharedObject { index: SharedInputIndex },
+
+    #[error("Attestation records a version at {index:?} more than once")]
+    AttestationIndexRepeated { index: SharedInputIndex },
+
+    #[error(
+        "Attestation records versions {first} and {second} of object {object_id}, \
+         which the transaction names at two indexes"
+    )]
+    AttestationObjectVersionsDiffer {
+        object_id: ObjectId,
+        first: Version,
+        second: Version,
+    },
+
+    #[error(
+        "Attestation records no version at {index:?}, where a Move authenticator \
+         names a shared object"
+    )]
+    AttestationAuthenticatorInputMissing { index: SharedInputIndex },
 }
 
 #[repr(u64)]
@@ -940,6 +990,8 @@ impl IotaError {
                     // Every validator drops the transaction at the commit for
                     // good, so a resubmission of it gets the same answer.
                     UserInputError::InputObjectNotAvailableAtCommit { .. } => false,
+                    // The dependency may still be submitted or executed.
+                    UserInputError::TransactionDependencyNotFound { .. } => true,
                     _ => false,
                 }
             }
@@ -1052,6 +1104,7 @@ pub fn categorize(error: &IotaError) -> ErrorCategory {
             UserInputError::InputObjectNotAvailableAtCommit { .. } => {
                 ErrorCategory::InvalidTransaction
             }
+            UserInputError::TransactionDependencyNotFound { .. } => ErrorCategory::Aborted,
             _ => ErrorCategory::InvalidTransaction,
         },
         IotaError::InvalidSignature { .. }

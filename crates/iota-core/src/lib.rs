@@ -76,6 +76,9 @@ mod move_package_upgrade_tests;
 #[path = "unit_tests/pay_iota_tests.rs"]
 mod pay_iota_tests;
 #[cfg(test)]
+#[path = "unit_tests/rejection_cases.rs"]
+mod rejection_cases;
+#[cfg(test)]
 #[path = "unit_tests/shared_object_deletion_tests.rs"]
 mod shared_object_deletion_tests;
 pub mod signature_verifier;

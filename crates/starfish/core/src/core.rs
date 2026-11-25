@@ -144,7 +144,6 @@ pub(crate) enum ReasonToCreateBlock {
     Recover,
     QuorumSubscribersExist,
     KnownLastBlock,
-    #[allow(dead_code)]
     FastSyncComplete,
 }
 
@@ -177,7 +176,7 @@ impl ReasonToCreateBlock {
             ReasonToCreateBlock::Recover => true,
             ReasonToCreateBlock::QuorumSubscribersExist => true,
             ReasonToCreateBlock::KnownLastBlock => true,
-            ReasonToCreateBlock::FastSyncComplete => true,
+            ReasonToCreateBlock::FastSyncComplete => false,
         }
     }
 }
@@ -707,12 +706,14 @@ impl Core {
         )
     }
 
-    /// Reinitialize consensus components after fast sync completes.
-    /// This stores block headers on disk and reinitializes DagState,
-    /// BlockManager, and CommitObserver so that regular syncer can take
-    /// over.
+    /// Rebuilds the consensus components from storage and `block_headers`
+    /// when fast sync ends, so that regular sync can take over, then proposes
+    /// a block if one is due and signals the current round. `block_headers`
+    /// should cover the `dag_state_cached_rounds` window.
     ///
-    /// Block headers should cover the cached_rounds window (~500 rounds).
+    /// # Errors
+    ///
+    /// Fails if reading the stored commits fails or the node is shutting down.
     pub(crate) async fn reinitialize_components(
         &mut self,
         block_headers: Vec<VerifiedBlockHeader>,
@@ -766,6 +767,11 @@ impl Core {
         // 8. Reset signaling state
         self.last_signaled_round = threshold_round.saturating_sub(1);
 
+        // 9. Proposal triggers that arrived during fast sync were dropped and
+        // no new header may come, so propose now if due and signal the round.
+        self.try_propose(ReasonToCreateBlock::FastSyncComplete)?;
+        self.try_signal_new_round();
+
         info!("Components reinitialized successfully");
         Ok(())
     }
@@ -785,6 +791,10 @@ impl Core {
         tracing::trace!(round = ?new_clock_round, "new_consensus_round_sent");
         self.signals.new_round(new_clock_round);
         self.last_signaled_round = new_clock_round;
+        // A restart that recovers a later round does not record it again.
+        if new_clock_round == 2 {
+            self.context.record_epoch_start_stage("round_2");
+        }
 
         // Report the threshold clock round
         self.context
@@ -1226,6 +1236,8 @@ impl Core {
                     )
                     .as_secs_f64(),
                 );
+        } else {
+            self.context.record_epoch_start_stage("first_own_block");
         }
 
         // Construct verified transactions to be used for storing and broadcasting
@@ -1301,7 +1313,7 @@ impl Core {
             .start_timer();
 
         let mut committed_sub_dags = Vec::new();
-        let mut all_missing_committed_txns = BTreeMap::new();
+        let mut all_missing_committed_txns = BTreeMap::<_, BTreeSet<_>>::new();
         // TODO: Add optimization to abort early without quorum for a round.
         loop {
             // LeaderSchedule has a limit to how many sequenced leaders can be committed
@@ -1393,15 +1405,21 @@ impl Core {
             let (subdags, missing_transactions_refs) = self
                 .commit_observer
                 .handle_committed_leaders(sequenced_leaders, source)?;
+            if subdags
+                .first()
+                .is_some_and(|subdag| subdag.base.commit_ref.index == 1)
+            {
+                self.context.record_epoch_start_stage("first_commit");
+            }
 
-            // Check for duplicates before extending
-            assert!(
-                !missing_transactions_refs
-                    .keys()
-                    .any(|k| all_missing_committed_txns.contains_key(k)),
-                "duplicate committed missing transactions reference found"
-            );
-            all_missing_committed_txns.extend(missing_transactions_refs);
+            // The same transaction ref can be missing on both sides of a leader
+            // schedule change.
+            for (transaction_ref, authors) in missing_transactions_refs {
+                all_missing_committed_txns
+                    .entry(transaction_ref)
+                    .or_default()
+                    .extend(authors);
+            }
 
             // After a positive commit advance, refresh the quorum commit index
             // on `DagState` so the eviction of `pending_commit_votes` is bounded.
@@ -1469,6 +1487,11 @@ impl Core {
     /// Sets if there is 2f+1 subscriptions to the block stream.
     pub(crate) fn set_quorum_subscribers_exists(&mut self, exists: bool) {
         info!("A quorum of block subscribers exists: {exists}");
+        // Before the first own block, so a restart in the middle of the epoch
+        // does not record it.
+        if exists && self.last_proposed_round() == 0 {
+            self.context.record_epoch_start_stage("subscriber_quorum");
+        }
         self.quorum_subscribers_exists = exists;
     }
 
@@ -1973,8 +1996,10 @@ impl CoreTestFixture {
             LeaderSchedule::from_store(context.clone(), dag_state.clone())
                 .with_num_commits_per_schedule(10),
         );
-        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
-        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (_transaction_client, tx_receiver, priority_tx_receiver) =
+            TransactionClient::new(context.clone());
+        let transaction_consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
         let (signals, signal_receivers) = CoreSignals::new(context.clone());
         // Need at least one subscriber to the block broadcast channel.
         let block_receiver = signal_receivers.block_broadcast_receiver();
@@ -2020,6 +2045,7 @@ impl CoreTestFixture {
 mod test {
     use std::{
         collections::{BTreeSet, HashSet},
+        iter,
         time::Duration,
     };
 
@@ -2038,11 +2064,11 @@ mod test {
             BlockHeaderDigest, TestBlockHeader, TestBlockHeaderVersion, TransactionsCommitment,
             genesis_block_headers, genesis_blocks,
         },
-        commit::{CommitAPI, CommitRange},
+        commit::{CommitAPI, CommitDigest, CommitRange, CommitRef},
         leader_scoring::ReputationScores,
         storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
-        transaction::{BlockStatus, TransactionClient},
+        transaction::{BlockStatus, Priority, TransactionClient},
         transaction_ref::TransactionRef,
     };
 
@@ -2054,8 +2080,10 @@ mod test {
         let (context, mut key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
-        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (_transaction_client, tx_receiver, priority_tx_receiver) =
+            TransactionClient::new(context.clone());
+        let transaction_consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
         let mut block_status_subscriptions = FuturesUnordered::new();
 
         // Create a fully connected DAG with 6 rounds.
@@ -2177,8 +2205,10 @@ mod test {
         let (context, mut key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
-        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (_transaction_client, tx_receiver, priority_tx_receiver) =
+            TransactionClient::new(context.clone());
+        let transaction_consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
 
         // Create test blocks for all authorities except our's (index = 0). For
         // round 4 only produce f+1 blocks, so skip authority 1 as well.
@@ -2313,8 +2343,10 @@ mod test {
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
-        let (transaction_client, tx_receiver) = TransactionClient::new(context.clone());
-        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (transaction_client, tx_receiver, priority_tx_receiver) =
+            TransactionClient::new(context.clone());
+        let transaction_consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
         let (signals, signal_receivers) = CoreSignals::new(context.clone());
         // Need at least one subscriber to the block broadcast channel.
         let mut block_receiver = signal_receivers.block_broadcast_receiver();
@@ -2346,7 +2378,7 @@ mod test {
             total += transaction.len();
             index += 1;
             let _w = transaction_client
-                .submit_no_wait(vec![transaction])
+                .submit_no_wait(vec![transaction], Priority::Normal)
                 .await
                 .unwrap();
 
@@ -2478,8 +2510,10 @@ mod test {
             dag_state.clone(),
         ));
 
-        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
-        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (_transaction_client, tx_receiver, priority_tx_receiver) =
+            TransactionClient::new(context.clone());
+        let transaction_consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
         let (signals, signal_receivers) = CoreSignals::new(context.clone());
         // Need at least one subscriber to the block broadcast channel.
         let _block_receiver = signal_receivers.block_broadcast_receiver();
@@ -2630,8 +2664,10 @@ mod test {
             dag_state.clone(),
         ));
 
-        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
-        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (_transaction_client, tx_receiver, priority_tx_receiver) =
+            TransactionClient::new(context.clone());
+        let transaction_consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
         let (signals, signal_receivers) = CoreSignals::new(context.clone());
         // Need at least one subscriber to the block broadcast channel.
         let _block_receiver = signal_receivers.block_broadcast_receiver();
@@ -2848,8 +2884,10 @@ mod test {
             dag_state.clone(),
         ));
 
-        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
-        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (_transaction_client, tx_receiver, priority_tx_receiver) =
+            TransactionClient::new(context.clone());
+        let transaction_consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
         let (signals, signal_receivers) = CoreSignals::new(context.clone());
         // Need at least one subscriber to the block broadcast channel.
         let _block_receiver = signal_receivers.block_broadcast_receiver();
@@ -3696,6 +3734,111 @@ mod test {
         }
     }
 
+    /// A missing payload committed on both sides of a leader schedule change
+    /// in one call is reported once, with the acknowledgers of both headers
+    /// that carry it, instead of aborting the node.
+    #[tokio::test]
+    async fn missing_payload_repeated_across_schedule_change_is_merged() {
+        let (context, _) = Context::new_for_test(4);
+        let mut fixture = CoreTestFixture::new(
+            context,
+            vec![1; 4],
+            AuthorityIndex::new_for_test(0),
+            true,
+            false,
+            None,
+        )
+        .await;
+
+        // Every block links all blocks of the previous round, so commit r has
+        // leader round r and the schedule changes after commit 10. Authority 3
+        // has two headers at round 8 with one payload: authorities 0-2
+        // acknowledge the first at round 9, committing the payload in commit
+        // 10, and authorities 1-3 the second at round 11, committing it again
+        // in commit 12.
+        let mut ancestors: Vec<BlockRef> = genesis_block_headers(&fixture.core.context)
+            .iter()
+            .map(|header| header.reference())
+            .collect();
+        let mut equivocating_headers = Vec::new();
+        let mut transaction_ref = None;
+        let mut headers = Vec::new();
+        for round in 1..=17 {
+            let mut layer = Vec::new();
+            for author in 0..4u8 {
+                let mut acknowledgments: Vec<BlockRef> = ancestors
+                    .iter()
+                    .filter(|ancestor| {
+                        ancestor.round > 0 && !equivocating_headers.contains(*ancestor)
+                    })
+                    .copied()
+                    .collect();
+                match (round, author) {
+                    (9, 0..=2) => acknowledgments.push(equivocating_headers[0]),
+                    (11, 1..=3) => acknowledgments.push(equivocating_headers[1]),
+                    _ => {}
+                }
+                let copies = if (round, author) == (8, 3) { 2 } else { 1 };
+                for copy in 0..copies {
+                    let header = VerifiedBlockHeader::new_for_test(
+                        TestBlockHeader::new(round, author)
+                            .set_ancestors(ancestors.clone())
+                            .set_acknowledgments(acknowledgments.clone())
+                            .set_timestamp_ms(round as u64 * 1000 + copy)
+                            .build(),
+                    );
+                    if copies == 2 {
+                        equivocating_headers.push(header.reference());
+                        transaction_ref = Some(header.transaction_ref());
+                    }
+                    layer.push(header.reference());
+                    headers.push(header);
+                }
+            }
+            ancestors = layer;
+        }
+        let transaction_ref = transaction_ref.unwrap();
+
+        let (_, missing) = fixture
+            .core
+            .add_block_headers(headers, DataSource::Test)
+            .unwrap();
+
+        assert_eq!(
+            missing[&transaction_ref],
+            (0..4)
+                .map(AuthorityIndex::new_for_test)
+                .collect::<BTreeSet<_>>()
+        );
+        assert_eq!(
+            fixture
+                .core
+                .leader_schedule
+                .leader_swap_table
+                .read()
+                .reputation_scores
+                .commit_range,
+            CommitRange::new(1..=10)
+        );
+        let commits = fixture
+            .store
+            .scan_commits((0..=CommitIndex::MAX).into())
+            .unwrap();
+        assert_eq!(
+            commits
+                .iter()
+                .map(|commit| commit.leader().round)
+                .collect::<Vec<_>>(),
+            (1..=12).collect::<Vec<_>>()
+        );
+        let payload_commits: Vec<CommitIndex> = commits
+            .iter()
+            .filter(|commit| commit.committed_transactions().contains(&transaction_ref))
+            .map(|commit| commit.index())
+            .collect();
+        assert_eq!(payload_commits, [10, 12]);
+    }
+
     #[tokio::test]
     async fn test_core_signals() {
         telemetry_subscribers::init_for_testing();
@@ -3901,8 +4044,10 @@ mod test {
         let context = Arc::new(context);
 
         let store = Arc::new(MemStore::new());
-        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
-        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (_transaction_client, tx_receiver, priority_tx_receiver) =
+            TransactionClient::new(context.clone());
+        let transaction_consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
         let mut block_status_subscriptions = FuturesUnordered::new();
 
         // Create a fully connected DAG with 8 rounds.
@@ -4586,5 +4731,74 @@ mod test {
             sent_indices.push(sub_dag.commit_ref.index);
         }
         assert_eq!(sent_indices, (1..=last_commit_index).collect::<Vec<_>>());
+    }
+
+    /// When fast sync ends, a node proposes and broadcasts a block without
+    /// waiting for another header if a proposal is due, and signals the
+    /// current round either way.
+    #[rstest]
+    #[case::proposal_due(0, Some(5), 6)]
+    #[case::behind_quorum_commit_round(5, None, 5)]
+    #[tokio::test]
+    async fn fast_sync_reinitialization_proposes_only_when_due(
+        #[case] quorum_commit_index: CommitIndex,
+        #[case] proposed_round: Option<Round>,
+        #[case] signaled_round: Round,
+    ) {
+        telemetry_subscribers::init_for_testing();
+        // GIVEN a node that stored peer headers before fast sync: authorities
+        // 1, 2 and 3 up to round 4, and only 1 and 2 at round 5, so a quorum at
+        // round 5 needs this node's block. The node has no commits and peers
+        // voted for commits up to `quorum_commit_index`; at 5 the approximate
+        // quorum commit round reaches round 5, so no proposal is due.
+        let (context, _) = Context::new_for_test(4);
+        let own_index = AuthorityIndex::new_for_test(0);
+        let mut fixture =
+            CoreTestFixture::new(context.clone(), vec![1; 4], own_index, false, false, None).await;
+        let mut dag_builder = DagBuilder::new(Arc::new(context));
+        dag_builder
+            .layers(1..=4)
+            .authorities(vec![own_index])
+            .skip_block()
+            .build();
+        dag_builder
+            .layers(5..=5)
+            .authorities(vec![own_index, AuthorityIndex::new_for_test(3)])
+            .skip_block()
+            .build();
+        {
+            let mut dag_state = fixture.core.dag_state.write();
+            dag_state.accept_block_headers(dag_builder.block_headers(1..=5), DataSource::Test);
+            dag_state.set_fast_sync_ongoing_flag(true);
+            dag_state.flush();
+        }
+        for author in 1..=3 {
+            let header = VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(5, author)
+                    .set_commit_votes(vec![CommitRef::new(quorum_commit_index, CommitDigest::MIN)])
+                    .build(),
+            );
+            fixture.core.commit_vote_monitor.observe_block(&header);
+        }
+        assert_eq!(fixture.core.last_proposed_round(), 1);
+        let mut block_receiver = fixture.signal_receivers.block_broadcast_receiver();
+        let mut new_round_receiver = fixture.signal_receivers.new_round_receiver();
+        new_round_receiver.mark_unchanged();
+
+        // WHEN fast sync ends.
+        fixture.core.reinitialize_components(vec![]).await.unwrap();
+
+        // THEN, only if a proposal is due, the node broadcasts blocks up to
+        // round 5; it signals the current round either way.
+        let last_broadcast_round = iter::from_fn(|| block_receiver.try_recv().ok())
+            .last()
+            .map(|block| block.round());
+        assert_eq!(last_broadcast_round, proposed_round);
+        assert_eq!(
+            fixture.core.last_proposed_round(),
+            proposed_round.unwrap_or(1)
+        );
+        assert!(new_round_receiver.has_changed().unwrap());
+        assert_eq!(*new_round_receiver.borrow(), signaled_round);
     }
 }

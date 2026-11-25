@@ -26,6 +26,7 @@ use iota_types::{
     auth_context::AuthContextData,
     base_types::TxContext,
     committee::EpochId,
+    digests::ChainIdentifier,
     error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
     execution::{AuthenticateThenExecuteOutput, ExecutionResult, ExecutionTiming, TypeLayoutStore},
     gas::IotaGasStatus,
@@ -80,6 +81,7 @@ impl executor::Executor for Executor {
         metrics: Arc<LimitsMetrics>,
         enable_expensive_checks: bool,
         certificate_deny_set: &HashSet<TransactionDigest>,
+        chain_identifier: ChainIdentifier,
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         input_objects: CheckedInputObjects,
@@ -105,6 +107,7 @@ impl executor::Executor for Executor {
             transaction_signer,
             transaction_digest,
             &self.0,
+            chain_identifier,
             epoch_id,
             epoch_timestamp_ms,
             protocol_config,
@@ -122,6 +125,7 @@ impl executor::Executor for Executor {
         metrics: Arc<LimitsMetrics>,
         enable_expensive_checks: bool,
         certificate_deny_set: &HashSet<TransactionDigest>,
+        chain_identifier: ChainIdentifier,
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         input_objects: CheckedInputObjects,
@@ -131,6 +135,7 @@ impl executor::Executor for Executor {
         transaction_signer: Address,
         transaction_digest: TransactionDigest,
         skip_all_checks: bool,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (
         InnerTemporaryStore,
         IotaGasStatus,
@@ -147,13 +152,14 @@ impl executor::Executor for Executor {
                 transaction_signer,
                 transaction_digest,
                 &self.0,
+                chain_identifier,
                 epoch_id,
                 epoch_timestamp_ms,
                 protocol_config,
                 metrics,
                 enable_expensive_checks,
                 certificate_deny_set,
-                &mut None,
+                trace_builder_opt,
             )
         } else {
             execute_transaction_to_effects::<execution_mode::DevInspect<false>>(
@@ -165,13 +171,14 @@ impl executor::Executor for Executor {
                 transaction_signer,
                 transaction_digest,
                 &self.0,
+                chain_identifier,
                 epoch_id,
                 epoch_timestamp_ms,
                 protocol_config,
                 metrics,
                 enable_expensive_checks,
                 certificate_deny_set,
-                &mut None,
+                trace_builder_opt,
             )
         };
         (inner_temp_store, gas_status, effects, result)
@@ -185,6 +192,8 @@ impl executor::Executor for Executor {
         metrics: Arc<LimitsMetrics>,
         enable_expensive_checks: bool,
         certificate_deny_set: &HashSet<TransactionDigest>,
+        // Chain
+        chain_identifier: ChainIdentifier,
         // Epoch
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
@@ -209,6 +218,7 @@ impl executor::Executor for Executor {
             metrics,
             enable_expensive_checks,
             certificate_deny_set,
+            chain_identifier,
             epoch_id,
             epoch_timestamp_ms,
             gas_data,
@@ -231,6 +241,8 @@ impl executor::Executor for Executor {
         // Configuration
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
+        // Chain
+        chain_identifier: ChainIdentifier,
         // Epoch
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
@@ -256,6 +268,7 @@ impl executor::Executor for Executor {
             store,
             protocol_config,
             metrics,
+            chain_identifier,
             epoch_id,
             epoch_timestamp_ms,
             gas_data,

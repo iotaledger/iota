@@ -12,6 +12,7 @@ use iota_sdk_types::{
     TransactionEffects, TransactionEvents,
 };
 use iota_types::{
+    digests::ChainIdentifier,
     error::{ExecutionError, IotaError, IotaResult},
     layout_resolver::LayoutResolver,
     object::Object,
@@ -48,6 +49,9 @@ pub struct ChainContext {
     /// Which chain this is (`Mainnet` / `Testnet` / `Unknown`), used for
     /// chain-specific protocol behaviour.
     pub chain: Chain,
+    /// Digest of the chain's genesis checkpoint, which Move reads from the
+    /// `TxContext`. All zeros when not set.
+    pub chain_identifier: ChainIdentifier,
 }
 
 impl ChainContext {
@@ -60,6 +64,7 @@ impl ChainContext {
             epoch_id: 0,
             epoch_timestamp_ms: 0,
             chain,
+            chain_identifier: ChainIdentifier::default(),
         }
     }
 
@@ -109,6 +114,12 @@ pub enum ExecutionMode {
     /// A transaction that aborts commits nothing — not even the gas charge — so
     /// across multiple runs the store does not reflect a node's post-abort
     /// state.
+    ///
+    /// A transaction dependency is assumed to have succeeded, since the store
+    /// keeps no executed transactions. A dependent of a transaction that
+    /// failed therefore runs its commands and commits its writes here, where a
+    /// node fails it with `TransactionDependencyFailed` without running any
+    /// command.
     Execute,
 }
 

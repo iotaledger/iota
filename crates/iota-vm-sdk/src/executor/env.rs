@@ -16,7 +16,10 @@ use iota_execution::Executor;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::TransactionDigest;
 use iota_transaction_checks::simulate::SimulationEnv;
-use iota_types::metrics::{BytecodeVerifierMetrics, LimitsMetrics};
+use iota_types::{
+    digests::ChainIdentifier,
+    metrics::{BytecodeVerifierMetrics, LimitsMetrics},
+};
 
 #[cfg(not(target_arch = "wasm32"))]
 use crate::debug::{ProfileOutput, ProfileSink};
@@ -32,6 +35,7 @@ pub(super) struct ExecutionEnv {
     reference_gas_price: u64,
     pub(super) epoch_id: u64,
     pub(super) epoch_timestamp_ms: u64,
+    pub(super) chain_identifier: ChainIdentifier,
     pub(super) executor: Arc<dyn Executor + Send + Sync>,
     pub(super) limits_metrics: Arc<LimitsMetrics>,
     bytecode_verifier_metrics: Arc<BytecodeVerifierMetrics>,
@@ -79,6 +83,7 @@ impl ExecutionEnv {
             reference_gas_price: vm.reference_gas_price,
             epoch_id: vm.epoch_id,
             epoch_timestamp_ms: vm.epoch_timestamp_ms,
+            chain_identifier: vm.chain_identifier,
             executor,
             limits_metrics: vm.limits_metrics.clone(),
             bytecode_verifier_metrics: vm.bytecode_verifier_metrics.clone(),
@@ -99,6 +104,7 @@ impl ExecutionEnv {
             reference_gas_price: self.reference_gas_price,
             epoch_id: self.epoch_id,
             epoch_timestamp_ms: self.epoch_timestamp_ms,
+            chain_identifier: self.chain_identifier,
             deny_config,
             certificate_deny_set: &self.certificate_deny_set,
             verifier_signing_config: &self.verifier_signing_config,
@@ -108,7 +114,7 @@ impl ExecutionEnv {
     }
 
     pub(super) fn trace_enabled(&self) -> bool {
-        self.debug.trace
+        self.debug.trace && cfg!(feature = "tracing")
     }
 
     /// Materialise captured artifacts: the gas profile and the finished trace.

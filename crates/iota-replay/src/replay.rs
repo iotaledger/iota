@@ -48,7 +48,8 @@ use iota_types::{
     },
     transaction::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult, ObjectReadResultKind,
-        SenderSignedTransactionAPI, TransactionAPI, TransactionEnvelope, VerifiedTransaction,
+        SenderSignedTransactionAPI, TransactionAPI, TransactionDependencyReadResult,
+        TransactionEnvelope, VerifiedTransaction,
     },
 };
 use move_binary_format::CompiledModule;
@@ -516,7 +517,7 @@ impl LocalExec {
                     .package_cache
                     .lock()
                     .expect("Cannot lock")
-                    .insert(o_ref.object_id, obj.clone());
+                    .insert(o_ref.object_id, obj);
             }
         }
         Ok(objs.collect())
@@ -796,6 +797,7 @@ impl LocalExec {
                 metrics.clone(),
                 expensive_checks,
                 &certificate_deny_set,
+                tx_info.chain_identifier,
                 &tx_info.executed_epoch,
                 tx_info.epoch_start_timestamp,
                 CheckedInputObjects::new_for_replay(input_objects.clone()),
@@ -892,6 +894,7 @@ impl LocalExec {
                     metrics.clone(),
                     expensive_checks,
                     &certificate_deny_set,
+                    tx_info.chain_identifier,
                     &tx_info.executed_epoch,
                     tx_info.epoch_start_timestamp,
                     gas_data,
@@ -971,6 +974,7 @@ impl LocalExec {
                             metrics,
                             expensive_checks,
                             &HashSet::new(),
+                            tx_info.chain_identifier,
                             &tx_info.executed_epoch,
                             tx_info.epoch_start_timestamp,
                             CheckedInputObjects::new_for_replay(input_objects),
@@ -985,6 +989,7 @@ impl LocalExec {
                             tx_info.sender,
                             tx_info.sender_signed_data.digest(),
                             skip_checks,
+                            &mut None,
                         )
                         .3
                         .unwrap_or_default(),
@@ -1057,9 +1062,12 @@ impl LocalExec {
 
         let (_, _, effects, _timings, exec_res) = if move_authenticators.is_empty() {
             // Standard path: no MoveAuthenticator
-            let input_objects = store.read_input_objects_for_transaction(
+            let mut input_objects = store.read_input_objects_for_transaction(
                 &TransactionEnvelope::new(sender_signed_data.clone()),
             );
+            if let Some(dependency) = pre_run_sandbox.transaction_info.transaction_dependency {
+                input_objects.set_transaction_dependency(dependency);
+            }
             let (gas_status, input_objects) = iota_transaction_checks::check_certificate_input(
                 &executable,
                 input_objects,
@@ -1074,6 +1082,7 @@ impl LocalExec {
                 Arc::new(LimitsMetrics::new(&Registry::new())),
                 true,
                 &HashSet::new(),
+                pre_run_sandbox.transaction_info.chain_identifier,
                 &executed_epoch,
                 epoch_start_timestamp,
                 input_objects,
@@ -1092,7 +1101,7 @@ impl LocalExec {
                     protocol_config.move_authenticator_type_arg_packages_as_inputs(),
                 )
                 .unwrap();
-            let all_input_objects: InputObjects = all_input_object_kinds
+            let mut all_input_objects: InputObjects = all_input_object_kinds
                 .into_iter()
                 .map(|kind| {
                     let id = kind.object_id();
@@ -1104,6 +1113,9 @@ impl LocalExec {
                 })
                 .collect::<Vec<_>>()
                 .into();
+            if let Some(dependency) = pre_run_sandbox.transaction_info.transaction_dependency {
+                all_input_objects.set_transaction_dependency(dependency);
+            }
 
             let (tx_input_objects, per_authenticator_inputs) = sender_signed_data
                 .split_input_objects_into_groups_for_reading(all_input_objects)
@@ -1217,6 +1229,7 @@ impl LocalExec {
                     Arc::new(LimitsMetrics::new(&Registry::new())),
                     true,
                     &HashSet::new(),
+                    pre_run_sandbox.transaction_info.chain_identifier,
                     &executed_epoch,
                     epoch_start_timestamp,
                     gas_data,
@@ -1785,6 +1798,7 @@ impl LocalExec {
 
         let epoch_id = effects.executed_epoch;
         let chain = chain_from_chain_id(self.fetcher.get_chain_id().await?.as_str());
+        let chain_identifier = self.fetcher.get_chain_identifier().await?;
         // Find the protocol version for this epoch
         // This assumes we already initialized the protocol version table
         // `protocol_version_epoch_table`
@@ -1834,6 +1848,10 @@ impl LocalExec {
             .get_epoch_start_timestamp_and_rgp(epoch_id, tx_digest)
             .await?;
 
+        let transaction_dependency = self
+            .resolve_transaction_dependency(&orig_tx, &effects)
+            .await?;
+
         Ok(OnChainTransactionInfo {
             kind: tx_kind_orig.clone(),
             sender,
@@ -1846,6 +1864,7 @@ impl LocalExec {
             gas_price: gas_data.price,
             executed_epoch: epoch_id,
             dependencies: effects.dependencies().to_vec(),
+            transaction_dependency,
             effects: IotaTransactionBlockEffects::V1(effects),
             receiving_objs,
             config_objects,
@@ -1855,6 +1874,7 @@ impl LocalExec {
             sender_signed_data: orig_tx.clone(),
             reference_gas_price,
             chain,
+            chain_identifier,
         })
     }
 
@@ -1880,6 +1900,7 @@ impl LocalExec {
         let epoch_id = dp.node_state_dump.executed_epoch;
 
         let chain = chain_from_chain_id(self.fetcher.get_chain_id().await?.as_str());
+        let chain_identifier = self.fetcher.get_chain_identifier().await?;
 
         let protocol_config =
             ProtocolConfig::get_for_version(dp.node_state_dump.protocol_version.into(), chain);
@@ -1938,6 +1959,7 @@ impl LocalExec {
             gas_price: gas_data.price,
             executed_epoch: epoch_id,
             dependencies: effects.dependencies().to_vec(),
+            transaction_dependency: dp.node_state_dump.transaction_dependency,
             effects,
             receiving_objs,
             config_objects,
@@ -1947,7 +1969,44 @@ impl LocalExec {
             sender_signed_data: orig_tx.clone(),
             reference_gas_price,
             chain,
+            chain_identifier,
         })
+    }
+
+    /// The outcome of the transaction named by `transaction`'s dependency
+    /// input, read from the dependency's own effects, when `effects`, the
+    /// effects of `transaction`, show that execution read it: no shared object
+    /// has a cancellation version, and the dependencies include the
+    /// dependency. A transaction cancelled at sequencing never reads its
+    /// dependency, which can still be among its dependencies as the previous
+    /// transaction of an input object.
+    async fn resolve_transaction_dependency(
+        &self,
+        transaction: &SenderSignedTransaction,
+        effects: &impl IotaTransactionBlockEffectsAPI,
+    ) -> Result<Option<TransactionDependencyReadResult>, ReplayEngineError> {
+        let Some(digest) = transaction.transaction().transaction_dependency() else {
+            return Ok(None);
+        };
+        let cancelled_at_sequencing = effects
+            .shared_objects()
+            .iter()
+            .any(|shared_object| shared_object.version.is_canceled());
+        if cancelled_at_sequencing || !effects.dependencies().contains(&digest) {
+            return Ok(None);
+        }
+        let dependency_effects = self
+            .fetcher
+            .get_transaction(&digest)
+            .await?
+            .effects
+            .ok_or_else(|| ReplayEngineError::GeneralError {
+                err: format!("transaction dependency {digest} has no effects"),
+            })?;
+        Ok(Some(TransactionDependencyReadResult {
+            digest,
+            succeeded: dependency_effects.status().is_ok(),
+        }))
     }
 
     async fn resolve_download_input_objects(
@@ -2128,9 +2187,12 @@ impl LocalExec {
         self.multi_download_and_store(&gas_refs).await?;
 
         // Fetch the input objects we know from the raw transaction
-        let input_objs = self
+        let mut input_objs = self
             .resolve_download_input_objects(tx_info, deleted_shared_refs)
             .await?;
+        if let Some(dependency) = tx_info.transaction_dependency {
+            input_objs.set_transaction_dependency(dependency);
+        }
 
         // Fetch the receiving objects
         self.multi_download_and_store(&tx_info.receiving_objs)
@@ -2190,18 +2252,24 @@ fn load_authenticator_function_ref(
         .object_to_authenticate_components()
         .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
 
-    let field_id = derive_authenticator_function_ref_v1_dynamic_field_id(account_object_id)
-        .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
+    let authenticator_function_ref_field_id =
+        derive_authenticator_function_ref_v1_dynamic_field_id(account_object_id)
+            .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
 
-    let field_obj = get_object(&field_id).ok_or_else(|| ReplayEngineError::GeneralError {
-        err: format!(
-            "Authenticator function ref dynamic field {field_id} not found in storage \
+    let authenticator_function_ref_field_obj = get_object(&authenticator_function_ref_field_id).ok_or_else(|| {
+        ReplayEngineError::GeneralError {
+            err: format!(
+                "Authenticator function ref dynamic field {authenticator_function_ref_field_id} not found in storage \
              for account object {account_object_id} at version {account_object_version}"
-        ),
+            ),
+        }
     })?;
 
-    authenticator_function_ref_v1_from_dynamic_field_object(account_object_id, &field_obj)
-        .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })
+    authenticator_function_ref_v1_from_dynamic_field_object(
+        account_object_id,
+        &authenticator_function_ref_field_obj,
+    )
+    .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })
 }
 
 /// Whether the gas owner pays for a failed Move authentication, as replay

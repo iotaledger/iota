@@ -532,10 +532,7 @@ impl<R: rand::CryptoRng> ConfigBuilder<R> {
                 .add_objects(self.additional_objects);
 
             for (i, validator) in validators.iter().enumerate() {
-                let name = validator
-                    .name
-                    .clone()
-                    .unwrap_or(format!("validator-{i}").to_string());
+                let name = validator.name.clone().unwrap_or(format!("validator-{i}"));
                 let validator_info = validator.to_validator_info(name);
                 builder =
                     builder.add_validator(validator_info.info, validator_info.proof_of_possession);
@@ -680,6 +677,7 @@ mod test {
     use iota_config::genesis::Genesis;
     use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
     use iota_types::{
+        digests::ChainIdentifier,
         epoch_data::EpochData,
         gas::IotaGasStatus,
         in_memory_storage::InMemoryStorage,
@@ -736,6 +734,7 @@ mod test {
                 metrics,
                 expensive_checks,
                 &certificate_deny_set,
+                ChainIdentifier::default(),
                 &epoch.epoch_id(),
                 epoch.epoch_start_timestamp(),
                 input_objects,

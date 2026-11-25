@@ -14,16 +14,17 @@
 
 use std::{
     cell::Cell,
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, HashMap},
     sync::Arc,
+    time::Duration,
 };
 
 use iota_common::fatal;
 use iota_execution::Executor;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Digest, GasPayment, MoveAuthenticator, ObjectId, ObjectReference, Transaction,
-    TransactionDigest, Version,
+    Address, Digest, GasPayment, MoveAuthenticator, ObjectId, SenderSignedTransaction,
+    TransactionDigest, TransactionEffects, TransactionKind, Version,
 };
 use iota_types::{
     account_abstraction::authenticator_function::{
@@ -32,46 +33,220 @@ use iota_types::{
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
         validate_account_object,
     },
-    attestation::{self, Attestation},
+    attestation::{self, Attestation, SharedInputIndex, list_move_authenticator_shared_objects},
     auth_context::AuthContextData,
     committee::EpochId,
+    digests::ChainIdentifier,
+    effects::TransactionEffectsAPI,
     error::{ExecutionError, ExecutionErrorKind, IotaError},
     execution::{is_any_invariant_violation, is_cancellation, unwrap_move_authentication_error},
     gas::{IotaGasStatus, IotaGasStatusAPI},
     metrics::LimitsMetrics,
     move_authenticator::MoveAuthenticatorExt,
-    storage::BackingStore,
+    storage::{BackingStore, ObjectKey},
     transaction::{
-        CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult, ObjectReadResultKind,
-        TransactionAPI,
+        CheckedInputObjects, InputObjects, ObjectReadResult, ObjectReadResultKind, TransactionAPI,
     },
 };
 
-use crate::execution_cache::ObjectCacheRead;
+use crate::{
+    authority::authority_per_epoch_store::{
+        AuthorityPerEpochStore, ExecutionIndices,
+        handler_object_state::{CommitIndex, HandlerProcessedObject},
+    },
+    execution_cache::{ObjectCacheRead, TransactionCacheRead},
+};
 
-/// Resolves whether an object version was superseded (overwritten, deleted or
-/// wrapped) by a transaction of the current epoch — such versions stay in the
-/// epoch's historic bucket and can be re-run at.
+/// When a recorded version stopped being current: the commit of the
+/// transaction that replaced it, the leader round when that transaction is a
+/// commit prologue or a deny-rules update, which carry no commit index, or
+/// only the epoch when it is another system transaction, which carries
+/// neither, or when no window is set.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SupersededAt {
+    Commit(CommitIndex),
+    Round(u64),
+    Epoch,
+}
+
+/// Finds when a recorded version stopped being current this epoch.
 pub(crate) struct AttestedObjectVersions<'a> {
     pub(crate) object_cache: &'a dyn ObjectCacheRead,
-    pub(crate) current_epoch: EpochId,
+    pub(crate) transaction_cache: &'a dyn TransactionCacheRead,
+    pub(crate) epoch_store: &'a AuthorityPerEpochStore,
+    /// Where consensus first sequenced the attested transaction.
+    pub(crate) sequenced_at: ExecutionIndices,
+    /// How many commits, or rounds, before `sequenced_at` a supersession may
+    /// be; `None` admits any of the epoch.
+    pub(crate) window: Option<u64>,
 }
 
 impl AttestedObjectVersions<'_> {
-    pub(crate) fn superseded_in_current_epoch(
+    /// When `attested` stopped being current, if a transaction of this epoch
+    /// replaced it inside the window.
+    ///
+    /// # Panics
+    ///
+    /// If a read fails, or the transaction that replaced `attested` has no
+    /// stored body, no row for its gas coin, or does not record its effects:
+    /// a verdict every validator has to reach alike must not depend on this
+    /// node's storage.
+    pub(crate) fn superseded_within_window(
         &self,
         object_id: &ObjectId,
-        version: Version,
-    ) -> bool {
-        // A read failure must not decide a verdict every validator has to
-        // reach alike.
-        self.object_cache
-            .try_object_superseded_in_epoch(object_id, version, self.current_epoch)
+        attested: Version,
+    ) -> Option<SupersededAt> {
+        let epoch = self.epoch_store.epoch();
+        let (replacing, uncommitted) = self
+            .object_cache
+            .try_find_lowest_version_above_in_epoch(object_id, attested, epoch)
             .unwrap_or_else(|error| {
-                fatal!(
-                    "cannot read whether {object_id}@{version} was superseded this epoch: {error}"
-                )
-            })
+                fatal!("cannot read the version after {object_id}@{attested}: {error}")
+            })?;
+        let object = self
+            .object_cache
+            .try_get_object_by_key_with_historic_fallback(object_id, replacing, epoch)
+            .unwrap_or_else(|error| fatal!("cannot read {object_id}@{replacing}: {error}"));
+        let digest = match object {
+            Some(object) => object.previous_transaction,
+            // Deleted: its row names the transaction. A wrap's row names
+            // none, but neither a shared object nor a dynamic field is ever
+            // wrapped.
+            None => self.row(&ObjectKey(*object_id, replacing))?.deleted_by?,
+        };
+        let effects = self.effects_in_epoch(&digest, uncommitted)?;
+        // Consuming another version, or none, means `attested` was never a
+        // version of the object, or was superseded before this epoch.
+        let consumed = effects
+            .modified_at_versions()
+            .into_iter()
+            .find(|modified| modified.object_id() == object_id)?
+            .version();
+        if consumed != attested {
+            return None;
+        }
+        // Without a window, being superseded this epoch is all that counts.
+        let Some(window) = self.window else {
+            return Some(SupersededAt::Epoch);
+        };
+        let at = self.transaction_position(&digest, &effects);
+        within_freshness_window(at, self.sequenced_at, window).then_some(at)
+    }
+
+    /// The effects of `digest` when it executed in this epoch, `None` when it
+    /// ran in an earlier one, whose records a node may have pruned. Waits for
+    /// them when the version naming `digest` is `uncommitted`: a version is
+    /// readable before its writer records its effects.
+    ///
+    /// # Panics
+    ///
+    /// If a read fails, or the effects waited for are still missing after
+    /// ten seconds.
+    fn effects_in_epoch(
+        &self,
+        digest: &TransactionDigest,
+        uncommitted: bool,
+    ) -> Option<TransactionEffects> {
+        // The writer records its effects in the synchronous call that made
+        // its outputs readable: a wait this long means that order broke.
+        const PAUSE: Duration = Duration::from_millis(1);
+        const MAX_PAUSES: u32 = 10_000;
+
+        let epoch = self.epoch_store.epoch();
+        let read = || {
+            let effects_digest = self
+                .transaction_cache
+                .try_multi_get_executed_effects_digests_in_epoch(epoch, &[*digest])
+                .unwrap_or_else(|error| fatal!("cannot read whether {digest} executed: {error}"))
+                .pop()
+                .flatten()?;
+            self.transaction_cache
+                .try_multi_get_effects_in_epoch(epoch, &[effects_digest])
+                .unwrap_or_else(|error| fatal!("cannot read the effects of {digest}: {error}"))
+                .pop()
+                .flatten()
+        };
+        let mut pauses = 0;
+        loop {
+            match read() {
+                // The committed caches outlive the epoch, so either read can
+                // answer for an earlier one.
+                Some(effects) => return (effects.epoch() == epoch).then_some(effects),
+                None if !uncommitted => return None,
+                None if pauses == MAX_PAUSES => fatal!(
+                    "no effects for {digest} {:?} after its outputs became readable",
+                    PAUSE * MAX_PAUSES
+                ),
+                // The writer is inside the cache write that records them.
+                None => {
+                    pauses += 1;
+                    std::thread::sleep(PAUSE);
+                }
+            }
+        }
+    }
+
+    /// Where `digest` ran: its commit; its round for a commit prologue or a
+    /// deny-rules update; only the epoch for any other system transaction.
+    ///
+    /// # Panics
+    ///
+    /// If a read fails, or `digest` has no stored body or no row for its gas
+    /// coin.
+    fn transaction_position(
+        &self,
+        digest: &TransactionDigest,
+        effects: &TransactionEffects,
+    ) -> SupersededAt {
+        let transaction = self
+            .transaction_cache
+            .try_multi_get_transaction_blocks_in_epoch(self.epoch_store.epoch(), &[*digest])
+            .unwrap_or_else(|error| fatal!("cannot read transaction {digest}: {error}"))
+            .pop()
+            .flatten()
+            .unwrap_or_else(|| fatal!("no transaction {digest} behind its executed effects"));
+        match transaction.inner().transaction().kind() {
+            TransactionKind::ConsensusCommitPrologueV1(prologue) => {
+                return SupersededAt::Round(prologue.round);
+            }
+            TransactionKind::TransactionDenyRulesUpdate(update) => {
+                return SupersededAt::Round(update.round);
+            }
+            _ if transaction.is_system_tx() => return SupersededAt::Epoch,
+            _ => {}
+        }
+        // Recorded before the outputs of `digest` became readable.
+        let gas = effects.gas_object();
+        let gas = gas.reference();
+        let row = self
+            .row(&ObjectKey(gas.object_id, gas.version))
+            .unwrap_or_else(|| fatal!("no row for the gas coin of {digest}"));
+        SupersededAt::Commit(row.produced_at)
+    }
+
+    /// The handler row at `key`.
+    ///
+    /// # Panics
+    ///
+    /// If the read fails.
+    fn row(&self, key: &ObjectKey) -> Option<HandlerProcessedObject> {
+        self.epoch_store
+            .handler_processed_object(key)
+            .unwrap_or_else(|error| fatal!("cannot read the row of {key:?}: {error}"))
+    }
+}
+
+/// Whether a version superseded at `at` was current recently enough before
+/// `sequenced_at` for an honest dry run to have read it: at or after the
+/// window's start. A supersession known only by its epoch cannot be
+/// measured, so it is admitted.
+fn within_freshness_window(at: SupersededAt, sequenced_at: ExecutionIndices, window: u64) -> bool {
+    match at {
+        SupersededAt::Commit(commit) => commit >= sequenced_at.sub_dag_index.saturating_sub(window),
+        SupersededAt::Round(round) => {
+            round >= sequenced_at.last_committed_round.saturating_sub(window)
+        }
+        SupersededAt::Epoch => true,
     }
 }
 
@@ -84,6 +259,7 @@ pub(crate) struct AttestationVerdictContext<'a> {
     pub executor: &'a dyn Executor,
     pub protocol_config: &'a ProtocolConfig,
     pub metrics: Arc<LimitsMetrics>,
+    pub chain_identifier: ChainIdentifier,
     pub epoch_id: EpochId,
     pub epoch_timestamp_ms: u64,
     pub reference_gas_price: u64,
@@ -93,8 +269,10 @@ pub(crate) struct AttestationVerdictContext<'a> {
     /// Versions of the authenticator inputs and function-ref fields execution
     /// ran against.
     pub executed_versions: BTreeMap<ObjectId, Version>,
-    /// Serialized, and its kind cloned, only when a re-run needs them.
-    pub transaction: &'a Transaction,
+    /// The signed transaction. The entries of the attestation name objects by
+    /// their index in it. Its data is serialized, and its kind cloned, only
+    /// when a re-run needs them.
+    pub transaction: &'a SenderSignedTransaction,
     pub transaction_signer: Address,
     pub transaction_digest: TransactionDigest,
     pub sender_auth_digest: Digest,
@@ -176,9 +354,10 @@ impl AttestationVerdictContext<'_> {
     /// # Panics
     ///
     /// If the recorded state cannot be read. The drift check only admits
-    /// versions superseded this epoch, which the epoch's historic bucket keeps,
-    /// so a missing or unreadable one is a fault of this node and must not
-    /// become a verdict the other validators do not share.
+    /// versions superseded this epoch within the freshness window, which the
+    /// epoch's historic bucket keeps, so a missing or unreadable one is a fault
+    /// of this node and must not become a verdict the other validators do not
+    /// share.
     pub(crate) fn decide_authentication_failure_blame(
         &self,
         kind: &ExecutionErrorKind,
@@ -187,37 +366,22 @@ impl AttestationVerdictContext<'_> {
 
         // An invariant violation is an internal error, so nobody is at fault.
         // A cancellation was decided at the consensus commit before any
-        // authenticator ran: only a re-run at the recorded versions could tell
-        // whether the account authorized the transaction, and that would add
-        // load exactly when the network is congested. A Move account therefore
-        // pays nothing for a cancelled transaction, while a gas owner that
-        // signed with a key does.
-        // TODO: decide whether a cancelled transaction charges a Move account.
+        // authenticator ran. No validator ran one at execution, and judging
+        // the transaction would mean running one only to charge for that run.
         if is_cancellation(kind) || is_any_invariant_violation(kind) {
             return AuthenticationFailureBlame::Nobody;
         }
 
         // Nothing to re-run: the failure already reproduces at the recorded
         // state, or a recorded version refutes on its own.
-        let pinned_by_transaction: BTreeSet<ObjectId> = self
-            .authenticators
-            .iter()
-            .flat_map(|(_, input_objects)| input_objects.iter())
-            .filter(|input| {
-                matches!(
-                    input.input_object_kind,
-                    InputObjectKind::ImmOrOwnedMoveObject(_)
-                )
-            })
-            .map(|input| input.id())
-            .collect();
+        let attested_versions = collect_attested_versions(self.attestation, self.transaction);
         if !should_reauthenticate(
-            self.attestation.object_versions(),
+            &attested_versions,
             &self.executed_versions,
-            &pinned_by_transaction,
             |object_id, version| {
                 self.attested_versions
-                    .superseded_in_current_epoch(object_id, version)
+                    .superseded_within_window(object_id, version)
+                    .is_some()
             },
         ) {
             return AuthenticationFailureBlame::Attestor {
@@ -227,41 +391,54 @@ impl AttestationVerdictContext<'_> {
 
         // The objects authentication read changed after the attestation, so only
         // a re-run at the recorded versions shows who is at fault.
-        self.reauthenticate_at_attested_versions()
+        self.reauthenticate_at_attested_versions(attested_versions.into_iter().collect())
     }
+}
+
+/// Returns the object id and the version of each entry that `attestation`
+/// records, in the order of the record. `transaction` is the signed
+/// transaction in which the entries name objects by index, as
+/// [`list_move_authenticator_shared_objects()`] lists them for the check of the
+/// record at the commit. An entry whose index names no shared object there is
+/// left out: the check drops a copy whose record has one.
+fn collect_attested_versions(
+    attestation: &Attestation,
+    transaction: &SenderSignedTransaction,
+) -> Vec<(ObjectId, Version)> {
+    let object_ids: HashMap<SharedInputIndex, ObjectId> =
+        list_move_authenticator_shared_objects(transaction)
+            .into_iter()
+            .map(|(index, object)| (index, object.object_id))
+            .collect();
+
+    attestation
+        .shared_object_versions()
+        .iter()
+        .filter_map(|(index, version)| Some((*object_ids.get(index)?, *version)))
+        .collect()
 }
 
 /// Whether authentication should be re-run at the recorded versions. `false`
 /// either when nothing the authentication read drifted, so the failure
 /// reproduces at the recorded state, or when a recorded version is refuted
-/// without a re-run. `pinned_by_transaction` holds the authenticator inputs
-/// whose versions the transaction fixes itself.
+/// without a re-run.
 fn should_reauthenticate(
-    attested_versions: &[ObjectReference],
+    attested_versions: &[(ObjectId, Version)],
     executed_versions: &BTreeMap<ObjectId, Version>,
-    pinned_by_transaction: &BTreeSet<ObjectId>,
-    superseded_in_current_epoch: impl Fn(&ObjectId, Version) -> bool,
+    superseded_within_window: impl Fn(&ObjectId, Version) -> bool,
 ) -> bool {
     let mut drifted = false;
-    for object_ref in attested_versions {
-        let Some(&executed) = executed_versions.get(object_ref.object_id()) else {
+    for &(object_id, attested) in attested_versions {
+        let Some(&executed) = executed_versions.get(&object_id) else {
             continue;
         };
-        let attested = object_ref.version();
         if attested == executed {
             continue;
         }
         // A recorded version ahead of the executed one cannot come from an
-        // honest dry run. A recorded version superseded before this epoch was
-        // never live this epoch, so an honest dry run could not have seen it.
-        // An honest dry run records no input the transaction pins, so a
-        // differing version for one is a lie as well; judged on its own, it
-        // would send the re-run against an object the transaction never named
-        // at that version.
-        if attested > executed
-            || pinned_by_transaction.contains(object_ref.object_id())
-            || !superseded_in_current_epoch(object_ref.object_id(), attested)
-        {
+        // honest dry run. A recorded version superseded before the freshness
+        // window was not current when an honest dry run could have read it.
+        if attested > executed || !superseded_within_window(&object_id, attested) {
             return false;
         }
         drifted = true;
@@ -270,7 +447,9 @@ fn should_reauthenticate(
 }
 
 impl AttestationVerdictContext<'_> {
-    /// Re-runs Move authentication at the recorded versions. Returns
+    /// Re-runs Move authentication at `attested_versions`. The engine meters
+    /// the re-run as execution does: the gas owner's authenticator first, and
+    /// all of them within `max_auth_gas`. Returns
     /// [`AuthenticationFailureBlame::Attestor`] when the re-run fails too, with
     /// the units it consumed, or with zero when the claimed units cannot fund a
     /// re-run, an authenticator cannot be resolved at the recorded state, or
@@ -279,14 +458,10 @@ impl AttestationVerdictContext<'_> {
     /// [`AuthenticationFailureBlame::Undecided`] when the authenticators' inputs
     /// cannot be combined, or the re-run ends in a cancellation or an invariant
     /// violation: here, all three can only be internal errors.
-    fn reauthenticate_at_attested_versions(&self) -> AuthenticationFailureBlame {
-        let attested_versions: BTreeMap<ObjectId, &ObjectReference> = self
-            .attestation
-            .object_versions()
-            .iter()
-            .map(|object_ref| (*object_ref.object_id(), object_ref))
-            .collect();
-
+    fn reauthenticate_at_attested_versions(
+        &self,
+        attested_versions: BTreeMap<ObjectId, Version>,
+    ) -> AuthenticationFailureBlame {
         // The re-run is metered on its own, capped by the attestor's claimed
         // computation units: exceeding them refutes the attestation by its own
         // claim, and the cost never reaches the transaction's gas or effects.
@@ -295,6 +470,9 @@ impl AttestationVerdictContext<'_> {
             .attestation
             .computation_units()
             .saturating_mul(gas_price);
+        // The engine also holds the authenticators to `max_auth_gas`, as in an
+        // honest dry run, so an authentication that passes only above it
+        // refutes the attestation too.
         let Ok(gas_status) = IotaGasStatus::new(
             attested_budget,
             gas_price,
@@ -420,14 +598,14 @@ impl AttestationVerdictContext<'_> {
                     .map(|(_, function_ref, _)| function_ref.clone())
             });
         let auth_context_data = AuthContextData {
-            transaction_data_bytes: bcs::to_bytes(self.transaction)
+            transaction_data_bytes: bcs::to_bytes(self.transaction.transaction())
                 .expect("Transaction serialization cannot fail"),
             sender_auth_digest: self.sender_auth_digest,
             sponsor_auth_digest: self.sponsor_auth_digest,
             sender_authenticator_function_ref,
             sponsor_authenticator_function_ref,
         };
-        let (transaction_kind, _, _) = self.transaction.execution_parts();
+        let (transaction_kind, _, _) = self.transaction.transaction().execution_parts();
 
         // No gas coins: the attested budget is charged to nobody.
         let gas_data = GasPayment {
@@ -438,6 +616,7 @@ impl AttestationVerdictContext<'_> {
             self.store,
             self.protocol_config,
             self.metrics.clone(),
+            self.chain_identifier,
             &self.epoch_id,
             self.epoch_timestamp_ms,
             gas_data,
@@ -488,14 +667,13 @@ impl AttestationVerdictContext<'_> {
     fn reload_input_objects_at_attested_versions(
         &self,
         input_objects: &InputObjects,
-        attested_versions: &BTreeMap<ObjectId, &ObjectReference>,
+        attested_versions: &BTreeMap<ObjectId, Version>,
     ) -> InputObjects {
         let mut reloaded = Vec::with_capacity(input_objects.len());
         for object_read_result in input_objects.iter() {
             let object_id = object_read_result.id();
             match attested_versions.get(&object_id) {
-                Some(object_ref) if object_ref.version() != object_read_result.version() => {
-                    let version = object_ref.version();
+                Some(&version) if version != object_read_result.version() => {
                     // The drift check only admits versions superseded this
                     // epoch, which the epoch's historic bucket keeps.
                     let object = self
@@ -504,7 +682,7 @@ impl AttestationVerdictContext<'_> {
                         .try_get_object_by_key_with_historic_fallback(
                             &object_id,
                             version,
-                            self.attested_versions.current_epoch,
+                            self.epoch_id,
                         )
                         .unwrap_or_else(|error| {
                             fatal!("cannot read {object_id}@{version}: {error}")
@@ -558,6 +736,7 @@ fn is_pre_execution_failure(kind: &ExecutionErrorKind) -> bool {
     matches!(
         kind,
         ExecutionErrorKind::InputObjectDeleted
+            | ExecutionErrorKind::TransactionDependencyFailed { .. }
             | ExecutionErrorKind::AddressDeniedForCoin { .. }
             | ExecutionErrorKind::CoinTypeGlobalPause { .. }
     ) || is_cancellation(kind)
@@ -567,7 +746,15 @@ fn is_pre_execution_failure(kind: &ExecutionErrorKind) -> bool {
 mod tests {
     use std::collections::BTreeSet;
 
-    use iota_types::base_types::random_object_ref;
+    use iota_sdk_types::{
+        MoveAuthenticatorV1, ProgrammableTransaction, SharedObjectReference, Transaction,
+        UserSignature,
+    };
+    use iota_types::{
+        attestation::{AttestationData, SharedInputIndex},
+        base_types::random_object_ref,
+        transaction::CallArg,
+    };
     use move_core_types::gas_algebra::InternalGas;
 
     use super::*;
@@ -607,6 +794,9 @@ mod tests {
             },
             ExecutionErrorKind::CoinTypeGlobalPause {
                 coin_type: String::new(),
+            },
+            ExecutionErrorKind::TransactionDependencyFailed {
+                dependency: TransactionDigest::random(),
             },
         ] {
             let error = ExecutionError::from_kind(kind);
@@ -703,41 +893,21 @@ mod tests {
         assert_eq!(consumed_units(gas_status), budget_units);
     }
 
-    fn ref_at(version: u64) -> ObjectReference {
-        let base = random_object_ref();
-        ObjectReference::new(base.object_id, Version::from(version), base.digest)
+    /// Returns a new object id, paired with `version`.
+    fn object_at(version: u64) -> (ObjectId, Version) {
+        (ObjectId::random(), Version::from(version))
     }
 
     /// Runs the drift check against the versions a test marked as superseded
     /// during the current epoch; anything else is unresolvable.
     fn reauthenticates(
-        attested: &[ObjectReference],
+        attested: &[(ObjectId, Version)],
         executed: &BTreeMap<ObjectId, Version>,
         superseded: BTreeSet<(ObjectId, Version)>,
     ) -> bool {
-        should_reauthenticate(
-            attested,
-            executed,
-            &BTreeSet::new(),
-            |object_id, version| superseded.contains(&(*object_id, version)),
-        )
-    }
-
-    /// An honest dry run records no input the transaction pins, so a recorded
-    /// version for one is a lie, however plausible the version.
-    #[test]
-    fn differing_version_of_a_pinned_input_skips_reauthentication() {
-        let input = ref_at(3);
-        let superseded: BTreeSet<(ObjectId, Version)> = [(input.object_id, input.version())].into();
-        let executed = BTreeMap::from([(input.object_id, Version::from(5u64))]);
-        let pinned = BTreeSet::from([input.object_id]);
-
-        assert!(!should_reauthenticate(
-            &[input],
-            &executed,
-            &pinned,
-            |object_id, version| superseded.contains(&(*object_id, version))
-        ));
+        should_reauthenticate(attested, executed, |object_id, version| {
+            superseded.contains(&(*object_id, version))
+        })
     }
 
     /// Authentication failed against exactly the recorded state, so re-running
@@ -745,8 +915,8 @@ mod tests {
     /// fails at the versions it saw.
     #[test]
     fn no_drift_skips_reauthentication() {
-        let account = ref_at(3);
-        let executed = BTreeMap::from([(account.object_id, account.version())]);
+        let account = object_at(3);
+        let executed = BTreeMap::from([account]);
 
         assert!(!reauthenticates(&[account], &executed, Default::default()));
     }
@@ -755,9 +925,9 @@ mod tests {
     /// still has to be checked before anyone is charged.
     #[test]
     fn drift_within_the_epoch_reauthenticates() {
-        let account = ref_at(3);
-        let superseded = [(account.object_id, account.version())].into();
-        let executed = BTreeMap::from([(account.object_id, Version::from(5u64))]);
+        let account = object_at(3);
+        let superseded = [account].into();
+        let executed = BTreeMap::from([(account.0, Version::from(5u64))]);
 
         assert!(reauthenticates(&[account], &executed, superseded));
     }
@@ -767,34 +937,34 @@ mod tests {
     /// attestation is never taken on trust without checking it.
     #[test]
     fn stale_version_skips_reauthentication() {
-        let account = ref_at(3);
-        let executed = BTreeMap::from([(account.object_id, Version::from(5u64))]);
+        let account = object_at(3);
+        let executed = BTreeMap::from([(account.0, Version::from(5u64))]);
 
         assert!(!reauthenticates(&[account], &executed, Default::default()));
     }
 
     #[test]
     fn version_ahead_of_execution_skips_reauthentication() {
-        let account = ref_at(7);
-        let superseded = [(account.object_id, account.version())].into();
-        let executed = BTreeMap::from([(account.object_id, Version::from(5u64))]);
+        let account = object_at(7);
+        let superseded = [account].into();
+        let executed = BTreeMap::from([(account.0, Version::from(5u64))]);
 
         assert!(!reauthenticates(&[account], &executed, superseded));
     }
 
-    /// An attestation also records the versions the transaction body read.
-    /// Those cannot change whether authentication would have succeeded, so a
-    /// stale one must not decide the verdict.
+    /// A recorded version of an object that authentication did not read
+    /// cannot change whether authentication would have succeeded, so a stale
+    /// one must not decide the verdict.
     #[test]
     fn versions_the_reauthentication_does_not_read_are_ignored() {
-        let account = ref_at(3);
-        let body_object = ref_at(9);
-        let superseded = [(account.object_id, account.version())].into();
-        let executed = BTreeMap::from([(account.object_id, Version::from(5u64))]);
+        let account = object_at(3);
+        let unread_object = object_at(9);
+        let superseded = [account].into();
+        let executed = BTreeMap::from([(account.0, Version::from(5u64))]);
 
         assert!(
-            reauthenticates(&[account, body_object], &executed, superseded),
-            "a stale body-side version must not suppress the re-run"
+            reauthenticates(&[account, unread_object], &executed, superseded),
+            "a stale version of an unread object must not suppress the re-run"
         );
     }
 
@@ -802,14 +972,148 @@ mod tests {
     /// drifted honestly.
     #[test]
     fn any_refuted_version_skips_reauthentication() {
-        let account = ref_at(3);
-        let input = ref_at(4);
-        let superseded = [(account.object_id, account.version())].into();
+        let account = object_at(3);
+        let input = object_at(4);
+        let superseded = [account].into();
         let executed = BTreeMap::from([
-            (account.object_id, Version::from(5u64)),
-            (input.object_id, Version::from(2u64)),
+            (account.0, Version::from(5u64)),
+            (input.0, Version::from(2u64)),
         ]);
 
         assert!(!reauthenticates(&[account, input], &executed, superseded));
+    }
+
+    /// The window admits a supersession at its floor and inside it; a
+    /// prologue's round is measured against the sequencing round, and a
+    /// supersession known only by its epoch is always admitted.
+    #[test]
+    fn freshness_window_admits_recent_supersessions_only() {
+        let sequenced_at = |sub_dag_index, last_committed_round| ExecutionIndices {
+            last_committed_round,
+            sub_dag_index,
+            transaction_index: 0,
+        };
+        assert!(within_freshness_window(
+            SupersededAt::Commit(10),
+            sequenced_at(20, 25),
+            10
+        ));
+        assert!(within_freshness_window(
+            SupersededAt::Commit(15),
+            sequenced_at(20, 25),
+            10
+        ));
+        assert!(!within_freshness_window(
+            SupersededAt::Commit(9),
+            sequenced_at(20, 25),
+            10
+        ));
+        assert!(within_freshness_window(
+            SupersededAt::Round(15),
+            sequenced_at(20, 25),
+            10
+        ));
+        assert!(!within_freshness_window(
+            SupersededAt::Round(14),
+            sequenced_at(20, 25),
+            10
+        ));
+        assert!(within_freshness_window(
+            SupersededAt::Commit(1),
+            sequenced_at(5, 5),
+            32
+        ));
+        assert!(within_freshness_window(
+            SupersededAt::Epoch,
+            sequenced_at(20, 25),
+            10
+        ));
+    }
+
+    /// Two Move authenticators name the same account: the first authenticates
+    /// it, and the second takes it as an argument, next to an immutable
+    /// object. Each entry becomes the id of the shared object at its index,
+    /// with the recorded version. The two entries for the account are both
+    /// kept, with their different versions, and the entries whose index names
+    /// the immutable object or nothing are left out.
+    #[test]
+    fn entries_become_object_ids_in_record_order() {
+        let account = SharedObjectReference {
+            object_id: ObjectId::random(),
+            initial_shared_version: Version::from(1u64),
+            mutable: false,
+        };
+        let immutable_argument = random_object_ref();
+        let first_authenticator =
+            MoveAuthenticator::V1(MoveAuthenticatorV1::new(vec![], vec![], account));
+        let second_authenticator = MoveAuthenticator::V1(MoveAuthenticatorV1::new(
+            vec![
+                CallArg::Shared(account),
+                CallArg::ImmutableOrOwned(immutable_argument),
+            ],
+            vec![],
+            SharedObjectReference {
+                object_id: ObjectId::random(),
+                ..account
+            },
+        ));
+        let programmable = ProgrammableTransaction {
+            inputs: vec![],
+            commands: vec![],
+        };
+        let transaction = SenderSignedTransaction::new(
+            Transaction::new_programmable(
+                Address::ZERO,
+                vec![random_object_ref()],
+                programmable,
+                1,
+                1,
+            ),
+            vec![
+                UserSignature::MoveAuthenticator(first_authenticator),
+                UserSignature::MoveAuthenticator(second_authenticator),
+            ],
+        );
+        let attestation = Attestation::new_authority(
+            AttestationData::V1 {
+                computation_units: 1,
+                shared_object_versions: vec![
+                    (
+                        SharedInputIndex::AuthenticatorArgument {
+                            authenticator: 1,
+                            argument: 0,
+                        },
+                        Version::from(3u64),
+                    ),
+                    (
+                        SharedInputIndex::AuthenticatorArgument {
+                            authenticator: 1,
+                            argument: 1,
+                        },
+                        Version::from(7u64),
+                    ),
+                    (
+                        SharedInputIndex::AuthenticatorArgument {
+                            authenticator: 1,
+                            argument: 2,
+                        },
+                        Version::from(9u64),
+                    ),
+                    (
+                        SharedInputIndex::AuthenticatorAccount { authenticator: 0 },
+                        Version::from(4u64),
+                    ),
+                ],
+            },
+            0,
+        );
+
+        assert_eq!(
+            collect_attested_versions(&attestation, &transaction),
+            vec![
+                (account.object_id, Version::from(3u64)),
+                (account.object_id, Version::from(4u64)),
+            ]
+        );
     }
 }

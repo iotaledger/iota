@@ -44,6 +44,7 @@ use iota_types::{
     base_types::{AuthorityName, EpochId, VersionNumber},
     committee::Committee,
     crypto::AuthoritySignature,
+    digests::ChainIdentifier,
     error::ExecutionError,
     gas_coin::{GasCoin, NANOS_PER_IOTA},
     inner_temporary_store::InnerTemporaryStore,
@@ -86,6 +87,7 @@ struct SimulacrumInner<R, Store: SimulatorStore> {
     keystore: KeyStore,
     #[expect(unused)]
     genesis: genesis::Genesis,
+    chain_identifier: ChainIdentifier,
     store: Store,
     checkpoint_builder: MockCheckpointBuilder,
 
@@ -161,7 +163,9 @@ where
 impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
     pub fn new_with_network_config_store(config: &NetworkConfig, rng: R, store: S) -> Self {
         let keystore = KeyStore::from_network_config(config);
-        let checkpoint_builder = MockCheckpointBuilder::new(config.genesis.checkpoint());
+        let genesis_checkpoint = config.genesis.checkpoint();
+        let chain_identifier = ChainIdentifier::from(*genesis_checkpoint.digest());
+        let checkpoint_builder = MockCheckpointBuilder::new(genesis_checkpoint);
 
         let genesis = &config.genesis;
         let epoch_state = EpochState::new(genesis.iota_system_object());
@@ -173,6 +177,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
                 rng,
                 keystore,
                 genesis: genesis.clone(),
+                chain_identifier,
                 store,
                 checkpoint_builder,
                 epoch_state,
@@ -206,6 +211,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         let (inner_temporary_store, _, effects, execution_error_opt) =
             inner.epoch_state.execute_transaction(
                 &inner.store,
+                inner.chain_identifier,
                 &self.deny_config,
                 &self.verifier_signing_config,
                 &transaction,
@@ -240,6 +246,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         let inner = self.inner.read().unwrap();
         inner.epoch_state.simulate_transaction(
             &inner.store,
+            inner.chain_identifier,
             &self.deny_config,
             &self.verifier_signing_config,
             transaction,
@@ -1248,6 +1255,99 @@ mod tests {
 
         assert_eq!(&checkpoint.epoch_rolling_gas_cost_summary, gas_summary);
         assert_eq!(checkpoint.network_total_transactions, 2); // genesis + 1 txn
+    }
+
+    /// A dependent of a failed transaction executes without running any
+    /// command. A dependent of a transaction that has not executed is
+    /// simulated as if that transaction succeeded, and rejected at execution.
+    #[test]
+    fn transaction_dependency() {
+        use iota_protocol_config::ProtocolConfig;
+        use iota_sdk_types::{ExecutionStatus, TransactionExpiration};
+        use iota_types::error::UserInputError;
+
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_transaction_dependencies_for_testing(true);
+            config
+        });
+        let sim = Simulacrum::new();
+        let (sender, key) = sim.with_keystore(|keystore| {
+            let (sender, key) = keystore.accounts().next().unwrap();
+            (*sender, key.clone())
+        });
+        let transfer = |amount: u64, dependency: Option<TransactionDigest>| {
+            let gas = sim.with_store(|store| {
+                store
+                    .owned_objects(sender)
+                    .find(|object| object.is_gas_coin())
+                    .unwrap()
+                    .object_ref()
+            });
+            let mut builder = ProgrammableTransactionBuilder::new();
+            builder.transfer_iota(Address::random(), Some(amount));
+            if let Some(dependency) = dependency {
+                builder.transaction_dependency(dependency);
+            }
+            let gas_data = GasPayment {
+                objects: vec![gas],
+                owner: sender,
+                price: sim.reference_gas_price(),
+                budget: 1_000_000_000,
+            };
+            let mut transaction = Transaction::new_with_gas_data(
+                TransactionKind::Programmable(builder.finish()),
+                sender,
+                gas_data,
+            );
+            if let (Some(_), Transaction::V1(transaction)) = (dependency, &mut transaction) {
+                transaction.expiration = TransactionExpiration::Epoch(0);
+            }
+            TransactionEnvelope::from_data_and_signer(transaction, vec![&key])
+        };
+
+        let failing = transfer(u64::MAX, None);
+        let failing_digest = *failing.digest();
+        let (effects, _) = sim.execute_transaction(failing).unwrap();
+        assert!(!effects.status().is_success(), "{effects:?}");
+
+        let (effects, _) = sim
+            .execute_transaction(transfer(1, Some(failing_digest)))
+            .unwrap();
+        assert_eq!(
+            effects.status(),
+            &ExecutionStatus::Failure {
+                error: iota_sdk_types::ExecutionError::TransactionDependencyFailed {
+                    dependency: failing_digest
+                },
+                command: None,
+            }
+        );
+        assert!(effects.dependencies().contains(&failing_digest));
+
+        let unknown = TransactionDigest::random();
+        let simulated = sim
+            .simulate_transaction(
+                transfer(1, Some(unknown)).data().transaction().clone(),
+                VmChecks::Enabled,
+            )
+            .unwrap();
+        assert!(
+            simulated.effects.status().is_success(),
+            "{:?}",
+            simulated.effects
+        );
+        let error = sim
+            .execute_transaction(transfer(1, Some(unknown)))
+            .unwrap_err();
+        assert!(
+            matches!(
+                error.downcast_ref::<IotaError>(),
+                Some(IotaError::UserInput {
+                    error: UserInputError::TransactionDependencyNotFound { digest }
+                }) if *digest == unknown
+            ),
+            "{error:?}"
+        );
     }
 
     /// A system transaction kind is rejected under both check modes.

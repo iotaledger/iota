@@ -100,22 +100,26 @@ pub struct NodeConfig {
     #[serde(default)]
     pub grpc_load_shed: Option<bool>,
 
-    /// Maximum number of concurrent in-flight requests per CPU core, applied
-    /// to each service of the validator gRPC server separately (`Validator`,
+    /// Maximum number of in-flight requests per CPU core, applied to each
+    /// service of the validator gRPC server separately (`Validator`,
     /// `ValidatorV2`, `ValidatorPeer`), so a flood of client transaction
     /// submissions cannot crowd validator-peer RPCs out of admission slots.
-    /// The effective per-service limit is this value multiplied by the CPU
-    /// cores of the machine at server startup, so the same config file scales
-    /// with the hardware.
+    /// The per-service limit is this value times the CPU cores of the machine
+    /// at server startup.
     ///
-    /// Most request time is spent awaiting locks, I/O or consensus rather
-    /// than on-CPU, so the default ceiling is generous: it bounds total
-    /// in-flight work so a request flood cannot grow queues and memory
-    /// without limit, it does not throttle normal load. Operators wanting
-    /// hard load-shedding can lower it and set `grpc_load_shed`.
+    /// A request is in flight from admission until its response has been
+    /// sent, so a `SubmitTx` or `GetTxStatus` stream counts while it streams;
+    /// a `GetTxStatus` stream waits up to 30 s for its transactions. A
+    /// response not fully sent 60 s after its headers gives up its slot and
+    /// ends with `DEADLINE_EXCEEDED`, whether or not the client is still
+    /// reading. A request over the limit waits for a slot, or is rejected if
+    /// `grpc_load_shed` is set.
     ///
-    /// A value of zero is rejected at config load: it would not disable the
-    /// limit, it would block every request.
+    /// A lower value must leave room for every `GetTxStatus` stream open at
+    /// peak.
+    ///
+    /// Zero is rejected at config load: it would block every request rather
+    /// than disable the limit.
     #[serde(default = "default_grpc_concurrency_limit_per_core")]
     pub grpc_concurrency_limit_per_core: NonZeroUsize,
 
@@ -247,6 +251,14 @@ pub struct NodeConfig {
 
     #[serde(default)]
     pub verifier_signing_config: VerifierSigningConfig,
+
+    /// How many threads read the inputs of a consensus commit's transactions
+    /// at once in post-consensus validation, the consensus handler's own
+    /// thread included. One reads them one after another. By default a
+    /// third of the cores, at least one and at most sixteen. Has no effect
+    /// unless the pcool flow is enabled.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub post_consensus_validation_readers: Option<NonZeroUsize>,
 
     /// If a value is set, it determines if writes to DB can stall, which can
     /// halt the whole process. By default, write stall is enabled on
@@ -1485,6 +1497,30 @@ pub struct AuthorityOverloadConfig {
     /// via the same-named accessor, which clamps the value to <=100.
     #[serde(default = "default_max_transaction_manager_queue_length_soft_limit_pct")]
     pub max_transaction_manager_queue_length_soft_limit_pct: u32,
+
+    /// Maximum number of attestation dry runs the validator runs at once.
+    /// Unset means a quarter of the available cores, at least one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_concurrent_attestations: Option<NonZeroUsize>,
+
+    /// Maximum number of submissions that wait for a free attestation dry run,
+    /// a bound on the memory they hold. A submission that finds every dry run
+    /// taken and this many waiting is rejected with
+    /// [`IotaError::ValidatorOverloadedRetryAfter`]. Unset means 1,024.
+    ///
+    /// [`IotaError::ValidatorOverloadedRetryAfter`]: iota_types::error::IotaError::ValidatorOverloadedRetryAfter
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_queued_attestations: Option<usize>,
+
+    /// Maximum time a submission waits for a free attestation dry run. A
+    /// submission that has waited this long, or whose expected wait is longer
+    /// when it arrives, is rejected with
+    /// [`IotaError::ValidatorOverloadedRetryAfter`], which asks the client to
+    /// retry after the first whole second past this wait. Unset means 500 ms.
+    ///
+    /// [`IotaError::ValidatorOverloadedRetryAfter`]: iota_types::error::IotaError::ValidatorOverloadedRetryAfter
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_attestation_wait: Option<Duration>,
 }
 
 impl AuthorityOverloadConfig {
@@ -1558,6 +1594,9 @@ impl Default for AuthorityOverloadConfig {
                 default_max_transaction_manager_queue_length_soft_limit_pct(),
             max_transaction_manager_per_object_queue_length:
                 default_max_transaction_manager_per_object_queue_length(),
+            max_concurrent_attestations: None,
+            max_queued_attestations: None,
+            max_attestation_wait: None,
         }
     }
 }
@@ -2502,6 +2541,20 @@ mod tests {
             config.grpc_api_listener_limits
         );
         assert!(read_back.validator_grpc_listener_limits.is_unset());
+    }
+
+    /// With a limit of zero attestation dry runs at once, a validator could
+    /// attest no transaction, so a config with that limit fails to load.
+    #[test]
+    fn config_with_zero_concurrent_attestations_fails_to_load() {
+        let zero = serde_yaml::from_str::<super::AuthorityOverloadConfig>(
+            "max-concurrent-attestations: 0",
+        );
+        assert!(zero.is_err(), "{zero:?}");
+
+        let one: super::AuthorityOverloadConfig =
+            serde_yaml::from_str("max-concurrent-attestations: 1").unwrap();
+        assert_eq!(one.max_concurrent_attestations, NonZeroUsize::new(1));
     }
 }
 

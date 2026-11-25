@@ -13,9 +13,10 @@ use iota_sdk_types::{
 };
 use iota_types::{
     base_types::VersionNumber,
+    digests::ChainIdentifier,
     error::{IotaError, IotaResult, UserInputError},
     object::Object,
-    transaction::InputObjectKind,
+    transaction::{InputObjectKind, TransactionDependencyReadResult},
 };
 use jsonrpsee::core::ClientError as JsonRpseeError;
 use move_binary_format::CompiledModule;
@@ -59,6 +60,9 @@ pub struct OnChainTransactionInfo {
     pub gas_price: u64,
     pub executed_epoch: u64,
     pub dependencies: Vec<TransactionDigest>,
+    /// The outcome of the transaction named by the transaction dependency
+    /// input, when execution read it.
+    pub transaction_dependency: Option<TransactionDependencyReadResult>,
     #[serde(skip)]
     pub receiving_objs: Vec<(ObjectId, Version)>,
     #[serde(skip)]
@@ -75,6 +79,8 @@ pub struct OnChainTransactionInfo {
     pub reference_gas_price: u64,
     #[serde(default = "unspecified_chain")]
     pub chain: Chain,
+    #[serde(default)]
+    pub chain_identifier: ChainIdentifier,
 }
 
 fn unspecified_chain() -> Chain {

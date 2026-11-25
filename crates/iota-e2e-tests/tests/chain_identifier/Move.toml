@@ -1,0 +1,9 @@
+[package]
+name = "chain_identifier"
+edition = "2024"
+
+[dependencies]
+Iota = { local = "../../../iota-framework/packages/iota-framework" }
+
+[addresses]
+chain_identifier = "0x0"

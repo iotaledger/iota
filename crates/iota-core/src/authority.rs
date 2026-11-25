@@ -108,7 +108,7 @@ use iota_types::{
     move_authenticator::MoveAuthenticatorExt,
     object::{Object, ObjectRead, ObjectSet, PastObjectRead},
     storage::{
-        BackingPackageStore, BackingStore, ObjectKey, ObjectOrTombstone, ObjectStore,
+        BackingPackageStore, BackingStore, InputKey, ObjectKey, ObjectOrTombstone, ObjectStore,
         OwnedObjectCursor, TrackingBackingStore,
     },
     supported_protocol_versions::{
@@ -146,6 +146,7 @@ pub use crate::checkpoints::checkpoint_executor::utils::{
 };
 use crate::{
     authority::{
+        attestation_semaphore::{AttestationPermit, AttestationSemaphore},
         authority_per_epoch_store::{AuthorityPerEpochStore, TxGuard},
         authority_per_epoch_store_pruner::AuthorityPerEpochStorePruner,
         authority_store::{ExecutionLockReadGuard, ObjectLockStatus},
@@ -169,7 +170,8 @@ use crate::{
     },
     execution_driver::execution_process,
     execution_scheduler::{
-        ExecutionSchedulerAPI, ExecutionSchedulerWrapper, transaction_manager::AttestationSource,
+        ExecutionSchedulerAPI, ExecutionSchedulerWrapper, transaction_dependency_input_key,
+        transaction_manager::AttestationSource,
     },
     global_state_hasher::{GlobalStateHashStore, GlobalStateHasher},
     metrics::{LatencyObserver, RateTracker},
@@ -237,6 +239,10 @@ mod cancelled_move_authenticator_tests;
 mod move_authenticator_attestation_tests;
 
 #[cfg(test)]
+#[path = "unit_tests/transaction_dependency_execution_tests.rs"]
+mod transaction_dependency_execution_tests;
+
+#[cfg(test)]
 #[path = "unit_tests/auth_unit_test_utils.rs"]
 pub mod auth_unit_test_utils;
 
@@ -256,6 +262,7 @@ mod attestation_verdict_tests;
 pub mod authority_test_utils;
 
 pub(crate) mod attestation;
+pub(crate) mod attestation_semaphore;
 mod attestation_verdict;
 pub mod authority_per_epoch_store;
 pub mod authority_per_epoch_store_pruner;
@@ -320,6 +327,9 @@ pub struct AuthorityMetrics {
     pub(crate) transaction_manager_package_cache_hits: IntCounter,
     pub(crate) transaction_manager_package_cache_misses: IntCounter,
     pub(crate) transaction_manager_package_cache_evictions: IntCounter,
+    pub(crate) transaction_manager_executed_transaction_cache_size: IntGauge,
+    pub(crate) transaction_manager_executed_transaction_cache_hits: IntCounter,
+    pub(crate) transaction_manager_executed_transaction_cache_misses: IntCounter,
     pub(crate) transaction_manager_transaction_queue_age_s: Histogram,
 
     pub(crate) execution_driver_executed_transactions: IntCounter,
@@ -352,6 +362,22 @@ pub struct AuthorityMetrics {
 
     pub(crate) transaction_overload_sources: IntCounterVec,
 
+    /// Number of attestation dry runs running now, each counted from the
+    /// checks before it until it has ended and its transaction holds its soft
+    /// locks.
+    pub(crate) attestations_in_progress: IntGauge,
+    /// Number of submissions waiting for a free attestation dry run.
+    pub(crate) attestations_waiting: IntGauge,
+    /// Number of submissions rejected since the node started. A submission is
+    /// rejected when every attestation dry run is taken and the queue is full
+    /// or the wait for one is too long.
+    pub(crate) attestations_rejected_total: IntCounter,
+    /// How long submissions waited for a free attestation dry run, near zero
+    /// when one was free. Rejected submissions are not recorded.
+    pub(crate) attestation_permit_wait: Histogram,
+    /// Number of attestation dry runs started since the node started.
+    pub(crate) attestation_dry_runs_total: IntCounter,
+
     /// Checkpoint-inclusion waits that timed out before the RPC indexes
     /// caught up.
     pub(crate) checkpoint_inclusion_index_wait_timeouts: IntCounter,
@@ -363,6 +389,7 @@ pub struct AuthorityMetrics {
     pub consensus_handler_scores: IntGaugeVec,
     pub consensus_handler_deferred_transactions: IntCounter,
     pub consensus_handler_congested_transactions: IntCounter,
+    pub consensus_handler_dependency_deferred_transactions: IntCounter,
     pub consensus_handler_cancelled_transactions: IntCounter,
     /// Number of user transactions dropped during a consensus commit because
     /// post-consensus conflict/lock validation rejected them. Distinct from
@@ -372,6 +399,11 @@ pub struct AuthorityMetrics {
     /// result (keep, drop or missing) and the reason that decided it. Only with
     /// the P-COOL flow on.
     pub consensus_handler_validation_reader_verdicts: IntCounterVec,
+    /// Transactions whose inputs post-consensus validation read, by when:
+    /// `ahead` of the validation loop and used by it, `inline` in the loop,
+    /// or `unused`, read ahead for a transaction the loop dropped before
+    /// its inputs mattered. Only with the P-COOL flow on.
+    pub consensus_handler_validation_input_reads: IntCounterVec,
     /// The commit being validated minus the highest fully executed commit, set
     /// once per commit. Only with the P-COOL flow on.
     pub consensus_handler_commit_execution_lag: IntGauge,
@@ -381,6 +413,10 @@ pub struct AuthorityMetrics {
     /// Attested transactions dropped by post-consensus validation because
     /// their attestor is cut off for the rest of the epoch.
     pub(crate) consensus_handler_validation_attestor_cut_off_transactions: IntCounter,
+    /// Attested transactions that were cancelled for congestion, by attestor's
+    /// hostname and by whether the gas owner was charged. A transaction this
+    /// validator executes from a checkpoint is not counted.
+    pub(crate) cancelled_attested_transactions: IntCounterVec,
     /// Number of user transactions dropped during a consensus commit by
     /// post-consensus load shedding, i.e. probabilistically rejected at the
     /// quorum `consensus_handler_load_shedding_percentage` rate.
@@ -731,6 +767,24 @@ impl AuthorityMetrics {
                 registry,
             )
                 .unwrap(),
+            transaction_manager_executed_transaction_cache_size: register_int_gauge_with_registry!(
+                "transaction_manager_executed_transaction_cache_size",
+                "Current size of the executed-transaction cache in TransactionManager, which dependents wait on",
+                registry,
+            )
+                .unwrap(),
+            transaction_manager_executed_transaction_cache_hits: register_int_counter_with_registry!(
+                "transaction_manager_executed_transaction_cache_hits",
+                "Number of executed-transaction cache hits in TransactionManager",
+                registry,
+            )
+                .unwrap(),
+            transaction_manager_executed_transaction_cache_misses: register_int_counter_with_registry!(
+                "transaction_manager_executed_transaction_cache_misses",
+                "Number of executed-transaction cache misses in TransactionManager",
+                registry,
+            )
+                .unwrap(),
             transaction_manager_transaction_queue_age_s: register_histogram_with_registry!(
                 "transaction_manager_transaction_queue_age_s",
                 "Time spent in waiting for transaction in the queue",
@@ -744,6 +798,43 @@ impl AuthorityMetrics {
                 "Number of times each source indicates transaction overload.",
                 &["source"],
                 registry)
+                .unwrap(),
+            attestations_in_progress: register_int_gauge_with_registry!(
+                "attestations_in_progress",
+                "Number of attestation dry runs running, each counted from the checks before it \
+                    until it has ended and its transaction holds its soft locks",
+                registry;
+                MetricLevel::Warn,
+            )
+                .unwrap(),
+            attestations_waiting: register_int_gauge_with_registry!(
+                "attestations_waiting",
+                "Number of submissions waiting for a free attestation dry run",
+                registry,
+            )
+                .unwrap(),
+            attestations_rejected_total: register_int_counter_with_registry!(
+                "attestations_rejected_total",
+                "Number of submissions rejected because every attestation dry run was taken \
+                    and the queue was full or the wait for one too long",
+                registry;
+                MetricLevel::Warn,
+            )
+                .unwrap(),
+            attestation_permit_wait: register_histogram_with_registry!(
+                "attestation_permit_wait",
+                "Time submissions waited for a free attestation dry run, near zero when one was \
+                    free; rejected submissions are not recorded",
+                LOW_LATENCY_SEC_BUCKETS.to_vec(),
+                registry;
+                MetricLevel::Info,
+            )
+                .unwrap(),
+            attestation_dry_runs_total: register_int_counter_with_registry!(
+                "attestation_dry_runs_total",
+                "Number of attestation dry runs started",
+                registry,
+            )
                 .unwrap(),
             execution_driver_executed_transactions: register_int_counter_with_registry!(
                 "execution_driver_executed_transactions",
@@ -853,6 +944,11 @@ impl AuthorityMetrics {
                 "Number of transactions deferred by consensus handler due to congestion",
                 registry,
             ).unwrap(),
+            consensus_handler_dependency_deferred_transactions: register_int_counter_with_registry!(
+                "consensus_handler_dependency_deferred_transactions",
+                "Number of times the consensus handler deferred a transaction for the transaction it depends on",
+                registry,
+            ).unwrap(),
             consensus_handler_cancelled_transactions: register_int_counter_with_registry!(
                 "consensus_handler_cancelled_transactions",
                 "Number of transactions cancelled by consensus handler",
@@ -867,6 +963,12 @@ impl AuthorityMetrics {
                 "consensus_handler_validation_reader_verdicts",
                 "Verdicts of the commit-indexed reader in post-consensus validation, by verdict and deciding reason",
                 &["verdict", "reason"],
+                registry,
+            ).unwrap(),
+            consensus_handler_validation_input_reads: register_int_counter_vec_with_registry!(
+                "consensus_handler_validation_input_reads",
+                "Transactions whose inputs post-consensus validation read, by when: ahead of the validation loop, inline in it, or unused",
+                &["when"],
                 registry,
             ).unwrap(),
             consensus_handler_commit_execution_lag: register_int_gauge_with_registry!(
@@ -885,6 +987,13 @@ impl AuthorityMetrics {
                 "consensus_handler_validation_attestor_cut_off_transactions",
                 "Number of attested transactions dropped by post-consensus validation because their attestor is cut off for the rest of the epoch",
                 registry,
+            ).unwrap(),
+            cancelled_attested_transactions: register_int_counter_vec_with_registry!(
+                "cancelled_attested_transactions",
+                "Number of attested transactions cancelled for congestion, by attestor's hostname and by whether the gas owner was charged. A transaction this validator executes from a checkpoint is not counted.",
+                &["authority", "charged"],
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             consensus_handler_load_shedding_dropped_transactions: register_int_counter_with_registry!(
                 "consensus_handler_load_shedding_dropped_transactions",
@@ -960,6 +1069,7 @@ impl AuthorityMetrics {
         self.validator_scoreboard_scores.reset();
         self.invalid_misbehavior_reports_by_authority.reset();
         self.consensus_committed_user_transactions.reset();
+        self.cancelled_attested_transactions.reset();
     }
 }
 
@@ -1064,6 +1174,8 @@ impl ObjectStore for ObjectStoreWithHistoricFallback<'_> {
 }
 
 pub struct AuthorityState {
+    /// The `Arc` this state lives in, for [`Self::shared`].
+    this: Weak<AuthorityState>,
     // Fixed size, static, identity of the authority
     /// The name of this authority.
     pub name: AuthorityName,
@@ -1119,6 +1231,9 @@ pub struct AuthorityState {
 
     /// Current overload status in this authority. Updated periodically.
     pub overload_info: AuthorityOverloadInfo,
+
+    /// Limits the attestation dry runs of submitted transactions.
+    attestation_semaphore: AttestationSemaphore,
 
     pub validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
 
@@ -1291,8 +1406,24 @@ impl AuthorityState {
         Ok(tx_checked_input_objects.inner().filter_owned_objects())
     }
 
+    /// Runs the checks of [`Self::handle_transaction_validation_checks`]
+    /// without running the Move authenticators, for a transaction that is
+    /// rejected whatever they answer.
+    #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
+    pub(crate) fn handle_transaction_validation_checks_without_authentication(
+        &self,
+        transaction: &VerifiedTransaction,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+        deny_config: &dyn DenyRuleConfig,
+    ) -> IotaResult<()> {
+        self.run_validation_checks(transaction, epoch_store, deny_config, false)?;
+
+        Ok(())
+    }
+
     /// Runs `authenticators` on their own, metered by `gas_status`, and fails
-    /// as admission does when one rejects the transaction or runs out of gas.
+    /// as admission does when one rejects the transaction or runs out of gas,
+    /// with the error of [`Self::authentication_failure`].
     /// `function_refs` are the sender's and the gas owner's authenticator
     /// functions, resolved over every authenticator of the transaction.
     fn authenticate_before_consensus(
@@ -1334,6 +1465,7 @@ impl AuthorityState {
             self.get_backing_store().as_ref(),
             epoch_store.protocol_config(),
             self.metrics.limits_metrics.clone(),
+            epoch_store.get_chain_identifier(),
             &epoch_store.epoch_start_config().epoch_data().epoch_id(),
             epoch_store
                 .epoch_start_config()
@@ -1349,9 +1481,21 @@ impl AuthorityState {
             auth_context_data,
             &mut None,
         );
-        result.map_err(|error| IotaError::MoveAuthenticatorExecutionFailure {
-            error: error.to_string(),
+        result.map_err(|error| {
+            self.authentication_failure(tx, epoch_store.epoch(), move_authentication_failure(error))
         })
+    }
+
+    /// The `Arc` this state lives in.
+    ///
+    /// # Panics
+    ///
+    /// Never while the caller holds the reference: a state is only ever
+    /// built inside its `Arc`.
+    pub(crate) fn shared(&self) -> Arc<AuthorityState> {
+        self.this
+            .upgrade()
+            .expect("a borrowed authority state is alive")
     }
 
     /// Like [`Self::handle_transaction_validation_checks`], but for
@@ -1515,7 +1659,17 @@ impl AuthorityState {
         // loaded, so its type is read on its own. Execution also checks the
         // coins Move code receives, and the coins it writes, against the deny
         // list as the epoch started.
-        let mut shared_objects = Vec::new();
+        let mut coin_types = coin_types_for_denylist_check(
+            tx_checked_input_objects
+                .inner()
+                .iter_objects()
+                .chain(
+                    per_authenticator_checked_input_objects
+                        .iter()
+                        .flat_map(|objects| objects.inner().iter_objects()),
+                )
+                .chain(tx_receiving_objects.iter_objects()),
+        );
         for input in tx_checked_input_objects.inner().iter().chain(
             per_authenticator_checked_input_objects
                 .iter()
@@ -1530,22 +1684,9 @@ impl AuthorityState {
                 None,
             ) = (input.input_object_kind, input.as_object())
             {
-                shared_objects
-                    .push(reader.read_shared_object_for_type(id, initial_shared_version)?);
+                coin_types.extend(reader.read_shared_coin_type(id, initial_shared_version)?);
             }
         }
-        let coin_types = coin_types_for_denylist_check(
-            tx_checked_input_objects
-                .inner()
-                .iter_objects()
-                .chain(
-                    per_authenticator_checked_input_objects
-                        .iter()
-                        .flat_map(|objects| objects.inner().iter_objects()),
-                )
-                .chain(&shared_objects)
-                .chain(tx_receiving_objects.iter_objects()),
-        );
         if let Some(denial) = DenyListAtCommit::new(reader).denial(tx.sender(), coin_types)? {
             return Err(denial.into());
         }
@@ -1581,6 +1722,19 @@ impl AuthorityState {
                 &self.config.transaction_deny_config,
             )
             .await?;
+        // After the checks above, so a permanent local error is reported ahead
+        // of the retriable "not executed yet".
+        self.check_transaction_dependency_for_signing(&transaction, epoch_store)?;
+
+        // Concurrent requests for the same transaction are signed once; the others
+        // get the stored signature instead of signing and writing it again.
+        let _signing_lock = epoch_store.acquire_signing_lock(transaction.digest());
+        if let Some(signed_transaction) =
+            epoch_store.get_signed_transaction(transaction.digest())?
+        {
+            self.metrics.tx_already_processed.inc();
+            return Ok(signed_transaction);
+        }
 
         let epoch = epoch_store.epoch();
         let signed_transaction =
@@ -1671,8 +1825,8 @@ impl AuthorityState {
     /// The P-COOL flow uses
     /// [`AuthorityState::reserve_consensus_queue_slot()`] instead, which
     /// counts the transaction in the consensus queue and then checks only
-    /// the queue, since execution-based overload is handled after
-    /// consensus.
+    /// the queue and the limit on attestation dry runs, since
+    /// execution-based overload is handled after consensus.
     pub(crate) fn check_system_overload(
         &self,
         consensus_adapter: &Arc<ConsensusAdapter>,
@@ -1712,20 +1866,24 @@ impl AuthorityState {
     }
 
     /// Takes a P-COOL transaction's [`InflightSlot`] in the consensus queue,
-    /// then runs graduated shedding against
+    /// then runs three checks: graduated shedding against
     /// [`InflightSlot::queue_length_before()`], which also counts admissions
-    /// still in progress, and the permit check of
-    /// [`ConsensusAdapter::check_submit_permits()`]. Returns the slot, to be
-    /// passed to [`ConsensusAdapter::submit_with_slot()`]; on an error, the
-    /// slot is released.
+    /// still in progress; the permit check of
+    /// [`ConsensusAdapter::check_submit_permits()`]; and the check of
+    /// [`AttestationSemaphore::check_overload()`] against the limit on
+    /// attestation dry runs. Returns the slot, to be passed to
+    /// [`ConsensusAdapter::submit_with_slot()`]; on an error, the slot is
+    /// released.
     ///
     /// # Errors
     ///
     /// [`IotaError::ValidatorOverloadedRetryAfter`] when graduated shedding
-    /// rejects the transaction between the soft and hard limits, and
-    /// [`IotaError::TooManyTransactionsPendingConsensus`] when the queue has
-    /// reached `max_pending_transactions` or `submit_semaphore` has no
-    /// permits left.
+    /// rejects the transaction between the soft and hard limits, or when every
+    /// attestation dry run is taken and the queue for them is full or the
+    /// expected wait for one too long, and
+    /// [`IotaError::TooManyTransactionsPendingConsensus`] when the consensus
+    /// queue has reached `max_pending_transactions` or `submit_semaphore` has
+    /// no permits left.
     pub(crate) fn reserve_consensus_queue_slot(
         &self,
         consensus_adapter: &Arc<ConsensusAdapter>,
@@ -1754,7 +1912,30 @@ impl AuthorityState {
             self.update_overload_metrics("consensus");
         })?;
 
+        self.attestation_semaphore.check_overload().tap_err(|_| {
+            self.update_overload_metrics("attestation");
+        })?;
+
         Ok(slot)
+    }
+
+    /// Returns a permit for one attestation dry run, waiting for a free one
+    /// within the limits of
+    /// [`AuthorityOverloadConfig::max_concurrent_attestations`],
+    /// [`AuthorityOverloadConfig::max_queued_attestations`] and
+    /// [`AuthorityOverloadConfig::max_attestation_wait`]. The permit must be
+    /// held until the dry run has ended and the transaction's soft locks are
+    /// taken.
+    ///
+    /// # Errors
+    ///
+    /// [`IotaError::ValidatorOverloadedRetryAfter`] when every dry run is
+    /// taken and the queue for them is full, or when none frees within
+    /// [`AuthorityOverloadConfig::max_attestation_wait`].
+    pub(crate) async fn acquire_attestation_permit(&self) -> IotaResult<AttestationPermit> {
+        self.attestation_semaphore.acquire().await.tap_err(|_| {
+            self.update_overload_metrics("attestation");
+        })
     }
 
     /// Rejects `tx` via graduated shedding at `queue_length`, the number of
@@ -1874,11 +2055,17 @@ impl AuthorityState {
     /// on successful execution; crashed execution has no observable effect and
     /// can be retried.
     ///
-    /// It is caller's responsibility to ensure input objects are available and
-    /// locks are set. If this cannot be satisfied by the caller,
-    /// `wait_for_certificate_execution()` should be called instead.
+    /// It is caller's responsibility to ensure input objects are available,
+    /// the transaction named by the transaction dependency input has executed
+    /// unless this one was cancelled at sequencing, and locks are set. If this
+    /// cannot be satisfied by the caller, `wait_for_certificate_execution()`
+    /// should be called instead.
     ///
     /// Should only be called within iota-core.
+    ///
+    /// # Panics
+    ///
+    /// If an input object or the effects of that dependency are absent.
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub fn try_execute_immediately(
         &self,
@@ -1933,6 +2120,16 @@ impl AuthorityState {
         )
     }
 
+    /// Reads the input objects of `transaction` at the versions in
+    /// `assigned_shared_object_versions`, together with the outcome of the
+    /// transaction named by its transaction dependency input unless
+    /// `transaction` was cancelled at sequencing.
+    ///
+    /// # Panics
+    ///
+    /// If an input object or the effects of that dependency are absent. The
+    /// execution scheduler releases a transaction only once both are
+    /// available; other callers must make sure of it themselves.
     pub fn read_objects_for_execution(
         &self,
         tx_lock: &TxLockGuard,
@@ -1952,7 +2149,7 @@ impl AuthorityState {
                 .move_authenticator_type_arg_packages_as_inputs(),
         )?;
 
-        let input_objects = self.input_loader.read_objects_for_execution(
+        let mut input_objects = self.input_loader.read_objects_for_execution(
             &transaction.key(),
             tx_lock,
             &input_objects,
@@ -1960,7 +2157,98 @@ impl AuthorityState {
             epoch_store.epoch(),
         )?;
 
+        // Read exactly when the scheduler waited for it, so that its effects
+        // are present here.
+        if let Some(InputKey::ExecutedTransaction { digest: dependency }) =
+            transaction_dependency_input_key(transaction, &assigned_shared_object_versions)
+        {
+            let effects = self
+                .get_transaction_cache_reader()
+                .get_executed_effects(&dependency)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "transaction {:?} depends on transaction {dependency}, whose effects \
+                         are absent although the scheduler released the dependent",
+                        transaction.digest()
+                    )
+                });
+            input_objects.set_transaction_dependency(TransactionDependencyReadResult {
+                digest: dependency,
+                succeeded: effects.status().is_success(),
+            });
+        }
+
         transaction.split_input_objects_into_groups_for_reading(input_objects)
+    }
+
+    /// Checks the outcome of the transaction named by `transaction`'s
+    /// dependency input, when this node knows one: an error if the dependency
+    /// failed, was cancelled, or executed in an earlier epoch. Returns the
+    /// dependency's digest when it has not executed here yet, `None` when it
+    /// has or `transaction` has no dependency input.
+    pub fn check_transaction_dependency_known_outcome(
+        &self,
+        transaction: &Transaction,
+        current_epoch: EpochId,
+    ) -> IotaResult<Option<TransactionDigest>> {
+        let Some(digest) = transaction.transaction_dependency() else {
+            return Ok(None);
+        };
+        let Some(effects) = self
+            .get_transaction_cache_reader()
+            .try_get_executed_effects(&digest)?
+        else {
+            return Ok(Some(digest));
+        };
+        if !effects.status().is_success() {
+            return Err(UserInputError::TransactionDependencyFailed { digest }.into());
+        }
+        if effects.epoch() < current_epoch {
+            return Err(UserInputError::TransactionDependencyNotInCurrentEpoch {
+                digest,
+                executed_epoch: effects.epoch(),
+            }
+            .into());
+        }
+        Ok(None)
+    }
+
+    /// The error to report when `transaction`'s Move authentication failed at
+    /// admission with `error`: the error of
+    /// [`Self::check_transaction_dependency_known_outcome`] if it returns one;
+    /// the retriable `TransactionDependencyNotFound` while the dependency has
+    /// not executed here, since the authenticators ran without its writes;
+    /// `error` otherwise.
+    fn authentication_failure(
+        &self,
+        transaction: &Transaction,
+        current_epoch: EpochId,
+        error: IotaError,
+    ) -> IotaError {
+        match self.check_transaction_dependency_known_outcome(transaction, current_epoch) {
+            Ok(Some(digest)) => UserInputError::TransactionDependencyNotFound { digest }.into(),
+            Ok(None) => error,
+            Err(dependency_error) => dependency_error,
+        }
+    }
+
+    /// Checks the transaction named by `transaction`'s dependency input before
+    /// signing it in the certificate flow: it must have executed successfully
+    /// in the current epoch on this validator. Not executed here yet is
+    /// reported with a retriable error, so the client's driver retries once it
+    /// has.
+    fn check_transaction_dependency_for_signing(
+        &self,
+        transaction: &VerifiedTransaction,
+        epoch_store: &AuthorityPerEpochStore,
+    ) -> IotaResult<()> {
+        if let Some(digest) = self.check_transaction_dependency_known_outcome(
+            transaction.data().transaction(),
+            epoch_store.epoch(),
+        )? {
+            return Err(UserInputError::TransactionDependencyNotFound { digest }.into());
+        }
+        Ok(())
     }
 
     /// Test only wrapper for `try_execute_immediately()` above, useful for
@@ -2022,6 +2310,7 @@ impl AuthorityState {
         expected_effects_digest: TransactionEffectsDigest,
         inner_temporary_store: &InnerTemporaryStore,
         transaction: &VerifiedExecutableTransaction,
+        transaction_dependency: Option<TransactionDependencyReadResult>,
         debug_dump_config: &StateDebugDumpConfig,
     ) -> IotaResult<PathBuf> {
         // Fall back to the OS temp directory if no dump directory is configured.
@@ -2041,6 +2330,7 @@ impl AuthorityState {
             &epoch_store,
             inner_temporary_store,
             transaction,
+            transaction_dependency,
         )?
         .write_to_file(&dump_dir)
         .map_err(|e| IotaError::FileIO(e.to_string()))
@@ -2098,6 +2388,7 @@ impl AuthorityState {
         // errors). However, all errors from this function occur before we have
         // written anything to the db, so we commit the tx guard and rely on the
         // client to retry the tx (if it was transient).
+        let transaction_dependency = tx_input_objects.transaction_dependency();
         let (inner_temporary_store, effects, execution_error_opt, read_objects, attestation_record) =
             match self.execute_transaction(
                 &execution_guard,
@@ -2124,6 +2415,7 @@ impl AuthorityState {
                     expected_effects_digest,
                     &inner_temporary_store,
                     transaction,
+                    transaction_dependency,
                     &self.config.state_debug_dump_config,
                 ) {
                     Ok(out_path) => {
@@ -2206,6 +2498,46 @@ impl AuthorityState {
         let _metrics_guard = self.metrics.commit_certificate_latency.start_timer();
 
         let tx_digest = transaction.digest();
+        if let (
+            Some(record),
+            ExecutionStatus::Failure {
+                error:
+                    ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestion { .. }
+                    | ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestionV2 { .. }
+                    | ExecutionErrorKind::ExecutionCanceledDueToExecutionWorkerCongestion { .. },
+                ..
+            },
+        ) = (&attestation_record, effects.status())
+        {
+            // The attestor is an authority index, which does not name the same
+            // validator across epochs. `committee_validators()` is not in that
+            // order, so the validator is found by its name.
+            let hostname = epoch_store
+                .committee()
+                .authority_by_index(u32::from(record.attestor))
+                .and_then(|name| {
+                    epoch_store
+                        .epoch_start_state()
+                        .committee_validators()
+                        .iter()
+                        .find(|validator| validator.authority_name() == *name)
+                })
+                .map(|validator| validator.hostname.as_str());
+            let charged = effects.gas_cost_summary().gas_used() > 0;
+            if let Some(hostname) = hostname {
+                self.metrics
+                    .cancelled_attested_transactions
+                    .with_label_values(&[hostname, &charged.to_string()])
+                    .inc();
+            }
+            debug!(
+                ?tx_digest,
+                attestor = record.attestor,
+                ?hostname,
+                charged,
+                "attested transaction cancelled for congestion"
+            );
+        }
         let input_object_count = inner_temporary_store.input_objects.len();
         let shared_object_count = effects.input_shared_objects().len();
 
@@ -2245,7 +2577,6 @@ impl AuthorityState {
             inner_temporary_store,
             read_objects,
             &self.metrics,
-            epoch_store.protocol_config().enable_validator_attestation(),
             attestation_record,
         );
         self.get_cache_writer()
@@ -2406,6 +2737,7 @@ impl AuthorityState {
                         .expensive_safety_check_config
                         .enable_deep_per_tx_iota_conservation_check(),
                     self.config.certificate_deny_config.certificate_deny_set(),
+                    epoch_store.get_chain_identifier(),
                     &epoch_id,
                     epoch_start_timestamp,
                     tx_checked_input_objects,
@@ -2504,36 +2836,41 @@ impl AuthorityState {
             // Only attested transactions can have their Move-authentication
             // failure attributed, and only they carry recorded versions to judge.
             let attestation_verdict_context = match attestation {
-                AttestationSource::Attestation(attestation) => {
-                    Some(attestation_verdict::AttestationVerdictContext {
-                        attestation,
-                        attested_versions: attestation_verdict::AttestedObjectVersions {
-                            object_cache: self.get_object_cache_reader().as_ref(),
-                            current_epoch: epoch_id,
-                        },
-                        store: backing_store,
-                        executor: epoch_store.executor().as_ref(),
-                        protocol_config,
-                        metrics: self.metrics.limits_metrics.clone(),
-                        epoch_id,
-                        epoch_timestamp_ms: epoch_start_timestamp,
-                        reference_gas_price,
-                        gas_data: gas_data.clone(),
-                        authenticators: attestation_verdict::authenticator_inputs(
-                            &move_authenticators,
-                            &per_authenticator_checked_input_objects,
-                        ),
-                        executed_versions: attestation_verdict::executed_versions(
-                            &per_authenticator_checked_input_objects,
-                            &resolutions,
-                        ),
-                        transaction: tx,
-                        transaction_signer: signer,
-                        transaction_digest: tx_digest,
-                        sender_auth_digest,
-                        sponsor_auth_digest,
-                    })
-                }
+                AttestationSource::Attestation {
+                    attestation,
+                    sequenced_at,
+                } => Some(attestation_verdict::AttestationVerdictContext {
+                    attestation,
+                    attested_versions: attestation_verdict::AttestedObjectVersions {
+                        object_cache: self.get_object_cache_reader().as_ref(),
+                        transaction_cache: self.get_transaction_cache_reader().as_ref(),
+                        epoch_store,
+                        sequenced_at: *sequenced_at,
+                        window: protocol_config.attestation_freshness_window_commits_as_option(),
+                    },
+                    store: backing_store,
+                    executor: epoch_store.executor().as_ref(),
+                    protocol_config,
+                    metrics: self.metrics.limits_metrics.clone(),
+                    chain_identifier: epoch_store.get_chain_identifier(),
+                    epoch_id,
+                    epoch_timestamp_ms: epoch_start_timestamp,
+                    reference_gas_price,
+                    gas_data: gas_data.clone(),
+                    authenticators: attestation_verdict::authenticator_inputs(
+                        &move_authenticators,
+                        &per_authenticator_checked_input_objects,
+                    ),
+                    executed_versions: attestation_verdict::executed_versions(
+                        &per_authenticator_checked_input_objects,
+                        &resolutions,
+                    ),
+                    transaction: transaction.data(),
+                    transaction_signer: signer,
+                    transaction_digest: tx_digest,
+                    sender_auth_digest,
+                    sponsor_auth_digest,
+                }),
                 AttestationSource::Unattested | AttestationSource::Certified(_) => None,
             };
 
@@ -2624,7 +2961,7 @@ impl AuthorityState {
             let blame = Cell::new(None);
             let gas_owner_pays = |kind: &ExecutionErrorKind| {
                 match (attestation, &attestation_verdict_context) {
-                    (AttestationSource::Attestation(_), Some(context)) => {
+                    (AttestationSource::Attestation { .. }, Some(context)) => {
                         let answer = context.decide_authentication_failure_blame(kind);
                         blame.set(Some(answer));
 
@@ -2668,6 +3005,7 @@ impl AuthorityState {
                         .expensive_safety_check_config
                         .enable_deep_per_tx_iota_conservation_check(),
                     self.config.certificate_deny_config.certificate_deny_set(),
+                    epoch_store.get_chain_identifier(),
                     &epoch_id,
                     epoch_start_timestamp,
                     gas_data,
@@ -2838,6 +3176,7 @@ impl AuthorityState {
             reference_gas_price: epoch_store.reference_gas_price(),
             epoch_id: epoch_data.epoch_id(),
             epoch_timestamp_ms: epoch_data.epoch_start_timestamp(),
+            chain_identifier: epoch_store.get_chain_identifier(),
             deny_config: &self.config.transaction_deny_config,
             certificate_deny_set: self.config.certificate_deny_config.certificate_deny_set(),
             verifier_signing_config: &self.config.verifier_signing_config,
@@ -2860,6 +3199,12 @@ impl AuthorityState {
                     epoch_store.epoch(),
                 )
             },
+            |dependency| {
+                Ok(self
+                    .get_transaction_cache_reader()
+                    .try_get_executed_effects(&dependency)?
+                    .is_none_or(|effects| effects.status().is_success()))
+            },
         )?;
 
         // Create a new executor for the simulation
@@ -2875,6 +3220,7 @@ impl AuthorityState {
             executor.as_ref(),
             self.get_backing_store().as_ref(),
             prepared,
+            &mut None,
         );
         Ok(SimulateTransactionResult {
             suggested_gas_price: self
@@ -3163,7 +3509,10 @@ impl AuthorityState {
                 traffic_controller_metrics,
             ))
         });
-        let state = Arc::new(AuthorityState {
+        let attestation_semaphore =
+            AttestationSemaphore::new(&config.authority_overload_config, &metrics);
+        let state = Arc::new_cyclic(|this| AuthorityState {
+            this: this.clone(),
             name,
             secret,
             execution_lock: RwLock::new(epoch),
@@ -3182,6 +3531,7 @@ impl AuthorityState {
             object_retention,
             config,
             overload_info: AuthorityOverloadInfo::default(),
+            attestation_semaphore,
             validator_tx_finalizer,
             chain_identifier,
             congestion_tracker: Arc::new(CongestionTracker::new(rgp)),
@@ -6442,7 +6792,7 @@ impl AuthorityState {
         let authenticator_function_ref_field_id =
             derive_authenticator_function_ref_v1_dynamic_field_id(auth_account_object_id)?;
 
-        let authenticator_function_ref_field = self
+        let authenticator_function_ref_field_obj = self
             .get_object_cache_reader()
             .try_find_object_lt_or_eq_version(
                 authenticator_function_ref_field_id,
@@ -6450,7 +6800,7 @@ impl AuthorityState {
             )
             .map_err(MoveAccountCheckError::Storage)?;
 
-        if let Some(authenticator_function_ref_field_obj) = authenticator_function_ref_field {
+        if let Some(authenticator_function_ref_field_obj) = authenticator_function_ref_field_obj {
             Ok(authenticator_function_ref_v1_from_dynamic_field_object(
                 auth_account_object_id,
                 &authenticator_function_ref_field_obj,
@@ -7284,6 +7634,9 @@ pub struct NodeStateDump {
     pub modified_at_versions: Vec<ObjDumpFormat>,
     pub runtime_reads: Vec<ObjDumpFormat>,
     pub input_objects: Vec<ObjDumpFormat>,
+    /// The outcome of the transaction named by the transaction dependency
+    /// input, when execution read it.
+    pub transaction_dependency: Option<TransactionDependencyReadResult>,
 }
 
 impl NodeStateDump {
@@ -7295,6 +7648,7 @@ impl NodeStateDump {
         epoch_store: &Arc<AuthorityPerEpochStore>,
         inner_temporary_store: &InnerTemporaryStore,
         transaction: &VerifiedExecutableTransaction,
+        transaction_dependency: Option<TransactionDependencyReadResult>,
     ) -> IotaResult<Self> {
         // Epoch info
         let executed_epoch = epoch_store.epoch();
@@ -7382,6 +7736,7 @@ impl NodeStateDump {
                 .collect(),
             computed_effects: effects.clone(),
             expected_effects_digest,
+            transaction_dependency,
         })
     }
 
@@ -7438,6 +7793,16 @@ impl From<MoveAccountCheckError> for IotaError {
             MoveAccountCheckError::Input(error) => IotaError::UserInput { error },
             MoveAccountCheckError::Storage(error) => error,
         }
+    }
+}
+
+/// The error that admission and the attestor give for a transaction whose
+/// Move authentication failed with `error`, unless
+/// [`AuthorityState::authentication_failure`] gives its transaction
+/// dependency's error instead.
+fn move_authentication_failure(error: ExecutionError) -> IotaError {
+    IotaError::MoveAuthenticatorExecutionFailure {
+        error: error.to_string(),
     }
 }
 
