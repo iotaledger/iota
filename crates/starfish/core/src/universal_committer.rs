@@ -56,13 +56,6 @@ impl UniversalCommitter {
         // out that enough certificates and support exist to commit a leader.
         for round in (last_round..=highest_accepted_round.saturating_sub(2)).rev() {
             let slot = self.committer.elect_leader(round);
-
-            // now that we reached the last finalized leader we can stop the commit rule
-            if slot == last_finalized {
-                tracing::debug!("Reached last finalized {slot}, now exit");
-                break;
-            }
-
             tracing::trace!("Trying to decide {slot}");
 
             let mut status = self.committer.try_direct_decide(slot);
