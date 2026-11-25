@@ -54,11 +54,8 @@ fn merge_accepted_round_ascending(
     by_ref.into_values().collect()
 }
 
-/// Block manager suspends incoming blocks until they are connected to the
-/// existing graph, returning newly connected blocks.
-/// TODO: As it is possible to have Byzantine validators who produce Blocks
-/// without valid causal history we need to make sure that BlockManager takes
-/// care of that and avoid OOM (Out Of Memory) situations.
+/// Suspends blocks with missing ancestors above the GC floor and returns
+/// newly connected headers as it processes each batch.
 pub(crate) struct BlockManager {
     context: Arc<Context>,
     dag_state: Arc<RwLock<DagState>>,
