@@ -443,4 +443,27 @@ mod tests {
             assert_eq!(filter.explicit_sender(), None);
         }
     }
+
+    /// The pruning check sees every table a kind filter with a sender reads:
+    /// `tx_kinds` for the kind and `tx_senders` for the sender.
+    #[test]
+    fn subquery_tables_list_both_tables_of_a_kind_and_sender_filter() {
+        use CommitterTables::{TxKinds, TxSenders};
+
+        for kind in [
+            TransactionBlockKindInput::ProgrammableTx,
+            TransactionBlockKindInput::ClaimAccount,
+        ] {
+            let filter = TransactionBlockFilter {
+                kind: Some(kind),
+                sent_address: Some(TransactionBlockFilter::SENDER),
+                ..Default::default()
+            };
+            let tables = subquery_tables(&filter);
+            assert!(
+                tables.contains(&TxKinds) && tables.contains(&TxSenders),
+                "{kind:?}: {tables:?}"
+            );
+        }
+    }
 }

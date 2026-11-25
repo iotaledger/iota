@@ -417,11 +417,8 @@ pub(crate) fn subquery_tables(filter: &TransactionBlockFilter) -> Vec<CommitterT
             FqNameFilter::ByFqName(..) => TxCallsFun,
         });
     }
-    if let Some(kind) = &filter.kind {
-        tables.push(match (kind, sender) {
-            (TransactionBlockKindInput::ProgrammableTx, Some(_)) => TxSenders,
-            _ => TxKinds,
-        });
+    if filter.kind.is_some() {
+        tables.push(TxKinds);
     }
     if filter.recv_address.is_some() {
         tables.push(TxRecipients);
