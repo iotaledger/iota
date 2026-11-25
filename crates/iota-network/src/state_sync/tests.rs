@@ -2188,6 +2188,101 @@ async fn cached_checkpoint_that_fails_verification_drops_every_summary_from_its_
 }
 
 #[tokio::test]
+async fn peer_marked_as_not_on_our_chain_stays_marked_through_handshakes_and_pushes() {
+    let (committee, (ordered_checkpoints, _, _, _)) =
+        make_committee_and_checkpoints(0, 4, 3, None, empty_contents);
+    let genesis_checkpoint = &ordered_checkpoints[0];
+    // Any summary with another digest stands in for another chain's genesis.
+    let (_, (other_chain, _, _, _)) =
+        make_committee_and_checkpoints(1, 4, 1, Some(genesis_checkpoint.clone()), empty_contents);
+    let other_genesis_checkpoint = other_chain[0].clone().into_inner();
+    assert_ne!(
+        other_genesis_checkpoint.digest(),
+        genesis_checkpoint.digest()
+    );
+
+    let (event_loop, server, _handle) = node_at_genesis(genesis_checkpoint, &committee, vec![]);
+    let peer_id = PeerId([10; 32]);
+    insert_peer_on_same_chain(&server, peer_id, 0);
+    server
+        .peer_heights
+        .write()
+        .unwrap()
+        .mark_peer_as_not_on_same_chain(peer_id);
+
+    // A handshake with another genesis, then one with ours.
+    let handshake = StateSyncHandshake {
+        genesis_checkpoint: other_genesis_checkpoint.clone(),
+        highest_synced_checkpoint: other_genesis_checkpoint,
+        lowest_available_checkpoint: 0,
+    };
+    server
+        .exchange_state_sync_handshake(Request::new(handshake).with_extension(peer_id))
+        .await
+        .unwrap();
+    handshake_from_peer(
+        &server,
+        peer_id,
+        ordered_checkpoints[1].clone().into_inner(),
+    )
+    .await;
+    server
+        .push_checkpoint_summary(
+            Request::new(ordered_checkpoints[2].clone().into_inner()).with_extension(peer_id),
+        )
+        .await
+        .unwrap();
+
+    assert!(!event_loop.peer_heights.read().unwrap().peers[&peer_id].on_same_chain_as_us);
+    for checkpoint in &ordered_checkpoints[1..] {
+        assert!(!is_checkpoint_cached(&event_loop, checkpoint.digest()));
+    }
+}
+
+#[tokio::test]
+async fn full_cache_drops_summaries_at_or_below_the_highest_verified_checkpoint_to_store_more() {
+    let (committee, (ordered_checkpoints, _, _, _)) =
+        make_committee_and_checkpoints(0, 4, 5, None, empty_contents);
+    let genesis_checkpoint = &ordered_checkpoints[0];
+    let store = store_with_genesis_state(
+        genesis_checkpoint.clone(),
+        empty_contents(),
+        committee.committee().to_owned(),
+    );
+    let (builder, server) = Builder::new()
+        .store(store)
+        .config(StateSyncConfig {
+            max_checkpoint_lookahead: NonZeroU64::new(2),
+            ..Default::default()
+        })
+        .build_internal();
+    let (event_loop, _handle) = builder.build(build_network(|router| router));
+
+    let peer_id = PeerId([10; 32]);
+    for checkpoint in &ordered_checkpoints[1..=2] {
+        push_from_peer(&server, peer_id, checkpoint.clone().into_inner()).await;
+    }
+    // The highest verified checkpoint advances without a summary sync task
+    // and before the next tick.
+    for checkpoint in &ordered_checkpoints[1..=2] {
+        event_loop.store.inner_mut().insert_checkpoint(checkpoint);
+    }
+    for checkpoint in &ordered_checkpoints[3..=4] {
+        push_from_peer(&server, peer_id, checkpoint.clone().into_inner()).await;
+    }
+
+    let peer_heights = event_loop.peer_heights.read().unwrap();
+    assert_eq!(peer_heights.unprocessed_checkpoints.len(), 2);
+    for checkpoint in &ordered_checkpoints[3..=4] {
+        assert!(
+            peer_heights
+                .unprocessed_checkpoints
+                .contains_key(checkpoint.digest())
+        );
+    }
+}
+
+#[tokio::test]
 async fn tick_drops_cached_summaries_at_or_below_the_highest_verified_checkpoint() {
     let (committee, (ordered_checkpoints, _, _, _)) =
         make_committee_and_checkpoints(0, 4, 3, None, empty_contents);

@@ -83,14 +83,9 @@ where
         let checkpoint = request.into_inner();
         let checkpoint_seq = checkpoint.sequence_number();
 
-        // Always update the peer's height so we know what they claim to have,
-        // even if we don't store the checkpoint itself.
-        let peer_on_same_chain =
-            self.peer_heights
-                .write()
-                .unwrap()
-                .update_peer_height(peer_id, checkpoint_seq, None);
-        if !peer_on_same_chain {
+        // Check the peer before reading the store, so that requests from
+        // peers we ignore cost no store read.
+        if !self.peer_heights.read().unwrap().is_on_same_chain(&peer_id) {
             return Ok(Response::new(()));
         }
 
@@ -99,11 +94,16 @@ where
             .try_get_highest_verified_checkpoint_seq_number()
             .map_err(|e| Status::internal(e.to_string()))?;
 
-        self.peer_heights.write().unwrap().insert_peer_checkpoint(
-            checkpoint,
-            peer_id,
-            highest_verified_checkpoint,
-        );
+        {
+            let mut peer_heights = self.peer_heights.write().unwrap();
+            // Always update the peer's height so we know what they claim to have,
+            // even if we don't store the checkpoint itself. This checks the peer
+            // again, as it may have been marked as not on our chain meanwhile.
+            if !peer_heights.update_peer_height(peer_id, checkpoint_seq, None) {
+                return Ok(Response::new(()));
+            }
+            peer_heights.insert_peer_checkpoint(checkpoint, peer_id, highest_verified_checkpoint);
+        }
 
         // If this checkpoint is higher than our highest verified checkpoint notify the
         // event loop to potentially sync it
@@ -193,19 +193,19 @@ where
 
         let our_genesis_digest = *self.genesis_checkpoint.digest();
 
-        let on_same_chain = *handshake.genesis_checkpoint.digest() == our_genesis_digest;
         let highest_verified_checkpoint = self
             .store
             .try_get_highest_verified_checkpoint_seq_number()
             .map_err(|e| Status::internal(e.to_string()))?;
 
-        {
+        let on_same_chain = {
             let mut guard = self.peer_heights.write().unwrap();
-            guard.insert_peer_info(
+            let on_same_chain = guard.insert_peer_info(
                 peer_id,
                 PeerStateSyncInfo {
                     genesis_checkpoint_digest: *handshake.genesis_checkpoint.digest(),
-                    on_same_chain_as_us: on_same_chain,
+                    on_same_chain_as_us: *handshake.genesis_checkpoint.digest()
+                        == our_genesis_digest,
                     height: handshake.highest_synced_checkpoint.sequence_number(),
                     lowest: handshake.lowest_available_checkpoint,
                 },
@@ -217,7 +217,8 @@ where
                     highest_verified_checkpoint,
                 );
             }
-        }
+            on_same_chain
+        };
 
         if on_same_chain {
             if let Some(sender) = self.sender.upgrade() {

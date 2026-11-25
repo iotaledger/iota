@@ -236,8 +236,10 @@ impl PeerHeights {
         true
     }
 
+    /// Records `info` for `peer_id` and returns whether the peer is on our
+    /// chain. A peer already marked as not on our chain stays marked.
     #[instrument(level = "debug", skip_all, fields(peer_id=?peer_id, lowest = ?info.lowest, height = ?info.height))]
-    pub fn insert_peer_info(&mut self, peer_id: PeerId, info: PeerStateSyncInfo) {
+    pub fn insert_peer_info(&mut self, peer_id: PeerId, info: PeerStateSyncInfo) -> bool {
         use std::collections::hash_map::Entry;
         debug!("Insert peer info");
 
@@ -251,12 +253,14 @@ impl PeerHeights {
                     entry.height = std::cmp::max(entry.height, info.height);
                     entry.lowest = info.lowest;
                 } else {
-                    *entry = info;
+                    *entry = PeerStateSyncInfo {
+                        on_same_chain_as_us: entry.on_same_chain_as_us && info.on_same_chain_as_us,
+                        ..info
+                    };
                 }
+                entry.on_same_chain_as_us
             }
-            Entry::Vacant(entry) => {
-                entry.insert(info);
-            }
+            Entry::Vacant(entry) => entry.insert(info).on_same_chain_as_us,
         }
     }
 
@@ -279,6 +283,13 @@ impl PeerHeights {
         }
 
         true
+    }
+
+    /// Returns whether `peer_id` is known and on our chain.
+    pub fn is_on_same_chain(&self, peer_id: &PeerId) -> bool {
+        self.peers
+            .get(peer_id)
+            .is_some_and(|info| info.on_same_chain_as_us)
     }
 
     pub fn mark_peer_as_not_on_same_chain(&mut self, peer_id: PeerId) {
@@ -355,6 +366,17 @@ impl PeerHeights {
             );
             return;
         }
+        if self.is_cache_full() {
+            self.cleanup_old_checkpoints(highest_verified_checkpoint);
+            if self.is_cache_full() {
+                debug!(
+                    sequence_number,
+                    max_lookahead = self.max_checkpoint_lookahead,
+                    "not storing checkpoint summary because the cache is full"
+                );
+                return;
+            }
+        }
         // `insert_checkpoint` drops a summary at a sequence number that is
         // already stored, so skip serializing it to measure its size.
         if !self
@@ -365,6 +387,12 @@ impl PeerHeights {
             return;
         }
         self.insert_checkpoint(checkpoint, sender);
+    }
+
+    /// Returns whether the cache holds `max_checkpoint_lookahead` summaries.
+    fn is_cache_full(&self) -> bool {
+        u64::try_from(self.unprocessed_checkpoints.len()).unwrap_or(u64::MAX)
+            >= self.max_checkpoint_lookahead
     }
 
     /// Returns whether `checkpoint` is larger than
@@ -1022,20 +1050,19 @@ where
                             // that subsequent checkpoint pushes from them are
                             // accepted immediately.
                             let their = response.into_inner();
-                            let on_same_chain =
-                                *their.genesis_checkpoint.digest() == our_genesis_digest;
                             let highest_verified_checkpoint = store
                                 .try_get_highest_verified_checkpoint_seq_number()
                                 .expect("store operation should not fail");
-                            {
+                            let on_same_chain = {
                                 let mut guard = peer_heights.write().unwrap();
-                                guard.insert_peer_info(
+                                let on_same_chain = guard.insert_peer_info(
                                     peer_id,
                                     PeerStateSyncInfo {
                                         genesis_checkpoint_digest: *their
                                             .genesis_checkpoint
                                             .digest(),
-                                        on_same_chain_as_us: on_same_chain,
+                                        on_same_chain_as_us: *their.genesis_checkpoint.digest()
+                                            == our_genesis_digest,
                                         height: their.highest_synced_checkpoint.sequence_number(),
                                         lowest: their.lowest_available_checkpoint,
                                     },
@@ -1047,7 +1074,8 @@ where
                                         highest_verified_checkpoint,
                                     );
                                 }
-                            }
+                                on_same_chain
+                            };
                             // Kick the event loop so it can start syncing.
                             if on_same_chain {
                                 if let Some(sender) = weak_sender.upgrade() {
@@ -1757,7 +1785,11 @@ where
             peer_heights.remove_checkpoints_from(peer_id);
             peer_heights.mark_peer_as_not_on_same_chain(peer_id);
 
-            bail!("unable to verify checkpoint {checkpoint:?}");
+            bail!(
+                "unable to verify checkpoint {} with digest {}",
+                checkpoint.sequence_number(),
+                checkpoint.digest()
+            );
         }
     }
 }

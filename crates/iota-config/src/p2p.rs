@@ -232,10 +232,9 @@ pub struct StateSyncConfig {
     pub max_checkpoint_summary_size: Option<usize>,
 }
 
-/// The smallest accepted `max-checkpoint-summary-size`. The handshake carries
-/// two summaries, and an end-of-epoch summary for a committee of 150
-/// validators is about 16 KiB, so a smaller limit can make the node reject
-/// honest peers.
+/// The smallest accepted `max-checkpoint-summary-size`.
+// The handshake carries two summaries, and an end-of-epoch summary for a
+// committee of 100 members is about 11 KiB.
 pub const MIN_CHECKPOINT_SUMMARY_SIZE: usize = 64 * 1024;
 
 impl StateSyncConfig {
