@@ -1189,6 +1189,11 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             "verify_builtin_authenticator_signature_impl",
             make_native!(public_key::verify_builtin_authenticator_signature_impl),
         ),
+        (
+            "builtin_authenticator_functions",
+            "borrow_account_uid",
+            make_native!(object::borrow_uid),
+        ),
         ("event", "emit", make_native!(event::emit)),
         (
             "event",
