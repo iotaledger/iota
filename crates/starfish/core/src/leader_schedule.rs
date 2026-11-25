@@ -163,16 +163,16 @@ impl LeaderSchedule {
         dag_state.read().commits_since_schedule_update() == 0
     }
 
-    pub(crate) fn elect_leader(&self, round: u32, leader_offset: u32) -> AuthorityIndex {
+    pub(crate) fn elect_leader(&self, round: u32) -> AuthorityIndex {
         cfg_if::cfg_if! {
             if #[cfg(test)] {
-                let leader = AuthorityIndex::new_for_test(((round + leader_offset) % self.context.committee.size() as u32) as u8);
+                let leader = AuthorityIndex::new_for_test((round % self.context.committee.size() as u32) as u8);
                 let table = self.leader_swap_table.read();
-                table.swap(leader, round, leader_offset).unwrap_or(leader)
+                table.swap(leader, round).unwrap_or(leader)
             } else {
-                let leader = self.elect_leader_uniform(round, leader_offset);
+                let leader = self.elect_leader_uniform(round);
                 let table = self.leader_swap_table.read();
-                table.swap(leader, round, leader_offset).unwrap_or(leader)
+                table.swap(leader, round).unwrap_or(leader)
             }
         }
     }
@@ -386,10 +386,8 @@ impl LeaderSchedule {
     }
 
     /// Uniform (non-stake-weighted) base election. Round-seeded so all
-    /// authorities draw the same candidate for a given round. `offset` selects among multiple
-    /// leaders in a round; with one leader per round today it is always 0.
-    pub(crate) fn elect_leader_uniform(&self, round: u32, offset: u32) -> AuthorityIndex {
-        assert!((offset as usize) < self.context.committee.size());
+    /// authorities draw the same candidate for a given round.
+    pub(crate) fn elect_leader_uniform(&self, round: u32) -> AuthorityIndex {
         let mut seed_bytes = [0u8; 32];
         seed_bytes[32 - 4..].copy_from_slice(&round.to_le_bytes());
         let mut rng = ChaCha12Rng::from_seed(seed_bytes);
@@ -399,10 +397,11 @@ impl LeaderSchedule {
             .authorities()
             .map(|(index, _)| index)
             .collect::<Vec<_>>();
+        // Sampling fewer than all authorities may change which one comes first,
+        // and so the leader.
         portable_random::sample_indices(&mut rng, choices.len(), self.context.committee.size())
-            .into_iter()
-            .nth(offset as usize)
-            .map(|i| choices[i])
+            .first()
+            .map(|&i| choices[i])
             .unwrap()
     }
 
@@ -523,29 +522,21 @@ impl LeaderSwapTable {
     /// Checks whether the provided leader is a bad performer and needs to be
     /// swapped in the schedule with a good performer. If not, then the method
     /// returns None. Otherwise the leader to swap with is returned instead. The
-    /// `leader_round` & `leader_offset` represents the DAG slot on which the
-    /// provided `AuthorityIndex` is a leader on and is used as a seed to random
-    /// function in order to calculate the good node that will swap in that
-    /// round with the bad node. We are intentionally not doing weighted
-    /// randomness as we want to give to all the good nodes equal
-    /// opportunity to get swapped with bad nodes and nothave one node with
-    /// enough stake end up swapping bad nodes more frequently than the
+    /// `leader_round` is the round the provided `AuthorityIndex` leads and is
+    /// used as a seed to random function in order to calculate the good node
+    /// that will swap in that round with the bad node. We are intentionally
+    /// not doing weighted randomness as we want to give to all the good nodes
+    /// equal opportunity to get swapped with bad nodes and nothave one node
+    /// with enough stake end up swapping bad nodes more frequently than the
     /// others on the final schedule.
     pub(crate) fn swap(
         &self,
         leader: AuthorityIndex,
         leader_round: Round,
-        leader_offset: u32,
     ) -> Option<AuthorityIndex> {
         if self.bad_nodes.contains_key(&leader) {
-            // TODO: Re-work swap for the multileader case
-            assert!(
-                leader_offset == 0,
-                "Swap for multi-leader case not implemented yet."
-            );
             let mut seed_bytes = [0u8; 32];
             seed_bytes[24..28].copy_from_slice(&leader_round.to_le_bytes());
-            seed_bytes[28..32].copy_from_slice(&leader_offset.to_le_bytes());
             let mut rng = ChaCha12Rng::from_seed(seed_bytes);
 
             let (idx, _hostname, _stake) = portable_random::choose(&mut rng, &self.good_nodes)
@@ -718,22 +709,16 @@ mod tests {
         let leader_schedule = LeaderSchedule::new(context, LeaderSwapTable::default());
 
         assert_eq!(
-            leader_schedule.elect_leader(0, 0),
+            leader_schedule.elect_leader(0),
             AuthorityIndex::new_for_test(0)
         );
         assert_eq!(
-            leader_schedule.elect_leader(1, 0),
+            leader_schedule.elect_leader(1),
             AuthorityIndex::new_for_test(1)
         );
         assert_eq!(
-            leader_schedule.elect_leader(5, 0),
+            leader_schedule.elect_leader(5),
             AuthorityIndex::new_for_test(1)
-        );
-        // ensure we elect different leaders for the same round for the multi-leader
-        // case
-        assert_ne!(
-            leader_schedule.elect_leader_uniform(1, 1),
-            leader_schedule.elect_leader_uniform(1, 2)
         );
     }
 
@@ -741,22 +726,18 @@ mod tests {
     async fn test_elect_leader_uniform() {
         let context = Arc::new(Context::new_for_test(4).0);
         let leader_schedule = LeaderSchedule::new(context.clone(), LeaderSwapTable::default());
-        let size = context.committee.size();
-
-        // For a fixed round, varying the offset across the whole committee yields
-        // a permutation of all authorities — the uniform draw covers everyone.
-        let round = 7;
-        let mut leaders = (0..size as u32)
-            .map(|offset| leader_schedule.elect_leader_uniform(round, offset))
+        // Over enough rounds the uniform draw elects every authority.
+        let mut leaders = (0..100)
+            .map(|round| leader_schedule.elect_leader_uniform(round))
             .collect::<Vec<_>>();
         leaders.sort();
         leaders.dedup();
-        assert_eq!(leaders.len(), size);
+        assert_eq!(leaders.len(), context.committee.size());
 
-        // Deterministic: same (round, offset) always elects the same leader.
+        // Deterministic: the same round always elects the same leader.
         assert_eq!(
-            leader_schedule.elect_leader_uniform(round, 0),
-            leader_schedule.elect_leader_uniform(round, 0)
+            leader_schedule.elect_leader_uniform(7),
+            leader_schedule.elect_leader_uniform(7)
         );
     }
 
@@ -772,7 +753,7 @@ mod tests {
 
         let leaders = (0..32)
             .chain([1000])
-            .map(|round| leader_schedule.elect_leader_uniform(round, 0))
+            .map(|round| leader_schedule.elect_leader_uniform(round))
             .collect::<Vec<_>>();
         let expected = [
             1, 6, 1, 7, 0, 6, 0, 3, 4, 6, 9, 4, 7, 9, 7, 6, 0, 9, 9, 2, 2, 4, 8, 0, 6, 0, 1, 4, 5,
@@ -1106,7 +1087,7 @@ mod tests {
 
         // Authority 3 is the base leader of round 15; the swap elects a good
         // node instead.
-        assert!(good_nodes.contains(&leader_schedule.elect_leader(15, 0)));
+        assert!(good_nodes.contains(&leader_schedule.elect_leader(15)));
     }
 
     #[tokio::test]
@@ -1147,15 +1128,13 @@ mod tests {
         // Test swapping a bad leader
         let leader = AuthorityIndex::new_for_test(0);
         let leader_round = 1;
-        let leader_offset = 0;
-        let swapped_leader = leader_swap_table.swap(leader, leader_round, leader_offset);
+        let swapped_leader = leader_swap_table.swap(leader, leader_round);
         assert_eq!(swapped_leader, Some(AuthorityIndex::new_for_test(3)));
 
         // Test not swapping a good leader
         let leader = AuthorityIndex::new_for_test(1);
         let leader_round = 1;
-        let leader_offset = 0;
-        let swapped_leader = leader_swap_table.swap(leader, leader_round, leader_offset);
+        let swapped_leader = leader_swap_table.swap(leader, leader_round);
         assert_eq!(swapped_leader, None);
     }
 
@@ -1210,7 +1189,7 @@ mod tests {
         let bad_leader = AuthorityIndex::new_for_test(0);
         assert!(leader_swap_table.bad_nodes.contains_key(&bad_leader));
         let swapped = (1..=10)
-            .map(|round| leader_swap_table.swap(bad_leader, round, 0).unwrap())
+            .map(|round| leader_swap_table.swap(bad_leader, round).unwrap())
             .collect::<Vec<_>>();
         assert_eq!(
             swapped,
@@ -1300,7 +1279,7 @@ mod tests {
         assert!(!table.good_nodes.is_empty());
         assert!(!table.bad_nodes.is_empty());
         let bad_leader = *table.bad_nodes.keys().next().unwrap();
-        assert!(table.swap(bad_leader, 1, 0).is_some());
+        assert!(table.swap(bad_leader, 1).is_some());
     }
 
     #[tokio::test]
