@@ -1717,6 +1717,9 @@ mod tests {
         assert!(block_manager.block_suspender.is_empty());
     }
 
+    /// Round 2 blocks are waiting on round 1 when their round 3 children arrive in the batch
+    /// that sweeps round 1. The manager should accept both rounds in that batch, store the
+    /// round 2 transactions, and leave nothing to fetch.
     #[tokio::test]
     async fn gc_eviction_accepts_children_in_the_same_batch() {
         let (context, _) = Context::new_for_test(4);
@@ -1751,6 +1754,9 @@ mod tests {
         );
     }
 
+    /// A peer streams a different header for the same author and round in the batch that
+    /// releases the suspended header. The first header still occupies the slot, so the manager
+    /// should drop the second and record the equivocation.
     #[tokio::test]
     async fn gc_eviction_preserves_slot_cap_for_released_headers() {
         use gc_eviction_helpers::{block_ref, header, plant_last_commit};
