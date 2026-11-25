@@ -23,8 +23,8 @@ pub(crate) struct LedgerView {
     pub kind: LedgerViewKind,
     /// The lowest checkpoint of a consistent view, or `None` for a live view.
     pub min: Option<u64>,
-    /// The latest checkpoint of a live view, or the highest checkpoint of a
-    /// consistent view.
+    /// The latest fully indexed checkpoint in the database when the view is live, or
+    /// the highest checkpoint of a consistent view.
     pub max: u64,
 }
 
@@ -88,7 +88,8 @@ impl LedgerView {
     /// In a consistent view, the result is `checkpoint_viewed_at`.
     ///
     /// In a live view, which can occur when the indexer operates on the
-    /// `Basic` operational level, the result is the latest checkpoint.
+    /// `Basic` operational level, the result is the latest fully indexed checkpoint
+    /// in the database.
     pub(crate) fn resolve_checkpoint(self, checkpoint_viewed_at: u64) -> Option<u64> {
         match self.kind {
             LedgerViewKind::Live => Some(self.max),
@@ -100,7 +101,7 @@ impl LedgerView {
 
     /// Checks whether the given `checkpoint` is within the view.
     ///
-    /// A live view includes only its latest checkpoint.
+    /// A live view includes only the latest fully indexed checkpoint in the database.
     pub(crate) fn includes(&self, checkpoint: u64) -> bool {
         checkpoint >= self.min.unwrap_or(self.max) && checkpoint <= self.max
     }
@@ -166,8 +167,9 @@ impl LedgerView {
 ///
 /// This applies to objects, coins, balances, dynamic fields and name registrations.
 ///
-/// A `LIVE` view always reads the latest state of objects at `max`. This implies that
-/// two consecutive pages of results might not reflect the same state of the ledger.
+/// A `LIVE` view always reads the latest state of objects. In this case `max` represents the
+/// latest fully indexed checkpoint in the database. This implies that two consecutive pages
+/// of results might not reflect the same state of the ledger.
 ///
 /// A `CONSISTENT` view reads a pinned snapshot of objects at any checkpoint
 /// from `min` to `max`.
@@ -187,8 +189,8 @@ impl LedgerView {
         Checkpoint::query(ctx, id, self.max).await.extend()
     }
 
-    /// The latest checkpoint of a live view, or the highest checkpoint of a
-    /// consistent view.
+    /// The latest fully indexed checkpoint in the database when the view is live,
+    /// or the highest checkpoint of a consistent view.
     async fn max(&self, ctx: &Context<'_>) -> Result<Option<Checkpoint>> {
         let id = CheckpointId::by_seq_num(self.max).extend()?;
         Checkpoint::query(ctx, id, self.max).await.extend()
@@ -216,8 +218,8 @@ pub(crate) struct AvailableRange {
 /// the checkpoint the cursor was issued at, so the cursor expires once that
 /// checkpoint leaves the range.
 ///
-/// For live views, the ranges resolves into the latest checkpoint with available
-/// data on the db.
+/// For live views, the range resolves into the latest checkpoint with fully indexed data in
+/// the database.
 #[Object]
 impl AvailableRange {
     async fn first(&self, ctx: &Context<'_>) -> Result<Option<Checkpoint>> {
@@ -236,7 +238,8 @@ impl AvailableRange {
     ///
     /// In a consistent view the method aligns it with the view at `checkpoint_viewed_at`.
     ///
-    /// In a live view, the range contains only the latest checkpoint.
+    /// In a live view, the range contains only the latest fully indexed checkpoint
+    /// in the database.
     ///
     /// # Errors
     ///
@@ -252,7 +255,8 @@ impl AvailableRange {
 impl From<LedgerView> for AvailableRange {
     /// Converts a view on the ledger into a range of checkpoints.
     ///
-    /// A live view becomes a range that contains only its latest checkpoint.
+    /// A live view becomes a range that contains only the latest fully indexed checkpoint
+    /// in the database.
     fn from(ledger_view: LedgerView) -> Self {
         Self {
             first: ledger_view.min.unwrap_or(ledger_view.max),
