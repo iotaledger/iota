@@ -153,7 +153,7 @@ async fn server_push_checkpoint() {
             .read()
             .unwrap()
             .unprocessed_checkpoints
-            .get(checkpoint.digest())
+            .get(&checkpoint.sequence_number())
             .unwrap()
             .0
             .data(),
@@ -198,11 +198,11 @@ async fn server_push_checkpoint() {
     let peer_heights = peer_heights.read().unwrap();
     assert_eq!(peer_heights.peers.get(&peer_id).unwrap().height, 3);
     assert_eq!(peer_heights.unprocessed_checkpoints.len(), 1);
-    assert_eq!(peer_heights.sequence_number_to_digest.len(), 1);
-    assert!(
+    assert_eq!(
         peer_heights
-            .unprocessed_checkpoints
-            .contains_key(checkpoint.digest())
+            .get_checkpoint_by_sequence_number(checkpoint.sequence_number())
+            .map(|(checkpoint, _sender)| *checkpoint.digest()),
+        Some(*checkpoint.digest())
     );
 }
 
@@ -1789,21 +1789,15 @@ async fn sync_with_max_lookahead_rejection() {
         let heights = peer_heights_1.read().unwrap();
 
         for seq in 1..=small_lookahead {
-            let checkpoint = &ordered_checkpoints[seq as usize];
             assert!(
-                heights
-                    .unprocessed_checkpoints
-                    .contains_key(checkpoint.digest()),
+                heights.unprocessed_checkpoints.contains_key(&seq),
                 "Checkpoint {seq} should be stored (within lookahead of {small_lookahead})",
             );
         }
 
         for seq in (small_lookahead + 1)..num_checkpoints {
-            let checkpoint = &ordered_checkpoints[seq as usize];
             assert!(
-                !heights
-                    .unprocessed_checkpoints
-                    .contains_key(checkpoint.digest()),
+                !heights.unprocessed_checkpoints.contains_key(&seq),
                 "Checkpoint {seq} should NOT be stored (beyond lookahead of {small_lookahead})",
             );
         }
@@ -2271,7 +2265,7 @@ async fn full_cache_drops_summaries_at_or_below_the_highest_verified_checkpoint_
         assert!(
             peer_heights
                 .unprocessed_checkpoints
-                .contains_key(checkpoint.digest())
+                .contains_key(&checkpoint.sequence_number())
         );
     }
 }
@@ -3123,8 +3117,9 @@ fn is_checkpoint_cached(
         .peer_heights
         .read()
         .unwrap()
-        .get_checkpoint_by_digest(digest)
-        .is_some()
+        .unprocessed_checkpoints
+        .values()
+        .any(|(checkpoint, _sender)| checkpoint.digest() == digest)
 }
 
 /// Waits for a store to reach the given verified and synced watermarks,

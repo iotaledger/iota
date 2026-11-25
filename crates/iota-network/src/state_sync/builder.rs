@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     sync::{Arc, RwLock, atomic::AtomicBool},
 };
 
@@ -187,8 +187,7 @@ where
         };
         let peer_heights = PeerHeights {
             peers: HashMap::new(),
-            unprocessed_checkpoints: HashMap::new(),
-            sequence_number_to_digest: HashMap::new(),
+            unprocessed_checkpoints: BTreeMap::new(),
             max_checkpoint_lookahead: config.max_checkpoint_lookahead(),
             max_checkpoint_summary_size: config.max_checkpoint_summary_size(),
             wait_interval_when_no_peer_to_sync_content: config
