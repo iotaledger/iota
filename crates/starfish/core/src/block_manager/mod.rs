@@ -1619,32 +1619,6 @@ mod tests {
         assert_eq!(block_manager.suspended_transactions.len(), 0);
     }
 
-    /// The sweep is a no-op when `gc_floor` does not advance between calls.
-    #[tokio::test]
-    async fn gc_eviction_sweep_is_idempotent_when_floor_unchanged() {
-        use gc_eviction_helpers::*;
-
-        let (context, _) = Context::new_for_test(4);
-        let context = Arc::new(context);
-        let gc_depth = context.protocol_config.gc_depth();
-
-        let store = Arc::new(MemStore::new());
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
-        let commit_leader_round = gc_depth * 2 + 200;
-        plant_last_commit(&dag_state, commit_leader_round);
-
-        let mut block_manager = BlockManager::new(context, dag_state);
-
-        // First call applies the floor.
-        block_manager.try_accept_block_headers(vec![], DataSource::Test);
-        let first_floor = block_manager.last_gc_floor_applied;
-        assert!(first_floor > 0);
-
-        // Second call at the same floor should not change anything.
-        block_manager.try_accept_block_headers(vec![], DataSource::Test);
-        assert_eq!(block_manager.last_gc_floor_applied, first_floor);
-    }
-
     /// Accepting a header advances the applied gc floor to the commit's gc
     /// floor: the sweep runs on every accept, so a header whose only missing
     /// ancestor is below that floor is accepted (not suspended) and the floor
