@@ -2466,27 +2466,31 @@ mod tests {
     }
 
     /// A submitter already waiting for the status of an honest transaction
-    /// when a faulty validator's copy of it is dropped on its authenticator
-    /// is not told about the drop: the honest copy can still be kept, so the
-    /// submitter keeps waiting for its outcome. The consensus adapter that
-    /// submitted the transaction stops waiting for it at the drop, which
-    /// frees its in-flight slot. The same holds when the commit is replayed
-    /// over its saved verdicts, as after a restart.
+    /// when a copy of it with a failing authenticator is dropped is not told
+    /// about the drop: the honest copy can still be kept. The consensus
+    /// adapter stops waiting at the drop only when the copy was in its own
+    /// validator's block, which frees its in-flight slot; otherwise it waits
+    /// until the honest copy is kept. The same holds when the commit is
+    /// replayed over its saved verdicts, as after a restart.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    async fn waiting_submitter_is_not_told_about_the_drop_of_a_failing_copy() {
+    async fn only_the_author_of_a_failing_copy_stops_waiting_at_its_drop() {
         let saved_error: IotaError =
             UserInputError::Unsupported("saved drop of a copy".to_string()).into();
-        for saved in [None, Some(saved_error)] {
-            assert_only_the_adapter_is_told_about_the_drop_of_a_failing_copy(saved).await;
+        for own_copy in [true, false] {
+            for saved in [None, Some(saved_error.clone())] {
+                assert_adapter_wait_at_the_drop_of_a_failing_copy(own_copy, saved).await;
+            }
         }
     }
 
     /// Submits an honest transaction through a consensus adapter, then
-    /// handles a commit with a failing copy of it and a commit with the honest
-    /// transaction. With `saved`, the failing copy's drop is saved with that
-    /// error for the first commit before it is handled, so the commit repeats
-    /// the saved verdict instead of validating the copy.
-    async fn assert_only_the_adapter_is_told_about_the_drop_of_a_failing_copy(
+    /// handles a commit with a failing copy of it, in this validator's block
+    /// when `own_copy`, and a commit with the honest transaction. With
+    /// `saved`, the failing copy's drop is saved with that error for the first
+    /// commit before it is handled, so the commit repeats the saved verdict
+    /// instead of validating the copy.
+    async fn assert_adapter_wait_at_the_drop_of_a_failing_copy(
+        own_copy: bool,
         saved: Option<IotaError>,
     ) {
         use crate::{
@@ -2506,6 +2510,13 @@ mod tests {
         let honest = transfer_in_current_epoch(&state, &epoch, sender, &key, ids[0], ids[1]);
         let failing_copy = copy_with_failing_authenticator(honest.data().transaction().clone());
         let digest = *honest.digest();
+        let own_index = u8::try_from(epoch.committee().authority_index(&state.name).unwrap())
+            .expect("a four-member committee index fits in a byte");
+        let copy_author = if own_copy {
+            own_index
+        } else {
+            (own_index + 1) % 4
+        };
         if let Some(error) = &saved {
             epoch
                 .persist_post_consensus_decisions(
@@ -2521,8 +2532,8 @@ mod tests {
                 .unwrap();
         }
 
-        // A consensus client that sequences nothing, so only the drop can end
-        // the adapter's wait.
+        // A consensus client that sequences nothing, so only the handler can
+        // end the adapter's wait.
         let adapter = Arc::new(ConsensusAdapter::new(
             Arc::new(MockConsensusClient::new(
                 Arc::downgrade(&state),
@@ -2538,7 +2549,7 @@ mod tests {
             ConsensusAdapterMetrics::new_test(),
             50,
         ));
-        let adapter_wait = adapter
+        let mut adapter_wait = adapter
             .submit(
                 ConsensusTransaction::new_user_transaction(honest.clone()),
                 None,
@@ -2559,7 +2570,10 @@ mod tests {
             .handle_consensus_output_for_test(commit_with_transactions(
                 1,
                 100,
-                vec![(1, ConsensusTransaction::new_user_transaction(failing_copy))],
+                vec![(
+                    copy_author,
+                    ConsensusTransaction::new_user_transaction(failing_copy),
+                )],
             ))
             .await;
 
@@ -2581,11 +2595,21 @@ mod tests {
                 "{verdict:?}"
             ),
         }
-        tokio::time::timeout(Duration::from_secs(5), adapter_wait)
-            .await
-            .expect("the adapter must stop waiting at the drop of the copy")
-            .unwrap();
-        assert_eq!(adapter.num_inflight_transactions(), 0);
+        let at_the_drop = tokio::time::timeout(Duration::from_secs(5), &mut adapter_wait).await;
+        if own_copy {
+            at_the_drop
+                .expect("the adapter must stop waiting at the drop of its own copy")
+                .unwrap();
+        } else {
+            assert!(
+                at_the_drop.is_err(),
+                "the adapter must keep waiting at the drop of another validator's copy"
+            );
+        }
+        assert_eq!(
+            adapter.num_inflight_transactions(),
+            if own_copy { 0 } else { 1 }
+        );
         assert!(
             tokio::time::timeout(Duration::from_secs(5), &mut waiting_submitter)
                 .await
@@ -2606,6 +2630,13 @@ mod tests {
                 .map(|saved| saved.decision),
             Some(PostConsensusDecision::Kept)
         );
+        if !own_copy {
+            tokio::time::timeout(Duration::from_secs(5), adapter_wait)
+                .await
+                .expect("the adapter must stop waiting once the honest copy is kept")
+                .unwrap();
+            assert_eq!(adapter.num_inflight_transactions(), 0);
+        }
     }
 
     /// `data` with a Move authenticator for its sender in place of its

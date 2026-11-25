@@ -2961,8 +2961,9 @@ impl AuthorityPerEpochStore {
 
     /// Wait for any drop of a transaction at a commit. Unlike
     /// [`Self::notify_read_dropped_digests`], this also returns on the drop of
-    /// one copy of the transaction for a reason that may come from that
-    /// copy's own signatures, which leaves the digest open for another copy.
+    /// this validator's own copy of the transaction for a reason that may come
+    /// from that copy's own signatures, which leaves the digest open for
+    /// another copy.
     /// Not for answering a client: the error returned is not necessarily
     /// the final status of the transaction.
     pub(crate) async fn notify_read_any_drop(&self, digest: TransactionDigest) -> IotaError {
@@ -5410,6 +5411,12 @@ impl AuthorityPerEpochStore {
                 );
             }
             drop(phase_scope.take());
+            // The digests this validator has a copy of in the commit.
+            let own_copies: HashSet<TransactionDigest> = sequenced_transactions
+                .iter()
+                .filter(|tx| tx.0.certificate_author == self.name)
+                .filter_map(|tx| tx.0.transaction.user_transaction_digest())
+                .collect();
             let (dropped, owned_object_locks, soft_lock_digests) =
                 post_consensus_validation::validate_and_resolve_conflicts(
                     authority_state,
@@ -5438,15 +5445,19 @@ impl AuthorityPerEpochStore {
                 // A drop that may come from the signatures of the copy
                 // validated is not even reported to the current waiters:
                 // another copy can be kept, so they wait for its outcome, or
-                // until their own timeout or the end of the epoch. The
-                // consensus adapter is still told, so that it stops waiting
-                // for the transaction it submitted.
+                // until their own timeout or the end of the epoch. Only the
+                // consensus adapter of a validator whose own copy was dropped
+                // is told; another validator's adapter waits for its own copy.
                 let mut final_drops = Vec::new();
                 let mut not_final = Vec::new();
                 let mut dropped_copies = Vec::new();
                 for (digest, error, decision) in dropped {
                     match decision {
-                        PostConsensusDecision::DroppedCopy => dropped_copies.push((digest, error)),
+                        PostConsensusDecision::DroppedCopy => {
+                            if own_copies.contains(&digest) {
+                                dropped_copies.push((digest, error))
+                            }
+                        }
                         PostConsensusDecision::DroppedInputNotVisibleYet => {
                             not_final.push((digest, error))
                         }
