@@ -308,6 +308,14 @@ impl<W: Worker + 'static> WorkerPool<W> {
         pool_status_sender: mpsc::Sender<WorkerPoolStatus>,
         token: CancellationToken,
     ) {
+        // In backfill mode the watermark counts processed checkpoints, thus i should always be 0.
+        if self.backfill_starting_checkpoint.is_some() && watermark != 0 {
+            error!(
+                "worker pool `{}` runs in backfill mode and needs watermark to be 0, got {watermark}",
+                self.task_name
+            );
+            return;
+        }
         info!(
             "Starting indexing pipeline {} with concurrency {}. Current watermark is {watermark}.",
             self.task_name, self.concurrency
