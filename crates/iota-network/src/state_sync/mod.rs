@@ -173,7 +173,9 @@ const PRUNED_SYNC_LOG_INTERVAL: Duration = Duration::from_secs(30);
 struct PeerHeights {
     /// Table used to track the highest checkpoint for each of our peers.
     peers: HashMap<PeerId, PeerStateSyncInfo>,
-    unprocessed_checkpoints: HashMap<CheckpointDigest, Checkpoint>,
+    /// Summaries from peers that are not verified yet, each with the peer
+    /// that sent it.
+    unprocessed_checkpoints: HashMap<CheckpointDigest, (Checkpoint, PeerId)>,
     sequence_number_to_digest: HashMap<CheckpointSequenceNumber, CheckpointDigest>,
     /// How far above the highest verified checkpoint a summary from a peer can
     /// be and still be stored.
@@ -229,7 +231,7 @@ impl PeerHeights {
         if !self.update_peer_height(peer_id, checkpoint.sequence_number(), low_watermark) {
             return false;
         }
-        self.insert_peer_checkpoint(checkpoint, highest_verified_checkpoint);
+        self.insert_peer_checkpoint(checkpoint, peer_id, highest_verified_checkpoint);
 
         true
     }
@@ -285,12 +287,22 @@ impl PeerHeights {
         }
     }
 
+    /// Drops cached summaries at or below `sequence_number`.
     pub fn cleanup_old_checkpoints(&mut self, sequence_number: CheckpointSequenceNumber) {
+        if !self
+            .sequence_number_to_digest
+            .keys()
+            .any(|s| *s <= sequence_number)
+        {
+            return;
+        }
         // `retain` leaves tombstones that count toward the load factor; without
         // the follow-up `shrink_to_fit`, the bucket array keeps doubling on
         // subsequent inserts during long syncs.
         self.unprocessed_checkpoints
-            .retain(|_digest, checkpoint| checkpoint.sequence_number() > sequence_number);
+            .retain(|_digest, (checkpoint, _sender)| {
+                checkpoint.sequence_number() > sequence_number
+            });
         self.unprocessed_checkpoints.shrink_to_fit();
         self.sequence_number_to_digest
             .retain(|&s, _digest| s > sequence_number);
@@ -312,19 +324,22 @@ impl PeerHeights {
         // `retain` leaves tombstones that count toward the load factor; see
         // `cleanup_old_checkpoints`.
         self.unprocessed_checkpoints
-            .retain(|_digest, checkpoint| checkpoint.sequence_number() <= sequence_number);
+            .retain(|_digest, (checkpoint, _sender)| {
+                checkpoint.sequence_number() <= sequence_number
+            });
         self.unprocessed_checkpoints.shrink_to_fit();
         self.sequence_number_to_digest
             .retain(|&s, _digest| s <= sequence_number);
         self.sequence_number_to_digest.shrink_to_fit();
     }
 
-    /// Stores a checkpoint summary a peer sent. Summaries at or below
+    /// Stores a checkpoint summary that `sender` sent. Summaries at or below
     /// `highest_verified_checkpoint`, more than `max_checkpoint_lookahead`
     /// above it, or larger than `max_checkpoint_summary_size` are dropped.
     pub fn insert_peer_checkpoint(
         &mut self,
         checkpoint: Checkpoint,
+        sender: PeerId,
         highest_verified_checkpoint: CheckpointSequenceNumber,
     ) {
         let sequence_number = checkpoint.sequence_number();
@@ -349,7 +364,7 @@ impl PeerHeights {
         {
             return;
         }
-        self.insert_checkpoint(checkpoint);
+        self.insert_checkpoint(checkpoint, sender);
     }
 
     /// Returns whether `checkpoint` is larger than
@@ -370,12 +385,10 @@ impl PeerHeights {
         true
     }
 
-    /// Stores at most one checkpoint per sequence number: a checkpoint with
-    /// the same sequence number as a stored one but a different digest is
-    /// dropped.
-    // TODO: also record who gives this checkpoint info for peer quality
-    // measurement?
-    pub fn insert_checkpoint(&mut self, checkpoint: Checkpoint) {
+    /// Stores a checkpoint that `sender` sent, at most one per sequence
+    /// number: a checkpoint with the same sequence number as a stored one but
+    /// a different digest is dropped.
+    pub fn insert_checkpoint(&mut self, checkpoint: Checkpoint, sender: PeerId) {
         let digest = *checkpoint.digest();
         let sequence_number = checkpoint.sequence_number();
         if let Some(existing_digest) = self.sequence_number_to_digest.get(&sequence_number) {
@@ -389,29 +402,47 @@ impl PeerHeights {
             }
             return;
         }
-        self.unprocessed_checkpoints.insert(digest, checkpoint);
+        self.unprocessed_checkpoints
+            .insert(digest, (checkpoint, sender));
         self.sequence_number_to_digest
             .insert(sequence_number, digest);
     }
 
     pub fn remove_checkpoint(&mut self, digest: &CheckpointDigest) {
-        if let Some(checkpoint) = self.unprocessed_checkpoints.remove(digest) {
+        if let Some((checkpoint, _sender)) = self.unprocessed_checkpoints.remove(digest) {
             self.sequence_number_to_digest
                 .remove(&checkpoint.sequence_number());
         }
     }
 
+    /// Drops every cached summary that `sender` sent.
+    pub fn remove_checkpoints_from(&mut self, sender: PeerId) {
+        self.unprocessed_checkpoints
+            .retain(|_digest, (_checkpoint, checkpoint_sender)| *checkpoint_sender != sender);
+        let unprocessed_checkpoints = &self.unprocessed_checkpoints;
+        self.sequence_number_to_digest
+            .retain(|_sequence_number, digest| unprocessed_checkpoints.contains_key(digest));
+    }
+
+    /// Returns the cached summary at `sequence_number` and the peer that sent
+    /// it.
     pub fn get_checkpoint_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
-    ) -> Option<&Checkpoint> {
+    ) -> Option<(&Checkpoint, PeerId)> {
         self.sequence_number_to_digest
             .get(&sequence_number)
             .and_then(|digest| self.get_checkpoint_by_digest(digest))
     }
 
-    pub fn get_checkpoint_by_digest(&self, digest: &CheckpointDigest) -> Option<&Checkpoint> {
-        self.unprocessed_checkpoints.get(digest)
+    /// Returns the cached summary with `digest` and the peer that sent it.
+    pub fn get_checkpoint_by_digest(
+        &self,
+        digest: &CheckpointDigest,
+    ) -> Option<(&Checkpoint, PeerId)> {
+        self.unprocessed_checkpoints
+            .get(digest)
+            .map(|(checkpoint, sender)| (checkpoint, *sender))
     }
 
     #[cfg(test)]
@@ -1012,6 +1043,7 @@ where
                                 if on_same_chain {
                                     guard.insert_peer_checkpoint(
                                         their.highest_synced_checkpoint,
+                                        peer_id,
                                         highest_verified_checkpoint,
                                     );
                                 }
@@ -1068,6 +1100,17 @@ where
                 .unwrap()
                 .cleanup_checkpoints_above(highest_checkpoint_to_sync);
         }
+        // Otherwise only a summary sync task drops summaries at or below the
+        // highest verified checkpoint, and that checkpoint can also advance
+        // through consensus or the checkpoint archive, with no such task.
+        let highest_verified_checkpoint = self
+            .store
+            .try_get_highest_verified_checkpoint_seq_number()
+            .expect("store operation should not fail");
+        self.peer_heights
+            .write()
+            .unwrap()
+            .cleanup_old_checkpoints(highest_verified_checkpoint);
 
         if let Some(layer) = self.download_limit_layer.as_ref() {
             layer.maybe_prune_map();
@@ -1363,26 +1406,27 @@ async fn query_peers_for_their_latest_checkpoint<S>(
                 let highest_verified_checkpoint = store
                     .try_get_highest_verified_checkpoint_seq_number()
                     .expect("store operation should not fail");
+                let highest_checkpoint_seq = highest_checkpoint.sequence_number();
                 peer_heights
                     .write()
                     .unwrap()
                     .update_peer_info(
                         peer_id,
-                        highest_checkpoint.clone(),
+                        highest_checkpoint,
                         Some(low_watermark),
                         highest_verified_checkpoint,
                     )
-                    .then_some(highest_checkpoint)
+                    .then_some(highest_checkpoint_seq)
             }
         })
         .collect::<Vec<_>>();
 
     debug!("Query {} peers for latest checkpoint", futs.len());
 
-    let checkpoints = futures::future::join_all(futs).await.into_iter().flatten();
-
-    let highest_checkpoint_seq = checkpoints
-        .map(|checkpoint| checkpoint.sequence_number())
+    let highest_checkpoint_seq = futures::future::join_all(futs)
+        .await
+        .into_iter()
+        .flatten()
         .max();
 
     let our_highest_seq = peer_heights
@@ -1515,7 +1559,7 @@ where
             next
         );
 
-        let Some((checkpoint, maybe_peer_id)) = maybe_checkpoint else {
+        let Some((checkpoint, peer_id)) = maybe_checkpoint else {
             let guard = peer_heights.read().unwrap();
             let known = guard.peers_on_same_chain().count();
             let connected = guard
@@ -1527,44 +1571,14 @@ where
                  ({connected}/{known} peers connected)"
             );
         };
-        let checkpoint = match verify_checkpoint_summary(
+        let checkpoint = verify_checkpoint_summary(
             &current,
             &store,
             &peer_heights,
             &pinned_checkpoints,
             checkpoint,
-            maybe_peer_id,
-        ) {
-            Ok(checkpoint) => checkpoint,
-            // A cached summary comes without the peer that sent it, so a peer
-            // can keep storing one that fails verification ahead of us. Ask the
-            // peers for this checkpoint instead of failing the whole task.
-            Err(e) if maybe_peer_id.is_none() => {
-                debug!("cached checkpoint summary {next} failed verification: {e}");
-                let peers = peer_balancer.clone().with_checkpoint(next);
-                let pinned_digest = pinned_checkpoint_digest(&pinned_checkpoints, next);
-                let Some((checkpoint, peer_id)) = request_checkpoint_summary_from_peers(
-                    &peer_heights,
-                    peers,
-                    next,
-                    pinned_digest,
-                    timeout,
-                )
-                .await
-                else {
-                    bail!("no peers were able to help sync checkpoint summary {next}");
-                };
-                verify_checkpoint_summary(
-                    &current,
-                    &store,
-                    &peer_heights,
-                    &pinned_checkpoints,
-                    checkpoint,
-                    Some(peer_id),
-                )?
-            }
-            Err(e) => return Err(e),
-        };
+            peer_id,
+        )?;
 
         debug!(checkpoint_seq = ?checkpoint.sequence_number(), "verified checkpoint summary");
         if let Some(checkpoint_summary_age_metric) = metrics.checkpoint_summary_age_metrics() {
@@ -1601,16 +1615,16 @@ where
 }
 
 /// Returns the summary of checkpoint `sequence_number` from the cache, or else
-/// from the first of `peers` that has it. A summary from a peer is also put in
-/// the cache and comes with the peer that sent it; a cached summary comes with
-/// `None`. If `pinned_digest` is set, returns only a summary with that digest.
+/// from the first of `peers` that has it, together with the peer that sent it.
+/// A summary from a peer is also put in the cache. If `pinned_digest` is set,
+/// returns only a summary with that digest.
 async fn get_or_fetch_checkpoint_summary(
     peer_heights: &RwLock<PeerHeights>,
     peers: PeerBalancer,
     sequence_number: CheckpointSequenceNumber,
     pinned_digest: Option<CheckpointDigest>,
     timeout: Duration,
-) -> Option<(Checkpoint, Option<PeerId>)> {
+) -> Option<(Checkpoint, PeerId)> {
     {
         let peer_heights = peer_heights.read().unwrap();
         let cached_checkpoint = match pinned_digest {
@@ -1618,10 +1632,10 @@ async fn get_or_fetch_checkpoint_summary(
             Some(pinned_digest) => peer_heights.get_checkpoint_by_digest(&pinned_digest),
             None => peer_heights.get_checkpoint_by_sequence_number(sequence_number),
         };
-        if let Some(checkpoint) = cached_checkpoint {
+        if let Some((checkpoint, sender)) = cached_checkpoint {
             // A pinned digest can belong to a checkpoint at another sequence number.
             if checkpoint.sequence_number() == sequence_number {
-                return Some((checkpoint.clone(), None));
+                return Some((checkpoint.clone(), sender));
             }
         }
     }
@@ -1638,8 +1652,8 @@ async fn get_or_fetch_checkpoint_summary(
     peer_heights
         .write()
         .unwrap()
-        .insert_checkpoint(checkpoint.clone());
-    Some((checkpoint, Some(peer_id)))
+        .insert_checkpoint(checkpoint.clone(), peer_id);
+    Some((checkpoint, peer_id))
 }
 
 /// Asks `peers` in turn for the summary of checkpoint `sequence_number`, and
@@ -1715,15 +1729,16 @@ async fn request_checkpoint_summary_from_peers(
 
 /// Verifies `checkpoint` as the checkpoint after `current`. At a pinned
 /// sequence number, takes only a checkpoint with the pinned digest, and
-/// without verification. If verification fails, drops the checkpoint from
-/// `peer_heights` and marks the peer that sent it as not on our chain.
+/// without verification. If verification fails, drops the checkpoint and
+/// every other summary `peer_id` sent from `peer_heights`, and marks
+/// `peer_id` as not on our chain.
 fn verify_checkpoint_summary<S>(
     current: &VerifiedCheckpoint,
     store: &S,
     peer_heights: &RwLock<PeerHeights>,
     pinned_checkpoints: &[(CheckpointSequenceNumber, CheckpointDigest)],
     checkpoint: Checkpoint,
-    maybe_peer_id: Option<PeerId>,
+    peer_id: PeerId,
 ) -> Result<VerifiedCheckpoint>
 where
     S: WriteStore,
@@ -1739,11 +1754,8 @@ where
             // Remove the checkpoint from our temporary store so that we can try querying
             // another peer for a different one
             peer_heights.remove_checkpoint(checkpoint.digest());
-
-            // Mark peer as not on the same chain as us
-            if let Some(peer_id) = maybe_peer_id {
-                peer_heights.mark_peer_as_not_on_same_chain(peer_id);
-            }
+            peer_heights.remove_checkpoints_from(peer_id);
+            peer_heights.mark_peer_as_not_on_same_chain(peer_id);
 
             bail!("unable to verify checkpoint {checkpoint:?}");
         }

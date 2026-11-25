@@ -153,6 +153,10 @@ where
         (builder, router)
     }
 
+    /// # Panics
+    ///
+    /// Panics if `max-checkpoint-summary-size` in the config is below
+    /// [`MIN_CHECKPOINT_SUMMARY_SIZE`].
     pub(super) fn build_internal(self) -> (UnstartedStateSync<S>, Server<S>) {
         let Builder {
             store,

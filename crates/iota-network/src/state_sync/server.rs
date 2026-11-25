@@ -99,10 +99,11 @@ where
             .try_get_highest_verified_checkpoint_seq_number()
             .map_err(|e| Status::internal(e.to_string()))?;
 
-        self.peer_heights
-            .write()
-            .unwrap()
-            .insert_peer_checkpoint(checkpoint, highest_verified_checkpoint);
+        self.peer_heights.write().unwrap().insert_peer_checkpoint(
+            checkpoint,
+            peer_id,
+            highest_verified_checkpoint,
+        );
 
         // If this checkpoint is higher than our highest verified checkpoint notify the
         // event loop to potentially sync it
@@ -212,6 +213,7 @@ where
             if on_same_chain {
                 guard.insert_peer_checkpoint(
                     handshake.highest_synced_checkpoint.clone(),
+                    peer_id,
                     highest_verified_checkpoint,
                 );
             }

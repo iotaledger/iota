@@ -119,7 +119,7 @@ async fn server_push_checkpoint() {
     ) = Builder::new()
         .store(store)
         .config(StateSyncConfig {
-            max_checkpoint_lookahead: Some(2),
+            max_checkpoint_lookahead: NonZeroU64::new(2),
             ..Default::default()
         })
         .build_internal();
@@ -155,6 +155,7 @@ async fn server_push_checkpoint() {
             .unprocessed_checkpoints
             .get(checkpoint.digest())
             .unwrap()
+            .0
             .data(),
         checkpoint.data(),
     );
@@ -330,7 +331,10 @@ async fn isolated_sync_job() {
         .peer_heights
         .write()
         .unwrap()
-        .insert_checkpoint(ordered_checkpoints.last().cloned().unwrap().into_inner());
+        .insert_checkpoint(
+            ordered_checkpoints.last().cloned().unwrap().into_inner(),
+            network_2.peer_id(),
+        );
 
     // Sync the data
     event_loop_1.maybe_start_checkpoint_summary_sync_task();
@@ -1715,7 +1719,7 @@ async fn sync_with_max_lookahead_rejection() {
         make_committee_and_checkpoints(0, 4, num_checkpoints as usize, None, empty_contents);
     let small_lookahead: u64 = 5;
     let config_with_small_lookahead = StateSyncConfig {
-        max_checkpoint_lookahead: Some(small_lookahead),
+        max_checkpoint_lookahead: NonZeroU64::new(small_lookahead),
         ..Default::default()
     };
 
@@ -1938,7 +1942,7 @@ async fn sync_across_epoch_boundary() {
         .peer_heights
         .write()
         .unwrap()
-        .insert_checkpoint(last_checkpoint.clone().into_inner());
+        .insert_checkpoint(last_checkpoint.clone().into_inner(), network_2.peer_id());
 
     assert!(event_loop_1.store.get_committee(1).is_none());
     event_loop_1.maybe_start_checkpoint_summary_sync_task();
@@ -2112,15 +2116,19 @@ async fn requested_checkpoint_that_fails_verification_marks_its_peer_as_not_on_s
 }
 
 #[tokio::test]
-async fn cached_checkpoint_that_fails_verification_is_requested_from_peers() {
+async fn cached_checkpoint_that_fails_verification_drops_every_summary_from_its_sender() {
     let (committee, (ordered_checkpoints, _, _, _)) =
         make_committee_and_checkpoints(0, 4, 3, None, empty_contents);
     let genesis_checkpoint = &ordered_checkpoints[0];
-    // A summary from epoch 1, which the node has no committee for.
+    // Summaries from epoch 1, which the node has no committee for.
     let (_, (forged_checkpoints, _, _, _)) =
-        make_committee_and_checkpoints(1, 4, 1, Some(genesis_checkpoint.clone()), empty_contents);
-    let forged_checkpoint = forged_checkpoints[0].clone().into_inner();
-    assert_eq!(forged_checkpoint.sequence_number(), 1);
+        make_committee_and_checkpoints(1, 4, 2, Some(genesis_checkpoint.clone()), empty_contents);
+    let forged_checkpoints: Vec<_> = forged_checkpoints
+        .into_iter()
+        .map(VerifiedCheckpoint::into_inner)
+        .collect();
+    assert_eq!(forged_checkpoints[0].sequence_number(), 1);
+    assert_eq!(forged_checkpoints[1].sequence_number(), 2);
 
     let store_2 = store_with_genesis_state(
         genesis_checkpoint.clone(),
@@ -2140,30 +2148,78 @@ async fn cached_checkpoint_that_fails_verification_is_requested_from_peers() {
         .await
         .unwrap();
     insert_peer_on_same_chain(&server, network_2.peer_id(), 2);
-    push_from_peer(&server, PeerId([10; 32]), forged_checkpoint.clone()).await;
-    assert_eq!(
-        cached_checkpoint_digest(&event_loop, 1),
-        Some(*forged_checkpoint.digest())
-    );
-    run_checkpoint_summary_sync(&mut event_loop).await;
+    let forging_peer = PeerId([10; 32]);
+    for checkpoint in &forged_checkpoints {
+        push_from_peer(&server, forging_peer, checkpoint.clone()).await;
+    }
+    for checkpoint in &forged_checkpoints {
+        assert!(is_checkpoint_cached(&event_loop, checkpoint.digest()));
+    }
 
+    run_checkpoint_summary_sync(&mut event_loop).await;
+    assert_eq!(
+        event_loop
+            .store
+            .get_highest_verified_checkpoint_seq_number(),
+        0
+    );
+    for checkpoint in &forged_checkpoints {
+        assert!(!is_checkpoint_cached(&event_loop, checkpoint.digest()));
+    }
+    assert!(!event_loop.peer_heights.read().unwrap().peers[&forging_peer].on_same_chain_as_us);
+
+    run_checkpoint_summary_sync(&mut event_loop).await;
     assert_eq!(
         event_loop
             .store
             .get_highest_verified_checkpoint_seq_number(),
         2
     );
-    assert_eq!(
-        event_loop
-            .store
-            .get_checkpoint_by_sequence_number(1)
-            .unwrap()
-            .digest(),
-        ordered_checkpoints[1].digest()
-    );
+    for checkpoint in &ordered_checkpoints[1..] {
+        assert_eq!(
+            event_loop
+                .store
+                .get_checkpoint_by_sequence_number(checkpoint.sequence_number())
+                .unwrap()
+                .digest(),
+            checkpoint.digest()
+        );
+    }
+}
+
+#[tokio::test]
+async fn tick_drops_cached_summaries_at_or_below_the_highest_verified_checkpoint() {
+    let (committee, (ordered_checkpoints, _, _, _)) =
+        make_committee_and_checkpoints(0, 4, 3, None, empty_contents);
+    let genesis_checkpoint = &ordered_checkpoints[0];
+
+    let (mut event_loop, server, _handle) = node_at_genesis(genesis_checkpoint, &committee, vec![]);
+    let peer_id = PeerId([10; 32]);
+    for checkpoint in &ordered_checkpoints[1..] {
+        push_from_peer(&server, peer_id, checkpoint.clone().into_inner()).await;
+    }
+    // The highest verified checkpoint advances without a summary sync task,
+    // as it does from consensus or the checkpoint archive.
+    event_loop
+        .store
+        .inner_mut()
+        .insert_checkpoint(&ordered_checkpoints[1]);
+    event_loop
+        .peer_heights
+        .write()
+        .unwrap()
+        .peers
+        .remove(&peer_id);
+
+    event_loop.handle_tick(std::time::Instant::now());
+
     assert!(!is_checkpoint_cached(
         &event_loop,
-        forged_checkpoint.digest()
+        ordered_checkpoints[1].digest()
+    ));
+    assert!(is_checkpoint_cached(
+        &event_loop,
+        ordered_checkpoints[2].digest()
     ));
 }
 
@@ -2418,7 +2474,7 @@ async fn get_or_fetch_checkpoint_summary_caches_a_summary_from_a_peer_and_return
         PeerCheckpointRequestType::Summary,
     )
     .with_checkpoint(1);
-    let (checkpoint, maybe_peer_id) = get_or_fetch_checkpoint_summary(
+    let (checkpoint, peer_id) = get_or_fetch_checkpoint_summary(
         &event_loop.peer_heights,
         peers,
         1,
@@ -2429,7 +2485,7 @@ async fn get_or_fetch_checkpoint_summary_caches_a_summary_from_a_peer_and_return
     .unwrap();
 
     assert_eq!(checkpoint.digest(), checkpoint_1.digest());
-    assert_eq!(maybe_peer_id, Some(network_2.peer_id()));
+    assert_eq!(peer_id, network_2.peer_id());
     assert!(is_checkpoint_cached(&event_loop, checkpoint_1.digest()));
 
     // A summary larger than the size limit is neither returned nor cached.
@@ -2480,7 +2536,7 @@ async fn verify_checkpoint_summary_returns_an_error_for_a_digest_other_than_the_
         &event_loop.peer_heights,
         &[(1, pinned_digest)],
         other_checkpoint,
-        None,
+        PeerId([9; 32]),
     );
     assert!(result.is_err());
 }
@@ -2868,7 +2924,7 @@ async fn sync_and_assert_checkpoint_not_taken(
         .read()
         .unwrap()
         .get_checkpoint_by_sequence_number(sequence_number)
-        .cloned()
+        .map(|(checkpoint, _sender)| checkpoint.clone())
         .unwrap();
 
     run_checkpoint_summary_sync(event_loop).await;
@@ -2916,7 +2972,7 @@ fn cached_checkpoint_digest(
         .read()
         .unwrap()
         .get_checkpoint_by_sequence_number(sequence_number)
-        .map(|checkpoint| *checkpoint.digest())
+        .map(|(checkpoint, _sender)| *checkpoint.digest())
 }
 
 fn is_checkpoint_cached(

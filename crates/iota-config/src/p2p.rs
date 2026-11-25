@@ -220,7 +220,7 @@ pub struct StateSyncConfig {
     ///
     /// If unspecified, this will default to `1,000`.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_checkpoint_lookahead: Option<u64>,
+    pub max_checkpoint_lookahead: Option<NonZeroU64>,
 
     /// Maximum size in bytes of a request to any state sync RPC as received,
     /// and of a checkpoint summary from a peer once decompressed. Larger
@@ -307,6 +307,7 @@ impl StateSyncConfig {
         const DEFAULT_MAX_CHECKPOINT_LOOKAHEAD: u64 = 1_000;
 
         self.max_checkpoint_lookahead
+            .map(NonZeroU64::get)
             .unwrap_or(DEFAULT_MAX_CHECKPOINT_LOOKAHEAD)
     }
 
