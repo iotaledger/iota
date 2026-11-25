@@ -4088,6 +4088,18 @@ impl AuthorityPerEpochStore {
         Ok(result)
     }
 
+    /// Drops all user signatures kept for the checkpoint builder. Call once
+    /// the checkpoint builder of this epoch has stopped.
+    pub(crate) fn clear_user_signatures_for_checkpoints(&self) {
+        let removed = std::mem::take(
+            &mut *self
+                .consensus_output_cache
+                .user_signatures_for_checkpoints
+                .lock(),
+        );
+        drop(removed);
+    }
+
     pub fn clear_override_protocol_upgrade_buffer_stake(&self) -> IotaResult {
         warn!(
             epoch = ?self.epoch(),

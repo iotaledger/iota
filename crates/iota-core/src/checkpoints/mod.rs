@@ -1712,6 +1712,7 @@ impl CheckpointBuilder {
             }
             _ = self.build_until_stopped(consensus_replay_waiter) => {}
         }
+        epoch_store.clear_user_signatures_for_checkpoints();
     }
 
     async fn build_until_stopped(mut self, consensus_replay_waiter: Option<ReplayWaiter>) {
