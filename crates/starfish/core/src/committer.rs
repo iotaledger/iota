@@ -23,16 +23,12 @@ use crate::{
 };
 
 #[cfg(test)]
-#[path = "tests/base_committer_declarative_tests.rs"]
-mod base_committer_declarative_tests;
+#[path = "tests/committer_tests.rs"]
+mod committer_tests;
 
 #[cfg(test)]
-#[path = "tests/base_committer_metastate_tests.rs"]
-mod base_committer_metastate_tests;
-
-#[cfg(test)]
-#[path = "tests/universal_committer_tests.rs"]
-mod universal_committer_tests;
+#[path = "tests/committer_metastate_tests.rs"]
+mod committer_metastate_tests;
 
 /// Elects one leader for every round and decides whether to commit or skip it.
 pub(crate) struct Committer {
