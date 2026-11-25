@@ -83,23 +83,26 @@ where
         let checkpoint = request.into_inner();
         let checkpoint_seq = checkpoint.sequence_number();
 
+        // Always update the peer's height so we know what they claim to have,
+        // even if we don't store the checkpoint itself.
+        let peer_on_same_chain =
+            self.peer_heights
+                .write()
+                .unwrap()
+                .update_peer_height(peer_id, checkpoint_seq, None);
+        if !peer_on_same_chain {
+            return Ok(Response::new(()));
+        }
+
         let highest_verified_checkpoint = self
             .store
             .try_get_highest_verified_checkpoint_seq_number()
             .map_err(|e| Status::internal(e.to_string()))?;
 
-        {
-            let mut peer_heights = self.peer_heights.write().unwrap();
-
-            // Always update the peer's height so we know what they claim to have,
-            // even if we don't store the checkpoint itself.
-            let peer_on_same_chain = peer_heights.update_peer_height(peer_id, checkpoint_seq, None);
-            if !peer_on_same_chain {
-                return Ok(Response::new(()));
-            }
-
-            peer_heights.insert_peer_checkpoint(checkpoint, highest_verified_checkpoint);
-        }
+        self.peer_heights
+            .write()
+            .unwrap()
+            .insert_peer_checkpoint(checkpoint, highest_verified_checkpoint);
 
         // If this checkpoint is higher than our highest verified checkpoint notify the
         // event loop to potentially sync it

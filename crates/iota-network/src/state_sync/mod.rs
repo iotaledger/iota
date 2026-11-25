@@ -226,14 +226,8 @@ impl PeerHeights {
     ) -> bool {
         debug!("Update peer info");
 
-        let info = match self.peers.get_mut(&peer_id) {
-            Some(info) if info.on_same_chain_as_us => info,
-            _ => return false,
-        };
-
-        info.height = std::cmp::max(checkpoint.sequence_number(), info.height);
-        if let Some(low_watermark) = low_watermark {
-            info.lowest = low_watermark;
+        if !self.update_peer_height(peer_id, checkpoint.sequence_number(), low_watermark) {
+            return false;
         }
         self.insert_peer_checkpoint(checkpoint, highest_verified_checkpoint);
 
@@ -346,19 +340,34 @@ impl PeerHeights {
             );
             return;
         }
-        // Requests are size-checked while still compressed, so a summary that
-        // passed that check can still be much larger here.
-        let size = bcs::serialized_size(&checkpoint).unwrap_or(usize::MAX);
-        if size > self.max_checkpoint_summary_size {
-            debug!(
-                sequence_number,
-                size,
-                max_size = self.max_checkpoint_summary_size,
-                "not storing checkpoint summary that exceeds the size limit"
-            );
+        // `insert_checkpoint` drops a summary at a sequence number that is
+        // already stored, so skip serializing it to measure its size.
+        if !self
+            .sequence_number_to_digest
+            .contains_key(&sequence_number)
+            && self.exceeds_summary_size_limit(&checkpoint)
+        {
             return;
         }
         self.insert_checkpoint(checkpoint);
+    }
+
+    /// Returns whether `checkpoint` is larger than
+    /// `max_checkpoint_summary_size` when serialized.
+    pub fn exceeds_summary_size_limit(&self, checkpoint: &Checkpoint) -> bool {
+        // Requests are size-checked while still compressed, so a summary that
+        // passed that check can still be much larger here.
+        let size = bcs::serialized_size(checkpoint).unwrap_or(usize::MAX);
+        if size <= self.max_checkpoint_summary_size {
+            return false;
+        }
+        debug!(
+            sequence_number = checkpoint.sequence_number(),
+            size,
+            max_size = self.max_checkpoint_summary_size,
+            "checkpoint summary exceeds the size limit"
+        );
+        true
     }
 
     /// Stores at most one checkpoint per sequence number: a checkpoint with
@@ -958,10 +967,6 @@ where
                 .store
                 .try_get_lowest_available_checkpoint()
                 .expect("store operation should not fail");
-            let highest_verified_checkpoint = self
-                .store
-                .try_get_highest_verified_checkpoint_seq_number()
-                .expect("store operation should not fail");
 
             let handshake = server::StateSyncHandshake {
                 genesis_checkpoint,
@@ -971,6 +976,7 @@ where
             let timeout = self.config.timeout();
             let peer_heights = self.peer_heights.clone();
             let weak_sender = self.weak_sender.clone();
+            let store = self.store.clone();
             self.tasks.spawn(async move {
                 let mut client = StateSyncClient::new(peer);
                 // Retry with exponential backoff (100ms, 200ms, 400ms, 800ms,
@@ -987,6 +993,9 @@ where
                             let their = response.into_inner();
                             let on_same_chain =
                                 *their.genesis_checkpoint.digest() == our_genesis_digest;
+                            let highest_verified_checkpoint = store
+                                .try_get_highest_verified_checkpoint_seq_number()
+                                .expect("store operation should not fail");
                             {
                                 let mut guard = peer_heights.write().unwrap();
                                 guard.insert_peer_info(
@@ -1029,16 +1038,12 @@ where
     }
 
     fn handle_tick(&mut self, _now: std::time::Instant) {
-        let highest_verified_checkpoint = self
-            .store
-            .try_get_highest_verified_checkpoint_seq_number()
-            .expect("store operation should not fail");
         let task = query_peers_for_their_latest_checkpoint(
             self.network.clone(),
             self.peer_heights.clone(),
             self.weak_sender.clone(),
             self.config.timeout(),
-            highest_verified_checkpoint,
+            self.store.clone(),
         );
         self.tasks.spawn(task);
 
@@ -1331,14 +1336,17 @@ async fn query_peer_for_latest_info(
 /// than the current one, we will start syncing via
 /// StateSyncMessage::StartSyncJob.
 #[instrument(level = "debug", skip_all)]
-async fn query_peers_for_their_latest_checkpoint(
+async fn query_peers_for_their_latest_checkpoint<S>(
     network: anemo::Network,
     peer_heights: Arc<RwLock<PeerHeights>>,
     sender: mpsc::WeakSender<StateSyncMessage>,
     timeout: Duration,
-    highest_verified_checkpoint: CheckpointSequenceNumber,
-) {
+    store: S,
+) where
+    S: WriteStore,
+{
     let peer_heights = &peer_heights;
+    let store = &store;
     let futs = peer_heights
         .read()
         .unwrap()
@@ -1350,20 +1358,21 @@ async fn query_peers_for_their_latest_checkpoint(
             let mut client = StateSyncClient::new(peer);
 
             async move {
-                let response = query_peer_for_latest_info(&mut client, timeout).await;
-                match response {
-                    Some((highest_checkpoint, low_watermark)) => peer_heights
-                        .write()
-                        .unwrap()
-                        .update_peer_info(
-                            peer_id,
-                            highest_checkpoint.clone(),
-                            Some(low_watermark),
-                            highest_verified_checkpoint,
-                        )
-                        .then_some(highest_checkpoint),
-                    None => None,
-                }
+                let (highest_checkpoint, low_watermark) =
+                    query_peer_for_latest_info(&mut client, timeout).await?;
+                let highest_verified_checkpoint = store
+                    .try_get_highest_verified_checkpoint_seq_number()
+                    .expect("store operation should not fail");
+                peer_heights
+                    .write()
+                    .unwrap()
+                    .update_peer_info(
+                        peer_id,
+                        highest_checkpoint.clone(),
+                        Some(low_watermark),
+                        highest_verified_checkpoint,
+                    )
+                    .then_some(highest_checkpoint)
             }
         })
         .collect::<Vec<_>>();
@@ -1606,6 +1615,7 @@ async fn get_or_fetch_checkpoint_summary(
 /// Asks `peers` in turn for the summary of checkpoint `sequence_number`, and
 /// returns the first summary at that sequence number together with the peer
 /// that sent it. If `pinned_digest` is set, skips summaries with another digest.
+/// Skips summaries larger than the size limit in `peer_heights`.
 /// A peer that sends a summary at another sequence number is marked in
 /// `peer_heights` as not on our chain.
 async fn request_checkpoint_summary_from_peers(
@@ -1641,6 +1651,14 @@ async fn request_checkpoint_summary_from_peers(
                 .write()
                 .unwrap()
                 .mark_peer_as_not_on_same_chain(peer.inner().peer_id());
+            continue;
+        }
+
+        if peer_heights
+            .read()
+            .unwrap()
+            .exceeds_summary_size_limit(&checkpoint)
+        {
             continue;
         }
 

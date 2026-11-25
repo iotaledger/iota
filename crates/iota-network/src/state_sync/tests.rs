@@ -2322,6 +2322,13 @@ async fn get_or_fetch_checkpoint_summary_caches_a_summary_from_a_peer_and_return
         committee.committee().to_owned(),
     );
     store_2.inner_mut().insert_checkpoint(checkpoint_1);
+    let (mut data, sig) = checkpoint_1.clone().into_inner().into_data_and_sig();
+    data.sequence_number = 2;
+    data.version_specific_data = vec![0; StateSyncConfig::default().max_checkpoint_summary_size()];
+    let oversized = CertifiedCheckpointSummary::new_from_data_and_sig(data, sig);
+    store_2
+        .inner_mut()
+        .insert_checkpoint(&VerifiedCheckpoint::new_unchecked(oversized.clone()));
     let (_, server_2) = Builder::new().store(store_2).build();
     let network_2 = build_network(|router| router.merge(server_2));
 
@@ -2331,7 +2338,7 @@ async fn get_or_fetch_checkpoint_summary_caches_a_summary_from_a_peer_and_return
         .connect(network_2.local_addr())
         .await
         .unwrap();
-    insert_peer_on_same_chain(&server, network_2.peer_id(), 1);
+    insert_peer_on_same_chain(&server, network_2.peer_id(), 2);
 
     let peers = PeerBalancer::new(
         &event_loop.network,
@@ -2352,6 +2359,26 @@ async fn get_or_fetch_checkpoint_summary_caches_a_summary_from_a_peer_and_return
     assert_eq!(checkpoint.digest(), checkpoint_1.digest());
     assert_eq!(maybe_peer_id, Some(network_2.peer_id()));
     assert!(is_checkpoint_cached(&event_loop, checkpoint_1.digest()));
+
+    // A summary larger than the size limit is neither returned nor cached.
+    let peers = PeerBalancer::new(
+        &event_loop.network,
+        event_loop.peer_heights.clone(),
+        PeerCheckpointRequestType::Summary,
+    )
+    .with_checkpoint(2);
+    assert!(
+        get_or_fetch_checkpoint_summary(
+            &event_loop.peer_heights,
+            peers,
+            2,
+            None,
+            event_loop.config.timeout(),
+        )
+        .await
+        .is_none()
+    );
+    assert!(!is_checkpoint_cached(&event_loop, oversized.digest()));
 }
 
 #[tokio::test]
