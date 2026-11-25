@@ -25,7 +25,7 @@ use crate::{
         TestBlockHeaderVersion, Transaction, TransactionsCommitment, VerifiedBlock,
         VerifiedBlockHeader, genesis_block_headers,
     },
-    commit::{CertifiedCommit, CommitAPI, CommitDigest, TrustedCommit, WAVE_LENGTH},
+    commit::{CertifiedCommit, CommitAPI, CommitDigest, TrustedCommit},
     context::Context,
     dag_state::{DagState, DataSource},
     encoder::{ShardEncoder, create_encoder},
@@ -119,9 +119,6 @@ pub(crate) struct DagBuilder {
     pub(crate) committed_sub_dags: Vec<(CommittedSubDag, TrustedCommit)>,
     pub(crate) last_committed_rounds: Vec<Round>,
 
-    wave_length: Round,
-    number_of_leaders: u32,
-    pipeline: bool,
     // Protocol keypairs are used to compute signature for headers. If it is None, then the Default
     // signature is used
     protocol_keypair: Option<Vec<ProtocolKeyPair>>,
@@ -171,9 +168,6 @@ impl DagBuilder {
             available_transactions: vec![HashSet::new(); context.committee.size()],
             context,
             leader_schedule,
-            wave_length: WAVE_LENGTH,
-            number_of_leaders: 1,
-            pipeline: false,
             genesis,
             last_ancestors,
             block_headers: BTreeMap::new(),
@@ -398,24 +392,6 @@ impl DagBuilder {
                 && block_ref.author == self.leader_schedule.elect_leader(round, 0))
             .then_some(block.clone())
         })
-    }
-
-    #[expect(unused)]
-    pub(crate) fn with_wave_length(mut self, wave_length: Round) -> Self {
-        self.wave_length = wave_length;
-        self
-    }
-
-    #[expect(unused)]
-    pub(crate) fn with_number_of_leaders(mut self, number_of_leaders: u32) -> Self {
-        self.number_of_leaders = number_of_leaders;
-        self
-    }
-
-    #[expect(unused)]
-    pub(crate) fn with_pipeline(mut self, pipeline: bool) -> Self {
-        self.pipeline = pipeline;
-        self
     }
 
     pub(crate) fn layer(&mut self, round: Round) -> LayerBuilder<'_> {
@@ -1019,15 +995,11 @@ impl<'a> LayerBuilder<'a> {
 
         let mut leaders = vec![];
         if let Some(leader_round) = self.leader_round {
-            let leader_offsets = (0..self.dag_builder.number_of_leaders).collect::<Vec<_>>();
-
-            for leader_offset in leader_offsets {
-                leaders.push(
-                    self.dag_builder
-                        .leader_schedule
-                        .elect_leader(leader_round, leader_offset),
-                );
-            }
+            leaders.push(
+                self.dag_builder
+                    .leader_schedule
+                    .elect_leader(leader_round, 0),
+            );
         }
 
         authorities
@@ -1087,10 +1059,10 @@ impl<'a> LayerBuilder<'a> {
             .expect("specified_leader_offsets should be set");
         let leader_round = self.leader_round.expect("leader round should be set");
 
-        // When no specified leader offsets are available, all leaders are
-        // expected to be missing.
+        // When no leader offsets are specified, the leader is expected to be
+        // missing.
         if specified_leader_offsets.is_empty() {
-            specified_leader_offsets.extend(0..self.dag_builder.number_of_leaders);
+            specified_leader_offsets.push(0);
         }
 
         for leader_offset in specified_leader_offsets {
@@ -1336,10 +1308,10 @@ impl<'a> LayerBuilder<'a> {
                 .clone()
                 .expect("specified_leader_block_offsets should be set");
 
-            // When no specified leader offsets are available, all leaders are
-            // expected to be skipped.
+            // When no leader offsets are specified, the leader is expected to
+            // be skipped.
             if specified_leader_offsets.is_empty() {
-                specified_leader_offsets.extend(0..self.dag_builder.number_of_leaders);
+                specified_leader_offsets.push(0);
             }
 
             for leader_offset in specified_leader_offsets {
