@@ -19,8 +19,6 @@ use crate::{
     test_dag_builder::DagBuilder,
 };
 
-// todo: remove this once tests have been refactored to use DagBuilder/DagParser
-
 /// Build a fully interconnected dag up to the specified round. This function
 /// starts building the dag from the specified [`start`] parameter or from
 /// genesis if none are specified up to and including the specified round

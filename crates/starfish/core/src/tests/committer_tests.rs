@@ -20,7 +20,6 @@ use crate::{
     test_dag::build_dag,
     test_dag_parser::parse_dag,
 };
-// TODO: use one same mechanism for constructing a DAG
 
 #[tokio::test]
 async fn indirect_commit_with_missing_old_own_ancestor() {
