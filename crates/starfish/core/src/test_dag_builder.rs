@@ -49,7 +49,6 @@ use crate::{
 /// dag_builder.layers(2..=10).build(); // Rounds 2 ~ 10 are fully connected with parents by default.
 /// dag_builder.layers(11).skip_acknowledgements(vec![1,2]).build(); // Round 11 skips acknowledgments for blocks from authorities 1 and 2.
 /// dag_builder.layers(12).min_parent_links().build(); // Round 11 is minimally and randomly connected with parents, without weak links.
-/// dag_builder.layers(13).no_leader_block(0).build(); // Round 12 misses leader block. Other blocks are fully connected with parents.
 /// dag_builder.layers(14).no_leader_link(12, 0).build(); // Round 13 misses votes for leader block. Other blocks are fully connected with parents.
 /// dag_builder.layers(15).authorities(vec![3,5]).skip_block().build(); // Round 14 authorities 3 and 5 will not propose any block.
 /// dag_builder.layers(16).authorities(vec![3,5]).skip_ancestor_links(vec![1,2]).build(); // Round 15 authorities 3 and 5 will not link to ancestors 1 and 2
@@ -700,11 +699,8 @@ pub struct LayerBuilder<'a> {
     // Skip leader link for specified authorities
     no_leader_link: bool,
 
-    // Skip leader block proposal
-    no_leader_block: bool,
     // Used for leader based configurations
     specified_leader_link_offsets: Option<Vec<u32>>,
-    specified_leader_block_offsets: Option<Vec<u32>>,
     leader_round: Option<Round>,
 
     // All ancestors will be linked to the current layer
@@ -747,9 +743,7 @@ impl<'a> LayerBuilder<'a> {
             skip_block: false,
             skip_ancestor_links: None,
             no_leader_link: false,
-            no_leader_block: false,
             specified_leader_link_offsets: None,
-            specified_leader_block_offsets: None,
             leader_round: None,
             fully_linked_ancestors: true,
             min_ancestor_links: false,
@@ -798,16 +792,6 @@ impl<'a> LayerBuilder<'a> {
     pub fn random_weak_links(mut self, seed: Option<u64>) -> Self {
         self.random_weak_links = true;
         self.random_weak_links_random_seed = seed;
-        self
-    }
-
-    // Should be called when building a leader round. Will ensure leader block is
-    // missing. A list of specified leader offsets can be provided to skip those
-    // leaders. If none are provided all potential leaders for the round will be
-    // skipped.
-    pub fn no_leader_block(mut self, specified_leader_offsets: Vec<u32>) -> Self {
-        self.no_leader_block = true;
-        self.specified_leader_block_offsets = Some(specified_leader_offsets);
         self
     }
 
@@ -1188,7 +1172,7 @@ impl<'a> LayerBuilder<'a> {
         let version = TestBlockHeaderVersion::V2;
 
         for (authority, ancestors) in connections {
-            if self.should_skip_block(round, authority) {
+            if self.should_skip_block(authority) {
                 continue;
             };
             let num_blocks = self.num_blocks_to_create(authority);
@@ -1290,7 +1274,7 @@ impl<'a> LayerBuilder<'a> {
         base_ts + (author + round + num_block) as u64 + self.timestamp_delay_ms.unwrap_or_default()
     }
 
-    fn should_skip_block(&self, round: Round, authority: AuthorityIndex) -> bool {
+    fn should_skip_block(&self, authority: AuthorityIndex) -> bool {
         // Safe to unwrap as specified authorities has to be set before skip
         // is specified.
         if self.skip_block
@@ -1301,29 +1285,6 @@ impl<'a> LayerBuilder<'a> {
                 .contains(&authority)
         {
             return true;
-        }
-        if self.no_leader_block {
-            let mut specified_leader_offsets = self
-                .specified_leader_block_offsets
-                .clone()
-                .expect("specified_leader_block_offsets should be set");
-
-            // When no leader offsets are specified, the leader is expected to
-            // be skipped.
-            if specified_leader_offsets.is_empty() {
-                specified_leader_offsets.push(0);
-            }
-
-            for leader_offset in specified_leader_offsets {
-                let leader = self
-                    .dag_builder
-                    .leader_schedule
-                    .elect_leader(round, leader_offset);
-
-                if leader == authority {
-                    return true;
-                }
-            }
         }
         false
     }

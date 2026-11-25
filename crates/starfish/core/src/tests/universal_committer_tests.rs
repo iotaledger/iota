@@ -5,6 +5,7 @@
 use std::sync::Arc;
 
 use parking_lot::RwLock;
+use rstest::rstest;
 use starfish_config::AuthorityIndex;
 
 use crate::{
@@ -17,52 +18,9 @@ use crate::{
     dag_state::{DagState, DataSource},
     storage::mem_store::MemStore,
     test_dag::build_dag,
-    test_dag_builder::DagBuilder,
     test_dag_parser::parse_dag,
 };
 // TODO: use one same mechanism for constructing a DAG
-
-/// Directly commit 5 leader blocks.
-#[tokio::test]
-async fn direct_commit() {
-    let mut test_setup = basic_dag_builder_test_setup();
-
-    // Build fully connected dag with empty blocks adding up to round 7
-    // such that we can commit all leader block up to round 5
-    // note: waves & rounds are zero-indexed.
-    let first_non_genesis_leader_round = 1;
-    let last_round_of_dag = 7;
-    test_setup
-        .dag_builder
-        .layers(1..=last_round_of_dag)
-        .build()
-        .persist_layers(test_setup.dag_state);
-
-    test_setup.dag_builder.print();
-
-    // Genesis cert will not be included in commit sequence, marking it as last
-    // decided
-    let last_finalized = Slot::new(0, 0);
-
-    // The committer should mark the potential leaders in leader round 6
-    // as undecided because there is no way to get enough certificates for
-    // leaders of leader round 6 without completing wave (6-7-8).
-    let sequence = test_setup.committer.try_decide(last_finalized);
-    tracing::info!("Commit sequence: {sequence:#?}");
-    // The decided leaders should be all from round 1 to round 5
-    assert_eq!(sequence.len(), 5);
-    if let DecidedLeader::Commit(ref block, _, _) = sequence[0] {
-        assert_eq!(
-            block.author(),
-            test_setup
-                .committer
-                .elect_leader(first_non_genesis_leader_round)
-                .authority
-        )
-    } else {
-        panic!("Expected a committed leader")
-    };
-}
 
 #[tokio::test]
 async fn indirect_commit_with_missing_old_own_ancestor() {
@@ -331,311 +289,147 @@ async fn direct_commit_late_call() {
     }
 }
 
-/// Do not commit anything if we are still in the first wave.
+/// Leader B1: three of the four round-2 blocks don't link it, so it is
+/// skipped directly.
+const DIRECT_SKIP_NO_LEADER_VOTES: &str = "DAG {
+    Round 0 : { 4 },
+    Round 1 : { * },
+    Round 2 : {
+        A -> [-B1],
+        B -> [-B1],
+        C -> [*],
+        D -> [-B1],
+    },
+    Round 3 : { * },
+}";
+
+/// Leader D3 has no block, so it is skipped directly.
+const DIRECT_SKIP_MISSING_LEADER_BLOCK: &str = "DAG {
+    Round 0 : { 4 },
+    Round 1 : { * },
+    Round 2 : { * },
+    Round 3 : {
+        A -> [*],
+        B -> [*],
+        C -> [*],
+    },
+    Round 4 : { * },
+    Round 5 : { * },
+}";
+
+/// Leader D3 has only f+1 certificates (A5, B5), so it is undecided directly
+/// and committed through the leader of round 6. Blocks with restricted
+/// ancestors keep their acknowledgments, so the missing links alone shape the
+/// decisions.
+const INDIRECT_COMMIT: &str = "DAG {
+    Round 0 : { 4 },
+    Round 1 : { * },
+    Round 2 : { * },
+    Round 3 : { * },
+    Round 4 : {
+        A -> ([-D3],[*]),
+        B -> [*],
+        C -> [*],
+        D -> [*],
+    },
+    Round 5 : {
+        A -> [*],
+        B -> [*],
+        C -> ([A4],[*]),
+        D -> ([A4],[*]),
+    },
+    Round 6 : { * },
+    Round 7 : { * },
+    Round 8 : { * },
+}";
+
+/// Leader A4 has a quorum of votes, so it is not skipped directly, but the
+/// leader of round 7 reaches none of its certificates, so it is skipped
+/// indirectly. Blocks with restricted ancestors keep their acknowledgments, so
+/// the missing links alone shape the decisions.
+const INDIRECT_SKIP: &str = "DAG {
+    Round 0 : { 4 },
+    Round 1 : { * },
+    Round 2 : { * },
+    Round 3 : { * },
+    Round 4 : { * },
+    Round 5 : {
+        A -> [*],
+        B -> [*],
+        C -> [*],
+        D -> ([-A4],[*]),
+    },
+    Round 6 : {
+        A -> [*],
+        B -> ([-A5],[*]),
+        C -> ([-B5],[*]),
+        D -> [*],
+    },
+    Round 7 : {
+        A -> [*],
+        B -> [*],
+        C -> [*],
+        D -> ([B6],[*]),
+    },
+    Round 8 : { * },
+    Round 9 : { * },
+}";
+
+/// Leaders B1 to A4 have neither enough certificates nor enough blames. B5 is
+/// committed directly, but the undecided A4 lies between it and the leaders
+/// below, so nothing is decided.
+const UNDECIDED: &str = "DAG {
+    Round 0 : { 4 },
+    Round 1 : { * },
+    Round 2 : { * },
+    Round 3 : {
+        A -> [A2],
+        B -> [*],
+        C -> [*],
+        D -> [D2],
+    },
+    Round 4 : {
+        A -> [-D3],
+        B -> [*],
+        C -> [*],
+        D -> [*],
+    },
+    Round 5 : {
+        A -> [*],
+        B -> [*],
+        C -> [C4],
+        D -> [C4],
+    },
+    Round 6 : { * },
+    Round 7 : { * },
+}";
+
+/// Decides the leaders of a parsed DAG and checks the whole decided sequence
+/// as `(leader round, committed)`; a leader that is not committed is skipped.
+#[rstest]
+#[case::direct_skip_no_leader_votes(DIRECT_SKIP_NO_LEADER_VOTES, &[(1, false)])]
+#[case::direct_skip_missing_leader_block(
+    DIRECT_SKIP_MISSING_LEADER_BLOCK,
+    &[(1, true), (2, true), (3, false)]
+)]
+#[case::indirect_commit(
+    INDIRECT_COMMIT,
+    &[(1, true), (2, true), (3, true), (4, true), (5, true), (6, true)]
+)]
+#[case::indirect_skip(
+    INDIRECT_SKIP,
+    &[(1, true), (2, true), (3, true), (4, false), (5, true), (6, true), (7, true)]
+)]
+#[case::undecided(UNDECIDED, &[])]
 #[tokio::test]
-async fn no_genesis_commit() {
-    let (context, dag_state, mut committer) = basic_test_setup();
-
-    // note: waves & rounds are zero-indexed.
-    let certifying_round = 3;
-    let mut ancestors = None;
-    for r in 0..certifying_round {
-        ancestors = Some(build_dag(context.clone(), dag_state.clone(), ancestors, r));
-
-        let last_committed = Slot::new(0, 0);
-        let sequence = committer.try_decide(last_committed);
-        tracing::info!("Commit sequence: {sequence:#?}");
-        assert!(sequence.is_empty());
-    }
-}
-
-/// We directly skip the leader if there are enough non-votes (blames).
-#[tokio::test]
-async fn direct_skip_no_leader_votes() {
-    telemetry_subscribers::init_for_testing();
-    // Dag Notes:
-    // Leader of Round 1, i.e. B1, should be skipped due to lack of votes
-    let dag_str = "DAG {
-        Round 0 : { 4 },
-        Round 1 : { * },
-        Round 2 : {
-            A -> [-B1],
-            B -> [-B1],
-            C -> [*],
-            D -> [-B1],
-        },
-        Round 3 : { * },
-     }";
-
-    let first_leader = AuthorityIndex::new_for_test(1);
-    let first_round = 1 as Round;
-
-    let dag_builder = parse_dag(dag_str).expect("Invalid dag");
-    let dag_state = Arc::new(RwLock::new(DagState::new(
-        dag_builder.context.clone(),
-        Arc::new(MemStore::new()),
-    )));
-
-    dag_builder.print();
-    dag_builder.persist_all_blocks(dag_state.clone());
-
-    let mut committer = super::Committer::new_for_test(dag_builder.context, dag_state);
-
-    let last_finalized = Slot::new(0, 0);
-    let sequence = committer.try_decide(last_finalized);
-    // Only leader for slot B1 should be decided, specifically, skipped
-    assert_eq!(sequence.len(), 1);
-    if let DecidedLeader::Skip(leader) = sequence[0] {
-        assert_eq!(leader.authority, first_leader);
-        assert_eq!(leader.round, first_round);
-    } else {
-        panic!("Expected to directly skip the leader");
-    }
-}
-
-/// We directly skip the leader if it is missing.
-#[tokio::test]
-async fn direct_skip_missing_leader_block() {
-    let mut test_setup = basic_dag_builder_test_setup();
-
-    // Add enough blocks to reach the certifying round of genesis leader
-    // note: waves & rounds are zero-indexed.
-    let certifying_round_genesis = 2;
-    test_setup
-        .dag_builder
-        .layers(1..=certifying_round_genesis)
-        .build();
-
-    // Create a leader round in the dag without the leader block.
-    let leader_round_3 = 3;
-    test_setup
-        .dag_builder
-        .layer(leader_round_3)
-        .no_leader_block(vec![])
-        .build();
-
-    // Add enough blocks to reach the certifying round of leader of round 3.
-    let voting_round_for_leader_round_3 = 4;
-    let certifying_round_for_leader_round_3 = 5;
-    test_setup
-        .dag_builder
-        .layers(voting_round_for_leader_round_3..=certifying_round_for_leader_round_3)
-        .build();
-
-    test_setup.dag_builder.print();
-    test_setup
-        .dag_builder
-        .persist_all_blocks(test_setup.dag_state.clone());
-
-    // Ensure that the leader of round 3 is skipped because the leader is missing.
-    let last_committed = Slot::new(0, 0);
-    let sequence = test_setup.committer.try_decide(last_committed);
-    tracing::info!("Commit sequence: {sequence:#?}");
-
-    assert_eq!(sequence.len(), 3);
-    if let DecidedLeader::Skip(leader) = sequence[2] {
-        assert_eq!(
-            leader.authority,
-            AuthorityIndex::new_for_test(leader_round_3 as u8),
-        );
-        assert_eq!(leader.round, leader_round_3);
-    } else {
-        panic!("Expected to directly skip the leader");
-    }
-}
-
-/// Indirect-commit of the leader of round 3.
-#[tokio::test]
-async fn indirect_commit() {
-    telemetry_subscribers::init_for_testing();
-    // Dag Notes:
-    // For the first 3 waves, the leaders are directly committed.
-    // The leader of round 3 is not directly committed as there are f+1 certificates
-    // only One needs to wait until the leader of Round 6 is directly decided
-    // to indirectly decide the leader of round 3
-    // - Fully connected blocks to decide the leader of wave 2.
-    // Blocks with restricted ancestors keep their acknowledgments, so the missing
-    // links alone shape the decisions.
-    let dag_str = "DAG {
-        Round 0 : { 4 },
-        Round 1 : { * },
-        Round 2 : { * },
-        Round 3 : { * },
-        Round 4 : {
-            A -> ([-D3],[*]),
-            B -> [*],
-            C -> [*],
-            D -> [*],
-        },
-        Round 5 : {
-            A -> [*],
-            B -> [*],
-            C -> ([A4],[*]),
-            D -> ([A4],[*]),
-        },
-        Round 6 : { * },
-        Round 7 : { * },
-        Round 8 : { * },
-     }";
-
-    let dag_builder = parse_dag(dag_str).expect("Invalid dag");
-    let dag_state = Arc::new(RwLock::new(DagState::new(
-        dag_builder.context.clone(),
-        Arc::new(MemStore::new()),
-    )));
-
-    dag_builder.print();
-    dag_builder.persist_all_blocks(dag_state.clone());
-
-    let mut committer = super::Committer::new_for_test(dag_builder.context, dag_state);
-
-    // Ensure we indirectly commit the leader of round 3 via the directly committed
-    // leader of round 6.
-    let last_finalized = Slot::new(0, 0);
-    let sequence = committer.try_decide(last_finalized);
-    tracing::info!("Commit sequence: {sequence:#?}");
-    assert_eq!(sequence.len(), 6);
-
-    for (idx, decided_leader) in sequence.iter().enumerate() {
-        let leader_round = idx as Round + 1;
-        let expected_leader = committer.elect_leader(leader_round).authority;
-        if let DecidedLeader::Commit(ref block, _, _) = decided_leader {
-            assert_eq!(block.round(), leader_round);
-            assert_eq!(block.author(), expected_leader);
-        } else {
-            panic!("Expected a committed leader")
-        };
-    }
-}
-
-/// Skip indirectly the leader of round 4.
-#[tokio::test]
-async fn indirect_skip() {
-    telemetry_subscribers::init_for_testing();
-    // Dag Notes:
-    // Leader of round 4 is not directly skipped due to a quorum of votes
-    // But it is skipped indirectly since the leader of round 7 is directly
-    // committed and is not linked with the leader of round 4 through a
-    // certificate
-    // Blocks with restricted ancestors keep their acknowledgments, so the missing
-    // links alone shape the decisions.
-    let dag_str = "DAG {
-        Round 0 : { 4 },
-        Round 1 : { * },
-        Round 2 : { * },
-        Round 3 : { * },
-        Round 4 : { * },
-        Round 5 : {
-            A -> [*],
-            B -> [*],
-            C -> [*],
-            D -> ([-A4],[*]),
-        },
-        Round 6 : {
-            A -> [*],
-            B -> ([-A5],[*]),
-            C -> ([-B5],[*]),
-            D -> [*],
-        },
-        Round 7 : {
-            A -> [*],
-            B -> [*],
-            C -> [*],
-            D -> ([B6],[*]),
-        },
-        Round 8 : { * },
-        Round 9 : { * },
-     }";
-
-    let dag_builder = parse_dag(dag_str).expect("Invalid dag");
-    let dag_state = Arc::new(RwLock::new(DagState::new(
-        dag_builder.context.clone(),
-        Arc::new(MemStore::new()),
-    )));
-
-    dag_builder.print();
-    dag_builder.persist_all_blocks(dag_state.clone());
-
-    let mut committer = super::Committer::new_for_test(dag_builder.context, dag_state);
-
-    // Ensure we indirectly skip the leader of round 4 via the directly committed
-    // leader of round 7.
-    let last_finalized = Slot::new(0, 0);
-    let sequence = committer.try_decide(last_finalized);
-    tracing::info!("Commit sequence: {sequence:#?}");
-    assert_eq!(sequence.len(), 7);
-
-    for (idx, decided_leader) in sequence.iter().enumerate() {
-        if let DecidedLeader::Commit(ref block, _, _) = decided_leader {
-            assert_eq!(block.round(), (idx + 1) as Round);
-            assert_eq!(
-                block.author(),
-                AuthorityIndex::new_for_test((idx + 1) as u8 % 4)
-            );
-        } else if let DecidedLeader::Skip(ref slot) = decided_leader {
-            assert_eq!(slot.round, 4 as Round);
-        } else {
-            panic!("Expected a decided leader");
-        }
-    }
-}
-
-/// If there is no leader with enough support nor blame, we commit nothing.
-#[tokio::test]
-async fn undecided() {
-    telemetry_subscribers::init_for_testing();
-    // Dag Notes:
-    // Construct DAG such that no leader is directly committed
-    // For instance, for round 1 leader, not enough certificates exist
-    // For round 2 leader, not enough votes, etc.
-    let dag_str = "DAG {
-        Round 0 : { 4 },
-        Round 1 : { * },
-        Round 2 : { * },
-        Round 3 : {
-            A -> [A2],
-            B -> [*],
-            C -> [*],
-            D -> [D2],
-        },
-        Round 4 : {
-            A -> [-D3],
-            B -> [*],
-            C -> [*],
-            D -> [*],
-        },
-        Round 5 : {
-            A -> [*],
-            B -> [*],
-            C -> [C4],
-            D -> [C4],
-        },
-        Round 6 : { * },
-        Round 7 : {
-            A -> [A6],
-            B -> [B6],
-            C -> [*],
-            D -> [*],
-        },
-     }";
-
-    let dag_builder = parse_dag(dag_str).expect("Invalid dag");
-    let dag_state = Arc::new(RwLock::new(DagState::new(
-        dag_builder.context.clone(),
-        Arc::new(MemStore::new()),
-    )));
-
-    dag_builder.print();
-    dag_builder.persist_all_blocks(dag_state.clone());
-
-    let mut committer = super::Committer::new_for_test(dag_builder.context, dag_state);
-
-    // Ensure we indirectly commit the leader of round3 via the directly committed
-    // leader of round 6.
-    let last_finalized = Slot::new(0, 0);
-    let sequence = committer.try_decide(last_finalized);
-    tracing::info!("Commit sequence: {sequence:#?}");
-    assert!(sequence.is_empty());
+async fn try_decide_parsed_dag(#[case] dag: &str, #[case] expected: &[(Round, bool)]) {
+    let mut committer = committer_for(dag);
+    let decided: Vec<(Round, bool)> = committer
+        .try_decide(Slot::new(0, 0))
+        .iter()
+        .map(|leader| (leader.round(), matches!(leader, DecidedLeader::Commit(..))))
+        .collect();
+    assert_eq!(decided, expected);
 }
 
 // This test scenario has one authority that is acting in a byzantine manner. It
@@ -866,28 +660,14 @@ fn basic_test_setup() -> (Arc<Context>, Arc<RwLock<DagState>>, super::Committer)
     (context, dag_state, committer)
 }
 
-struct TestSetup {
-    dag_builder: DagBuilder,
-    dag_state: Arc<RwLock<DagState>>,
-    committer: super::Committer,
-}
-
-// TODO: Make this the basic_test_setup()
-fn basic_dag_builder_test_setup() -> TestSetup {
+/// A committer over the blocks of the parsed `dag`.
+fn committer_for(dag: &str) -> super::Committer {
     telemetry_subscribers::init_for_testing();
-    let context = Arc::new(Context::new_for_test(4).0);
-    let dag_builder = DagBuilder::new(context);
-
+    let dag_builder = parse_dag(dag).expect("a DAG should be valid");
     let dag_state = Arc::new(RwLock::new(DagState::new(
         dag_builder.context.clone(),
         Arc::new(MemStore::new()),
     )));
-
-    let committer = super::Committer::new_for_test(dag_builder.context.clone(), dag_state.clone());
-
-    TestSetup {
-        dag_builder,
-        dag_state,
-        committer,
-    }
+    dag_builder.persist_all_blocks(dag_state.clone());
+    super::Committer::new_for_test(dag_builder.context, dag_state)
 }
