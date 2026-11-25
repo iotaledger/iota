@@ -74,7 +74,6 @@ impl GraphQLStore {
                 startTimestamp
                 protocolConfigs { protocolVersion }
             }
-            checkpoint(id: { sequenceNumber: 0 }) { digest }
         }"#;
         let fetcher = self.cache.fetcher();
         let (data, chain_id) = tokio::join!(
@@ -110,22 +109,12 @@ impl GraphQLStore {
             .and_then(|v| v.as_u64())
             .ok_or_else(|| StoreError::new("GraphQL epoch", "missing protocolVersion"))?;
         let chain_id = chain_id.map_err(|e| StoreError::new("fetch chain identifier", e))?;
-        let known_chain_identifier = ChainIdentifier::from_chain_short_id(&chain_id);
-        let chain = known_chain_identifier
+        let chain = ChainIdentifier::from_chain_short_id(&chain_id)
             .map(|id| id.chain())
             .unwrap_or(iota_protocol_config::Chain::Unknown);
-        // The genesis checkpoint is missing once the indexer has pruned it.
-        let chain_identifier = match data.pointer("/checkpoint/digest").and_then(|v| v.as_str()) {
-            Some(digest) => CheckpointDigest::from_base58(digest)
-                .map(ChainIdentifier::from)
-                .map_err(|e| StoreError::new("GraphQL genesis checkpoint digest", e))?,
-            None => known_chain_identifier.ok_or_else(|| {
-                StoreError::new(
-                    "GraphQL genesis checkpoint",
-                    format!("missing for chain {chain_id}"),
-                )
-            })?,
-        };
+        let chain_identifier =
+            resolve_chain_identifier(&chain_id, || fetcher.genesis_checkpoint_digest(&chain_id))
+                .await?;
         Ok(ChainContext {
             protocol_version: iota_protocol_config::ProtocolVersion::new(protocol_version),
             reference_gas_price,
@@ -184,6 +173,45 @@ impl GraphQLFetcher {
             .await
             .map_err(|e| StoreError::new(context, e))
     }
+
+    /// Fetch the digest of the genesis checkpoint of the chain whose short
+    /// identifier is `chain_id`. Fails once the indexer has pruned it.
+    async fn genesis_checkpoint_digest(
+        &self,
+        chain_id: &str,
+    ) -> Result<CheckpointDigest, StoreError> {
+        let context = format!("fetch the genesis checkpoint of chain {chain_id} via GraphQL");
+        let data = self
+            .query(
+                &context,
+                "{ checkpoint(id: { sequenceNumber: 0 }) { digest } }",
+            )
+            .await?;
+        let digest = data
+            .pointer("/checkpoint/digest")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| StoreError::new(&context, "missing checkpoint digest"))?;
+        CheckpointDigest::from_base58(digest).map_err(|e| StoreError::new(&context, e))
+    }
+}
+
+/// The chain identifier of the chain whose short identifier is `chain_id`.
+///
+/// Mainnet and testnet are known from their short identifier, so only another
+/// chain calls `genesis_checkpoint_digest`, whose checkpoint a node may have
+/// pruned.
+async fn resolve_chain_identifier<F, Fut>(
+    chain_id: &str,
+    genesis_checkpoint_digest: F,
+) -> Result<ChainIdentifier, StoreError>
+where
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = Result<CheckpointDigest, StoreError>>,
+{
+    match ChainIdentifier::from_chain_short_id(chain_id) {
+        Some(known) => Ok(known),
+        None => genesis_checkpoint_digest().await.map(ChainIdentifier::from),
+    }
 }
 
 impl ObjectFetcher for GraphQLFetcher {
@@ -225,7 +253,44 @@ fn parse_start_timestamp_millis(s: &str) -> Option<u64> {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_start_timestamp_millis;
+    use iota_sdk_types::CheckpointDigest;
+    use iota_types::digests::{
+        ChainIdentifier, get_mainnet_chain_identifier, get_testnet_chain_identifier,
+    };
+
+    use super::{parse_start_timestamp_millis, resolve_chain_identifier};
+    use crate::error::StoreError;
+
+    #[tokio::test]
+    async fn mainnet_and_testnet_resolve_without_the_genesis_checkpoint() {
+        for known in [
+            get_mainnet_chain_identifier(),
+            get_testnet_chain_identifier(),
+        ] {
+            let resolved = resolve_chain_identifier(&known.to_string(), || async {
+                Err::<CheckpointDigest, _>(StoreError::new("genesis checkpoint", "pruned"))
+            })
+            .await
+            .expect("a known chain must not need the genesis checkpoint");
+            assert_eq!(resolved, known);
+        }
+    }
+
+    #[tokio::test]
+    async fn another_chain_resolves_from_its_genesis_checkpoint() {
+        let genesis = CheckpointDigest::new([7; 32]);
+        let resolved = resolve_chain_identifier("0a0b0c0d", || async { Ok(genesis) })
+            .await
+            .expect("the genesis checkpoint must resolve another chain");
+        assert_eq!(resolved, ChainIdentifier::from(genesis));
+
+        let error = resolve_chain_identifier("0a0b0c0d", || async {
+            Err::<CheckpointDigest, _>(StoreError::new("genesis checkpoint", "pruned"))
+        })
+        .await
+        .expect_err("another chain must fail without its genesis checkpoint");
+        assert!(error.to_string().contains("pruned"), "{error}");
+    }
 
     #[test]
     fn start_timestamp_parses_rfc3339_and_integer_millis() {

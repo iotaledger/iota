@@ -678,13 +678,24 @@ impl DataFetcher for RemoteFetcher {
         if let Some(chain_identifier) = self.chain_identifier_cache.get() {
             return Ok(*chain_identifier);
         }
-        let genesis_checkpoint = self
-            .rpc_client
-            .read_api()
-            .get_checkpoint(CheckpointId::SequenceNumber(0))
-            .await
-            .map_err(|e| ReplayEngineError::UnableToGetChainId { err: e.to_string() })?;
-        let chain_identifier = ChainIdentifier::from(genesis_checkpoint.digest);
+        // Mainnet and testnet are known from their short identifier, so only
+        // another chain needs the genesis checkpoint, which a node may have
+        // pruned.
+        let chain_identifier =
+            match ChainIdentifier::from_chain_short_id(self.get_chain_id().await?) {
+                Some(known) => known,
+                None => {
+                    let genesis_checkpoint = self
+                        .rpc_client
+                        .read_api()
+                        .get_checkpoint(CheckpointId::SequenceNumber(0))
+                        .await
+                        .map_err(|e| ReplayEngineError::UnableToGetChainId {
+                            err: e.to_string(),
+                        })?;
+                    ChainIdentifier::from(genesis_checkpoint.digest)
+                }
+            };
         Ok(*self.chain_identifier_cache.get_or_init(|| chain_identifier))
     }
 }
