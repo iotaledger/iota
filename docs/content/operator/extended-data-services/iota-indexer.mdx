@@ -111,6 +111,10 @@ The Prometheus endpoint exposes ingestion lag, counts of committed checkpoints, 
 
 Passing `--reset-db` on the `indexer` subcommand drops every table on start-up and re-applies all migrations from scratch. Use it only on a writer instance you intend to fully rebuild — the operation is destructive and affects any reader sharing the same database. It starts ingestion from scratch. Use with care.
 
+### Customize ingestion
+
+Using `--operational-level` allows operators to select which tables to ingest among predefined sets. Read more on [Operational levels](#operational-levels).
+
 ## Pruning
 
 A running IOTA Indexer accumulates one row per checkpoint, transaction, and event the network produces, so the database grows without bound as long as the network progresses. For deployments that intend to run for months or years, that growth may not be sustainable.
@@ -279,6 +283,38 @@ Like [`--reset-db`](#resetting-the-database), `restore` drops every table and re
 
 :::
 
+## Operational levels
+
+The indexer defines four operational levels as a stack of predefined configurations that select which tables will be ingested from the network. A lower level ingests fewer tables, so the writer can keep up with a higher rate of checkpoints. The tradeoff is that the reader services cannot support the queries that use the disabled tables of the chosen level.
+
+The default level is `combined-event-filters`, which ingests all the tables and supports all the queries. The other levels are described in the following table, where each row lists the queries that the level adds to the queries of the lower levels.
+
+| Level                              | JSON-RPC                                                                                                                                                                                                                                                                                                                                                                                           | GraphQL                                                                                                                                                                                                                                                                       |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `basic`                            | Transaction execution and dry run. Lookups by key: object by ID, transaction by digest, checkpoint, epoch, protocol config, chain identifier. The events of one transaction, with `getEvents`. Coin and balance reads, Move module and type metadata, staking and system state. Transaction building. Paged queries on live objects, in the order of object ID, with no consistent view. | The same execution and lookups by key. The events of one transaction, through the effects of that transaction. Paged queries on live objects, in the order of object ID, with no consistent view: each page reads the latest state of the objects, so two pages can show the state at different checkpoints. Reads of an object at a specific version, if that version is still live. |
+| `objects-history`                  | Lookups by key of past object versions.                                                                                                                                                                                                                                                                                                                                                            | The same lookups of past object versions. Consistent views: all the fields of a response read the state at one checkpoint, and all the pages of a query read the same checkpoint.                                                                                            |
+| `filtered-queries`                 | Filtered transaction queries: by sender, recipient, input object, changed object, package, module, function, and kind. All forms of `queryEvents`: with no filter, by transaction digest, by emitting module, by event type, and by sender.                                                                                                                                                        | Filtered transaction queries, as in JSON-RPC. Event queries with no filter and by transaction digest.                                                                                                                                                                         |
+| `combined-event-filters` (default) | No other queries.                                                                                                                                                                                                                                                                                                                                                                                  | Event filters: sender together with event type or emitting module, event type by package or by module, and type name for all instantiations.                                                                                                                                  |
+
+To set the operational level upon start set the `--operational-level` option
+```sh
+iota-indexer \
+  --db-url <DATABASE_URL> \
+  indexer \
+  --remote-store-url <REMOTE_STORE_URL> \
+  --operational-level <basic|objects-history|filtered-queries|combined-event-filters>
+```
+
+### Effects on the reader services
+
+A query on a table that the writer does not ingest does not return an error. The result depends on the state of the table:
+
+- If the writer never ingested the table: the query returns empty results.
+- If the table is removed after switching the level: the table keeps its data up to the checkpoint of the restart, and the query returns only that data.
+- If the table is added after switching the level: the writer does not backfill it, so the table has data only from the first checkpoint after the restart. The writer moves the lower bound of the watermark of the table to that checkpoint, and the reader services treat the older data as pruned.
+
+To prevent these gaps, reset or restore the database before you change the level. Both operations drop the existing data.
+
 ## Appendix: PostgreSQL configuration
 
 The `postgresql.conf` below is the recommended configuration for an indexer host with roughly 96 GB of RAM and NVMe storage (mainnet-class hardware). Scale memory and parallelism values to your hardware.
@@ -352,17 +388,18 @@ Per-table autovacuum tuning and `shm_size` guidance that pair with this config a
 
 ### `indexer` subcommand flags
 
-| Flag                                       | Env var                                  | Default        | Description                                                                                                              |
-| ------------------------------------------ | ---------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `--remote-store-url`                       | —                                        | _(none)_       | Fullnode gRPC URL or historical checkpoint store URL serving batched checkpoint files.                                   |
-| `--live-checkpoints-store-url`             | —                                        | _(none)_       | Live checkpoint store URL. Fallback for the latest checkpoints not yet in the historical archive. Requires `--remote-store-url`. |
-| `--data-ingestion-path`                    | —                                        | _(none)_       | Local directory populated with checkpoint files by a colocated fullnode.                                                 |
-| `--checkpoint-download-queue-size`         | `DOWNLOAD_QUEUE_SIZE`                    | `200`          | Maximum number of checkpoints buffered for indexing.                                                                     |
-| `--checkpoint-download-queue-size-bytes`   | `CHECKPOINT_PROCESSING_BATCH_DATA_LIMIT` | `20000000`     | Byte cap on the checkpoint download queue.                                                                               |
-| `--checkpoint-download-timeout`            | `INGESTION_READER_TIMEOUT_SECS`          | `20`           | Per-checkpoint download timeout, in seconds.                                                                             |
-| `--pruning-config-path`                    | —                                        | _(none)_       | Path to a TOML file describing per-table retention policies. Enables pruning when set. See [Pruning](#pruning).          |
-| `--pruning-delay-ms`                       | `PRUNING_DELAY_MS`                       | `7200000` (ms) | Delay between a watermark's lower bound being advanced and the pruner deleting rows. Lets in-flight reads finish before their data disappears. |
-| `--pruning-batch-size`                     | `PRUNING_BATCH_SIZE`                     | `1000`         | Upper bound on units (checkpoints, transactions, or global sequence numbers) pruned per chunk, and on rows deleted per statement.              |
-| `--reset-db`                               | —                                        | `false`        | Drop all tables and re-apply migrations from scratch on start-up. Starts ingestion from scratch. Use with care. |
+| Flag                                     | Env var                                  | Default                  | Description                                                                                                                                                                 |
+| ---------------------------------------- | ---------------------------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--remote-store-url`                     | —                                        | _(none)_                 | Fullnode gRPC URL or historical checkpoint store URL serving batched checkpoint files.                                                                                      |
+| `--live-checkpoints-store-url`           | —                                        | _(none)_                 | Live checkpoint store URL. Fallback for the latest checkpoints not yet in the historical archive. Requires `--remote-store-url`.                                            |
+| `--data-ingestion-path`                  | —                                        | _(none)_                 | Local directory populated with checkpoint files by a colocated fullnode.                                                                                                    |
+| `--checkpoint-download-queue-size`       | `DOWNLOAD_QUEUE_SIZE`                    | `200`                    | Maximum number of checkpoints buffered for indexing.                                                                                                                        |
+| `--checkpoint-download-queue-size-bytes` | `CHECKPOINT_PROCESSING_BATCH_DATA_LIMIT` | `20000000`               | Byte cap on the checkpoint download queue.                                                                                                                                  |
+| `--checkpoint-download-timeout`          | `INGESTION_READER_TIMEOUT_SECS`          | `20`                     | Per-checkpoint download timeout, in seconds.                                                                                                                                |
+| `--pruning-config-path`                  | —                                        | _(none)_                 | Path to a TOML file describing per-table retention policies. Enables pruning when set. See [Pruning](#pruning).                                                             |
+| `--pruning-delay-ms`                     | `PRUNING_DELAY_MS`                       | `7200000` (ms)           | Delay between a watermark's lower bound being advanced and the pruner deleting rows. Lets in-flight reads finish before their data disappears.                              |
+| `--pruning-batch-size`                   | `PRUNING_BATCH_SIZE`                     | `1000`                   | Upper bound on units (checkpoints, transactions, or global sequence numbers) pruned per chunk, and on rows deleted per statement.                                           |
+| `--operational-level`                    | —                                        | `combined-event-filters` | Selects the tables that the writer ingests. One of `basic`, `objects-history`, `filtered-queries`, `combined-event-filters`. See [Operational levels](#operational-levels). |
+| `--reset-db`                             | —                                        | `false`                  | Drop all tables and re-apply migrations from scratch on start-up. Starts ingestion from scratch. Use with care.                                                             |
 
 At least one of `--remote-store-url` or `--data-ingestion-path` must be set.
