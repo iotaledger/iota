@@ -49,3 +49,83 @@ fun test_tx_context_returned_refs_consistency() {
     // the created reference to the first digest should still be valid and unchanged
     assert_eq!(*digest_ref1, digest1);
 }
+
+#[test]
+fun test_chain_identifier() {
+    use std::unit_test::assert_eq;
+
+    // the unit test default
+    let mut ctx = tx_context::dummy();
+    assert_eq!(ctx.chain_identifier(), vector::tabulate!(32, |_| 0u8));
+
+    let chain_identifier = x"0102030405060708091011121314151617181920212223242526272829303132";
+    ctx.set_chain_identifier_for_testing(chain_identifier);
+    assert_eq!(ctx.chain_identifier(), chain_identifier);
+
+    // a new context keeps the chain identifier
+    let ctx = tx_context::new(@0x1, b"11111111111111111111111111111111", 7, 0, 0);
+    assert_eq!(ctx.chain_identifier(), chain_identifier);
+}
+
+#[test]
+#[expected_failure(abort_code = tx_context::EBadChainIdentifierLength)]
+fun test_set_chain_identifier_bad_length() {
+    let mut ctx = tx_context::dummy();
+    ctx.set_chain_identifier_for_testing(x"01");
+}
+
+const NONCE: vector<u8> = x"39d2ed96b7a160ff74b50a57de17a67b61053a9cead0ec25191d7231bcf08cbd";
+
+#[test]
+#[expected_failure(abort_code = 3, location = iota::tx_context)]
+fun tx_nonce_aborts_without_a_nonce() {
+    let ctx = tx_context::dummy();
+    ctx.tx_nonce();
+}
+
+#[test]
+fun tx_nonce_returns_the_same_nonce_on_every_call() {
+    use std::unit_test::assert_eq;
+
+    let mut ctx = tx_context::dummy();
+    ctx.set_tx_nonce_for_testing(NONCE);
+
+    assert_eq!(ctx.tx_nonce(), NONCE);
+    assert_eq!(ctx.tx_nonce(), NONCE);
+}
+
+#[test]
+#[expected_failure(abort_code = 3, location = iota::tx_context)]
+fun a_new_context_has_no_nonce() {
+    let mut ctx = tx_context::dummy();
+    ctx.set_tx_nonce_for_testing(NONCE);
+
+    let new_ctx = tx_context::new(@0x0, b"22222222222222222222222222222222", 0, 0, 0);
+    new_ctx.tx_nonce();
+}
+
+#[test]
+#[expected_failure(abort_code = 3, location = iota::tx_context)]
+fun an_empty_nonce_removes_the_nonce() {
+    let mut ctx = tx_context::dummy();
+    ctx.set_tx_nonce_for_testing(NONCE);
+    ctx.set_tx_nonce_for_testing(vector[]);
+
+    ctx.tx_nonce();
+}
+
+#[test]
+#[expected_failure(abort_code = tx_context::EBadTxNonceLength)]
+fun set_tx_nonce_for_testing_aborts_for_a_short_nonce() {
+    let mut ctx = tx_context::dummy();
+    ctx.set_tx_nonce_for_testing(x"39d2ed96");
+}
+
+#[test]
+#[expected_failure(abort_code = tx_context::EBadTxNonceLength)]
+fun set_tx_nonce_for_testing_aborts_for_a_long_nonce() {
+    let mut ctx = tx_context::dummy();
+    let mut nonce = NONCE;
+    nonce.push_back(0);
+    ctx.set_tx_nonce_for_testing(nonce);
+}

@@ -12,6 +12,7 @@ use iota_sdk_types::{
     TransactionEffects, TransactionEvents,
 };
 use iota_types::{
+    digests::ChainIdentifier,
     error::{ExecutionError, IotaError, IotaResult},
     layout_resolver::LayoutResolver,
     object::Object,
@@ -48,6 +49,9 @@ pub struct ChainContext {
     /// Which chain this is (`Mainnet` / `Testnet` / `Unknown`), used for
     /// chain-specific protocol behaviour.
     pub chain: Chain,
+    /// Digest of the chain's genesis checkpoint, which Move reads from the
+    /// `TxContext`. All zeros when not set.
+    pub chain_identifier: ChainIdentifier,
 }
 
 impl ChainContext {
@@ -60,6 +64,7 @@ impl ChainContext {
             epoch_id: 0,
             epoch_timestamp_ms: 0,
             chain,
+            chain_identifier: ChainIdentifier::default(),
         }
     }
 

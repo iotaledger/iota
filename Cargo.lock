@@ -4619,6 +4619,10 @@ name = "futures-timer"
 version = "3.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f288b0a4f20f9a56b5d1da57e2227c661b7b16168e2f72365f57b63326e29b24"
+dependencies = [
+ "gloo-timers",
+ "send_wrapper 0.4.0",
+]
 
 [[package]]
 name = "futures-util"
@@ -4810,6 +4814,18 @@ name = "glob"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2fabcfbdc87f4758337ca535fb41a6d701b65693ce38287d856d1674551ec9b"
+
+[[package]]
+name = "gloo-timers"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b995a66bb87bebce9a0f4a95aed01daca4872c050bfcb21653361c03bc35e5c"
+dependencies = [
+ "futures-channel",
+ "futures-core",
+ "js-sys",
+ "wasm-bindgen",
+]
 
 [[package]]
 name = "governor"
@@ -5687,8 +5703,6 @@ dependencies = [
  "iota-json",
  "iota-json-rpc-types",
  "iota-keys",
- "iota-ledger",
- "iota-ledger-signer",
  "iota-macros",
  "iota-metrics",
  "iota-move",
@@ -5701,6 +5715,7 @@ dependencies = [
  "iota-sdk",
  "iota-sdk-crypto",
  "iota-sdk-grpc-client",
+ "iota-sdk-ledger",
  "iota-sdk-move-types",
  "iota-sdk-transaction-builder",
  "iota-sdk-types",
@@ -6963,42 +6978,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iota-ledger"
-version = "1.38.0-alpha"
-dependencies = [
- "anyhow",
- "bcs 0.2.1",
- "bip32",
- "clap",
- "fastcrypto",
- "hex",
- "hidapi",
- "iota-sdk-types",
- "iota-types",
- "ledger-transport",
- "ledger-transport-hid",
- "serde",
- "thiserror 1.0.64",
- "tracing",
-]
-
-[[package]]
-name = "iota-ledger-signer"
-version = "1.38.0-alpha"
-dependencies = [
- "anyhow",
- "bcs 0.2.1",
- "bip32",
- "clap",
- "fastcrypto",
- "iota-ledger",
- "iota-sdk",
- "iota-sdk-types",
- "thiserror 1.0.64",
- "tokio",
-]
-
-[[package]]
 name = "iota-localnet"
 version = "1.38.0-alpha"
 dependencies = [
@@ -7859,6 +7838,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "iota-sdk-ledger"
+version = "1.0.0-rc.1"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=76684f1b13b4e1ed655f13dc11d1da339448a235#76684f1b13b4e1ed655f13dc11d1da339448a235"
+dependencies = [
+ "bcs 0.2.1",
+ "futures",
+ "futures-timer",
+ "hex",
+ "iota-sdk-crypto",
+ "iota-sdk-types",
+ "ledger-transport",
+ "ledger-transport-hid",
+ "serde",
+ "sha2 0.11.0",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
 name = "iota-sdk-move-types"
 version = "1.0.0"
 source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=76684f1b13b4e1ed655f13dc11d1da339448a235#76684f1b13b4e1ed655f13dc11d1da339448a235"
@@ -7879,12 +7877,14 @@ dependencies = [
  "bcs 0.2.1",
  "derive_more 2.1.1",
  "iota-sdk-crypto",
+ "iota-sdk-ledger",
  "iota-sdk-move-types",
  "iota-sdk-types",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
+ "tracing",
  "variadics_please",
 ]
 
@@ -7984,6 +7984,7 @@ dependencies = [
  "bytes",
  "fastcrypto",
  "futures",
+ "http 1.5.0",
  "indicatif",
  "integer-encoding",
  "iota-common",
@@ -13157,6 +13158,12 @@ dependencies = [
 
 [[package]]
 name = "send_wrapper"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f638d531eccd6e23b980caf34876660d38e265409d8e99b397ab71eb3612fad0"
+
+[[package]]
+name = "send_wrapper"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cd0b0ec5f1c1ca621c432a25813d8d60c88abe6d3e08a3eb9cf37d97a0fe3d73"
@@ -16498,7 +16505,7 @@ dependencies = [
  "log",
  "pharos",
  "rustc_version",
- "send_wrapper",
+ "send_wrapper 0.6.0",
  "thiserror 2.0.18",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -16726,27 +16733,27 @@ checksum = "ac93432f5b761b22864c774aac244fa5c0fd877678a4c37ebf6cf42208f9c9ec"
 
 [[package]]
 name = "zstd"
-version = "0.13.3"
+version = "0.13.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e91ee311a569c327171651566e07972200e76fcfe2242a4fa446149a3881c08a"
+checksum = "b04655dc7bf4abd8ebe23dac6bef20fceea52a29ad19e37a4101b3951d7e8b45"
 dependencies = [
  "zstd-safe",
 ]
 
 [[package]]
 name = "zstd-safe"
-version = "7.3.0"
+version = "7.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64d80649ab6db9d9f6f9c80a40becd948eda4714a0a5ac8c4d157a32231c7882"
+checksum = "df2575690b2a3eccad509fe7898cdde32a5afca06a06449ff4dcfb318c7b7281"
 dependencies = [
  "zstd-sys",
 ]
 
 [[package]]
 name = "zstd-sys"
-version = "2.1.2+zstd.1.5.7"
+version = "2.2.0+zstd.1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "481ada9c543b2323cbb7bbdbb5249177fbf0188ed959ed2c15e4b22421c84ed3"
+checksum = "c3f4089cda6dda4dc43c43dd9f8964140064fd2f752f3da46c3a483c3c175160"
 dependencies = [
  "cc",
  "pkg-config",

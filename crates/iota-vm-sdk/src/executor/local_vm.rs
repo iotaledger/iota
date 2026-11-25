@@ -11,6 +11,7 @@ use iota_sdk_types::{
     Address, MoveAuthenticator, SenderSignedTransaction, Transaction, TransactionEvents,
 };
 use iota_types::{
+    digests::ChainIdentifier,
     effects::TransactionEffectsAPI,
     gas::IotaGasStatus,
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
@@ -47,6 +48,7 @@ pub struct LocalVm {
     pub(super) reference_gas_price: u64,
     pub(super) epoch_id: u64,
     pub(super) epoch_timestamp_ms: u64,
+    pub(super) chain_identifier: ChainIdentifier,
     pub(super) limits_metrics: Arc<LimitsMetrics>,
     pub(super) bytecode_verifier_metrics: Arc<BytecodeVerifierMetrics>,
     store: Box<dyn Store>,
@@ -93,6 +95,7 @@ impl LocalVm {
             reference_gas_price: ctx.reference_gas_price,
             epoch_id: ctx.epoch_id,
             epoch_timestamp_ms: ctx.epoch_timestamp_ms,
+            chain_identifier: ctx.chain_identifier,
             limits_metrics: Arc::new(new_limits_metrics()),
             bytecode_verifier_metrics: Arc::new(new_bytecode_verifier_metrics()),
             store: Box::new(store),
@@ -155,13 +158,12 @@ impl LocalVm {
                 opts.check_coin_deny_list,
             )?
         };
+        let mut trace_builder = env.trace_enabled().then(MoveTraceBuilder::new);
         let (sim, transaction) = {
             let backend = StoreBackend::new(self.store.as_ref());
-            execute_prepared(&env, &backend, prepared, opts.mode)?
+            execute_prepared(&env, &backend, prepared, opts.mode, &mut trace_builder)?
         };
-        // The dev-inspect entry point accepts no `MoveTraceBuilder`, so this path
-        // never captures a trace; pass `None`. See `DebugConfig::with_tracing`.
-        let artifacts = env.collect_artifacts(None)?;
+        let artifacts = env.collect_artifacts(trace_builder.map(ExecutionTrace::from_builder))?;
         self.finish(
             sim,
             transaction,
@@ -239,19 +241,16 @@ impl LocalVm {
                 opts.check_coin_deny_list,
             )?
         };
-        let (sim, executed, signature_status, trace) = {
+        let mut trace_builder = env.trace_enabled().then(MoveTraceBuilder::new);
+        let (sim, executed, signature_status) = {
             let backend = StoreBackend::new(self.store.as_ref());
             if move_authenticators.is_empty() {
                 // Standard schemes were verified cryptographically above; the
-                // run's outcome cannot retroactively invalidate them. Runs
-                // through the dev-inspect entry point, so no trace is captured.
-                let (sim, executed) = execute_prepared(&env, &backend, prepared, opts.mode)?;
-                (sim, executed, SignatureStatus::Verified, None)
+                // run's outcome cannot retroactively invalidate them.
+                let (sim, executed) =
+                    execute_prepared(&env, &backend, prepared, opts.mode, &mut trace_builder)?;
+                (sim, executed, SignatureStatus::Verified)
             } else {
-                // Only the authenticator path threads a `MoveTraceBuilder`
-                // through the engine, so a trace is built only here.
-                let mut trace_builder = env.trace_enabled().then(MoveTraceBuilder::new);
-
                 let (sim, authenticator_outcome, executed) = execute_with_move_authenticators(
                     &env,
                     &backend,
@@ -265,11 +264,10 @@ impl LocalVm {
                     sim,
                     executed,
                     SignatureStatus::from_authentication(authenticator_outcome),
-                    trace_builder.map(ExecutionTrace::from_builder),
                 )
             }
         };
-        let artifacts = env.collect_artifacts(trace)?;
+        let artifacts = env.collect_artifacts(trace_builder.map(ExecutionTrace::from_builder))?;
 
         self.finish(sim, executed, opts.mode, signature_status, artifacts)
     }

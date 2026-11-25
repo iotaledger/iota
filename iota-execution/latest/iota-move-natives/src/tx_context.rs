@@ -4,9 +4,12 @@
 
 use std::collections::VecDeque;
 
-use iota_sdk_types::{ObjectId, TransactionDigest};
-use move_binary_format::errors::PartialVMResult;
-use move_core_types::{account_address::AccountAddress, gas_algebra::InternalGas};
+use iota_sdk_types::{CheckpointDigest, ObjectId, TransactionDigest};
+use iota_types::digests::ChainIdentifier;
+use move_binary_format::errors::{PartialVMError, PartialVMResult};
+use move_core_types::{
+    account_address::AccountAddress, gas_algebra::InternalGas, vm_status::StatusCode,
+};
 use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};
 use move_vm_types::{
     loaded_data::runtime_types::Type, natives::function::NativeResult, pop_arg, values::Value,
@@ -14,7 +17,8 @@ use move_vm_types::{
 use smallvec::smallvec;
 
 use crate::{
-    NativesCostTable, object_runtime::ObjectRuntime, transaction_context::TransactionContext,
+    NativesCostTable, legacy_test_cost, object_runtime::ObjectRuntime,
+    transaction_context::TransactionContext,
 };
 
 /// Abort code of `iota::tx_context::EBadTxHashLength`. The Move constant is
@@ -281,6 +285,44 @@ pub fn sponsor(
 }
 
 #[derive(Clone)]
+pub struct TxContextChainIdentifierCostParams {
+    pub tx_context_chain_identifier_cost_base: Option<InternalGas>,
+}
+/// Implementation of the Move native function
+/// `fun native_chain_identifier(): vector<u8>`
+///
+/// Returns the 32 bytes of the chain identifier.
+///
+/// gas cost: tx_context_chain_identifier_cost_base
+pub fn chain_identifier(
+    context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    debug_assert!(ty_args.is_empty());
+    debug_assert!(args.is_empty());
+
+    let cost_base = context
+        .extensions()
+        .get::<NativesCostTable>()?
+        .tx_context_chain_identifier_cost_params
+        .tx_context_chain_identifier_cost_base
+        .ok_or_else(|| {
+            PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+                .with_message("Gas cost for chain_identifier not available".to_string())
+        })?;
+    native_charge_gas_early_exit!(context, cost_base);
+
+    let transaction_context: &TransactionContext = context.extensions().get()?;
+    let chain_identifier = transaction_context.chain_identifier();
+
+    Ok(NativeResult::ok(
+        context.gas_used(),
+        smallvec![Value::vector_u8(chain_identifier.into_bytes())],
+    ))
+}
+
+#[derive(Clone)]
 pub struct TxContextRGPCostParams {
     pub tx_context_rgp_cost_base: InternalGas,
 }
@@ -381,6 +423,52 @@ pub fn gas_budget(
     Ok(NativeResult::ok(
         context.gas_used(),
         smallvec![Value::u64(gas_budget)],
+    ))
+}
+
+/// Abort code of `iota::tx_context::native_tx_nonce` when the transaction has
+/// no nonce.
+const E_NO_TX_NONCE: u64 = 3;
+
+#[derive(Clone)]
+pub struct TxContextTxNonceCostParams {
+    pub tx_context_tx_nonce_cost_base: Option<InternalGas>,
+}
+/// Implementation of the Move native function `fun native_tx_nonce():
+/// vector<u8>`
+///
+/// Returns the 32-byte nonce of the transaction. Aborts with `E_NO_TX_NONCE`
+/// if the transaction has none, which is the case while authenticators run
+/// and for transactions without a gas coin.
+///
+/// gas cost: tx_context_tx_nonce_cost_base
+pub fn tx_nonce(
+    context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    debug_assert!(ty_args.is_empty());
+    debug_assert!(args.is_empty());
+
+    let cost_base = context
+        .extensions()
+        .get::<NativesCostTable>()?
+        .tx_context_tx_nonce_cost_params
+        .tx_context_tx_nonce_cost_base
+        .ok_or_else(|| {
+            PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+                .with_message("Gas cost for tx_nonce not available".to_string())
+        })?;
+    native_charge_gas_early_exit!(context, cost_base);
+
+    let transaction_context: &TransactionContext = context.extensions().get()?;
+    let Some(nonce) = transaction_context.tx_nonce() else {
+        return Ok(NativeResult::err(context.gas_used(), E_NO_TX_NONCE));
+    };
+
+    Ok(NativeResult::ok(
+        context.gas_used(),
+        smallvec![Value::vector_u8(nonce)],
     ))
 }
 
@@ -486,6 +574,80 @@ pub fn replace(
         gas_budget,
         sponsor.pop(),
     )?;
+
+    Ok(NativeResult::ok(context.gas_used(), smallvec![]))
+}
+
+/// Implementation of the Move test-only native function
+/// `fun replace_chain_identifier(chain_identifier: vector<u8>)`
+///
+/// `chain_identifier` must be 32 bytes.
+///
+/// gas cost: none, as the function is test only
+pub fn replace_chain_identifier(
+    context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    mut args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    debug_assert!(ty_args.is_empty());
+    debug_assert!(args.len() == 1);
+
+    let chain_identifier: Vec<u8> = pop_arg!(args, Vec<u8>);
+    let chain_identifier = <[u8; CheckpointDigest::LENGTH]>::try_from(chain_identifier)
+        .map(|bytes| ChainIdentifier::from(CheckpointDigest::new(bytes)))
+        .map_err(|_| {
+            PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+                .with_message("a chain identifier must be 32 bytes".to_string())
+        })?;
+    let transaction_context: &mut TransactionContext = context.extensions_mut().get_mut()?;
+    transaction_context.set_chain_identifier(chain_identifier)?;
+
+    Ok(NativeResult::ok(legacy_test_cost(), smallvec![]))
+}
+
+/// Abort code of `iota::tx_context::EBadTxNonceLength`. The Move constant is
+/// `#[test_only]`.
+const E_BAD_TX_NONCE_LENGTH: u64 = 4;
+
+/// Implementation of the Move test-only native function
+/// `fun replace_tx_nonce(nonce: vector<u8>)`
+///
+/// Sets the nonce of the transaction to `nonce`, or removes it if `nonce` is
+/// empty. Aborts with `E_BAD_TX_NONCE_LENGTH` for any other length than 0 or
+/// 32.
+///
+/// gas cost: tx_context_replace_cost_base
+pub fn replace_tx_nonce(
+    context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    mut args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    debug_assert!(ty_args.is_empty());
+    debug_assert!(args.len() == 1);
+
+    let tx_context_replace_cost_params = context
+        .extensions_mut()
+        .get::<NativesCostTable>()?
+        .tx_context_replace_cost_params
+        .clone();
+    native_charge_gas_early_exit!(
+        context,
+        tx_context_replace_cost_params.tx_context_replace_cost_base
+    );
+
+    let nonce: Vec<u8> = pop_arg!(args, Vec<u8>);
+    let nonce = if nonce.is_empty() {
+        None
+    } else {
+        match <[u8; 32]>::try_from(nonce) {
+            Ok(nonce) => Some(nonce),
+            Err(_) => {
+                return Ok(NativeResult::err(context.gas_used(), E_BAD_TX_NONCE_LENGTH));
+            }
+        }
+    };
+    let transaction_context: &mut TransactionContext = context.extensions_mut().get_mut()?;
+    transaction_context.replace_tx_nonce(nonce)?;
 
     Ok(NativeResult::ok(context.gas_used(), smallvec![]))
 }

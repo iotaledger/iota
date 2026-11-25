@@ -677,6 +677,7 @@ mod test {
     use iota_config::genesis::Genesis;
     use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
     use iota_types::{
+        digests::ChainIdentifier,
         epoch_data::EpochData,
         gas::IotaGasStatus,
         in_memory_storage::InMemoryStorage,
@@ -733,6 +734,7 @@ mod test {
                 metrics,
                 expensive_checks,
                 &certificate_deny_set,
+                ChainIdentifier::default(),
                 &epoch.epoch_id(),
                 epoch.epoch_start_timestamp(),
                 input_objects,

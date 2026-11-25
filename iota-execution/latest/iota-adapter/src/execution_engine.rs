@@ -36,6 +36,7 @@ mod checked {
         base_types::TxContext,
         clock::CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME,
         committee::EpochId,
+        digests::ChainIdentifier,
         error::{ExecutionError, ExecutionErrorKind},
         execution::{
             AuthenticateThenExecuteOutput, ExecutionResults, ExecutionResultsV1, ExecutionTiming,
@@ -96,6 +97,7 @@ mod checked {
         transaction_signer: Address,
         transaction_digest: TransactionDigest,
         move_vm: &Arc<MoveVM>,
+        chain_identifier: ChainIdentifier,
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         protocol_config: &ProtocolConfig,
@@ -133,6 +135,7 @@ mod checked {
         );
 
         let sponsor = resolve_sponsor(&gas_data, &transaction_signer);
+        let nonce = gas_data.nonce();
         let gas_price = gas_status.gas_price();
         let rgp = gas_status.reference_gas_price();
         let gas_charger = GasCharger::new(
@@ -142,17 +145,22 @@ mod checked {
             protocol_config,
         );
 
-        let tx_ctx = TxContext::new_from_components(
-            &transaction_signer,
-            &transaction_digest,
-            epoch_id,
-            epoch_timestamp_ms,
-            rgp,
-            gas_price,
-            gas_data.budget,
-            sponsor,
-            protocol_config,
-        );
+        let tx_ctx = {
+            let mut tx_ctx = TxContext::new_from_components(
+                &transaction_signer,
+                &transaction_digest,
+                epoch_id,
+                epoch_timestamp_ms,
+                rgp,
+                gas_price,
+                gas_data.budget,
+                sponsor,
+                chain_identifier,
+                protocol_config,
+            );
+            tx_ctx.set_nonce(nonce);
+            tx_ctx
+        };
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
 
         execute_transaction_to_effects_inner::<Mode>(
@@ -330,6 +338,8 @@ mod checked {
         metrics: Arc<LimitsMetrics>,
         enable_expensive_checks: bool,
         certificate_deny_set: &HashSet<TransactionDigest>,
+        // Chain
+        chain_identifier: ChainIdentifier,
         // Epoch
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
@@ -387,6 +397,7 @@ mod checked {
         // Prepare the gas charger.
         let sponsor = resolve_sponsor(&gas_data, &transaction_signer);
         let gas_owner = gas_data.owner;
+        let nonce = gas_data.nonce();
         let gas_price = gas_status.gas_price();
         let rgp = gas_status.reference_gas_price();
         let mut gas_charger = GasCharger::new(
@@ -396,7 +407,10 @@ mod checked {
             protocol_config,
         );
 
-        // Prepare the transaction context.
+        // Prepare the transaction context. It gets the nonce only once the
+        // authenticators have run: they get the same context, and a nonce is
+        // unique among executed transactions only, while authenticators also
+        // run for transactions that are never executed.
         let tx_ctx = TxContext::new_from_components(
             &transaction_signer,
             &transaction_digest,
@@ -406,6 +420,7 @@ mod checked {
             gas_price,
             gas_data.budget,
             sponsor,
+            chain_identifier,
             protocol_config,
         );
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
@@ -559,6 +574,8 @@ mod checked {
         // authenticate function and a result which is either empty or an error.
         // We can now start the creation of the transaction effects, either for an
         // authentication failure or for a normal execution of the transaction.
+
+        tx_ctx.borrow_mut().set_nonce(nonce);
 
         // Run the transaction execution and return the effects.
         let (inner_temp_store, gas_status, effects, timings, execution_result) =
@@ -909,6 +926,8 @@ mod checked {
         // Configuration
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
+        // Chain
+        chain_identifier: ChainIdentifier,
         // Epoch
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
@@ -943,7 +962,8 @@ mod checked {
             GasCharger::new(transaction_digest, vec![], gas_status, protocol_config);
 
         // Prepare the transaction context, equal for both authentication and
-        // transaction execution.
+        // transaction execution. It has no nonce: authenticators also run for
+        // transactions that are never executed.
         let tx_ctx = TxContext::new_from_components(
             &transaction_signer,
             &transaction_digest,
@@ -953,6 +973,7 @@ mod checked {
             gas_price,
             gas_data.budget,
             sponsor,
+            chain_identifier,
             protocol_config,
         );
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));

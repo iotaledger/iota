@@ -906,6 +906,7 @@ async fn pre_execution_failure_skips_execution_and_charges_gas() {
             authority.metrics.limits_metrics.clone(),
             false,
             &HashSet::new(),
+            epoch_store.get_chain_identifier(),
             &epoch_store.epoch(),
             epoch_store
                 .epoch_start_config()
@@ -1434,6 +1435,7 @@ impl MoveAccountSponsorSetup {
             authority.get_backing_store().as_ref(),
             epoch_store.protocol_config(),
             authority.metrics.limits_metrics.clone(),
+            epoch_store.get_chain_identifier(),
             &epoch_store.epoch(),
             epoch_store
                 .epoch_start_config()
