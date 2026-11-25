@@ -38,7 +38,13 @@ use move_binary_format::binary_config::BinaryConfig;
 use tonic::Code;
 
 use super::CommandOutputsReadSource;
-use crate::{error::RpcError, merge::Merge, types::GrpcReader, validation::validate_read_mask};
+use crate::{
+    error::RpcError,
+    merge::Merge,
+    types::GrpcReader,
+    utils::{quote_filter_input, shorten_parse_error},
+    validation::validate_read_mask,
+};
 
 /// Call each requested `#[view]` Move function and return its results, in
 /// request order.
@@ -313,7 +319,11 @@ fn parse_fq_function_name(name: &str) -> Result<(ObjectId, Identifier, Identifie
     let (module_id, function) = parse_iota_fq_name(name).map_err(|e| {
         RpcError::new(
             Code::InvalidArgument,
-            format!("invalid function name `{name}`: {e}"),
+            format!(
+                "invalid function name {}: {}",
+                quote_filter_input(name),
+                shorten_parse_error(e)
+            ),
         )
     })?;
     let package = ObjectId::new((*module_id.address()).into_bytes());
@@ -399,5 +409,17 @@ mod tests {
     #[test]
     fn parse_fq_name_rejects_missing_function() {
         assert!(parse_fq_function_name("0x2::coin").is_err());
+    }
+
+    #[test]
+    fn invalid_fq_name_errors_are_short() {
+        for name in [
+            "!".repeat(1_000_000),
+            format!("0x2::coin::{}", "a".repeat(1_000_000)),
+            format!("0x2::coin::value{}", "!".repeat(1_000_000)),
+        ] {
+            let message = parse_fq_function_name(&name).unwrap_err().to_string();
+            assert!(message.len() < 1_000, "{} bytes", message.len());
+        }
     }
 }
