@@ -2113,17 +2113,18 @@ async fn requested_checkpoint_that_fails_verification_marks_its_peer_as_not_on_s
 async fn cached_checkpoint_that_fails_verification_is_requested_from_other_peers_and_its_sender_dropped()
  {
     let (committee, (ordered_checkpoints, _, _, _)) =
-        make_committee_and_checkpoints(0, 4, 3, None, empty_contents);
+        make_committee_and_checkpoints(0, 4, 6, None, empty_contents);
     let genesis_checkpoint = &ordered_checkpoints[0];
     // Summaries from epoch 1, which the node has no committee for.
     let (_, (forged_checkpoints, _, _, _)) =
-        make_committee_and_checkpoints(1, 4, 2, Some(genesis_checkpoint.clone()), empty_contents);
+        make_committee_and_checkpoints(1, 4, 5, Some(genesis_checkpoint.clone()), empty_contents);
     let forged_checkpoints: Vec<_> = forged_checkpoints
         .into_iter()
         .map(VerifiedCheckpoint::into_inner)
         .collect();
-    assert_eq!(forged_checkpoints[0].sequence_number(), 1);
-    assert_eq!(forged_checkpoints[1].sequence_number(), 2);
+    for (checkpoint, sequence_number) in forged_checkpoints.iter().zip(1..) {
+        assert_eq!(checkpoint.sequence_number(), sequence_number);
+    }
 
     let store_2 = store_with_genesis_state(
         genesis_checkpoint.clone(),
@@ -2142,7 +2143,7 @@ async fn cached_checkpoint_that_fails_verification_is_requested_from_other_peers
         .connect(network_2.local_addr())
         .await
         .unwrap();
-    insert_peer_on_same_chain(&server, network_2.peer_id(), 2);
+    insert_peer_on_same_chain(&server, network_2.peer_id(), 5);
     let forging_peer = PeerId([10; 32]);
     for checkpoint in &forged_checkpoints {
         push_from_peer(&server, forging_peer, checkpoint.clone()).await;
@@ -2161,7 +2162,7 @@ async fn cached_checkpoint_that_fails_verification_is_requested_from_other_peers
         event_loop
             .store
             .get_highest_verified_checkpoint_seq_number(),
-        2
+        5
     );
     for checkpoint in &ordered_checkpoints[1..] {
         assert_eq!(

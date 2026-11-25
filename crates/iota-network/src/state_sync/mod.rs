@@ -1648,13 +1648,20 @@ where
             peer_id,
         ) {
             Ok(checkpoint) => checkpoint,
-            // The sender is marked now. Ask the other peers for this
-            // checkpoint ahead of the requests in flight, which keep going.
-            // Only once: if that summary fails too, our node may be the one
-            // on another chain, and asking on would mark every peer.
+            // The sender is marked now, and its cached summaries dropped. Ask
+            // the other peers for this checkpoint. Only once: if that summary
+            // fails too, our node may be the one on another chain, and asking
+            // on would mark every peer.
             Err(e) if !is_retry => {
                 debug!("checkpoint summary {next} failed verification, asking other peers: {e}");
-                requests.push_front(fetch_summary(next, true));
+                // Queued requests can hold more summaries from the sender,
+                // taken from the cache before it was marked. Request them
+                // again; summaries already fetched from other peers are
+                // cached.
+                requests = FuturesOrdered::new();
+                requests.push_back(fetch_summary(next, true));
+                sequence_numbers_to_fetch =
+                    next.checked_add(1).unwrap()..=highest_checkpoint_to_sync;
                 continue;
             }
             Err(e) => return Err(e),
