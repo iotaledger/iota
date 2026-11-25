@@ -84,9 +84,9 @@ public fun builder_v1(
     valid_until_epoch: u64,
     ctx: &mut TxContext,
 ): SmartAccountBuilder {
+    let builder = smart_account::builder_v1(builtin_authenticator_function_ref_v1(), ctx);
     verify_key_proof(&public_key, &key_proof, ctx.sender(), true, valid_until_epoch, ctx);
 
-    let builder = smart_account::builder_v1(builtin_authenticator_function_ref_v1(), ctx);
     with_public_key(builder, public_key)
 }
 
@@ -135,7 +135,8 @@ public fun rotate_to_builtin_authenticator_v1(
     valid_until_epoch: u64,
     ctx: &TxContext,
 ): AuthenticatorFunctionRefV1<SmartAccount> {
-    account.ensure_tx_sender_is_smart_account(ctx);
+    // Ensuring the sender is the smart account is done in
+    // `smart_account::rotate_auth_function_ref_v1`, below.
     assert!(!has_builtin_authenticator(account), EBuiltinAuthenticatorAlreadySet);
     verify_key_proof(
         &public_key,
@@ -168,7 +169,8 @@ public fun rotate_to_custom_authenticator_v1(
     authenticator: AuthenticatorFunctionRefV1<SmartAccount>,
     ctx: &TxContext,
 ): PublicKey {
-    account.ensure_tx_sender_is_smart_account(ctx);
+    // Ensuring the sender is the smart account is done in
+    // `smart_account::rotate_auth_function_ref_v1`, below.
     assert!(
         !builtin_authenticator_functions::is_builtin_authenticator(&authenticator),
         EAuthenticatorIsBuiltin,
