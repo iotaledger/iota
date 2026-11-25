@@ -87,7 +87,7 @@ use iota_types::{
 };
 use prometheus_filtered::Registry;
 use rand::RngExt;
-use tap::{Pipe, TapFallible, TapOptional};
+use tap::{TapFallible, TapOptional};
 use tokio::{
     sync::{broadcast, mpsc, oneshot, watch},
     task::{AbortHandle, JoinSet},
@@ -1556,20 +1556,44 @@ where
         peer_heights.clone(),
         PeerCheckpointRequestType::Summary,
     );
+    // A retry skips the cache and asks the peers again, after the cached
+    // summary failed verification.
+    let fetch_summary = |next: CheckpointSequenceNumber, is_retry: bool| {
+        let peers = peer_balancer.clone().with_checkpoint(next);
+        let pinned_digest = pinned_checkpoint_digest(&pinned_checkpoints, next);
+        let peer_heights = &peer_heights;
+        async move {
+            let maybe_checkpoint = if is_retry {
+                request_checkpoint_summary_from_peers(
+                    peer_heights,
+                    peers,
+                    next,
+                    pinned_digest,
+                    timeout,
+                )
+                .await
+            } else {
+                get_or_fetch_checkpoint_summary(peer_heights, peers, next, pinned_digest, timeout)
+                    .await
+            };
+            (next, is_retry, maybe_checkpoint)
+        }
+    };
     // Range of the next sequence_numbers to fetch
-    let sequence_numbers_to_fetch =
+    let mut sequence_numbers_to_fetch =
         current.sequence_number().checked_add(1).unwrap()..=highest_checkpoint_to_sync;
-    let mut request_stream = sequence_numbers_to_fetch
-        .map(|next| {
-            let peers = peer_balancer.clone().with_checkpoint(next);
-            let pinned_digest = pinned_checkpoint_digest(&pinned_checkpoints, next);
-            get_or_fetch_checkpoint_summary(&peer_heights, peers, next, pinned_digest, timeout)
-                .map(move |maybe_checkpoint| (next, maybe_checkpoint))
-        })
-        .pipe(futures::stream::iter)
-        .buffered(checkpoint_header_download_concurrency.into());
+    let mut requests = FuturesOrdered::new();
 
-    while let Some((next, maybe_checkpoint)) = request_stream.next().await {
+    loop {
+        while requests.len() < checkpoint_header_download_concurrency.get() {
+            let Some(next) = sequence_numbers_to_fetch.next() else {
+                break;
+            };
+            requests.push_back(fetch_summary(next, false));
+        }
+        let Some((next, is_retry, maybe_checkpoint)) = requests.next().await else {
+            break;
+        };
         // Don't redo work: the archive sync advances the same watermark, and
         // may already have passed the range this task fixed when it started.
         let highest_verified = store
@@ -1619,31 +1643,15 @@ where
         ) {
             Ok(checkpoint) => checkpoint,
             // The sender is marked now. Ask the other peers for this
-            // checkpoint rather than dropping the downloads in flight.
-            Err(e) => {
-                debug!("checkpoint summary {next} failed verification: {e}");
-                let peers = peer_balancer.clone().with_checkpoint(next);
-                let pinned_digest = pinned_checkpoint_digest(&pinned_checkpoints, next);
-                let Some((checkpoint, peer_id)) = request_checkpoint_summary_from_peers(
-                    &peer_heights,
-                    peers,
-                    next,
-                    pinned_digest,
-                    timeout,
-                )
-                .await
-                else {
-                    bail!("no peers were able to help sync checkpoint summary {next}");
-                };
-                verify_checkpoint_summary(
-                    &current,
-                    &store,
-                    &peer_heights,
-                    &pinned_checkpoints,
-                    checkpoint,
-                    peer_id,
-                )?
+            // checkpoint ahead of the requests in flight, which keep going.
+            // Only once: if that summary fails too, our node may be the one
+            // on another chain, and asking on would mark every peer.
+            Err(e) if !is_retry => {
+                debug!("checkpoint summary {next} failed verification, asking other peers: {e}");
+                requests.push_front(fetch_summary(next, true));
+                continue;
             }
+            Err(e) => return Err(e),
         };
 
         debug!(checkpoint_seq = ?checkpoint.sequence_number(), "verified checkpoint summary");
