@@ -346,12 +346,12 @@ impl PeerHeights {
     /// Marks `peer_id` as not on our chain and drops its cached summaries.
     pub fn mark_peer_as_not_on_same_chain(&mut self, peer_id: PeerId) {
         // Only peers on our chain have cached summaries.
-        let was_on_same_chain = self
-            .peers
-            .get_mut(&peer_id)
-            .is_some_and(|info| std::mem::replace(&mut info.on_same_chain_as_us, false));
-        if was_on_same_chain {
-            self.remove_checkpoints_from(peer_id);
+        if let Some(info) = self.peers.get_mut(&peer_id) {
+            let was_on_same_chain = info.on_same_chain_as_us;
+            info.on_same_chain_as_us = false;
+            if was_on_same_chain {
+                self.remove_checkpoints_from(peer_id);
+            }
         }
     }
 
@@ -368,13 +368,10 @@ impl PeerHeights {
 
     /// Drops cached summaries at or below `sequence_number`.
     pub fn cleanup_old_checkpoints(&mut self, sequence_number: CheckpointSequenceNumber) {
-        while self
-            .unprocessed_checkpoints
-            .first_key_value()
-            .is_some_and(|(&s, _)| s <= sequence_number)
-        {
-            self.unprocessed_checkpoints.pop_first();
-        }
+        self.unprocessed_checkpoints = match sequence_number.checked_add(1) {
+            Some(first_kept) => self.unprocessed_checkpoints.split_off(&first_kept),
+            None => BTreeMap::new(),
+        };
     }
 
     /// Drops cached summaries above `sequence_number`. Peers push their
@@ -382,12 +379,8 @@ impl PeerHeights {
     /// peer's tip, so without this the ones state sync is not going to
     /// process yet pile up for as long as it holds back.
     pub fn cleanup_checkpoints_above(&mut self, sequence_number: CheckpointSequenceNumber) {
-        while self
-            .unprocessed_checkpoints
-            .last_key_value()
-            .is_some_and(|(&s, _)| s > sequence_number)
-        {
-            self.unprocessed_checkpoints.pop_last();
+        if let Some(first_dropped) = sequence_number.checked_add(1) {
+            self.unprocessed_checkpoints.split_off(&first_dropped);
         }
     }
 
@@ -1057,6 +1050,7 @@ where
             let peer_heights = self.peer_heights.clone();
             let weak_sender = self.weak_sender.clone();
             let store = self.store.clone();
+            let network = self.network.clone();
             self.tasks.spawn(async move {
                 let mut client = StateSyncClient::new(peer);
                 // Retry with exponential backoff (100ms, 200ms, 400ms, 800ms,
@@ -1081,13 +1075,20 @@ where
                                     .try_get_highest_verified_checkpoint_seq_number()
                                     .expect("store operation should not fail")
                             });
-                            let on_same_chain =
-                                peer_heights.write().unwrap().insert_peer_from_handshake(
-                                    peer_id,
-                                    their,
-                                    &our_genesis_digest,
-                                    highest_verified_checkpoint,
-                                );
+                            let on_same_chain = {
+                                let mut peer_heights = peer_heights.write().unwrap();
+                                // anemo drops the connection before it reports
+                                // the peer as lost, so a peer that is still
+                                // connected here is removed again when that
+                                // report comes.
+                                network.peer(peer_id).is_some()
+                                    && peer_heights.insert_peer_from_handshake(
+                                        peer_id,
+                                        their,
+                                        &our_genesis_digest,
+                                        highest_verified_checkpoint,
+                                    )
+                            };
                             // Kick the event loop so it can start syncing.
                             if on_same_chain {
                                 if let Some(sender) = weak_sender.upgrade() {
@@ -1429,9 +1430,7 @@ async fn query_peers_for_their_latest_checkpoint<S>(
     S: WriteStore,
 {
     let peer_heights = &peer_heights;
-    let highest_verified_checkpoint = store
-        .try_get_highest_verified_checkpoint_seq_number()
-        .expect("store operation should not fail");
+    let store = &store;
     let futs = peer_heights
         .read()
         .unwrap()
@@ -1445,6 +1444,9 @@ async fn query_peers_for_their_latest_checkpoint<S>(
             async move {
                 let (highest_checkpoint, low_watermark) =
                     query_peer_for_latest_info(&mut client, timeout).await?;
+                let highest_verified_checkpoint = store
+                    .try_get_highest_verified_checkpoint_seq_number()
+                    .expect("store operation should not fail");
                 let highest_checkpoint_seq = highest_checkpoint.sequence_number();
                 peer_heights
                     .write()
@@ -1583,6 +1585,10 @@ where
     let mut sequence_numbers_to_fetch =
         current.sequence_number().checked_add(1).unwrap()..=highest_checkpoint_to_sync;
     let mut requests = FuturesOrdered::new();
+    // Often enough that verified summaries do not fill the cache, without
+    // taking the write lock for every checkpoint.
+    let cleanup_interval = (peer_heights.read().unwrap().max_checkpoint_lookahead / 4).max(1);
+    let mut last_cleaned = current.sequence_number();
 
     loop {
         while requests.len() < checkpoint_header_download_concurrency.get() {
@@ -1673,11 +1679,11 @@ where
             .try_insert_checkpoint(&checkpoint)
             .expect("store operation should not fail");
 
-        // Keeps room in the cache for the summaries still to come.
-        peer_heights
-            .write()
-            .unwrap()
-            .cleanup_old_checkpoints(checkpoint.sequence_number());
+        let seq = checkpoint.sequence_number();
+        if seq - last_cleaned >= cleanup_interval {
+            peer_heights.write().unwrap().cleanup_old_checkpoints(seq);
+            last_cleaned = seq;
+        }
     }
 
     peer_heights
@@ -1721,7 +1727,8 @@ async fn get_or_fetch_checkpoint_summary(
     )
     .await?;
     {
-        // Insert in our store in the event that things fail and we need to retry
+        // Cached for the next sync task, in case this one stops before
+        // verifying it.
         let mut peer_heights = peer_heights.write().unwrap();
         if peer_heights.is_on_same_chain(&peer_id) && !peer_heights.is_cache_full() {
             peer_heights.insert_checkpoint(checkpoint.clone(), peer_id);
