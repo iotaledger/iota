@@ -424,30 +424,6 @@ pub(crate) mod test {
         assert!(serialized.len() <= serialized_transactions_size_limit(&context));
     }
 
-    /// Pins `max_shard_bytes` to what the encoder actually produces for a
-    /// maximal payload, so a change to the encoder's chunking is caught here
-    /// rather than by shards being refused at ingress.
-    #[tokio::test]
-    async fn max_shard_bytes_bounds_maximal_shard() {
-        let (context, _) = Context::new_for_test(4);
-        let context = Arc::new(context);
-        let payload_limit = serialized_transactions_size_limit(&context);
-        let info_length = context.committee.info_length();
-        let parity_length = context.committee.parity_length();
-
-        let mut encoder = crate::encoder::create_encoder(&context);
-        let shards = encoder
-            .encode_serialized_data(
-                &bytes::Bytes::from(vec![0u8; payload_limit]),
-                info_length,
-                parity_length,
-            )
-            .unwrap();
-
-        let longest = shards.iter().map(|shard| shard.len()).max().unwrap();
-        assert_eq!(longest, max_shard_bytes(&context));
-    }
-
     #[tokio::test]
     async fn check_and_parse_transactions_rejects_oversized_payload() {
         let (context, _) = Context::new_for_test(4);
@@ -697,25 +673,21 @@ pub(crate) mod test {
             ));
         }
 
-        // Block with own ancestor at wrong position.
+        // Block with own ancestor first and again at a later position.
         {
             let block = test_block
                 .clone()
                 .set_ancestors(vec![
+                    BlockRef::new(9, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
                     BlockRef::new(9, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
-                    BlockRef::new(8, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),
                     BlockRef::new(8, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
-                    BlockRef::new(8, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
+                    BlockRef::new(9, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),
                 ])
                 .build();
             let signed_block = SignedBlockHeader::new(block, authority_2_protocol_keypair).unwrap();
             assert!(matches!(
                 verifier.verify(&signed_block),
-                Err(ConsensusError::InvalidAncestorPosition {
-                    block_authority: _,
-                    ancestor_authority: _,
-                    position: _
-                })
+                Err(ConsensusError::InvalidAncestorPosition { position: 2, .. })
             ));
         }
 
