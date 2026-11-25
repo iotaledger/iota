@@ -401,7 +401,7 @@ impl ScorerV1 {
         voting_power: &[u64],
         median: &MisbehaviorObservationsV1,
     ) -> Vec<u64> {
-        score_from_medians(
+        score_from_counts(
             &self.metric_pairs(median),
             voting_power.len(),
             self.baseline_score,
@@ -560,7 +560,7 @@ impl ScorerV2 {
         voting_power: &[u64],
         median: &MisbehaviorObservationsV2,
     ) -> Vec<u64> {
-        score_from_medians(
+        score_from_counts(
             &self.metric_pairs(median),
             voting_power.len(),
             self.baseline_score,
@@ -575,9 +575,10 @@ const PARTS_PER_MILLION: u64 = 1_000_000;
 /// reports and the consensus stats of the commit that completes the
 /// EndOfPublish quorum.
 ///
-/// The score is the lower of the two credits for the share of rounds an
-/// authority missed, times the score from the reported faults, so an
-/// authority absent for the whole epoch scores 0.
+/// Each authority gets two credits, one for the share of the epoch's rounds
+/// in absences and one for the share without a committed header of its own.
+/// Its score is the lower credit times the score from the reported faults, so
+/// an authority absent for the whole epoch scores 0.
 struct ScorerV3 {
     /// Credit for the share of the epoch's rounds in absences, in parts per
     /// million.
@@ -664,7 +665,7 @@ impl ScorerV3 {
         let equivocations = quorum_values(voting_power, quorum_threshold, reports, |o, a| {
             o.equivocations[a]
         });
-        let fault_scores = score_from_medians(
+        let fault_scores = score_from_counts(
             &[
                 (provable.as_slice(), &self.faulty_blocks_provable),
                 (sending_peer.as_slice(), &self.sending_peer_faults),
@@ -833,16 +834,16 @@ fn weighted_median_rows(committee_size: usize, rows: &[(&[u64], VotingPower)]) -
     median_for_metric
 }
 
-/// Maps per-category `(median row, params)` entries of a median report to the
-/// per-authority final score vector.
+/// Maps per-category `(count per authority, params)` entries to a score per
+/// authority.
 ///
 /// A score is an integer in `[0, MAX_SCORE]`. Each minor metric's score is
 /// also in `[0, MAX_SCORE]`; the weights satisfy
 /// `sum(minor_weights) + baseline_score = SCALE_FACTOR`, so we need
 /// `MAX_SCORE * SCALE_FACTOR < 2^64` to avoid overflow (asserted at init).
 /// Major metrics are multiplicative (factor 0 or 1).
-fn score_from_medians(
-    medians_with_params: &[(&[u64], &MetricParams)],
+fn score_from_counts(
+    counts_with_params: &[(&[u64], &MetricParams)],
     committee_size: usize,
     baseline_score: u64,
 ) -> Vec<u64> {
@@ -850,7 +851,7 @@ fn score_from_medians(
 
     // Phase 1: weighted-minor accumulation. Values are in
     // [0, MAX_SCORE * SCALE_FACTOR].
-    for (row, params) in medians_with_params {
+    for (row, params) in counts_with_params {
         if let MetricKind::Minor { weight } = params.kind {
             for (authority, &count) in row.iter().enumerate() {
                 final_scores[authority] += params.metric_to_score(count, MAX_SCORE) * weight;
@@ -864,7 +865,7 @@ fn score_from_medians(
     }
 
     // Phase 2: multiplicative major-metric gates (factor 0 or 1).
-    for (row, params) in medians_with_params {
+    for (row, params) in counts_with_params {
         if matches!(params.kind, MetricKind::Major) {
             for (authority, score) in final_scores.iter_mut().enumerate() {
                 *score *= params.metric_to_score(row[authority], 1);

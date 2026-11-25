@@ -1816,9 +1816,11 @@ impl AuthorityPerEpochStore {
     }
 
     /// Feeds `report` into this epoch's report aggregator as if `reporter`
-    /// had sent it through consensus, then republishes the score vector. The
-    /// aggregator row is not persisted, so the report does not survive a
-    /// restart of the node.
+    /// had sent it through consensus, then recomputes the scores of scorer
+    /// versions 1 and 2. Scorer version 3 scores only in the commit that
+    /// completes the EndOfPublish quorum, so this call leaves its scores
+    /// unchanged. The aggregator row is not persisted, so the report does not
+    /// survive a restart of the node.
     #[cfg(any(test, feature = "test-utils"))]
     pub fn process_misbehavior_report_for_testing(
         &self,
@@ -1832,8 +1834,9 @@ impl AuthorityPerEpochStore {
         self.scoreboard.update_scores(&self.report_aggregator);
     }
 
-    /// The score vector the checkpoint builder passes to the change-epoch
-    /// transaction, one entry per consensus authority index.
+    /// The latest published scores, one entry per consensus authority index.
+    /// Under scorer version 3 they stay at `MAX_SCORE` until the commit that
+    /// completes the EndOfPublish quorum.
     #[cfg(any(test, feature = "test-utils"))]
     pub fn current_scores_for_testing(&self) -> Vec<u64> {
         self.scoreboard.current_scores()
