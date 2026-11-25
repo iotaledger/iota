@@ -3936,19 +3936,11 @@ mod tests {
             last_of_epoch: false,
             checkpoint_height: 0,
         };
-        // A build attempt can fail after `create_checkpoints`, and the builder
-        // then retries the same pending checkpoint, so the user signatures
-        // must still be available to the retry.
-        let failed_attempt = builder
-            .create_checkpoints(vec![effects.clone()], &details, &HashSet::from([digest]))
-            .await
-            .unwrap();
         let new_checkpoints = builder
             .create_checkpoints(vec![effects], &details, &HashSet::from([digest]))
             .await
-            .expect("the retry must find the user signatures");
+            .unwrap();
         let summary = new_checkpoints.first().summary.clone();
-        assert_eq!(summary, failed_attempt.first().summary);
 
         assert!(
             checkpoint_store
@@ -3981,6 +3973,55 @@ mod tests {
             cached.checkpoint_contents().digest(),
             summary.contents_digest
         );
+    }
+
+    // A build that fails after `create_checkpoints`, for example while writing
+    // the checkpoints, leaves the pending checkpoint in place, and the builder
+    // builds it again on its next round.
+    #[tokio::test]
+    async fn builder_rebuilds_pending_checkpoint_after_unwritten_build() {
+        let state = TestAuthorityBuilder::new().build().await;
+        let epoch_store = state.epoch_store_for_testing();
+
+        let tx = VerifiedTransaction::new_genesis_transaction(vec![], vec![]);
+        let digest = *tx.digest();
+        let mut effects_map = HashMap::new();
+        store_executed_tx(&state, &mut effects_map, &tx);
+        let effects = effects_map[&digest].clone();
+
+        let tmp_dir = iota_common::tempdir();
+        let checkpoint_store = CheckpointStore::new(tmp_dir.path());
+        let service = manual_checkpoint_service(&state, checkpoint_store.clone(), effects_map);
+        let (mut builder, _aggregator, _hasher) = service.service.state.lock().take_unstarted();
+
+        service
+            .service
+            .write_and_notify_checkpoint_for_testing(&epoch_store, p(0, vec![digest], 0))
+            .unwrap();
+
+        let details = PendingCheckpointInfo {
+            timestamp_ms: 0,
+            last_of_epoch: false,
+            checkpoint_height: 0,
+        };
+        let unwritten = builder
+            .create_checkpoints(vec![effects], &details, &HashSet::from([digest]))
+            .await
+            .unwrap();
+        let expected_summary = unwritten.first().summary.clone();
+
+        builder
+            .maybe_build_checkpoints()
+            .await
+            .expect("the rebuild must find the user signatures");
+
+        let built = checkpoint_store
+            .tables
+            .locally_computed_checkpoints
+            .get(&expected_summary.sequence_number)
+            .unwrap()
+            .expect("the rebuild must write the checkpoint");
+        assert_eq!(built, expected_summary);
         assert!(
             epoch_store
                 .user_signatures_for_checkpoint(&[tx], &[digest])
