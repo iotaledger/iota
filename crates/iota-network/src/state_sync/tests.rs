@@ -2116,7 +2116,8 @@ async fn requested_checkpoint_that_fails_verification_marks_its_peer_as_not_on_s
 }
 
 #[tokio::test]
-async fn cached_checkpoint_that_fails_verification_drops_every_summary_from_its_sender() {
+async fn cached_checkpoint_that_fails_verification_is_requested_from_other_peers_and_its_sender_dropped()
+ {
     let (committee, (ordered_checkpoints, _, _, _)) =
         make_committee_and_checkpoints(0, 4, 3, None, empty_contents);
     let genesis_checkpoint = &ordered_checkpoints[0];
@@ -2157,18 +2158,11 @@ async fn cached_checkpoint_that_fails_verification_drops_every_summary_from_its_
     }
 
     run_checkpoint_summary_sync(&mut event_loop).await;
-    assert_eq!(
-        event_loop
-            .store
-            .get_highest_verified_checkpoint_seq_number(),
-        0
-    );
+
+    assert!(!event_loop.peer_heights.read().unwrap().peers[&forging_peer].on_same_chain_as_us);
     for checkpoint in &forged_checkpoints {
         assert!(!is_checkpoint_cached(&event_loop, checkpoint.digest()));
     }
-    assert!(!event_loop.peer_heights.read().unwrap().peers[&forging_peer].on_same_chain_as_us);
-
-    run_checkpoint_summary_sync(&mut event_loop).await;
     assert_eq!(
         event_loop
             .store
@@ -2279,6 +2273,48 @@ async fn full_cache_drops_summaries_at_or_below_the_highest_verified_checkpoint_
                 .unprocessed_checkpoints
                 .contains_key(checkpoint.digest())
         );
+    }
+}
+
+#[tokio::test]
+async fn summaries_of_a_peer_are_dropped_when_it_is_marked_or_lost() {
+    let (committee, (ordered_checkpoints, _, _, _)) =
+        make_committee_and_checkpoints(0, 4, 4, None, empty_contents);
+    let genesis_checkpoint = &ordered_checkpoints[0];
+    // Any summary with another digest stands in for another chain's genesis.
+    let (_, (other_chain, _, _, _)) =
+        make_committee_and_checkpoints(1, 4, 1, Some(genesis_checkpoint.clone()), empty_contents);
+    let other_genesis_digest = *other_chain[0].digest();
+
+    let (event_loop, server, _handle) = node_at_genesis(genesis_checkpoint, &committee, vec![]);
+    let marked_peer = PeerId([10; 32]);
+    let peer_on_another_chain = PeerId([11; 32]);
+    let lost_peer = PeerId([12; 32]);
+    for (peer_id, checkpoint) in [marked_peer, peer_on_another_chain, lost_peer]
+        .into_iter()
+        .zip(&ordered_checkpoints[1..])
+    {
+        push_from_peer(&server, peer_id, checkpoint.clone().into_inner()).await;
+        assert!(is_checkpoint_cached(&event_loop, checkpoint.digest()));
+    }
+
+    {
+        let mut peer_heights = event_loop.peer_heights.write().unwrap();
+        peer_heights.mark_peer_as_not_on_same_chain(marked_peer);
+        assert!(!peer_heights.insert_peer_info(
+            peer_on_another_chain,
+            PeerStateSyncInfo {
+                genesis_checkpoint_digest: other_genesis_digest,
+                on_same_chain_as_us: false,
+                height: 0,
+                lowest: 0,
+            },
+        ));
+        peer_heights.remove_peer(lost_peer);
+    }
+
+    for checkpoint in &ordered_checkpoints[1..] {
+        assert!(!is_checkpoint_cached(&event_loop, checkpoint.digest()));
     }
 }
 
@@ -2987,13 +3023,22 @@ fn insert_peer_on_same_chain(
     );
 }
 
-/// Has a peer on the node's chain push `checkpoint`.
+/// Has `peer_id` push `checkpoint`, first recording it as a peer on the
+/// node's chain if the node does not know it yet.
 async fn push_from_peer(
     server: &Server<SharedInMemoryStore>,
     peer_id: PeerId,
     checkpoint: CertifiedCheckpointSummary,
 ) {
-    insert_peer_on_same_chain(server, peer_id, 0);
+    if !server
+        .peer_heights
+        .read()
+        .unwrap()
+        .peers
+        .contains_key(&peer_id)
+    {
+        insert_peer_on_same_chain(server, peer_id, 0);
+    }
     server
         .push_checkpoint_summary(Request::new(checkpoint).with_extension(peer_id))
         .await
