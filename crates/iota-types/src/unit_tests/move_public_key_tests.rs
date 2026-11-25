@@ -165,6 +165,57 @@ fn new_error_on_invalid_key_bytes() {
     );
 }
 
+/// The generator point of secp256k1 and of secp256r1, in the forms the curve
+/// parsers accept besides the compressed one.
+const SECP256K1_G_COMPRESSED_HEX: &str =
+    "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
+const SECP256K1_G_UNCOMPRESSED_HEX: &str = "0479be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8";
+const SECP256K1_G_HYBRID_HEX: &str = "0679be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8";
+const SECP256R1_G_COMPRESSED_HEX: &str =
+    "036b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296";
+const SECP256R1_G_UNCOMPRESSED_HEX: &str = "046b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c2964fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5";
+
+#[test]
+fn new_accepts_the_compressed_ecdsa_keys() {
+    for (scheme, key_hex) in [
+        (SignatureScheme::Secp256k1, SECP256K1_G_COMPRESSED_HEX),
+        (SignatureScheme::Secp256r1, SECP256R1_G_COMPRESSED_HEX),
+        (
+            SignatureScheme::PasskeyAuthenticator,
+            SECP256R1_G_COMPRESSED_HEX,
+        ),
+    ] {
+        let public_key = MovePublicKey::new(scheme, hex::decode(key_hex).unwrap())
+            .unwrap_or_else(|e| panic!("{scheme:?} must accept {key_hex}: {e}"));
+        assert_eq!(public_key.scheme(), scheme);
+    }
+}
+
+#[test]
+fn new_error_on_uncompressed_and_hybrid_ecdsa_keys() {
+    for (scheme, key_hex) in [
+        (SignatureScheme::Secp256k1, SECP256K1_G_UNCOMPRESSED_HEX),
+        (SignatureScheme::Secp256k1, SECP256K1_G_HYBRID_HEX),
+        (SignatureScheme::Secp256r1, SECP256R1_G_UNCOMPRESSED_HEX),
+        (
+            SignatureScheme::PasskeyAuthenticator,
+            SECP256R1_G_UNCOMPRESSED_HEX,
+        ),
+    ] {
+        let raw_bytes = hex::decode(key_hex).unwrap();
+        // The curve parser takes this form, so only the length check rejects it.
+        PublicKey::try_from_bytes(scheme, &raw_bytes)
+            .unwrap_or_else(|e| panic!("the {scheme:?} parser must accept {key_hex}: {e}"));
+        let err = MovePublicKey::new(scheme, raw_bytes)
+            .expect_err("only the compressed form may be stored")
+            .to_string();
+        assert!(
+            err.starts_with("Invalid public key bytes:"),
+            "unexpected error for {scheme:?}: {err}"
+        );
+    }
+}
+
 #[test]
 fn new_error_on_multisig_zero_threshold() {
     let committee = MultisigCommittee::new_unchecked(multisig_members(), 0);

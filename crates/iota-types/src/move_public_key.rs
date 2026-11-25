@@ -5,7 +5,8 @@ use eyre::eyre;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::{
-    Address, Identifier, SignatureScheme, StructTag, Transaction, UserSignature,
+    Address, Ed25519PublicKey, Identifier, Secp256k1PublicKey, Secp256r1PublicKey, SignatureScheme,
+    StructTag, Transaction, UserSignature,
     crypto::{Intent, IntentMessage, MultisigCommittee, PersonalMessage},
 };
 use move_core_types::runtime_value::{MoveStructLayout, MoveTypeLayout};
@@ -66,6 +67,23 @@ impl MovePublicKey {
                 .validate()
                 .map_err(|e| eyre!("Invalid MultisigCommittee: {e}"))?;
         } else {
+            // As in Move, the length is checked first: the parser also accepts
+            // the uncompressed and hybrid forms of a secp256k1 or secp256r1
+            // key, while a `PublicKey` holds the compressed form only.
+            let expected_length = match scheme {
+                SignatureScheme::Ed25519 => Ed25519PublicKey::LENGTH,
+                SignatureScheme::Secp256k1 => Secp256k1PublicKey::LENGTH,
+                SignatureScheme::Secp256r1 | SignatureScheme::PasskeyAuthenticator => {
+                    Secp256r1PublicKey::LENGTH
+                }
+                _ => return Err(eyre!("Unsupported signature scheme: {scheme:?}")),
+            };
+            if raw_bytes.len() != expected_length {
+                return Err(eyre!(
+                    "Invalid public key bytes: {} bytes, expected {expected_length}",
+                    raw_bytes.len()
+                ));
+            }
             PublicKey::try_from_bytes(scheme, &raw_bytes)
                 .map_err(|e| eyre!("Invalid public key bytes: {e}"))?;
         }
