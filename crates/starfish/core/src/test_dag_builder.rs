@@ -1277,16 +1277,12 @@ impl<'a> LayerBuilder<'a> {
     fn should_skip_block(&self, authority: AuthorityIndex) -> bool {
         // Safe to unwrap as specified authorities has to be set before skip
         // is specified.
-        if self.skip_block
+        self.skip_block
             && self
                 .specified_authorities
                 .clone()
                 .unwrap()
                 .contains(&authority)
-        {
-            return true;
-        }
-        false
     }
 
     // reorder ancestors in connections such that the reference to own block is
