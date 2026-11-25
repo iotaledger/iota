@@ -76,7 +76,8 @@ async fn test_flag_in_signature_and_keypair() -> Result<(), anyhow::Error> {
             &key.address(),
             b"hello",
             Intent::iota_transaction(),
-        )?;
+        )
+        .await?;
         match sig {
             SimpleSignature::Ed25519 { .. } => {
                 // signature contains corresponding flag
