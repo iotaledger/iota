@@ -41,9 +41,11 @@ impl DebugConfig {
     /// Requires the crate's `tracing` feature; without it
     /// [`DebugArtifacts::trace`] stays `None`.
     ///
-    /// A transaction that transfers an object whose decoded value exceeds the
-    /// trace's size bound (1 MiB by default) fails when traced, even though it
-    /// succeeds untraced.
+    /// The trace records the contents of transferred objects, with a budget of
+    /// 1 MiB for the type and field names of one object. A transaction that
+    /// transfers an object over that budget fails when traced, even though it
+    /// succeeds untraced. Raise the budget by setting the
+    /// `MAX_ANNOTATED_VALUE_SIZE` environment variable to a number of bytes.
     #[must_use]
     pub fn with_tracing(mut self) -> Self {
         self.trace = true;
