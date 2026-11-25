@@ -1890,7 +1890,12 @@ async fn sync_checkpoint_contents<S>(
                         }
                         // We don't care if no one is listening as this is a broadcast channel
                         let _ = checkpoint_event_sender.send(checkpoint.clone());
-                        tx_in_flight -= checkpoint.network_total_transactions - highest_synced.network_total_transactions;
+                        // Checkpoints complete in the order they were started, so this is the
+                        // count added to `tx_in_flight` when this download started.
+                        let tx_count = checkpoint.network_total_transactions - highest_synced.network_total_transactions;
+                        tx_in_flight = tx_in_flight
+                            .checked_sub(tx_count)
+                            .expect("BUG: a finished download should not count more transactions than are in flight");
                         highest_synced = checkpoint;
 
                     }
@@ -1990,9 +1995,9 @@ async fn sync_checkpoint_contents<S>(
                     "BUG: store should have all checkpoints older than highest_verified_checkpoint",
                 );
 
-            // Enforce transaction count concurrency limit. A checkpoint is always admitted when
-            // nothing is in flight, so a checkpoint with more transactions than the limit is still
-            // downloaded.
+            // Enforce transaction count concurrency limit. A checkpoint is always started when no
+            // other contents download is running, so a checkpoint with more transactions than the
+            // limit is still downloaded.
             let tx_count = next_checkpoint.network_total_transactions
                 - highest_started_network_total_transactions;
             if !checkpoint_contents_tasks.is_empty()

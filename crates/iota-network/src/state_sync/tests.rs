@@ -5,7 +5,10 @@
 use std::{
     collections::HashMap,
     num::{NonZeroU64, NonZeroUsize},
-    sync::{Arc, atomic::AtomicBool},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+    },
     time::Duration,
 };
 
@@ -1040,19 +1043,11 @@ async fn sync_with_checkpoints_gap() -> anyhow::Result<()> {
 /// `checkpoint_content_download_tx_concurrency` are still synced, one at a
 /// time.
 #[tokio::test]
-async fn checkpoints_exceeding_transaction_budget_keep_syncing() {
+async fn checkpoints_over_tx_concurrency_limit_keep_syncing() {
     telemetry_subscribers::init_for_testing();
 
     let (committee, (ordered_checkpoints, contents, _, _)) =
-        make_committee_and_checkpoints(0, 4, 4, None, || {
-            VerifiedCheckpointContents::new_unchecked(
-                FullCheckpointContents::new_with_causally_ordered_transactions(
-                    FullCheckpointContents::random_for_testing()
-                        .into_iter()
-                        .chain(FullCheckpointContents::random_for_testing()),
-                ),
-            )
-        });
+        make_committee_and_checkpoints(0, 4, 4, None, random_contents);
 
     let store_1 = store_with_genesis_state(
         ordered_checkpoints[0].clone(),
@@ -1073,12 +1068,19 @@ async fn checkpoints_exceeding_transaction_budget_keep_syncing() {
         }
     }
 
-    let (builder_1, server_1) = Builder::new().store(store_1).build();
-    let network_1 = build_network(|router| router.add_rpc_service(server_1));
+    let (builder_1, server_1) = Builder::new().store(store_1).build_internal();
+    let server_1 = PeerCountingContentsDownloads {
+        inner: server_1,
+        in_flight: Default::default(),
+        max_in_flight: Default::default(),
+    };
+    let max_in_flight = server_1.max_in_flight.clone();
+    let network_1 = build_network(|router| router.add_rpc_service(StateSyncServer::new(server_1)));
     let (event_loop_1, _handle_1) = builder_1.build(network_1.clone());
 
     let config_2 = StateSyncConfig {
-        checkpoint_content_download_tx_concurrency: Some(1),
+        checkpoint_content_download_tx_concurrency: Some(0),
+        wait_interval_when_no_peer_to_sync_content_ms: Some(50),
         ..Default::default()
     };
     let (builder_2, server_2) = Builder::new()
@@ -1096,7 +1098,7 @@ async fn checkpoints_exceeding_transaction_budget_keep_syncing() {
     for checkpoint in &ordered_checkpoints[1..] {
         let actual = timeout(Duration::from_secs(10), synced.recv())
             .await
-            .expect("checkpoints exceeding the transaction budget must keep syncing")
+            .expect("checkpoints over the transaction concurrency limit must keep syncing")
             .unwrap();
         assert_eq!(actual.digest(), checkpoint.digest());
         assert!(
@@ -1104,6 +1106,59 @@ async fn checkpoints_exceeding_transaction_budget_keep_syncing() {
                 .get_full_checkpoint_contents_by_sequence_number(checkpoint.sequence_number())
                 .is_some()
         );
+    }
+    assert_eq!(max_in_flight.load(Ordering::SeqCst), 1);
+}
+
+/// A peer that serves `inner` and records the highest number of checkpoint
+/// contents requests it was handling at the same time.
+struct PeerCountingContentsDownloads {
+    inner: Server<SharedInMemoryStore>,
+    in_flight: Arc<AtomicUsize>,
+    max_in_flight: Arc<AtomicUsize>,
+}
+
+#[anemo::async_trait]
+impl StateSync for PeerCountingContentsDownloads {
+    async fn push_checkpoint_summary(
+        &self,
+        request: Request<CertifiedCheckpointSummary>,
+    ) -> Result<Response<()>, Status> {
+        self.inner.push_checkpoint_summary(request).await
+    }
+
+    async fn get_checkpoint_summary(
+        &self,
+        request: Request<GetCheckpointSummaryRequest>,
+    ) -> Result<Response<Option<CertifiedCheckpointSummary>>, Status> {
+        self.inner.get_checkpoint_summary(request).await
+    }
+
+    async fn get_checkpoint_availability(
+        &self,
+        request: Request<()>,
+    ) -> Result<Response<GetCheckpointAvailabilityResponse>, Status> {
+        self.inner.get_checkpoint_availability(request).await
+    }
+
+    async fn get_checkpoint_contents(
+        &self,
+        request: Request<CheckpointContentsDigest>,
+    ) -> Result<Response<Option<FullCheckpointContents>>, Status> {
+        let in_flight = self.in_flight.fetch_add(1, Ordering::SeqCst) + 1;
+        self.max_in_flight.fetch_max(in_flight, Ordering::SeqCst);
+        // Hold the request so that downloads started together overlap.
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        let response = self.inner.get_checkpoint_contents(request).await;
+        self.in_flight.fetch_sub(1, Ordering::SeqCst);
+        response
+    }
+
+    async fn exchange_state_sync_handshake(
+        &self,
+        request: Request<StateSyncHandshake>,
+    ) -> Result<Response<StateSyncHandshake>, Status> {
+        self.inner.exchange_state_sync_handshake(request).await
     }
 }
 
