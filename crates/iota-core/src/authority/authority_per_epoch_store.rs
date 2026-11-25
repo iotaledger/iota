@@ -4065,7 +4065,7 @@ impl AuthorityPerEpochStore {
         let mut result = Vec::with_capacity(digests.len());
         for (signatures, transaction) in signatures.into_iter().zip(transactions.iter()) {
             let signatures = if let Some(signatures) = signatures {
-                signatures
+                signatures.to_vec()
             } else if matches!(
                 transaction.inner().transaction().kind(),
                 TransactionKind::RandomnessStateUpdate(_)
@@ -4576,7 +4576,7 @@ impl AuthorityPerEpochStore {
         self.consensus_output_cache
             .user_signatures_for_checkpoints
             .lock()
-            .insert(digest, signatures);
+            .insert(digest, signatures.into());
         // Match the key the checkpoint builder waits on: in the P-COOL flow
         // user transactions are submitted as UserTransaction, not as
         // Certificate.
@@ -4640,7 +4640,7 @@ impl AuthorityPerEpochStore {
         let sigs: Vec<_> = transactions
             .filter_map(|schedulable| match schedulable {
                 Schedulable::Transaction(transaction) => {
-                    Some((*transaction.digest(), transaction.signatures().to_vec()))
+                    Some((*transaction.digest(), Arc::from(transaction.signatures())))
                 }
                 Schedulable::RandomnessStateUpdate(_, _) => None,
             })
@@ -7400,17 +7400,20 @@ impl AuthorityPerEpochStore {
         commit_height: CheckpointHeight,
         content_info: NonEmpty<(CheckpointSummary, CheckpointContents)>,
     ) {
-        {
+        let removed_user_sigs: Vec<_> = {
             let mut user_sigs = self
                 .consensus_output_cache
                 .user_signatures_for_checkpoints
                 .lock();
-            for (_, contents) in content_info.iter() {
-                for digests in contents.iter() {
-                    user_sigs.remove(&digests.transaction);
-                }
-            }
-        }
+            content_info
+                .iter()
+                .flat_map(|(_, contents)| contents.iter())
+                .filter_map(|digests| user_sigs.remove(&digests.transaction))
+                .collect()
+        };
+        // Free the signatures without holding the lock the consensus handler
+        // needs.
+        drop(removed_user_sigs);
 
         let mut consensus_quarantine = self.consensus_quarantine.write();
         for (position_in_commit, (summary, transactions)) in content_info.into_iter().enumerate() {

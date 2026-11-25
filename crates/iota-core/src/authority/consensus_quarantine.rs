@@ -522,7 +522,7 @@ pub(crate) struct ConsensusOutputCache {
     // checkpoint builder The critical sections are small in both cases so a DashMap is
     // probably not helpful.
     pub(super) user_signatures_for_checkpoints:
-        Mutex<HashMap<TransactionDigest, Vec<UserSignature>>>,
+        Mutex<HashMap<TransactionDigest, Arc<[UserSignature]>>>,
 
     executed_in_epoch: RwLock<DashMap<TransactionDigest, ()>>,
     executed_in_epoch_cache: MokaCache<TransactionDigest, ()>,
