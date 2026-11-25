@@ -742,7 +742,6 @@ fun builtin_authenticator_rejects_signature_of_another_transaction_passkey() {
 // === Helpers ===
 
 fun ed25519_public_key(): public_key::PublicKey {
-    // 32 zero bytes — raw ed25519 key material
     public_key::create(
         signature_scheme::ed25519(),
         x"0000000000000000000000000000000000000000000000000000000000000000",

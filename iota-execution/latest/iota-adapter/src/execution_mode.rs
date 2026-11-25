@@ -164,7 +164,6 @@ impl ExecutionMode for PrivateCall {
     type ExecutionResults = ();
 
     fn allow_arbitrary_function_calls() -> bool {
-        // allows calling the private Move functions
         true
     }
 

@@ -1032,9 +1032,9 @@ mod checked {
 
     /// Executes a single authenticator against the transaction.
     ///
-    /// A built-in authenticator is executed as a system call to its private
-    /// Move function; a custom one as a Move call to its `#[authenticator]`
-    /// function.
+    /// A built-in authenticator is executed as a call to its private Move
+    /// function, in the `PrivateCall` execution mode; a custom one as a Move
+    /// call to its `#[authenticator]` function.
     ///
     /// Returns an error on the first failure; an empty value on success.
     #[instrument(name = "tx_validate", level = "debug", skip_all)]
@@ -1161,8 +1161,9 @@ mod checked {
         authentication_execution_result
     }
 
-    /// Executes a built-in authenticator as a system call to its private
-    /// Move function in `builtin_authenticator_functions`.
+    /// Executes a built-in authenticator as a call to its private Move
+    /// function in `builtin_authenticator_functions`, in the `PrivateCall`
+    /// execution mode.
     ///
     /// Like [`execute_authenticator_move_call`], it charges gas only for the
     /// Move function execution and returns only the execution results.
@@ -1183,7 +1184,6 @@ mod checked {
     {
         // It must NOT charge gas for reading the Move authenticator input objects from
         // the storage. It will be done later during the transaction execution.
-        // Then execute the authentication.
         // A failed transaction dependency is checked with the transaction's
         // inputs after authentication, so none is checked here.
         run_inputs_checks(
