@@ -770,18 +770,15 @@ mod tests {
         let context = Arc::new(Context::new_for_test(10).0);
         let leader_schedule = LeaderSchedule::new(context, LeaderSwapTable::default());
 
-        for (round, expected) in [
-            (0, [1, 8, 4, 9, 7, 6, 3, 0, 5, 2]),
-            (1, [6, 2, 4, 1, 7, 5, 9, 0, 8, 3]),
-            (7, [3, 9, 8, 7, 0, 2, 1, 5, 6, 4]),
-            (1000, [6, 5, 1, 0, 9, 8, 4, 7, 3, 2]),
-        ] {
-            let leaders = (0..10)
-                .map(|offset| leader_schedule.elect_leader_uniform(round, offset))
-                .collect::<Vec<_>>();
-            let expected = expected.map(AuthorityIndex::new_for_test).to_vec();
-            assert_eq!(leaders, expected, "round {round}");
-        }
+        let leaders = (0..32)
+            .chain([1000])
+            .map(|round| leader_schedule.elect_leader_uniform(round, 0))
+            .collect::<Vec<_>>();
+        let expected = [
+            1, 6, 1, 7, 0, 6, 0, 3, 4, 6, 9, 4, 7, 9, 7, 6, 0, 9, 9, 2, 2, 4, 8, 0, 6, 0, 1, 4, 5,
+            6, 7, 9, 6,
+        ];
+        assert_eq!(leaders, expected.map(AuthorityIndex::new_for_test).to_vec());
     }
 
     #[tokio::test]
