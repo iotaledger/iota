@@ -36,14 +36,6 @@ use crate::{
 /// the GC sweep, deduplicating on `BlockRef` and returning the result in
 /// `BlockRef` ascending order (which is `(round, author, digest)`-ascending,
 /// preserving the public "round ascending" guarantee of `try_accept_*`).
-///
-/// Both inputs can name the same header: the regular path accepts a
-/// freshly-arrived copy at the same time the GC sweep promotes a
-/// previously-suspended copy. Producing the same header twice would corrupt
-/// downstream metrics and DagState's accept assertions.
-///
-/// Regular-path entries take precedence on duplicate keys (they're the
-/// version we just verified for this batch).
 fn merge_accepted_round_ascending(
     regular: Vec<VerifiedBlockHeader>,
     gc_unsuspended: Vec<VerifiedBlockHeader>,
@@ -205,36 +197,12 @@ impl BlockManager {
         source: DataSource,
     ) -> (Vec<VerifiedBlockHeader>, BTreeSet<BlockRef>) {
         let _s = monitored_scope("BlockManager::try_accept_blocks");
-        let gc_unsuspended = self.maybe_evict_below_gc_floor();
         let blocks = self.drop_over_slot_cap(blocks, source, |b| b.reference());
-
-        let block_headers: Vec<_> = blocks
+        let block_headers = blocks
             .iter()
             .map(|b| b.verified_block_header.clone())
             .collect();
-        let present_header_and_ancestor_refs_in_dag_state =
-            self.present_header_and_ancestor_refs_in_dag_state(&block_headers);
-        let (block_headers_to_accept, missing_block_headers) = self.process_block_headers(
-            block_headers,
-            &present_header_and_ancestor_refs_in_dag_state,
-            source,
-        );
-        let block_headers_to_accept =
-            merge_accepted_round_ascending(block_headers_to_accept, gc_unsuspended);
-        // collect suspended transactions for accepted headers.
-        let accepted_transactions = self.resolve_transactions(
-            &block_headers_to_accept,
-            &present_header_and_ancestor_refs_in_dag_state,
-            Some(blocks),
-        );
-
-        self.write_block_headers_and_transactions_to_dag_state(
-            block_headers_to_accept.clone(),
-            accepted_transactions,
-            source,
-        );
-
-        (block_headers_to_accept, missing_block_headers)
+        self.accept_block_headers_and_transactions(block_headers, Some(blocks), source)
     }
 
     /// Tries to accept the provided block headers assuming that all their
@@ -250,32 +218,30 @@ impl BlockManager {
         source: DataSource,
     ) -> (Vec<VerifiedBlockHeader>, BTreeSet<BlockRef>) {
         let _s = monitored_scope("BlockManager::try_accept_block_headers");
-        let gc_unsuspended = self.maybe_evict_below_gc_floor();
         let block_headers = self.drop_over_slot_cap(block_headers, source, |h| h.reference());
+        self.accept_block_headers_and_transactions(block_headers, None, source)
+    }
 
-        // Headers are added through synchronizer, commit syncer and cordial
-        // dissemination.
-        let present_header_and_ancestor_refs_in_dag_state =
-            self.present_header_and_ancestor_refs_in_dag_state(&block_headers);
-        let (block_headers_to_accept, ancestors_to_fetch) = self.process_block_headers(
-            block_headers,
-            &present_header_and_ancestor_refs_in_dag_state,
-            source,
-        );
-        let block_headers_to_accept =
-            merge_accepted_round_ascending(block_headers_to_accept, gc_unsuspended);
-        // collect transactions we already have for accepted headers.
-        let accepted_transactions = self.resolve_transactions(
-            &block_headers_to_accept,
-            &present_header_and_ancestor_refs_in_dag_state,
-            None,
-        );
+    fn accept_block_headers_and_transactions(
+        &mut self,
+        block_headers: Vec<VerifiedBlockHeader>,
+        blocks: Option<Vec<VerifiedBlock>>,
+        source: DataSource,
+    ) -> (Vec<VerifiedBlockHeader>, BTreeSet<BlockRef>) {
+        let gc_unsuspended = self.maybe_evict_below_gc_floor();
+        let mut present_refs = self.present_header_and_ancestor_refs_in_dag_state(&block_headers);
+        // The sweep released these headers, but they reach DagState only after this batch.
+        present_refs.extend(gc_unsuspended.iter().map(VerifiedBlockHeader::reference));
+        let (accepted, ancestors_to_fetch) =
+            self.process_block_headers(block_headers, &present_refs, source);
+        let accepted = merge_accepted_round_ascending(accepted, gc_unsuspended);
+        let accepted_transactions = self.resolve_transactions(&accepted, &present_refs, blocks);
         self.write_block_headers_and_transactions_to_dag_state(
-            block_headers_to_accept.clone(),
+            accepted.clone(),
             accepted_transactions,
             source,
         );
-        (block_headers_to_accept, ancestors_to_fetch)
+        (accepted, ancestors_to_fetch)
     }
 
     /// Processes received block headers to determine which should be accepted,
@@ -284,24 +250,19 @@ impl BlockManager {
     fn process_block_headers(
         &mut self,
         block_headers: Vec<VerifiedBlockHeader>,
-        present_header_and_ancestor_refs_in_dag_state: &BTreeSet<BlockRef>,
+        present_refs: &BTreeSet<BlockRef>,
         source: DataSource,
     ) -> (Vec<VerifiedBlockHeader>, BTreeSet<BlockRef>) {
         let _s = monitored_scope("BlockManager::try_accept_block_headers_internal");
 
         // Filter out already processed and suspended block headers.
-        let block_headers = self.filter_out_already_processed_and_sort(
-            block_headers,
-            present_header_and_ancestor_refs_in_dag_state,
-            source,
-        );
+        let block_headers =
+            self.filter_out_already_processed_and_sort(block_headers, present_refs, source);
         // update received block rounds
         for block_header in &block_headers {
             self.update_block_received_metrics(block_header);
         }
-        // Find missing ancestors for the provided block headers in the DAG state.
-        let missing_ancestors = self
-            .find_missing_ancestors(block_headers, present_header_and_ancestor_refs_in_dag_state);
+        let missing_ancestors = self.find_missing_ancestors(block_headers, present_refs);
         let (accepted_headers, missing_ancestors) = self
             .block_suspender
             .accept_or_suspend_received_headers(missing_ancestors);
@@ -330,7 +291,7 @@ impl BlockManager {
     fn resolve_transactions(
         &mut self,
         block_headers_to_be_accepted: &[VerifiedBlockHeader],
-        present_headers_and_ancestor_refs_in_dag_state: &BTreeSet<BlockRef>,
+        present_refs: &BTreeSet<BlockRef>,
         blocks: Option<Vec<VerifiedBlock>>,
     ) -> Vec<CommitmentVerifiedTransactions> {
         let block_refs_to_be_accepted = block_headers_to_be_accepted
@@ -355,7 +316,7 @@ impl BlockManager {
             let mut accepted_transactions_from_blocks = vec![];
             for block in blocks {
                 if block_refs_to_be_accepted.contains(&block.reference())
-                    || present_headers_and_ancestor_refs_in_dag_state.contains(&block.reference())
+                    || present_refs.contains(&block.reference())
                 {
                     accepted_transactions_from_blocks.push(block.verified_transactions);
                 } else if block.verified_transactions.has_transactions()
@@ -525,7 +486,7 @@ impl BlockManager {
     fn find_missing_ancestors(
         &self,
         incoming_headers: Vec<VerifiedBlockHeader>,
-        present_header_and_ancestor_refs_in_dag_state: &BTreeSet<BlockRef>,
+        present_refs: &BTreeSet<BlockRef>,
     ) -> BTreeMap<VerifiedBlockHeader, BTreeSet<BlockRef>> {
         // Ancestors at or below the GC floor cannot affect any not-yet-sequenced
         // block and are skipped.
@@ -535,7 +496,7 @@ impl BlockManager {
             let ancestors: &[BlockRef] = incoming_header.ancestors();
             let mut missing_ancestors_set = BTreeSet::new();
             for ancestor in ancestors {
-                let found = present_header_and_ancestor_refs_in_dag_state.contains(ancestor);
+                let found = present_refs.contains(ancestor);
                 let below_gc = ancestor.round <= gc_filter_round;
                 if !found && !below_gc {
                     missing_ancestors_set.insert(*ancestor);
@@ -550,7 +511,7 @@ impl BlockManager {
     fn filter_out_already_processed_and_sort(
         &self,
         block_headers: Vec<VerifiedBlockHeader>,
-        present_header_and_ancestor_refs_in_dag_state: &BTreeSet<BlockRef>,
+        present_refs: &BTreeSet<BlockRef>,
         source: DataSource,
     ) -> Vec<VerifiedBlockHeader> {
         let gc_filter_round = self.last_gc_floor_applied;
@@ -567,8 +528,7 @@ impl BlockManager {
                         .inc();
                     return None;
                 }
-                let found = present_header_and_ancestor_refs_in_dag_state
-                    .contains(&block_header.reference());
+                let found = present_refs.contains(&block_header.reference());
                 if found
                     || self
                         .block_suspender
@@ -599,6 +559,8 @@ impl BlockManager {
     ///
     /// A drop means two headers of one slot passed signature verification, so
     /// the slot is flagged as an equivocation by its author.
+    /// Check the cap before the GC sweep so headers it releases still occupy
+    /// their slots.
     fn drop_over_slot_cap<T>(
         &self,
         items: Vec<T>,
@@ -609,6 +571,7 @@ impl BlockManager {
             return items;
         }
         let dag_state = self.dag_state.read();
+        let gc_floor = dag_state.gc_round_for_last_commit();
         let misbehavior_store = dag_state.misbehavior_store().clone();
         let far_future_ceiling = dag_state.far_future_round_ceiling();
         let mut admitted_by_slot: BTreeMap<(Round, AuthorityIndex), BlockHeaderDigest> =
@@ -623,9 +586,10 @@ impl BlockManager {
                     None => {
                         let other_exists = dag_state
                             .contains_other_block_header_at_slot(&block_ref)
-                            || self
-                                .block_suspender
-                                .contains_other_header_at_slot(&block_ref);
+                            || (block_ref.round > gc_floor
+                                && self
+                                    .block_suspender
+                                    .contains_other_header_at_slot(&block_ref));
                         if !other_exists {
                             admitted_by_slot.insert(slot, block_ref.digest);
                         }
@@ -1717,6 +1681,75 @@ mod tests {
         );
         // Suspender state is still cleaned up by the cascade.
         assert!(block_manager.block_suspender.is_empty());
+    }
+
+    #[tokio::test]
+    async fn gc_eviction_accepts_children_arriving_during_the_sweep() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let mut manager = BlockManager::new(context.clone(), dag_state.clone());
+        let mut dag = DagBuilder::new(context.clone());
+        dag.layers(1..=3).build();
+
+        let parents = dag.blocks(2..=2);
+        let transaction_refs = parents.iter().map(|b| b.transaction_ref()).collect();
+        let (accepted, missing) = manager.try_accept_blocks(parents, DataSource::BlockStreaming);
+        assert!(accepted.is_empty());
+        assert_eq!(missing.len(), 4);
+        assert_eq!(manager.suspended_full_blocks_count(), 4);
+
+        gc_eviction_helpers::plant_last_commit(
+            &dag_state,
+            2 * context.protocol_config.gc_depth() + 1,
+        );
+        let (accepted, missing) = manager
+            .try_accept_block_headers(dag.block_headers(3..=3), DataSource::BlockBundleStream);
+
+        assert_eq!(accepted, dag.block_headers(2..=3));
+        assert!(missing.is_empty());
+        assert!(manager.is_empty());
+        assert_eq!(manager.suspended_full_blocks_count(), 0);
+        assert_eq!(
+            dag_state.read().contains_transactions(transaction_refs),
+            vec![true; 4]
+        );
+    }
+
+    #[tokio::test]
+    async fn gc_eviction_preserves_slot_cap_for_released_headers() {
+        use gc_eviction_helpers::{block_ref, header, plant_last_commit};
+
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let mut manager = BlockManager::new(context.clone(), dag_state.clone());
+        let ancestor = block_ref(1, 0);
+        let first = header(2, 1, vec![ancestor]);
+        let (accepted, missing) =
+            manager.try_accept_block_headers(vec![first.clone()], DataSource::BlockBundleStream);
+        assert!(accepted.is_empty());
+        assert_eq!(missing, BTreeSet::from([ancestor]));
+
+        plant_last_commit(&dag_state, 2 * context.protocol_config.gc_depth() + 1);
+        let other = header(2, 1, vec![block_ref(1, 2)]);
+        let payload = CommitmentVerifiedTransactions::new_for_test(&other, vec![]);
+        let (accepted, missing) = manager.try_accept_blocks(
+            vec![VerifiedBlock::new(other, payload)],
+            DataSource::BlockStreaming,
+        );
+
+        assert_eq!(accepted, vec![first]);
+        assert!(missing.is_empty());
+        assert_eq!(
+            dag_state
+                .read()
+                .misbehavior_store()
+                .equivocating_rounds(1.into()),
+            vec![2]
+        );
     }
 
     /// A second header for an (author, round) slot is dropped for capped
