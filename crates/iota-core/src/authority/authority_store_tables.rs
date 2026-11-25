@@ -232,14 +232,6 @@ impl AuthorityPerpetualTables {
                 "live_owned_object_markers".to_string(),
                 live_owned_object_markers_table_config(db_options.clone()),
             ),
-            (
-                "transactions".to_string(),
-                transactions_table_config(db_options.clone()),
-            ),
-            (
-                "effects".to_string(),
-                effects_table_config(db_options.clone()),
-            ),
         ]);
         table_options.extend(HistoricObjects::extra_column_family_options(
             path,
@@ -811,22 +803,6 @@ fn objects_table_config(db_options: DBOptions) -> DBOptions {
     db_options
         .optimize_for_write_throughput()
         .optimize_for_read(read_size_from_env(ENV_VAR_OBJECTS_BLOCK_CACHE_SIZE).unwrap_or(5 * 1024))
-}
-
-fn transactions_table_config(db_options: DBOptions) -> DBOptions {
-    db_options
-        .optimize_for_write_throughput()
-        .optimize_for_point_lookup(
-            read_size_from_env(ENV_VAR_TRANSACTIONS_BLOCK_CACHE_SIZE).unwrap_or(512),
-        )
-}
-
-fn effects_table_config(db_options: DBOptions) -> DBOptions {
-    db_options
-        .optimize_for_write_throughput()
-        .optimize_for_point_lookup(
-            read_size_from_env(ENV_VAR_EFFECTS_BLOCK_CACHE_SIZE).unwrap_or(1024),
-        )
 }
 
 /// `db_options` with one block cache that every historic ledger bucket opened
