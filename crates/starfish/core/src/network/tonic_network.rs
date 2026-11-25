@@ -3434,10 +3434,11 @@ mod tests {
         ));
     }
 
-    /// A header request past the ceiling is refused while the server decodes
-    /// it, before the service sees it. The server charges the client for it,
-    /// and the client does not charge the server. One at the ceiling, above
-    /// the server's own cap, is served and not charged.
+    /// A request for more headers than the ceiling is refused while the server
+    /// decodes it, so the service never sees it, and the server charges
+    /// the requester. The requester gets a network error, which it does not
+    /// charge to the server. A request above the server's own cap but within the
+    /// ceiling is served and not charged.
     #[cfg(not(msim))]
     #[tokio::test]
     async fn a_header_request_past_the_ceiling_is_refused_while_decoding() {
@@ -3535,10 +3536,11 @@ mod tests {
         ));
     }
 
-    /// A transaction request past the ceiling is refused while the server
-    /// decodes it, before the service sees it. The server charges the client
-    /// for it, and the client does not charge the server. One at the ceiling,
-    /// above the server's own cap, is served and not charged.
+    /// A request for more transactions than the ceiling is refused while the
+    /// server decodes it, so the service never sees it, and the server charges
+    /// the requester. The requester gets a network error, which it does not
+    /// charge to the server. A request above the server's own cap but within the
+    /// ceiling is served and not charged.
     #[cfg(not(msim))]
     #[tokio::test]
     async fn a_transaction_request_past_the_ceiling_is_refused_while_decoding() {
