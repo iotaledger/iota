@@ -7,7 +7,7 @@ use std::sync::Arc;
 use eyre::WrapErr;
 use fastcrypto_threshold::dkg_v1;
 use iota_metrics::monitored_scope;
-use iota_sdk_types::SenderSignedTransaction;
+use iota_sdk_types::{SenderSignedTransaction, TransactionKind};
 use iota_types::{
     base_types::ConciseableName,
     error::IotaError,
@@ -100,6 +100,27 @@ impl IotaTxValidator {
         Ok(())
     }
 
+    /// Rejects the block when a transaction is a `ClaimAccount` before the
+    /// protocol enables the kind: a validator on a binary that predates the
+    /// kind cannot decode such a block, so every validator must refuse it the
+    /// same way.
+    fn claim_account_check(&self, signed_tx: &SenderSignedTransaction) -> Result<(), IotaError> {
+        if !self
+            .epoch_store
+            .protocol_config()
+            .enable_claim_account_transaction()
+            && matches!(
+                signed_tx.transaction().kind(),
+                TransactionKind::ClaimAccount(_)
+            )
+        {
+            return Err(IotaError::UnsupportedFeature {
+                error: "ClaimAccount not supported at current protocol version".into(),
+            });
+        }
+        Ok(())
+    }
+
     #[instrument(level = "trace", skip_all)]
     fn validate_transactions(&self, txs: Vec<ConsensusTransactionKind>) -> Result<(), IotaError> {
         let mut cert_batch = Vec::new();
@@ -113,6 +134,7 @@ impl IotaTxValidator {
                 ConsensusTransactionKind::CertifiedTransaction(certificate) => {
                     self.identifiers_check(certificate.data())?;
                     self.transaction_dependency_check(certificate.data())?;
+                    self.claim_account_check(certificate.data())?;
                     // A certificate carries no attestation, so it would skip the
                     // judge, the units claim and the cutoff.
                     if self
@@ -176,6 +198,7 @@ impl IotaTxValidator {
                     }
                     self.identifiers_check(attested_tx.transaction.data())?;
                     self.transaction_dependency_check(attested_tx.transaction.data())?;
+                    self.claim_account_check(attested_tx.transaction.data())?;
                     // An attestation is authenticated by the block signature,
                     // so only its presence is checked here, against the flag;
                     // post-consensus validation checks its content.
@@ -1168,6 +1191,79 @@ mod tests {
                 user_transaction(transfer_with_dependency(&state, None)),
                 certificate(transfer_with_dependency(&state, None), &state, &keypair),
                 user_transaction(move_account_transfer(&state, CallArg::Pure(vec![]))),
+            ])
+            .unwrap();
+    }
+
+    /// A signed `ClaimAccount` of a fresh Ed25519 key.
+    fn claim_account() -> TransactionEnvelope {
+        use iota_sdk_types::{
+            ClaimAccountTransaction, SmartAccountClaim, Transaction, TransactionKind,
+            crypto::PublicKey,
+        };
+        use iota_types::{
+            base_types::random_object_ref,
+            crypto::{AccountPrivateKey, deterministic_random_account_private_key},
+            transaction::TransactionAPI,
+            utils::to_sender_signed_transaction,
+        };
+
+        let (sender, sender_key): (_, AccountPrivateKey) =
+            deterministic_random_account_private_key();
+        let claim = SmartAccountClaim::new(&PublicKey::Ed25519(sender_key.public_key()));
+        let transaction = Transaction::new(
+            TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(claim)),
+            sender,
+            random_object_ref(),
+            100_000_000,
+            1,
+        );
+        to_sender_signed_transaction(transaction, &sender_key)
+    }
+
+    /// Validator attestation off, as for `validator_attestation_off`, with the
+    /// `ClaimAccount` kind enabled or not.
+    fn claim_account_enabled(enabled: bool) -> OverrideGuard {
+        ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
+            config.set_enable_validator_attestation_for_testing(false);
+            if enabled {
+                config.set_claim_account_max_computation_units_for_testing(5_000);
+                config.set_claim_account_storage_bytes_bound_for_testing(2_000);
+            }
+            config.set_enable_claim_account_transaction_for_testing(enabled);
+            config
+        })
+    }
+
+    #[tokio::test]
+    async fn reject_claim_account_before_the_flag() {
+        let _guard = claim_account_enabled(false);
+        let (state, keypair, validator) = self_identifier_fixture(None).await;
+
+        for (case, kind) in [
+            ("user transaction", user_transaction(claim_account())),
+            (
+                "certificate",
+                certificate(claim_account(), &state, &keypair),
+            ),
+        ] {
+            let result = validator.validate_transactions(vec![kind]);
+            assert!(
+                matches!(&result, Err(IotaError::UnsupportedFeature { .. })),
+                "{case}: {result:?}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn accept_claim_account_with_the_flag() {
+        let _guard = claim_account_enabled(true);
+        let (state, keypair, validator) = self_identifier_fixture(None).await;
+
+        validator
+            .validate_transactions(vec![
+                user_transaction(claim_account()),
+                certificate(claim_account(), &state, &keypair),
             ])
             .unwrap();
     }
