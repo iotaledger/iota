@@ -186,6 +186,17 @@ fn checks_admitted_inputs() -> bool {
     checks.get()
 }
 
+/// Whether admission runs the transaction's validity check.
+///
+/// Tests can register the `admit-without-validity-check` fail point to have a
+/// validator submit to consensus a transaction that is not valid at the
+/// current protocol version, as a faulty validator can.
+fn checks_admitted_validity() -> bool {
+    let checks = std::cell::Cell::new(true);
+    iota_macros::fail_point_if!("admit-without-validity-check", || checks.set(false));
+    checks.get()
+}
+
 /// Returns the attestation of `transaction` from a validator that skips its
 /// input checks, see [`checks_admitted_inputs()`], while validator attestation
 /// is on. Without a dry run, it records no object versions, and it claims the
@@ -468,9 +479,11 @@ impl ValidatorService {
         };
 
         // Validate transaction.
-        if let Err(e) = transaction.validity_check(&epoch_store.tx_validity_check_context()) {
-            let weight = normalize(&e);
-            return (TxStatusUpdate::Rejected { error: e }, weight);
+        if checks_admitted_validity() {
+            if let Err(e) = transaction.validity_check(&epoch_store.tx_validity_check_context()) {
+                let weight = normalize(&e);
+                return (TxStatusUpdate::Rejected { error: e }, weight);
+            }
         }
 
         // Check if already executed. Transient cache errors are treated as
