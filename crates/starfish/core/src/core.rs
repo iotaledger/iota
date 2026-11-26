@@ -1777,9 +1777,8 @@ impl Core {
     /// DAG. Starfish has exactly one leader per round, so this is either
     /// `Some(leader_block)` or `None`.
     fn leader_header(&self, round: Round) -> Option<VerifiedBlockHeader> {
-        self.dag_state
-            .read()
-            .get_cached_block_header_at_slot(self.committer.elect_leader(round))
+        let slot = self.committer.elect_leader(round);
+        self.dag_state.read().get_cached_block_header_at_slot(slot)
     }
 
     /// Lowest ancestor round we are willing to reference from a block we
