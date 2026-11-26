@@ -1491,6 +1491,40 @@ mod tests {
     }
 
     #[test]
+    fn a_save_whose_write_fails_changes_no_file_and_leaves_no_temporary_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("fullnode.yaml");
+        std::fs::write(&path, TEMPLATE).unwrap();
+        // A file cannot replace a directory, so the write fails after the new
+        // config is written to its temporary file.
+        let written = dir.path().join("new.yaml");
+        std::fs::create_dir(&written).unwrap();
+        std::fs::write(written.join("kept"), "kept").unwrap();
+
+        let error = save(
+            &path,
+            Some(&written),
+            &policy(),
+            true,
+            &mut Vec::new(),
+            &|_: &str| Ok(true),
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("cannot write"), "{error}");
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), TEMPLATE);
+        assert_eq!(
+            std::fs::read_to_string(written.join("kept")).unwrap(),
+            "kept"
+        );
+        let mut entries = std::fs::read_dir(dir.path())
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name())
+            .collect::<Vec<_>>();
+        entries.sort();
+        assert_eq!(entries, ["fullnode.yaml", "new.yaml"]);
+    }
+
+    #[test]
     fn save_leaves_a_config_that_takes_the_settings_in_force_by_default() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("fullnode.yaml");
