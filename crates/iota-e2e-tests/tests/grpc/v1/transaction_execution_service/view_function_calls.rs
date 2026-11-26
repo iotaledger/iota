@@ -13,13 +13,21 @@ use iota_grpc_types::v1::{
 };
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{ObjectId, Owner, SharedObjectReference};
 use iota_test_transaction_builder::PublishData;
-use iota_types::{effects::TransactionEffectsAPI, transaction::CallArg};
+use iota_types::{
+    effects::TransactionEffectsAPI,
+    traffic_control::{PolicyConfig, SimulationGasLimitConfig},
+    transaction::CallArg,
+};
 use prost_types::{Value, value::Kind};
 use test_cluster::TestCluster;
 
-use crate::utils::{first_sender, setup_grpc_test, wait_for_executed_transactions_checkpointed};
+use crate::utils::{
+    first_sender, setup_grpc_test, setup_grpc_test_with_builder,
+    wait_for_executed_transactions_checkpointed,
+};
 
 /// Path to the `view_functions` test package (`Move.toml` + `sources/`),
 /// copied from `iota-json-rpc-tests`.
@@ -316,5 +324,68 @@ async fn view_reflects_state_change() {
             kind: Some(Kind::StringValue("43".to_string())),
         },
         "counter::value should return 43 after bump"
+    );
+}
+
+/// A view function call is a simulation, so the fullnode refuses it once the
+/// client's gas balance is below the computation cap of one transaction.
+#[sim_test]
+async fn a_view_call_over_the_simulation_gas_limit_is_refused() {
+    let policy_config = PolicyConfig {
+        // One call reserves all of it, and it refills too slowly to matter
+        // here.
+        simulation_gas_limit: Some(SimulationGasLimitConfig {
+            gas_per_sec: 1,
+            burst_gas: ProtocolConfig::get_for_max_version_UNSAFE().max_gas_computation_bucket(),
+        }),
+        dry_run: false,
+        ..Default::default()
+    };
+    let (test_cluster, client) = setup_grpc_test_with_builder(
+        |builder| builder.with_fullnode_policy_config(Some(policy_config)),
+        Some(1),
+        None,
+    )
+    .await;
+    let mut exec_client = client.execution_service_client();
+    let (package_id, counter) = publish_view_functions_package(&test_cluster, &client).await;
+
+    let item = ViewFunctionCallItem::default()
+        .with_fq_function_name(format!("{package_id}::counter::value"))
+        .with_type_args(vec![])
+        .with_inputs(vec![json_arg(counter.object_id.to_string())]);
+    let response = exec_client
+        .view_function_calls(
+            ViewFunctionCallsRequest::default().with_view_function_calls(vec![item; 2]),
+        )
+        .await
+        .expect("the batch is served")
+        .into_inner();
+
+    assert!(
+        matches!(
+            response.call_results[0].result,
+            Some(view_function_call_result::Result::CallOutputs(_))
+        ),
+        "the first call is within the limit: {:?}",
+        response.call_results[0]
+    );
+    let Some(view_function_call_result::Result::Error(error)) = &response.call_results[1].result
+    else {
+        panic!(
+            "the second call is over the limit: {:?}",
+            response.call_results[1]
+        );
+    };
+    assert_eq!(
+        tonic::Code::from(error.code),
+        tonic::Code::ResourceExhausted
+    );
+    assert!(
+        error
+            .message
+            .starts_with("simulation gas limit reached, retry in "),
+        "{}",
+        error.message
     );
 }
