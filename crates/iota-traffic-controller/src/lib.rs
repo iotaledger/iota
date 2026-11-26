@@ -406,17 +406,18 @@ impl TrafficController {
         self.simulation_gas
             .validate_reconfigure(simulation_gas_per_sec, simulation_burst_gas)
             .map_err(IotaError::InvalidAdminRequest)?;
+        // Dry run goes on before the other changes and off after them, so that a
+        // request checked meanwhile never meets a mix of the old and the new
+        // settings that refuses more than both.
+        let turns_dry_run_on = dry_run.filter(|dry_run| *dry_run);
+        let turns_dry_run_off = dry_run.filter(|dry_run| !*dry_run);
+        self.client_access.reconfigure(turns_dry_run_on, None, None);
         for (threshold, policy, gauge) in updates {
             if let Some(threshold) = threshold {
                 policy.set_client_threshold(threshold);
                 gauge.set(threshold as i64);
             }
         }
-        self.client_access.reconfigure(
-            dry_run,
-            connection_blocklist_ttl_sec,
-            proxy_blocklist_ttl_sec,
-        );
         self.simulation_gas
             .reconfigure(simulation_gas_per_sec, simulation_burst_gas);
         if let Some(default_action) = default_action {
@@ -430,6 +431,11 @@ impl TrafficController {
                 );
             }
         }
+        self.client_access.reconfigure(
+            turns_dry_run_off,
+            connection_blocklist_ttl_sec,
+            proxy_blocklist_ttl_sec,
+        );
 
         Ok(self.get_current_state())
     }
@@ -682,6 +688,7 @@ mod tests {
         AccessRules, DefaultAction, FreqThresholdConfig, SimulationGasLimitConfig, Weight,
         default_blocklist_ttl_sec,
     };
+    use tracing_subscriber::layer::SubscriberExt;
 
     use super::*;
     use crate::{block_log::tests::capture_plain, client_access::MAX_BLOCKLIST_TTL_SEC};
@@ -1650,6 +1657,100 @@ mod tests {
             controller.check(&Some(CLIENT), &None),
             ClientAccess::Refused
         );
+    }
+
+    /// Asks `controller` about a client that no rule names at each event of
+    /// `target` at `level`, and keeps what it decided.
+    struct CheckOnEvent {
+        controller: TrafficController,
+        target: &'static str,
+        level: tracing::Level,
+        decisions: Arc<std::sync::Mutex<Vec<ClientAccess>>>,
+    }
+
+    impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for CheckOnEvent {
+        fn on_event(
+            &self,
+            event: &tracing::Event<'_>,
+            _: tracing_subscriber::layer::Context<'_, S>,
+        ) {
+            let metadata = event.metadata();
+            if metadata.target() == self.target && *metadata.level() == self.level {
+                let stranger = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 5));
+                let decision = self.controller.check(&Some(stranger), &None);
+                self.decisions.lock().unwrap().push(decision);
+            }
+        }
+    }
+
+    /// What `controller` decides for a client that no rule names at each event
+    /// of `target` at `level` that `change` logs.
+    fn decisions_at_events(
+        controller: &TrafficController,
+        target: &'static str,
+        level: tracing::Level,
+        change: impl FnOnce(),
+    ) -> Vec<ClientAccess> {
+        let decisions = Arc::default();
+        let subscriber = tracing_subscriber::registry().with(CheckOnEvent {
+            controller: controller.clone(),
+            target,
+            level,
+            decisions: Arc::clone(&decisions),
+        });
+        tracing::subscriber::with_default(subscriber, change);
+        let mut decisions = decisions.lock().unwrap();
+        std::mem::take(&mut *decisions)
+    }
+
+    #[tokio::test]
+    async fn turning_dry_run_off_and_the_default_deny_off_at_once_refuses_no_client() {
+        let controller = TrafficController::init_for_test(PolicyConfig {
+            access_rules: AccessRules {
+                default: DefaultAction::Deny,
+                ..Default::default()
+            },
+            ..policy_config(true, PolicyKind::Spam)
+        });
+        // A block that dry run kept from the log, so that turning dry run off
+        // logs its line.
+        controller.tally(breach(PolicyKind::Spam));
+        let decisions = decisions_at_events(
+            &controller,
+            block_log::BLOCK_LOG_TARGET,
+            tracing::Level::INFO,
+            || {
+                controller
+                    .admin_reconfigure(TrafficControlReconfigParams {
+                        dry_run: Some(false),
+                        default_action: Some(DefaultAction::Limit),
+                        ..Default::default()
+                    })
+                    .unwrap();
+            },
+        );
+        assert_eq!(decisions, [ClientAccess::Limited]);
+    }
+
+    #[tokio::test]
+    async fn turning_dry_run_on_and_the_default_deny_on_at_once_refuses_no_client() {
+        let controller = TrafficController::init_for_test(policy_config(false, PolicyKind::Spam));
+        // The node warns once the default action deny is in force.
+        let decisions = decisions_at_events(
+            &controller,
+            "iota_traffic_controller",
+            tracing::Level::WARN,
+            || {
+                controller
+                    .admin_reconfigure(TrafficControlReconfigParams {
+                        dry_run: Some(true),
+                        default_action: Some(DefaultAction::Deny),
+                        ..Default::default()
+                    })
+                    .unwrap();
+            },
+        );
+        assert_eq!(decisions, [ClientAccess::Limited]);
     }
 
     #[tokio::test]
