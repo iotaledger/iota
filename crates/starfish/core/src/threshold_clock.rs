@@ -90,18 +90,6 @@ impl ThresholdClock {
         advanced
     }
 
-    /// Add the block references that have been successfully processed and
-    /// advance the round accordingly. If the round has indeed advanced then
-    /// the new round is returned, otherwise None is returned.
-    #[cfg(test)]
-    fn add_blocks(&mut self, blocks: Vec<BlockRef>) -> Option<Round> {
-        let previous_round = self.round;
-        for block_ref in blocks {
-            self.add_block_header(block_ref);
-        }
-        (self.round > previous_round).then_some(self.round)
-    }
-
     pub(crate) fn get_round(&self) -> Round {
         self.round
     }
@@ -186,58 +174,6 @@ mod tests {
             ));
         }
         assert_eq!(aggregator.get_round(), Round::MAX);
-    }
-
-    #[tokio::test]
-    async fn test_threshold_clock_add_blocks() {
-        let context = Arc::new(Context::new_for_test(4).0);
-        let mut aggregator = ThresholdClock::new(0, context);
-
-        let block_refs = vec![
-            BlockRef::new(
-                0,
-                AuthorityIndex::new_for_test(0),
-                BlockHeaderDigest::default(),
-            ),
-            BlockRef::new(
-                0,
-                AuthorityIndex::new_for_test(1),
-                BlockHeaderDigest::default(),
-            ),
-            BlockRef::new(
-                0,
-                AuthorityIndex::new_for_test(2),
-                BlockHeaderDigest::default(),
-            ),
-            BlockRef::new(
-                1,
-                AuthorityIndex::new_for_test(0),
-                BlockHeaderDigest::default(),
-            ),
-            BlockRef::new(
-                1,
-                AuthorityIndex::new_for_test(3),
-                BlockHeaderDigest::default(),
-            ),
-            BlockRef::new(
-                2,
-                AuthorityIndex::new_for_test(1),
-                BlockHeaderDigest::default(),
-            ),
-            BlockRef::new(
-                1,
-                AuthorityIndex::new_for_test(1),
-                BlockHeaderDigest::default(),
-            ),
-            BlockRef::new(
-                5,
-                AuthorityIndex::new_for_test(2),
-                BlockHeaderDigest::default(),
-            ),
-        ];
-
-        let result = aggregator.add_blocks(block_refs);
-        assert_eq!(Some(5), result);
     }
 
     /// Test that when jumping to a higher round, the first block's author is
