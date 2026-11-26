@@ -118,26 +118,20 @@ impl Linearizer {
         // votes; the quorum check fires only once, so commit it on first traversal,
         // before this commit's acknowledgments are counted.
         let mut traversed_with_quorum = Vec::new();
-        if self
+        let commit_once_traversed = self
             .context
             .protocol_config
-            .consensus_commit_transactions_only_for_traversed_headers()
-        {
-            let commit_once_traversed = self
-                .context
-                .protocol_config
-                .consensus_commit_transactions_once_traversed();
-            for block_header in &to_commit {
-                let block_ref = block_header.reference();
-                if self.traversed_headers_tracker.insert(block_ref)
-                    && commit_once_traversed
-                    && self
-                        .transactions_ack_tracker
-                        .get(&block_ref)
-                        .is_some_and(|acks| acks.reached_threshold(&self.context.committee))
-                {
-                    traversed_with_quorum.push(block_ref);
-                }
+            .consensus_commit_transactions_once_traversed();
+        for block_header in &to_commit {
+            let block_ref = block_header.reference();
+            if self.traversed_headers_tracker.insert(block_ref)
+                && commit_once_traversed
+                && self
+                    .transactions_ack_tracker
+                    .get(&block_ref)
+                    .is_some_and(|acks| acks.reached_threshold(&self.context.committee))
+            {
+                traversed_with_quorum.push(block_ref);
             }
         }
 
@@ -363,15 +357,9 @@ impl Linearizer {
 
         self.transactions_ack_tracker =
             self.transactions_ack_tracker.split_off(&lower_header_bound);
-        if self
-            .context
-            .protocol_config
-            .consensus_commit_transactions_only_for_traversed_headers()
-        {
-            self.traversed_headers_tracker = self
-                .traversed_headers_tracker
-                .split_off(&lower_header_bound);
-        }
+        self.traversed_headers_tracker = self
+            .traversed_headers_tracker
+            .split_off(&lower_header_bound);
     }
 
     /// This function is called to add the transaction acknowledgments to the
@@ -396,15 +384,10 @@ impl Linearizer {
             let was_below_threshold = !votes_collector.reached_threshold(&self.context.committee);
 
             if votes_collector.add(authority, &self.context.committee) && was_below_threshold {
-                // With traversal gating, commit now only if the header is already
-                // traversed; otherwise, with `consensus_commit_transactions_once_traversed`,
-                // the commit that traverses it commits the transactions.
-                if !self
-                    .context
-                    .protocol_config
-                    .consensus_commit_transactions_only_for_traversed_headers()
-                    || self.traversed_headers_tracker.contains(&block_ref)
-                {
+                // Commit now only if the header is already traversed; otherwise,
+                // with `consensus_commit_transactions_once_traversed`, the commit
+                // that traverses it commits the transactions.
+                if self.traversed_headers_tracker.contains(&block_ref) {
                     transactions_to_commit.push(block_ref);
                 }
             }
@@ -448,14 +431,6 @@ impl Linearizer {
         &mut self,
         headers: impl IntoIterator<Item = &'a VerifiedBlockHeader>,
     ) {
-        if !self
-            .context
-            .protocol_config
-            .consensus_commit_transactions_only_for_traversed_headers()
-        {
-            return;
-        }
-
         for header in headers {
             self.traversed_headers_tracker.insert(header.reference());
         }
@@ -644,13 +619,7 @@ mod tests {
     async fn test_handle_commit_with_schedule_update() {
         telemetry_subscribers::init_for_testing();
         let num_authorities = 4;
-        // The expected scores come from V2 vote scoring, which is skipped
-        // when the sliding-window schedule is on; run with it off.
-        let mut context = Context::new_for_test(num_authorities).0;
-        context
-            .protocol_config
-            .set_consensus_enable_sliding_window_leader_schedule_for_testing(false);
-        let context = Arc::new(context);
+        let context = Arc::new(Context::new_for_test(num_authorities).0);
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
             Arc::new(MemStore::new()),
@@ -680,6 +649,7 @@ mod tests {
 
         // Create some commits
         let commits = linearizer.get_pending_sub_dags(with_standard_metastate(leaders));
+        leader_schedule.feed_committed_subdags(commits.iter().map(|d| d.base.clone()));
         {
             // Write them in DagState
             let mut write = dag_state.write();
@@ -703,11 +673,14 @@ mod tests {
         // other should be empty
         let commits = linearizer.get_pending_sub_dags(with_standard_metastate(leaders));
         assert_eq!(commits.len(), 10);
+        // Commits 1..=7 are scored (the window lags the last commit by 3). In a
+        // fully connected DAG each scored commit credits every authority the
+        // full committee stake (4), doubled for strong votes.
         let scores = vec![
-            (AuthorityIndex::new_for_test(1), 29),
-            (AuthorityIndex::new_for_test(0), 29),
-            (AuthorityIndex::new_for_test(3), 29),
-            (AuthorityIndex::new_for_test(2), 29),
+            (AuthorityIndex::new_for_test(1), 56),
+            (AuthorityIndex::new_for_test(0), 56),
+            (AuthorityIndex::new_for_test(3), 56),
+            (AuthorityIndex::new_for_test(2), 56),
         ];
         assert_eq!(commits[0].reputation_scores_desc, scores);
         for commit in commits.into_iter().skip(1) {
@@ -1479,8 +1452,6 @@ mod tests {
         let (mut ctx, _) = Context::new_for_test(num_authorities);
         ctx.protocol_config
             .set_consensus_commit_transactions_once_traversed_for_testing(commit_once_traversed);
-        ctx.protocol_config
-            .set_consensus_commit_transactions_only_for_traversed_headers_for_testing(true);
         let context = Arc::new(ctx);
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),

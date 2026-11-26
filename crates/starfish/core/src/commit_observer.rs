@@ -1469,12 +1469,7 @@ mod tests {
     async fn test_recovery_restores_persistent_state_across_restart() {
         telemetry_subscribers::init_for_testing();
         let num_authorities = 4;
-
-        // Create context with traversed headers tracking enabled
-        let mut protocol_config =
-            iota_protocol_config::ProtocolConfig::get_for_max_version_UNSAFE();
-        protocol_config
-            .set_consensus_commit_transactions_only_for_traversed_headers_for_testing(true);
+        let protocol_config = iota_protocol_config::ProtocolConfig::get_for_max_version_UNSAFE();
 
         let (committee, _keypairs) =
             starfish_config::local_committee_and_keys(0, vec![1; num_authorities]);
@@ -1804,12 +1799,6 @@ mod tests {
     ) {
         telemetry_subscribers::init_for_testing();
         let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(true);
-        context
-            .protocol_config
-            .set_consensus_commit_transactions_only_for_traversed_headers_for_testing(true);
         context
             .protocol_config
             .set_consensus_commit_transactions_once_traversed_for_testing(true);

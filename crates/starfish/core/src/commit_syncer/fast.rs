@@ -862,25 +862,17 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 commits_since_schedule_update,
                 max(leader_schedule_window, max(cached_rounds, gc_depth * 2)),
             );
-            // When the sliding-window leader schedule is enabled, recovery replays
-            // the scorer over `replay_start..=last`; fetch enough commits to cover
-            // that range so the replayed window matches a fully-synced node
-            let num_commits = if inner
-                .context
-                .protocol_config
-                .consensus_enable_sliding_window_leader_schedule()
-            {
-                let window = inner.context.protocol_config.leader_schedule_window_size();
-                let replay_start = SlidingWindowSchedule::replay_start(last_commit_index, window);
-                max(
-                    num_commits,
-                    last_commit_index
-                        .saturating_sub(replay_start)
-                        .saturating_add(1),
-                )
-            } else {
-                num_commits
-            };
+            // Recovery replays the leader-schedule scorer over
+            // `replay_start..=last`; fetch enough commits to cover that range so
+            // the replayed window matches a fully-synced node
+            let window = inner.context.protocol_config.leader_schedule_window_size();
+            let replay_start = SlidingWindowSchedule::replay_start(last_commit_index, window);
+            let num_commits = max(
+                num_commits,
+                last_commit_index
+                    .saturating_sub(replay_start)
+                    .saturating_add(1),
+            );
             let block_refs = dag_state.get_block_refs_for_recent_commits(num_commits);
             (last_commit_index, commits_since_schedule_update, block_refs)
         };
@@ -1428,18 +1420,11 @@ mod tests {
         }
 
         fn fast_sync_context() -> Arc<Context> {
-            let (mut context, _) = Context::new_for_test(4);
-            context
-                .protocol_config
-                .set_consensus_fast_commit_sync_for_testing(true);
-            Arc::new(context)
+            Arc::new(Context::new_for_test(4).0)
         }
 
         fn fast_sync_context_with_budget(byte_budget: usize) -> Arc<Context> {
             let (mut context, _) = Context::new_for_test(4);
-            context
-                .protocol_config
-                .set_consensus_fast_commit_sync_for_testing(true);
             context.parameters.max_fast_commit_sync_transaction_bytes = byte_budget;
             Arc::new(context)
         }
@@ -1843,9 +1828,6 @@ mod tests {
         ] {
             let (mut context, _) = Context::new_for_test(4);
             context
-                .protocol_config
-                .set_consensus_fast_commit_sync_for_testing(true);
-            context
                 .parameters
                 .enable_block_stream_reset_on_fast_sync_exit = enabled;
             let context = Arc::new(context);
@@ -1894,9 +1876,6 @@ mod tests {
         /// serve, and reports the order peers were asked in.
         async fn asked_peers(enabled: bool, voters: &[u8]) -> Vec<AuthorityIndex> {
             let (mut context, _) = Context::new_for_test(4);
-            context
-                .protocol_config
-                .set_consensus_fast_commit_sync_for_testing(true);
             context
                 .parameters
                 .enable_commit_sync_peer_selection_by_commit_votes = enabled;
@@ -1961,9 +1940,6 @@ mod tests {
         #[tokio::test(start_paused = true)]
         async fn reinitialization_asks_voters_first() {
             let (mut context, _) = Context::new_for_test(4);
-            context
-                .protocol_config
-                .set_consensus_fast_commit_sync_for_testing(true);
             context.parameters.enable_peer_responsiveness_ranking = true;
             let context = Arc::new(context);
             for peer in [1, 2] {
@@ -2014,9 +1990,6 @@ mod tests {
         #[tokio::test(start_paused = true)]
         async fn reinitialization_drops_preference_for_a_failed_voter() {
             let (mut context, _) = Context::new_for_test(4);
-            context
-                .protocol_config
-                .set_consensus_fast_commit_sync_for_testing(true);
             context.parameters.max_headers_per_commit_sync_fetch = 1;
             let context = Arc::new(context);
             let headers: Vec<_> = (0..2)
@@ -2094,11 +2067,7 @@ mod tests {
         const FAILURE_PENALTY_MS: f64 = 2_000.0;
 
         fn fast_sync_context(committee_size: usize) -> Arc<Context> {
-            let (mut context, _) = Context::new_for_test(committee_size);
-            context
-                .protocol_config
-                .set_consensus_fast_commit_sync_for_testing(true);
-            Arc::new(context)
+            Arc::new(Context::new_for_test(committee_size).0)
         }
 
         #[tokio::test]
