@@ -10,7 +10,7 @@ use tempfile::TempDir;
 use super::{Store, WriteBatch, mem_store::MemStore, rocksdb_store::RocksDBStore};
 use crate::{
     block_header::{
-        BlockHeaderAPI, BlockHeaderDigest, BlockRef, Slot, TestBlockHeader, TransactionsCommitment,
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, TestBlockHeader, TransactionsCommitment,
         VerifiedBlock,
     },
     commit::{CommitDigest, CommitRef, TrustedCommit},
@@ -136,19 +136,6 @@ async fn read_and_contain_block_headers(
     assert!(contains[0]);
     assert!(!contains[1]);
     assert!(contains[2]);
-
-    // Test slot existence
-    for block in &written_blocks {
-        let found = store
-            .contains_block_at_slot(block.slot())
-            .expect("Check slot should not fail");
-        assert!(found);
-    }
-
-    let found = store
-        .contains_block_at_slot(Slot::new(10, AuthorityIndex::new_for_test(0)))
-        .expect("Check slot should not fail");
-    assert!(!found);
 }
 
 #[rstest]
@@ -172,19 +159,12 @@ async fn scan_block_headers(
     // Write block headers
     store
         .write(
-            WriteBatch::default()
-                .block_headers(
-                    written_blocks
-                        .iter()
-                        .map(|b| b.verified_block_header.clone())
-                        .collect(),
-                )
-                .transactions(
-                    written_blocks
-                        .iter()
-                        .map(|b| b.verified_transactions.clone())
-                        .collect(),
-                ),
+            WriteBatch::default().block_headers(
+                written_blocks
+                    .iter()
+                    .map(|b| b.verified_block_header.clone())
+                    .collect(),
+            ),
         )
         .unwrap();
 
@@ -218,19 +198,12 @@ async fn scan_block_headers(
     // Write additional block headers
     store
         .write(
-            WriteBatch::default()
-                .block_headers(
-                    additional_blocks
-                        .iter()
-                        .map(|b| b.verified_block_header.clone())
-                        .collect(),
-                )
-                .transactions(
-                    additional_blocks
-                        .iter()
-                        .map(|b| b.verified_transactions.clone())
-                        .collect(),
-                ),
+            WriteBatch::default().block_headers(
+                additional_blocks
+                    .iter()
+                    .map(|b| b.verified_block_header.clone())
+                    .collect(),
+            ),
         )
         .unwrap();
     {
@@ -248,22 +221,6 @@ async fn scan_block_headers(
                 additional_blocks[2].verified_block_header.clone(),
             ]
         );
-    }
-
-    {
-        let scanned_blocks = store
-            .scan_last_blocks_by_author(AuthorityIndex::new_for_test(1), 2, None)
-            .expect("Scan blocks should not fail");
-        assert_eq!(scanned_blocks.len(), 2, "{scanned_blocks:?}");
-        assert_eq!(
-            scanned_blocks,
-            vec![written_blocks[7].clone(), additional_blocks[2].clone()]
-        );
-
-        let scanned_blocks = store
-            .scan_last_blocks_by_author(AuthorityIndex::new_for_test(1), 0, None)
-            .expect("Scan blocks should not fail");
-        assert_eq!(scanned_blocks.len(), 0);
     }
 }
 

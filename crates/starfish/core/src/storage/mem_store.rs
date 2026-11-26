@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
+    collections::{BTreeMap, BTreeSet},
     ops::Bound::Included,
 };
 
@@ -15,7 +15,7 @@ use super::{Store, WriteBatch, collect_transactions_within_budget, transaction_s
 use crate::{
     block_header::{
         BlockHeaderAPI as _, BlockHeaderDigest, BlockRef, CommitmentVerifiedTransactions, Round,
-        Slot, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
+        TransactionsCommitment, VerifiedBlockHeader,
     },
     commit::{
         CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRange, CommitRef,
@@ -179,40 +179,6 @@ impl Store for MemStore {
         Ok(transactions)
     }
 
-    // TODO: Do we need this method or will DAGState always try to read both headers
-    // and transactions separately?
-    fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlock>>> {
-        // Ensure we have a read lock on the inner state across reading both headers and
-        // transactions reads
-        let inner = self.inner.read();
-        // Get both headers and transactions for the given references
-        let headers = self.read_verified_block_headers(refs)?;
-        let tx_refs = headers
-            .iter()
-            .map(|vh| {
-                if vh.is_none() {
-                    TransactionRef::default()
-                } else {
-                    vh.as_ref().unwrap().transaction_ref()
-                }
-            })
-            .collect::<Vec<TransactionRef>>();
-        let transactions = self.read_verified_transactions(tx_refs.as_slice())?;
-        drop(inner); // Explicitly drop the read lock before combining results
-
-        // Combine them into blocks if both parts exist
-        let mut blocks = Vec::with_capacity(refs.len());
-        for (header, transactions) in headers.into_iter().zip(transactions) {
-            match (header, transactions) {
-                (Some(hdr), Some(txs)) => {
-                    blocks.push(Some(VerifiedBlock::new(hdr, txs)));
-                }
-                _ => blocks.push(None),
-            }
-        }
-        Ok(blocks)
-    }
-
     fn contains_transactions(&self, refs: &[TransactionRef]) -> ConsensusResult<Vec<bool>> {
         let inner = self.inner.read();
         let exist = refs
@@ -226,68 +192,6 @@ impl Store for MemStore {
             })
             .collect();
         Ok(exist)
-    }
-
-    fn scan_blocks_by_author(
-        &self,
-        author: AuthorityIndex,
-        start_round: Round,
-    ) -> ConsensusResult<Vec<VerifiedBlock>> {
-        let inner = self.inner.read();
-        let mut refs = vec![];
-        for &(author, round, digest) in inner.digests_by_authorities.range((
-            Included((author, start_round, BlockHeaderDigest::MIN)),
-            Included((author, Round::MAX, BlockHeaderDigest::MAX)),
-        )) {
-            refs.push(BlockRef::new(round, author, digest));
-        }
-        let results = self.read_blocks(refs.as_slice())?;
-        let mut blocks = Vec::with_capacity(refs.len());
-        for (r, block) in refs.into_iter().zip(results) {
-            blocks.push(
-                block.unwrap_or_else(|| panic!("Storage inconsistency: block {r:?} not found!")),
-            );
-        }
-        Ok(blocks)
-    }
-
-    fn scan_last_blocks_by_author(
-        &self,
-        author: AuthorityIndex,
-        num_of_rounds: u64,
-        before_round: Option<Round>,
-    ) -> ConsensusResult<Vec<VerifiedBlock>> {
-        let before_round = before_round.unwrap_or(Round::MAX);
-        let mut refs = VecDeque::new();
-
-        // Collect block references
-        for &(author, round, digest) in self
-            .inner
-            .read()
-            .digests_by_authorities
-            .range((
-                Included((author, Round::MIN, BlockHeaderDigest::MIN)),
-                Included((author, before_round, BlockHeaderDigest::MAX)),
-            ))
-            .rev()
-            .take(num_of_rounds as usize)
-        {
-            refs.push_front(BlockRef::new(round, author, digest));
-        }
-
-        // Read and combine transactions and headers.
-        // Use make_contiguous() rather than as_slices().0 to ensure all refs are read
-        // when the VecDeque ring buffer wraps; otherwise trailing entries would be
-        // silently dropped.
-        let refs_slice = refs.make_contiguous();
-        let results = self.read_blocks(refs_slice)?;
-        let mut blocks = vec![];
-        for (r, block) in refs.into_iter().zip(results) {
-            blocks.push(
-                block.unwrap_or_else(|| panic!("Storage inconsistency: block {r:?} not found!")),
-            );
-        }
-        Ok(blocks)
     }
 
     fn scan_misbehavior_counts(
@@ -329,19 +233,6 @@ impl Store for MemStore {
             })
             .collect();
         Ok(serialized_headers)
-    }
-
-    fn contains_block_at_slot(&self, slot: Slot) -> ConsensusResult<bool> {
-        let inner = self.inner.read();
-        let found = inner
-            .digests_by_authorities
-            .range((
-                Included((slot.authority, slot.round, BlockHeaderDigest::MIN)),
-                Included((slot.authority, slot.round, BlockHeaderDigest::MAX)),
-            ))
-            .next()
-            .is_some();
-        Ok(found)
     }
 
     fn scan_block_references_by_author(
