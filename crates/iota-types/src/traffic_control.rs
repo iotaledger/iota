@@ -451,6 +451,24 @@ mod tests {
         assert!(config.access_rules.is_default());
     }
 
+    /// The names that the operator docs use for the simulation gas limit.
+    #[test]
+    fn a_simulation_gas_limit_loads_from_its_config_names() {
+        let config: super::PolicyConfig = serde_json::from_str(
+            r#"{"simulation-gas-limit": {"gas-per-sec": 1000000, "burst-gas": 20000000}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            config.simulation_gas_limit,
+            Some(super::SimulationGasLimitConfig {
+                gas_per_sec: 1_000_000,
+                burst_gas: 20_000_000,
+            })
+        );
+        let config: super::PolicyConfig = serde_json::from_str("{}").unwrap();
+        assert_eq!(config.simulation_gas_limit, None);
+    }
+
     #[test]
     fn an_unknown_access_rules_key_fails_to_load() {
         let error = serde_json::from_str::<super::PolicyConfig>(
