@@ -342,9 +342,9 @@ mod tests {
         let limiter = limiter(1, 100);
         let now = Instant::now();
         assert_eq!(limiter.reserve(CLIENT, false, now), Some(Ok(100)));
-        // Each check comes before a whole gas unit refilled.
-        for half_secs in 1..200 {
-            let _ = limiter.reserve(CLIENT, false, now + Duration::from_millis(500 * half_secs));
+        // A check every 0.7 s leaves a part of a second after most refills.
+        for step in 1..=142 {
+            let _ = limiter.reserve(CLIENT, false, now + Duration::from_millis(700 * step));
         }
         assert_eq!(
             limiter.reserve(CLIENT, false, now + Duration::from_secs(100)),
