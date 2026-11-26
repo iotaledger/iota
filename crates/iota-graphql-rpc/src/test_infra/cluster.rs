@@ -14,7 +14,7 @@ use iota_indexer::{
 use iota_node_storage::GrpcStateReader;
 use iota_sdk_types::Transaction;
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
-use iota_types::transaction::TransactionEnvelope;
+use iota_types::{traffic_control::PolicyConfig, transaction::TransactionEnvelope};
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::{join, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
@@ -57,13 +57,33 @@ pub async fn start_cluster(
     internal_data_source_rpc_port: Option<u16>,
     service_config: ServiceConfig,
 ) -> Cluster {
+    start_cluster_with_fullnode_policy_config(
+        graphql_connection_config,
+        internal_data_source_rpc_port,
+        service_config,
+        None,
+    )
+    .await
+}
+
+/// Like [`start_cluster`], with `fullnode_policy_config` as the traffic
+/// control of the fullnode.
+pub async fn start_cluster_with_fullnode_policy_config(
+    graphql_connection_config: ConnectionConfig,
+    internal_data_source_rpc_port: Option<u16>,
+    service_config: ServiceConfig,
+    fullnode_policy_config: Option<PolicyConfig>,
+) -> Cluster {
     let data_ingestion_path = iota_common::tempdir().keep();
     let db_url = graphql_connection_config.db_url();
     let cancellation_token = CancellationToken::new();
     // Starts validator+fullnode
-    let test_cluster =
-        start_validator_with_fullnode(internal_data_source_rpc_port, data_ingestion_path.clone())
-            .await;
+    let test_cluster = start_validator_with_fullnode(
+        internal_data_source_rpc_port,
+        data_ingestion_path.clone(),
+        fullnode_policy_config,
+    )
+    .await;
 
     let grpc_url = test_cluster.grpc_url();
     // Starts indexer
@@ -251,11 +271,13 @@ pub async fn start_graphql_server_with_fn_rpc(
 async fn start_validator_with_fullnode(
     internal_data_source_rpc_port: Option<u16>,
     data_ingestion_dir: PathBuf,
+    fullnode_policy_config: Option<PolicyConfig>,
 ) -> TestCluster {
     let mut test_cluster_builder = TestClusterBuilder::new()
         .with_num_validators(VALIDATOR_COUNT)
         .with_epoch_duration_ms(EPOCH_DURATION_MS)
         .with_data_ingestion_dir(data_ingestion_dir)
+        .with_fullnode_policy_config(fullnode_policy_config)
         .with_accounts(vec![
             AccountConfig {
                 address: None,

@@ -4,7 +4,7 @@
 
 #[cfg(feature = "pg_integration")]
 mod tests {
-    use std::{sync::Arc, time::Duration};
+    use std::{net::IpAddr, sync::Arc, time::Duration};
 
     use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
     use fastcrypto::encoding::{Base58, Encoding};
@@ -18,9 +18,11 @@ mod tests {
     use iota_indexer::{
         run_query_async, schema::optimistic_transactions, spawn_read_only_blocking,
     };
-    use iota_sdk_types::{Address, ObjectId, StructTag, TransactionDigest, TypeTag};
+    use iota_json_rpc_types::ObjectChange;
+    use iota_sdk_types::{Address, ObjectId, Owner, StructTag, TransactionDigest, TypeTag};
     use iota_types::{
         digests::ChainIdentifier,
+        traffic_control::{AccessRules, PolicyConfig},
         transaction::{CallArg, TransactionAPI, TransactionEnvelope},
     };
     use rand::{SeedableRng, rngs::StdRng};
@@ -731,6 +733,132 @@ mod tests {
         let indexed_on_node = tx.get("indexedOnNode").unwrap().as_bool().unwrap();
         assert!(!indexed_on_node);
         assert!(res.get("results").unwrap().is_array());
+    }
+
+    /// GraphQL names the client of each dry run and view call to the
+    /// fullnode, which lists the GraphQL server as a forwarder, and passes a
+    /// refusal of the fullnode on with the code `TOO_MANY_REQUESTS`. The
+    /// fullnode denies `127.0.0.2`, so only a request from that address is
+    /// refused.
+    #[tokio::test]
+    #[serial]
+    async fn test_simulations_name_their_client_to_the_fullnode() {
+        const DENIED_CLIENT: &str = "127.0.0.2";
+        let _guard = telemetry_subscribers::TelemetryConfig::new()
+            .with_env()
+            .init();
+        let connection_config = ConnectionConfig::default();
+        let cluster =
+            iota_graphql_rpc::test_infra::cluster::start_cluster_with_fullnode_policy_config(
+                connection_config.clone(),
+                None,
+                ServiceConfig::test_defaults(),
+                Some(PolicyConfig {
+                    access_rules: AccessRules {
+                        deny: vec![DENIED_CLIENT.to_string()],
+                        // The GraphQL server calls the fullnode from loopback.
+                        forwarders: vec!["127.0.0.1".to_string(), "::1".to_string()],
+                        ..Default::default()
+                    },
+                    dry_run: false,
+                    ..Default::default()
+                }),
+            )
+            .await;
+
+        let test_cluster = &cluster.validator_fullnode_handle;
+        let publish = test_cluster
+            .test_transaction_builder_with_sender(test_cluster.get_address_0())
+            .await
+            .publish_examples("view_functions")
+            .build();
+        let object_changes = test_cluster
+            .wallet
+            .execute_transaction_must_succeed(test_cluster.wallet.sign_transaction(&publish))
+            .await
+            .object_changes
+            .expect("the response has the object changes");
+        let package_id = object_changes
+            .iter()
+            .find_map(|change| match change {
+                ObjectChange::Published { package_id, .. } => Some(*package_id),
+                _ => None,
+            })
+            .expect("the package is published");
+        let counter_id = object_changes
+            .iter()
+            .find_map(|change| match change {
+                ObjectChange::Created {
+                    object_id,
+                    owner: Owner::Shared(_),
+                    ..
+                } => Some(*object_id),
+                _ => None,
+            })
+            .expect("the package creates a shared counter");
+
+        let dry_run = json!({
+            "query": "query ($tx: String!) { dryRunTransactionBlock(txBytes: $tx) { error } }",
+            "variables": { "tx": cluster.build_transfer_iota_for_test().await.to_base64() },
+        });
+        let view_call = json!({
+            "query": format!(
+                r#"{{ moveViewCall(functionName: "{package_id}::counter::value", arguments: ["{counter_id}"]) {{ error }} }}"#
+            ),
+        });
+        let url = format!(
+            "http://{}:{}/",
+            connection_config.host, connection_config.port
+        );
+        let denied_client = reqwest::Client::builder()
+            .local_address(DENIED_CLIENT.parse::<IpAddr>().unwrap())
+            .build()
+            .unwrap();
+        let other_client = reqwest::Client::new();
+        let post = async |client: &reqwest::Client, request: &serde_json::Value| {
+            client
+                .post(&url)
+                .json(request)
+                .send()
+                .await
+                .unwrap()
+                .json::<serde_json::Value>()
+                .await
+                .unwrap()
+        };
+
+        // The view call needs the package and the counter in the database of
+        // the indexer, so wait until it is served to a client the fullnode
+        // does not deny.
+        let mut attempts = 0;
+        while attempts < 60
+            && post(&other_client, &view_call)
+                .await
+                .get("errors")
+                .is_some()
+        {
+            attempts += 1;
+            sleep(Duration::from_millis(500)).await;
+        }
+        for request in [&view_call, &dry_run] {
+            let response = post(&other_client, request).await;
+            assert!(response.get("errors").is_none(), "{response}");
+        }
+
+        let mut not_refused = Vec::new();
+        for (query, request) in [
+            ("dryRunTransactionBlock", &dry_run),
+            ("moveViewCall", &view_call),
+        ] {
+            let response = post(&denied_client, request).await;
+            if response["errors"][0]["extensions"]["code"] != "TOO_MANY_REQUESTS" {
+                not_refused.push(format!("{query}: {response}"));
+            }
+        }
+        assert!(
+            not_refused.is_empty(),
+            "queries of the denied client that were not refused: {not_refused:#?}"
+        );
     }
 
     // Test dry run where the transaction kind is provided instead of the full

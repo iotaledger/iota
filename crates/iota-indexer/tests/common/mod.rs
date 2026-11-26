@@ -73,7 +73,7 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 
 const DEFAULT_DB: &str = "iota_indexer";
-const DEFAULT_INDEXER_IP: &str = "127.0.0.1";
+pub const DEFAULT_INDEXER_IP: &str = "127.0.0.1";
 const DEFAULT_INDEXER_PORT: u16 = 9005;
 const DEFAULT_SERVER_PORT: u16 = 3000;
 pub const FIXTURES_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data");
@@ -429,7 +429,7 @@ pub async fn execute_tx_must_succeed(
 
 /// Starts the indexer JSON-RPC reader on a free local port and returns that
 /// port once the server accepts connections.
-async fn start_indexer_reader(
+pub async fn start_indexer_reader(
     fullnode_rpc_url: impl Into<String>,
     database_name: Option<&str>,
 ) -> u16 {

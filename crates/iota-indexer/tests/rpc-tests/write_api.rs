@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    net::IpAddr,
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -40,17 +41,19 @@ use iota_types::{
     gas_coin::NANOS_PER_IOTA,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
+    traffic_control::{AccessRules, PolicyConfig},
     utils::to_sender_signed_transaction,
 };
 use itertools::Itertools;
-use jsonrpsee::http_client::HttpClient;
+use jsonrpsee::{http_client::HttpClient, types::error::ErrorCode};
+use serde_json::json;
 
 use crate::{
     coin_api::execute_move_call,
     common::{
-        ApiTestSetup, force_new_epoch_and_wait, indexer_wait_for_checkpoint,
+        ApiTestSetup, DEFAULT_INDEXER_IP, force_new_epoch_and_wait, indexer_wait_for_checkpoint,
         indexer_wait_for_object, indexer_wait_for_optimistic_transactions_count,
-        node_wait_for_object, publish_test_move_package,
+        node_wait_for_object, publish_test_move_package, start_indexer_reader,
         start_test_cluster_with_read_write_indexer,
     },
 };
@@ -2015,4 +2018,144 @@ fn dry_run_request_add_stake() {
         assert_eq!(dry_run_resp.effects.status(), &IotaExecutionStatus::Success);
         assert!(!dry_run_resp.balance_changes.is_empty());
     });
+}
+
+/// The indexer names the client of each dry run, dev inspect and view call to
+/// the fullnode, which lists the indexer as a forwarder, and passes a refusal
+/// of the fullnode on as `ServerIsBusy`. The fullnode denies `127.0.0.2`, so
+/// only a request from that address is refused.
+#[tokio::test]
+async fn simulations_name_their_client_to_the_fullnode() -> Result<(), anyhow::Error> {
+    const DATABASE_NAME: &str = "write_api_simulations_name_their_client";
+    const DENIED_CLIENT: &str = "127.0.0.2";
+    let policy_config = PolicyConfig {
+        access_rules: AccessRules {
+            deny: vec![DENIED_CLIENT.to_string()],
+            // The indexer calls the fullnode from loopback.
+            forwarders: vec!["127.0.0.1".to_string(), "::1".to_string()],
+            ..Default::default()
+        },
+        dry_run: false,
+        ..Default::default()
+    };
+    let (cluster, store, _) = start_test_cluster_with_read_write_indexer(
+        Some(DATABASE_NAME),
+        Some(Box::new(move |builder| {
+            builder.with_fullnode_policy_config(Some(policy_config))
+        })),
+        None,
+    )
+    .await;
+    let indexer_url = format!(
+        "http://{DEFAULT_INDEXER_IP}:{}",
+        start_indexer_reader(cluster.grpc_url(), Some(DATABASE_NAME)).await
+    );
+    indexer_wait_for_checkpoint(&store, 1).await;
+
+    let publish = cluster
+        .test_transaction_builder_with_sender(cluster.get_address_0())
+        .await
+        .publish_examples("view_functions")
+        .build();
+    let object_changes = cluster
+        .wallet
+        .execute_transaction_must_succeed(cluster.wallet.sign_transaction(&publish))
+        .await
+        .object_changes
+        .expect("the response has the object changes");
+    let package_id = object_changes
+        .iter()
+        .find_map(|change| match change {
+            ObjectChange::Published { package_id, .. } => Some(*package_id),
+            _ => None,
+        })
+        .expect("the package is published");
+    let counter_id = object_changes
+        .iter()
+        .find_map(|change| match change {
+            ObjectChange::Created {
+                object_id,
+                owner: Owner::Shared(_),
+                ..
+            } => Some(*object_id),
+            _ => None,
+        })
+        .expect("the package creates a shared counter");
+    let (sender, gas) = cluster.wallet.get_one_gas_object().await?.unwrap();
+    let transaction =
+        TestTransactionBuilder::new(sender, gas, cluster.get_reference_gas_price().await)
+            .transfer_iota(None, sender)
+            .build();
+    let Transaction::V1(transaction_v1) = &transaction else {
+        unreachable!("the test transaction is V1")
+    };
+    let requests = [
+        (
+            "iota_dryRunTransactionBlock",
+            json!([Base64::from_bytes(&bcs::to_bytes(&transaction)?)]),
+        ),
+        (
+            "iota_devInspectTransactionBlock",
+            json!([
+                sender,
+                Base64::from_bytes(&bcs::to_bytes(&transaction_v1.kind)?)
+            ]),
+        ),
+        (
+            "iota_view",
+            json!([format!("{package_id}::counter::value"), null, [counter_id]]),
+        ),
+    ]
+    .map(|(method, params)| {
+        (
+            method,
+            json!({ "jsonrpc": "2.0", "id": 1, "method": method, "params": params }),
+        )
+    });
+    let denied_client = reqwest::Client::builder()
+        .local_address(DENIED_CLIENT.parse::<IpAddr>()?)
+        .build()?;
+    let other_client = reqwest::Client::new();
+    let post = async |client: &reqwest::Client, request: &serde_json::Value| {
+        client
+            .post(&indexer_url)
+            .json(request)
+            .send()
+            .await
+            .unwrap()
+            .json::<serde_json::Value>()
+            .await
+            .unwrap()
+    };
+
+    // The view call needs the package and the counter in the database of the
+    // indexer, so wait until it is served to a client the fullnode does not
+    // deny.
+    let mut attempts = 0;
+    while attempts < 60
+        && post(&other_client, &requests[2].1)
+            .await
+            .get("error")
+            .is_some()
+    {
+        attempts += 1;
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    }
+    for (method, request) in &requests {
+        let response = post(&other_client, request).await;
+        assert!(response.get("error").is_none(), "{method}: {response}");
+    }
+
+    let mut not_refused = Vec::new();
+    for (method, request) in &requests {
+        let response = post(&denied_client, request).await;
+        if response["error"]["code"] != ErrorCode::ServerIsBusy.code() {
+            not_refused.push(format!("{method}: {response}"));
+        }
+    }
+    assert!(
+        not_refused.is_empty(),
+        "requests of the denied client that were not refused: {not_refused:#?}"
+    );
+    Ok(())
 }
