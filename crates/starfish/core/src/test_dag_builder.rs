@@ -49,7 +49,7 @@ use crate::{
 /// dag_builder.layers(2..=10).build(); // Rounds 2 ~ 10 are fully connected with parents by default.
 /// dag_builder.layers(11).skip_acknowledgements(vec![1,2]).build(); // Round 11 skips acknowledgments for blocks from authorities 1 and 2.
 /// dag_builder.layers(12).min_parent_links().build(); // Round 11 is minimally and randomly connected with parents, without weak links.
-/// dag_builder.layers(14).no_leader_link(12).build(); // Round 13 misses votes for leader block. Other blocks are fully connected with parents.
+/// dag_builder.layer(13).no_leader_link(12); // Round 13 omits links to the round-12 leader.
 /// dag_builder.layers(15).authorities(vec![3,5]).skip_block().build(); // Round 14 authorities 3 and 5 will not propose any block.
 /// dag_builder.layers(16).authorities(vec![3,5]).skip_ancestor_links(vec![1,2]).build(); // Round 15 authorities 3 and 5 will not link to ancestors 1 and 2
 /// dag_builder.layers(17).authorities(vec![3,5]).equivocate(3).build(); // Round 16 authorities 3 and 5 will produce 3 equivocating blocks.
