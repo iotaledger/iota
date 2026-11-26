@@ -4,8 +4,16 @@
 #[test_only]
 module iota::builtin_authenticator_functions_tests;
 
+use iota::account;
 use iota::authenticator_function;
-use iota::builtin_authenticator_functions;
+use iota::builtin_authenticator_functions::{
+    Self,
+    PublicKeyAttached,
+    PublicKeyDetached,
+    PublicKeyRotated
+};
+use iota::event;
+use iota::protocol_config;
 use iota::public_key;
 use iota::signature_scheme;
 use iota::test_scenario;
@@ -63,6 +71,14 @@ fun builtin_authenticator_function_ref_has_correct_fields() {
     assert_eq(ref.package(), object::id_from_address(@0x2));
     assert_ref_eq(ref.module_name(), &ascii::string(b"builtin_authenticator_functions"));
     assert_ref_eq(ref.function_name(), &ascii::string(b"builtin_authenticator_v1"));
+}
+
+#[test]
+#[expected_failure(abort_code = builtin_authenticator_functions::EBuiltinAuthenticatorsNotEnabled)]
+fun builtin_authenticator_function_ref_aborts_without_builtin_authenticators() {
+    protocol_config::set_feature_enabled_for_testing(b"enable_builtin_move_authenticators", false);
+
+    builtin_authenticator_functions::builtin_authenticator_function_ref_v1<TestAccount>();
 }
 
 #[test]
@@ -171,6 +187,65 @@ fun rotate_without_attach_aborts() {
     });
 }
 
+// === Events ===
+
+#[test]
+fun attach_public_key_emits_public_key_attached() {
+    account_test_mut!(|account| {
+        builtin_authenticator_functions::attach_public_key(account.id_mut(), ed25519_public_key());
+
+        assert_eq(
+            event::events_by_type<PublicKeyAttached>(),
+            vector[
+                builtin_authenticator_functions::create_public_key_attached_for_testing(
+                    object::id(account),
+                    ed25519_public_key(),
+                ),
+            ],
+        );
+    });
+}
+
+#[test]
+fun detach_public_key_emits_public_key_detached() {
+    account_test_mut!(|account| {
+        builtin_authenticator_functions::attach_public_key(account.id_mut(), ed25519_public_key());
+        builtin_authenticator_functions::detach_public_key(account.id_mut());
+
+        assert_eq(
+            event::events_by_type<PublicKeyDetached>(),
+            vector[
+                builtin_authenticator_functions::create_public_key_detached_for_testing(
+                    object::id(account),
+                    ed25519_public_key(),
+                ),
+            ],
+        );
+    });
+}
+
+#[test]
+fun rotate_public_key_emits_public_key_rotated() {
+    account_test_mut!(|account| {
+        builtin_authenticator_functions::attach_public_key(account.id_mut(), ed25519_public_key());
+        builtin_authenticator_functions::rotate_public_key(
+            account.id_mut(),
+            secp256k1_public_key(),
+        );
+
+        assert_eq(
+            event::events_by_type<PublicKeyRotated>(),
+            vector[
+                builtin_authenticator_functions::create_public_key_rotated_for_testing(
+                    object::id(account),
+                    ed25519_public_key(),
+                    secp256k1_public_key(),
+                ),
+            ],
+        );
+    });
+}
+
 // === ensure_builtin_authenticator_and_public_key_together ===
 
 #[test]
@@ -238,6 +313,31 @@ fun builtin_authenticator_aborts_without_public_key() {
             ED25519_SIGNATURE,
         );
     });
+}
+
+#[test]
+#[expected_failure(abort_code = builtin_authenticator_functions::EBuiltinAuthenticatorsNotEnabled)]
+fun builtin_authenticator_aborts_without_builtin_authenticators() {
+    let mut scenario = test_scenario::begin(@0x0);
+    let mut account = TestAccount { id: object::new(scenario.ctx()) };
+    builtin_authenticator_functions::attach_public_key(
+        account.id_mut(),
+        public_key::create(signature_scheme::ed25519(), ED25519_PUBLIC_KEY),
+    );
+    account::create_account_v1(account, builtin_authenticator());
+
+    scenario.next_tx(@0x0);
+    let account = scenario.take_shared<TestAccount>();
+    set_tx_data_bytes(TX_DATA_BYTES);
+    protocol_config::set_feature_enabled_for_testing(b"enable_builtin_move_authenticators", false);
+
+    // A valid signature of the transaction, so only the disabled flag can make this abort.
+    builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+        &account,
+        ED25519_SIGNATURE,
+    );
+
+    abort
 }
 
 #[test]
