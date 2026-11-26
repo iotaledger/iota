@@ -3339,3 +3339,779 @@ fn test_checkpoint_sync_target() {
     // The bound must not run past the end of the sequence space.
     assert_eq!(checkpoint_sync_target(30, Some(u64::MAX), 100), 30);
 }
+
+#[tokio::test]
+async fn peer_marked_during_a_summary_sync_gets_no_more_requests_from_our_node() {
+    use crate::state_sync::sync_one_checkpoint_contents;
+
+    let mut node = node_with_a_marked_peer().await;
+    let height = node.height;
+
+    // The summary sync that marked the forging peer asked only the honest
+    // peer from then on, though it started with both. The node then queries
+    // its peers for their latest checkpoint.
+    node.event_loop.handle_tick(std::time::Instant::now());
+    node.event_loop.tasks.join_next().await.unwrap().unwrap();
+    // It notifies its peers of a newer checkpoint.
+    node.event_loop
+        .handle_message(StateSyncMessage::SyncedCheckpoint(Box::new(
+            node.honest_checkpoints[height + 1].clone(),
+        )));
+    node.event_loop.tasks.join_next().await.unwrap().unwrap();
+    // It syncs the contents of its checkpoints.
+    for checkpoint in &node.honest_checkpoints[1..=height] {
+        let synced = sync_one_checkpoint_contents(
+            node.event_loop.network.clone(),
+            node.event_loop.store.clone(),
+            node.event_loop.peer_heights.clone(),
+            node.event_loop.config.timeout(),
+            checkpoint.clone(),
+        )
+        .await;
+        assert!(synced.is_ok());
+    }
+
+    let forging = &node.forging_peer_requests;
+    let honest = &node.honest_peer_requests;
+    for (rpc, forging_peer_count, honest_peer_count) in [
+        (
+            "get_checkpoint_summary",
+            &forging.get_checkpoint_summary,
+            &honest.get_checkpoint_summary,
+        ),
+        (
+            "get_checkpoint_availability",
+            &forging.get_checkpoint_availability,
+            &honest.get_checkpoint_availability,
+        ),
+        (
+            "push_checkpoint_summary",
+            &forging.push_checkpoint_summary,
+            &honest.push_checkpoint_summary,
+        ),
+        (
+            "get_checkpoint_contents",
+            &forging.get_checkpoint_contents,
+            &honest.get_checkpoint_contents,
+        ),
+    ] {
+        assert_eq!(forging_peer_count.load(Ordering::SeqCst), 0, "{rpc}");
+        // The honest peer got each request, so the counts see them.
+        assert!(honest_peer_count.load(Ordering::SeqCst) > 0, "{rpc}");
+    }
+}
+
+#[tokio::test]
+async fn requests_and_handshake_responses_from_a_marked_peer_store_nothing() {
+    use anemo::types::PeerEvent;
+
+    let mut node = node_with_a_marked_peer().await;
+    let height = node.height;
+    let node_id = node.event_loop.network.peer_id();
+    let forging_peer_id = node.forging_peer.peer_id();
+    // It is above the node's highest verified checkpoint, so the node stores
+    // it from a peer on its chain. It is also the forging peer's highest
+    // synced checkpoint.
+    let forged_checkpoint = node.forged_checkpoints[height + 1].clone().into_inner();
+
+    push_over_network(&node.forging_peer, node_id, forged_checkpoint.clone()).await;
+    assert_eq!(
+        node.event_loop.peer_heights.read().unwrap().peers[&forging_peer_id].height,
+        height as u64
+    );
+    handshake_over_network(
+        &node.forging_peer,
+        node_id,
+        &node.honest_checkpoints[0],
+        forged_checkpoint.clone(),
+    )
+    .await;
+    // The node sends its own handshake when it handles the forging peer's
+    // NewPeer event, and gets the forged summary back in the response.
+    loop {
+        let event = next_peer_event(&mut node.peer_events).await;
+        if matches!(event, Ok(PeerEvent::NewPeer(peer_id)) if peer_id == forging_peer_id) {
+            node.event_loop.handle_peer_event(event);
+            break;
+        }
+    }
+    node.event_loop.tasks.join_next().await.unwrap().unwrap();
+    assert_eq!(
+        node.forging_peer_requests
+            .exchange_state_sync_handshake
+            .load(Ordering::SeqCst),
+        1
+    );
+
+    // None of them clears the mark, stores the summary or kicks the event
+    // loop, and the height the forging peer claims now starts no summary
+    // sync.
+    assert!(
+        !node
+            .event_loop
+            .peer_heights
+            .read()
+            .unwrap()
+            .is_on_same_chain(&forging_peer_id)
+    );
+    assert!(!is_checkpoint_cached(
+        &node.event_loop,
+        forged_checkpoint.digest()
+    ));
+    assert!(node.event_loop.mailbox.try_recv().is_err());
+    node.event_loop.maybe_start_checkpoint_summary_sync_task();
+    assert!(node.event_loop.sync_checkpoint_summaries_task.is_none());
+
+    // The same height from the honest peer is stored and starts summary sync.
+    let honest_checkpoint = node.honest_checkpoints[height + 1].clone().into_inner();
+    push_over_network(&node.honest_peer, node_id, honest_checkpoint.clone()).await;
+    assert!(is_checkpoint_cached(
+        &node.event_loop,
+        honest_checkpoint.digest()
+    ));
+    assert!(node.event_loop.mailbox.try_recv().is_ok());
+    node.event_loop.maybe_start_checkpoint_summary_sync_task();
+    assert!(node.event_loop.sync_checkpoint_summaries_task.is_some());
+}
+
+#[tokio::test]
+async fn lost_peer_event_drops_the_peer_and_its_cached_summaries() {
+    use anemo::types::PeerEvent;
+
+    let (committee, (ordered_checkpoints, _, _, _)) =
+        make_committee_and_checkpoints(0, 4, 3, None, empty_contents);
+    let genesis_checkpoint = &ordered_checkpoints[0];
+    let highest_checkpoint = &ordered_checkpoints[2];
+
+    let peer_store = store_with_checkpoints_synced(
+        &ordered_checkpoints,
+        empty_contents(),
+        committee.committee().to_owned(),
+    );
+    let (_, peer_router) = Builder::new().store(peer_store).build();
+    let peer = build_network(|router| router.merge(peer_router));
+    let peer_id = peer.peer_id();
+
+    let (mut event_loop, _server, _handle) =
+        node_at_genesis(genesis_checkpoint, &committee, vec![]);
+    let (mut peer_events, _) = event_loop.network.subscribe().unwrap();
+    event_loop.network.connect(peer.local_addr()).await.unwrap();
+
+    // The node sends its handshake when it handles the NewPeer event, and
+    // stores the peer's highest synced checkpoint from the response.
+    let event = next_peer_event(&mut peer_events).await;
+    assert!(matches!(event, Ok(PeerEvent::NewPeer(id)) if id == peer_id));
+    event_loop.handle_peer_event(event);
+    event_loop.tasks.join_next().await.unwrap().unwrap();
+    assert!(
+        event_loop
+            .peer_heights
+            .read()
+            .unwrap()
+            .is_on_same_chain(&peer_id)
+    );
+    assert!(is_checkpoint_cached(
+        &event_loop,
+        highest_checkpoint.digest()
+    ));
+
+    peer.disconnect(event_loop.network.peer_id()).unwrap();
+    let event = next_peer_event(&mut peer_events).await;
+    assert!(matches!(event, Ok(PeerEvent::LostPeer(id, _)) if id == peer_id));
+    event_loop.handle_peer_event(event);
+
+    assert!(
+        !event_loop
+            .peer_heights
+            .read()
+            .unwrap()
+            .peers
+            .contains_key(&peer_id)
+    );
+    assert!(!is_checkpoint_cached(
+        &event_loop,
+        highest_checkpoint.digest()
+    ));
+}
+
+#[tokio::test]
+async fn summary_from_a_peer_is_cached_only_while_the_peer_is_on_our_chain_and_the_cache_has_room()
+{
+    let (committee, (ordered_checkpoints, _, _, _)) =
+        make_committee_and_checkpoints(0, 4, 4, None, empty_contents);
+    let genesis_checkpoint = &ordered_checkpoints[0];
+    let store = store_with_genesis_state(
+        genesis_checkpoint.clone(),
+        empty_contents(),
+        committee.committee().to_owned(),
+    );
+    let (builder, server) = Builder::new()
+        .store(store)
+        .config(StateSyncConfig {
+            max_checkpoint_lookahead: NonZeroU64::new(2),
+            ..Default::default()
+        })
+        .build_internal();
+    let (event_loop, _handle) = builder.build(build_network(|router| router));
+
+    // The peer has every checkpoint. The node marks it as not on its chain
+    // while it answers the request for checkpoint 2, as when another summary
+    // from it fails verification in the meantime.
+    let peer_store = store_with_genesis_state(
+        genesis_checkpoint.clone(),
+        empty_contents(),
+        committee.committee().to_owned(),
+    );
+    for checkpoint in &ordered_checkpoints[1..] {
+        peer_store.inner_mut().insert_checkpoint(checkpoint);
+    }
+    let own_peer_id = Arc::new(std::sync::OnceLock::new());
+    let (peer, _) = start_peer_counting_requests(peer_store, {
+        let own_peer_id = own_peer_id.clone();
+        let peer_heights = event_loop.peer_heights.clone();
+        PeerCallbacks {
+            before_summary_answer: Some(Box::new(move |request| {
+                if *request == GetCheckpointSummaryRequest::BySequenceNumber(2) {
+                    peer_heights
+                        .write()
+                        .unwrap()
+                        .mark_peer_as_not_on_same_chain(*own_peer_id.get().unwrap());
+                }
+            })),
+            ..Default::default()
+        }
+    });
+    let peer_id = peer.peer_id();
+    own_peer_id.set(peer_id).unwrap();
+    event_loop.network.connect(peer.local_addr()).await.unwrap();
+    insert_peer_on_same_chain(&server, peer_id, 3);
+    let get_or_fetch = |sequence_number| {
+        let peers = PeerBalancer::new(
+            &event_loop.network,
+            event_loop.peer_heights.clone(),
+            PeerCheckpointRequestType::Summary,
+        )
+        .with_checkpoint(sequence_number);
+        get_or_fetch_checkpoint_summary(
+            &event_loop.peer_heights,
+            peers,
+            sequence_number,
+            None,
+            event_loop.config.timeout(),
+        )
+    };
+
+    // A summary from a peer on the node's chain is cached.
+    let (_, sender) = get_or_fetch(1).await.unwrap();
+    assert_eq!(sender, peer_id);
+    assert!(is_checkpoint_cached(
+        &event_loop,
+        ordered_checkpoints[1].digest()
+    ));
+
+    // A summary from a peer marked while it answers is returned, but not
+    // cached.
+    let (checkpoint, sender) = get_or_fetch(2).await.unwrap();
+    assert_eq!(
+        (checkpoint.digest(), sender),
+        (ordered_checkpoints[2].digest(), peer_id)
+    );
+    assert!(
+        !event_loop
+            .peer_heights
+            .read()
+            .unwrap()
+            .is_on_same_chain(&peer_id)
+    );
+    assert!(!is_checkpoint_cached(
+        &event_loop,
+        ordered_checkpoints[2].digest()
+    ));
+
+    // Nor is a summary from a peer on the node's chain once the cache is
+    // full. Marking the peer dropped its summary of checkpoint 1 too.
+    insert_peer_on_same_chain(&server, peer_id, 3);
+    for checkpoint in &ordered_checkpoints[1..=2] {
+        push_from_peer(&server, PeerId([10; 32]), checkpoint.clone().into_inner()).await;
+    }
+    assert_eq!(
+        event_loop
+            .peer_heights
+            .read()
+            .unwrap()
+            .unprocessed_checkpoints
+            .len(),
+        2
+    );
+    let (_, sender) = get_or_fetch(3).await.unwrap();
+    assert_eq!(sender, peer_id);
+    assert!(!is_checkpoint_cached(
+        &event_loop,
+        ordered_checkpoints[3].digest()
+    ));
+}
+
+#[tokio::test]
+async fn latest_checkpoint_from_a_peer_marked_while_it_answers_is_not_recorded() {
+    let (committee, (ordered_checkpoints, _, _, _)) =
+        make_committee_and_checkpoints(0, 4, 3, None, empty_contents);
+    let genesis_checkpoint = &ordered_checkpoints[0];
+    let highest_checkpoint = &ordered_checkpoints[2];
+    let (mut event_loop, server, _handle) = node_at_genesis(genesis_checkpoint, &committee, vec![]);
+
+    // Both peers have synced to the highest checkpoint. The node marks the
+    // second one as not on its chain while it answers the query for its
+    // latest checkpoint, as when its summary fails verification in the
+    // meantime.
+    let peer_store = store_with_checkpoints_synced(
+        &ordered_checkpoints,
+        empty_contents(),
+        committee.committee().to_owned(),
+    );
+    let (peer, _) = start_peer_counting_requests(peer_store.clone(), PeerCallbacks::default());
+    let own_peer_id = Arc::new(std::sync::OnceLock::new());
+    let (marked_peer, _) = start_peer_counting_requests(peer_store, {
+        let own_peer_id = own_peer_id.clone();
+        let peer_heights = event_loop.peer_heights.clone();
+        PeerCallbacks {
+            before_availability_answer: Some(Box::new(move || {
+                peer_heights
+                    .write()
+                    .unwrap()
+                    .mark_peer_as_not_on_same_chain(*own_peer_id.get().unwrap());
+            })),
+            ..Default::default()
+        }
+    });
+    own_peer_id.set(marked_peer.peer_id()).unwrap();
+    for peer in [&peer, &marked_peer] {
+        event_loop.network.connect(peer.local_addr()).await.unwrap();
+        insert_peer_on_same_chain(&server, peer.peer_id(), 0);
+    }
+
+    event_loop.handle_tick(std::time::Instant::now());
+    event_loop.tasks.join_next().await.unwrap().unwrap();
+
+    // The answer of the peer on the node's chain is recorded, and the marked
+    // peer's is not.
+    let peer_heights = event_loop.peer_heights.read().unwrap();
+    assert_eq!(peer_heights.peers[&peer.peer_id()].height, 2);
+    assert_eq!(
+        peer_heights
+            .get_checkpoint_by_sequence_number(2)
+            .map(|(checkpoint, sender)| (*checkpoint.digest(), sender)),
+        Some((*highest_checkpoint.digest(), peer.peer_id()))
+    );
+    assert!(!peer_heights.is_on_same_chain(&marked_peer.peer_id()));
+    assert_eq!(peer_heights.peers[&marked_peer.peer_id()].height, 0);
+}
+
+/// However many handshakes and pushes with different summaries peers send a
+/// caught-up node, it keeps at most `max_checkpoint_lookahead` of them, and
+/// none larger than the size limit. The test runs no event loop, so neither a
+/// tick nor a summary sync task drops any of them: the bound holds where the
+/// summaries are stored.
+#[tokio::test]
+async fn caught_up_node_keeps_a_bounded_number_of_the_summaries_peers_send() {
+    const LOOKAHEAD: u64 = 4;
+    const PEERS: u64 = 1_000;
+
+    let (committee, (ordered_checkpoints, _, _, _)) =
+        make_committee_and_checkpoints(0, 4, 4, None, empty_contents);
+    let tip = ordered_checkpoints.last().unwrap();
+    let tip_sequence_number = tip.sequence_number();
+    let store = store_with_checkpoints_synced(
+        &ordered_checkpoints,
+        empty_contents(),
+        committee.committee().to_owned(),
+    );
+    store
+        .inner_mut()
+        .set_highest_executed_checkpoint(tip_sequence_number);
+    let (builder, server) = Builder::new()
+        .store(store)
+        .config(StateSyncConfig {
+            max_checkpoint_lookahead: NonZeroU64::new(LOOKAHEAD),
+            ..Default::default()
+        })
+        .build_internal();
+    let (mut event_loop, _handle) = builder.build(build_network(|router| router));
+
+    // A summary padded beyond the size limit is not kept.
+    let (mut data, signature) = tip.clone().into_inner().into_data_and_sig();
+    data.sequence_number = tip_sequence_number + 1;
+    data.version_specific_data = vec![0; 1 << 20];
+    let padded = CertifiedCheckpointSummary::new_from_data_and_sig(data, signature);
+    handshake_from_peer(&server, PeerId([9; 32]), padded).await;
+    assert_eq!(
+        event_loop
+            .peer_heights
+            .read()
+            .unwrap()
+            .unprocessed_checkpoints
+            .len(),
+        0
+    );
+
+    // Each peer sends a handshake and a push, each with a summary of its own,
+    // at the tip or up to twice the lookahead above it.
+    for i in 0..PEERS {
+        let mut peer_id = [0; 32];
+        peer_id[..8].copy_from_slice(&i.to_le_bytes());
+        let peer_id = PeerId(peer_id);
+        let sequence_number = tip_sequence_number + i % (2 * LOOKAHEAD + 1);
+        handshake_from_peer(
+            &server,
+            peer_id,
+            unverified_copy_of_checkpoint(tip, sequence_number, 2 * i),
+        )
+        .await;
+        push_from_peer(
+            &server,
+            peer_id,
+            unverified_copy_of_checkpoint(tip, sequence_number, 2 * i + 1),
+        )
+        .await;
+        // The event loop does not run, so empty the mailbox that each request
+        // kicks.
+        while event_loop.mailbox.try_recv().is_ok() {}
+    }
+
+    let peer_heights = event_loop.peer_heights.read().unwrap();
+    let cached = peer_heights.unprocessed_checkpoints.len() as u64;
+    assert!(cached <= LOOKAHEAD, "the node keeps {cached} summaries");
+    // It keeps one for each sequence number above the tip up to the
+    // lookahead, so the count sees what it keeps.
+    for sequence_number in tip_sequence_number + 1..=tip_sequence_number + LOOKAHEAD {
+        assert!(
+            peer_heights
+                .get_checkpoint_by_sequence_number(sequence_number)
+                .is_some(),
+            "summary {sequence_number} should be kept"
+        );
+    }
+}
+
+/// Our node and two peers connected to it over the network: an honest peer
+/// and a forging peer. Both register with the node through their own
+/// handshakes and claim the same height. The forging peer also pushes its
+/// summary of checkpoint 1. The node then syncs summaries from genesis to that
+/// height, with one summary request at a time. The cached forged summary fails
+/// verification first, which marks the forging peer as not on the node's chain
+/// while that summary sync goes on.
+struct NodeWithMarkedPeer {
+    event_loop: StateSyncEventLoop<SharedInMemoryStore>,
+    _handle: Handle,
+    /// The node's peer events, with the NewPeer event of each peer not handled
+    /// yet.
+    peer_events: tokio::sync::broadcast::Receiver<anemo::types::PeerEvent>,
+    /// The height both peers claim, which is the node's highest verified
+    /// checkpoint after the summary sync.
+    height: usize,
+    /// Checkpoints `0..=height + 1`. The honest peer has them up to `height`,
+    /// with their contents.
+    honest_checkpoints: Vec<VerifiedCheckpoint>,
+    honest_peer: anemo::Network,
+    honest_peer_requests: Arc<RequestCounts>,
+    /// Checkpoints `0..=height + 1`, the ones after genesis signed by a
+    /// committee the node does not know. The forging peer has them all.
+    forged_checkpoints: Vec<VerifiedCheckpoint>,
+    forging_peer: anemo::Network,
+    forging_peer_requests: Arc<RequestCounts>,
+}
+
+async fn node_with_a_marked_peer() -> NodeWithMarkedPeer {
+    let height = 20;
+    let (committee, (honest_checkpoints, honest_contents, _, _)) =
+        make_committee_and_checkpoints(0, 4, height + 2, None, random_contents);
+    let genesis_checkpoint = &honest_checkpoints[0];
+    let (_, (forged_after_genesis, _, _, _)) = make_committee_and_checkpoints(
+        1,
+        4,
+        height + 1,
+        Some(genesis_checkpoint.clone()),
+        empty_contents,
+    );
+    let forged_checkpoints: Vec<_> = std::iter::once(genesis_checkpoint.clone())
+        .chain(forged_after_genesis)
+        .collect();
+    let store_at_genesis = || {
+        store_with_genesis_state(
+            genesis_checkpoint.clone(),
+            honest_contents[0].clone(),
+            committee.committee().to_owned(),
+        )
+    };
+
+    let honest_store = store_at_genesis();
+    for (checkpoint, contents) in honest_checkpoints[1..=height]
+        .iter()
+        .zip(&honest_contents[1..])
+    {
+        let mut store = honest_store.inner_mut();
+        store.insert_checkpoint(checkpoint);
+        store.insert_checkpoint_contents(checkpoint, contents.clone());
+        store.update_highest_synced_checkpoint(checkpoint);
+    }
+    let (honest_peer, honest_peer_requests) =
+        start_peer_counting_requests(honest_store, PeerCallbacks::default());
+
+    let forging_store = store_with_checkpoints_synced(
+        &forged_checkpoints,
+        honest_contents[0].clone(),
+        committee.committee().to_owned(),
+    );
+    let (forging_peer, forging_peer_requests) =
+        start_peer_counting_requests(forging_store, PeerCallbacks::default());
+
+    let (builder, router) = Builder::new()
+        .store(store_at_genesis())
+        .config(StateSyncConfig {
+            checkpoint_header_download_concurrency: Some(1),
+            ..Default::default()
+        })
+        .build();
+    let network = build_network(|r| r.merge(router));
+    let (mut event_loop, handle) = builder.build(network.clone());
+    let (peer_events, _) = network.subscribe().unwrap();
+    let node_id = network.peer_id();
+    for peer in [&honest_peer, &forging_peer] {
+        peer.connect(network.local_addr()).await.unwrap();
+    }
+
+    handshake_over_network(
+        &honest_peer,
+        node_id,
+        genesis_checkpoint,
+        honest_checkpoints[height].clone().into_inner(),
+    )
+    .await;
+    handshake_over_network(
+        &forging_peer,
+        node_id,
+        genesis_checkpoint,
+        forged_checkpoints[height].clone().into_inner(),
+    )
+    .await;
+    push_over_network(
+        &forging_peer,
+        node_id,
+        forged_checkpoints[1].clone().into_inner(),
+    )
+    .await;
+    assert_eq!(
+        cached_checkpoint_digest(&event_loop, 1),
+        Some(*forged_checkpoints[1].digest())
+    );
+
+    run_checkpoint_summary_sync(&mut event_loop).await;
+
+    assert_eq!(
+        event_loop
+            .store
+            .get_highest_verified_checkpoint_seq_number(),
+        height as u64
+    );
+    assert!(
+        !event_loop
+            .peer_heights
+            .read()
+            .unwrap()
+            .is_on_same_chain(&forging_peer.peer_id())
+    );
+    while event_loop.mailbox.try_recv().is_ok() {}
+
+    NodeWithMarkedPeer {
+        event_loop,
+        _handle: handle,
+        peer_events,
+        height,
+        honest_checkpoints,
+        honest_peer,
+        honest_peer_requests,
+        forged_checkpoints,
+        forging_peer,
+        forging_peer_requests,
+    }
+}
+
+/// A peer that serves `inner` and counts the requests it gets for each RPC.
+/// It calls `callbacks` before it answers some of them.
+struct PeerCountingRequests {
+    inner: Server<SharedInMemoryStore>,
+    requests: Arc<RequestCounts>,
+    callbacks: PeerCallbacks,
+}
+
+/// What [`PeerCountingRequests`] calls before it answers a request.
+#[derive(Default)]
+struct PeerCallbacks {
+    /// Called with each request for a checkpoint summary.
+    before_summary_answer: Option<SummaryRequestCallback>,
+    /// Called for each request for the peer's latest checkpoint.
+    before_availability_answer: Option<Box<dyn Fn() + Send + Sync>>,
+}
+
+type SummaryRequestCallback = Box<dyn Fn(&GetCheckpointSummaryRequest) + Send + Sync>;
+
+/// The number of requests a peer got for each state sync RPC.
+#[derive(Default)]
+struct RequestCounts {
+    push_checkpoint_summary: AtomicUsize,
+    get_checkpoint_summary: AtomicUsize,
+    get_checkpoint_availability: AtomicUsize,
+    get_checkpoint_contents: AtomicUsize,
+    exchange_state_sync_handshake: AtomicUsize,
+}
+
+#[anemo::async_trait]
+impl StateSync for PeerCountingRequests {
+    async fn push_checkpoint_summary(
+        &self,
+        request: Request<CertifiedCheckpointSummary>,
+    ) -> Result<Response<()>, Status> {
+        self.requests
+            .push_checkpoint_summary
+            .fetch_add(1, Ordering::SeqCst);
+        self.inner.push_checkpoint_summary(request).await
+    }
+
+    async fn get_checkpoint_summary(
+        &self,
+        request: Request<GetCheckpointSummaryRequest>,
+    ) -> Result<Response<Option<CertifiedCheckpointSummary>>, Status> {
+        self.requests
+            .get_checkpoint_summary
+            .fetch_add(1, Ordering::SeqCst);
+        if let Some(before_summary_answer) = &self.callbacks.before_summary_answer {
+            before_summary_answer(request.inner());
+        }
+        self.inner.get_checkpoint_summary(request).await
+    }
+
+    async fn get_checkpoint_availability(
+        &self,
+        request: Request<()>,
+    ) -> Result<Response<GetCheckpointAvailabilityResponse>, Status> {
+        self.requests
+            .get_checkpoint_availability
+            .fetch_add(1, Ordering::SeqCst);
+        if let Some(before_availability_answer) = &self.callbacks.before_availability_answer {
+            before_availability_answer();
+        }
+        self.inner.get_checkpoint_availability(request).await
+    }
+
+    async fn get_checkpoint_contents(
+        &self,
+        request: Request<CheckpointContentsDigest>,
+    ) -> Result<Response<Option<FullCheckpointContents>>, Status> {
+        self.requests
+            .get_checkpoint_contents
+            .fetch_add(1, Ordering::SeqCst);
+        self.inner.get_checkpoint_contents(request).await
+    }
+
+    async fn exchange_state_sync_handshake(
+        &self,
+        request: Request<StateSyncHandshake>,
+    ) -> Result<Response<StateSyncHandshake>, Status> {
+        self.requests
+            .exchange_state_sync_handshake
+            .fetch_add(1, Ordering::SeqCst);
+        self.inner.exchange_state_sync_handshake(request).await
+    }
+}
+
+/// Starts a peer that serves `store` and counts the requests it gets, as
+/// [`PeerCountingRequests`] does. Its own state sync does not run.
+fn start_peer_counting_requests(
+    store: SharedInMemoryStore,
+    callbacks: PeerCallbacks,
+) -> (anemo::Network, Arc<RequestCounts>) {
+    let (_, inner) = Builder::new().store(store).build_internal();
+    let requests = Arc::new(RequestCounts::default());
+    let server = StateSyncServer::new(PeerCountingRequests {
+        inner,
+        requests: requests.clone(),
+        callbacks,
+    });
+    (
+        build_network(|router| router.add_rpc_service(server)),
+        requests,
+    )
+}
+
+/// Has `peer` send a handshake to the node `node_id` over their connection,
+/// with `genesis_checkpoint` and with `checkpoint` as its highest synced
+/// checkpoint.
+async fn handshake_over_network(
+    peer: &anemo::Network,
+    node_id: PeerId,
+    genesis_checkpoint: &VerifiedCheckpoint,
+    checkpoint: CertifiedCheckpointSummary,
+) {
+    let handshake = StateSyncHandshake {
+        genesis_checkpoint: genesis_checkpoint.clone().into_inner(),
+        highest_synced_checkpoint: checkpoint,
+        lowest_available_checkpoint: 0,
+    };
+    StateSyncClient::new(peer.peer(node_id).unwrap())
+        .exchange_state_sync_handshake(Request::new(handshake))
+        .await
+        .unwrap();
+}
+
+/// Has `peer` push `checkpoint` to the node `node_id` over their connection.
+async fn push_over_network(
+    peer: &anemo::Network,
+    node_id: PeerId,
+    checkpoint: CertifiedCheckpointSummary,
+) {
+    StateSyncClient::new(peer.peer(node_id).unwrap())
+        .push_checkpoint_summary(Request::new(checkpoint))
+        .await
+        .unwrap();
+}
+
+/// Returns the next peer event, panicking if none comes in time.
+async fn next_peer_event(
+    peer_events: &mut tokio::sync::broadcast::Receiver<anemo::types::PeerEvent>,
+) -> Result<anemo::types::PeerEvent, tokio::sync::broadcast::error::RecvError> {
+    timeout(Duration::from_secs(10), peer_events.recv())
+        .await
+        .expect("a peer event should come")
+}
+
+/// Returns a store that holds `checkpoints`, which start at genesis, and has
+/// all of them verified and synced. Only genesis has its contents stored, as
+/// `genesis_contents`.
+fn store_with_checkpoints_synced(
+    checkpoints: &[VerifiedCheckpoint],
+    genesis_contents: VerifiedCheckpointContents,
+    committee: Committee,
+) -> SharedInMemoryStore {
+    let store = store_with_genesis_state(checkpoints[0].clone(), genesis_contents, committee);
+    {
+        let mut store = store.inner_mut();
+        for checkpoint in &checkpoints[1..] {
+            store.insert_checkpoint(checkpoint);
+            store.update_highest_synced_checkpoint(checkpoint);
+        }
+    }
+    store
+}
+
+/// Returns a copy of `checkpoint` with `sequence_number` and `timestamp_ms`.
+/// The copy keeps the signature of `checkpoint`, which does not match it, as
+/// state sync stores summaries from peers before it verifies them.
+fn unverified_copy_of_checkpoint(
+    checkpoint: &VerifiedCheckpoint,
+    sequence_number: CheckpointSequenceNumber,
+    timestamp_ms: u64,
+) -> CertifiedCheckpointSummary {
+    let (mut data, signature) = checkpoint.clone().into_inner().into_data_and_sig();
+    data.sequence_number = sequence_number;
+    data.timestamp_ms = timestamp_ms;
+    CertifiedCheckpointSummary::new_from_data_and_sig(data, signature)
+}
