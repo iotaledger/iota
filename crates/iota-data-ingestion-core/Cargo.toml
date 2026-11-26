@@ -45,6 +45,7 @@ notify = "6.1.1"
 [dev-dependencies]
 # external dependencies
 rand.workspace = true
+rstest.workspace = true
 
 # internal dependencies
 iota-common.workspace = true

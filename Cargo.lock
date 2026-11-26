@@ -6153,6 +6153,7 @@ dependencies = [
  "object_store 0.13.1",
  "prometheus-filtered",
  "rand 0.10.3",
+ "rstest",
  "serde",
  "serde_json",
  "tap",

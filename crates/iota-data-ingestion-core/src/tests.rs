@@ -1034,3 +1034,709 @@ async fn executor_fails_when_the_reader_stops() {
         matches!(result,  Err(IngestionError::Channel(msg)) if msg == "checkpoint reader stopped")
     );
 }
+
+/// Tests of the backfill executor.
+mod backfill {
+    use std::{num::NonZeroUsize, ops::RangeInclusive, sync::Mutex};
+
+    use futures::{StreamExt, stream::BoxStream};
+    use rstest::rstest;
+    use tokio::sync::Notify;
+
+    use super::*;
+    use crate::{
+        BackfillExecutor, BackfillOptions, IngestionOrder, MAX_CHECKPOINTS_IN_PROGRESS,
+        backfill::source::BackfillSource,
+    };
+
+    /// Serves any range.
+    struct TestSource;
+
+    #[async_trait]
+    impl BackfillSource for TestSource {
+        async fn checkpoints(
+            &self,
+            range: RangeInclusive<CheckpointSequenceNumber>,
+            order: IngestionOrder,
+        ) -> IngestionResult<BoxStream<'_, IngestionResult<CheckpointData>>> {
+            let mut sequence_numbers = range.collect::<Vec<_>>();
+            if order.is_descending() {
+                sequence_numbers.reverse();
+            }
+            Ok(futures::stream::iter(sequence_numbers)
+                .map(|sequence_number| {
+                    Ok(mock_checkpoint_data_with_opt(sequence_number, 0, vec![]))
+                })
+                .boxed())
+        }
+    }
+
+    /// Returns the checkpoint number. Some checkpoints take longer, so the workers finish out of
+    /// order.
+    struct TestWorker;
+
+    #[async_trait]
+    impl Worker for TestWorker {
+        type Message = CheckpointSequenceNumber;
+        type Error = IngestionError;
+
+        async fn process_checkpoint(
+            &self,
+            checkpoint: Arc<CheckpointData>,
+        ) -> Result<Self::Message, Self::Error> {
+            let sequence_number = checkpoint.checkpoint_summary.sequence_number;
+            tokio::time::sleep(Duration::from_millis(sequence_number % 4)).await;
+            Ok(sequence_number)
+        }
+    }
+
+    /// Records the checkpoint numbers in the order they are committed.
+    struct TestReducer(Arc<Mutex<Vec<CheckpointSequenceNumber>>>);
+
+    #[async_trait]
+    impl Reducer<TestWorker> for TestReducer {
+        async fn commit(&self, batch: &[CheckpointSequenceNumber]) -> Result<(), IngestionError> {
+            self.0.lock().unwrap().extend(batch);
+            Ok(())
+        }
+    }
+
+    #[rstest]
+    #[case::ascending(IngestionOrder::Ascending)]
+    #[case::descending(IngestionOrder::Descending)]
+    #[tokio::test]
+    async fn commits_every_checkpoint_in_the_requested_order(#[case] order: IngestionOrder) {
+        let committed = Arc::new(Mutex::new(vec![]));
+        let options = BackfillOptions {
+            order,
+            worker_concurrency: 4,
+            ..Default::default()
+        };
+        let executor = BackfillExecutor::with_source_and_reducer(
+            Box::new(TestSource),
+            TestWorker,
+            options,
+            CancellationToken::new(),
+            TestReducer(committed.clone()),
+        );
+        let last = timeout(Duration::from_secs(30), executor.run(0..=20))
+            .await
+            .expect("the backfill did not finish")
+            .unwrap();
+
+        let mut expected = (0..=20).collect::<Vec<_>>();
+        if order.is_descending() {
+            expected.reverse();
+        }
+        assert_eq!(last, expected.last().copied());
+        assert_eq!(*committed.lock().unwrap(), expected);
+    }
+
+    /// Processes every checkpoint but the given one, which always fails.
+    struct FailingWorker(CheckpointSequenceNumber);
+
+    #[async_trait]
+    impl Worker for FailingWorker {
+        type Message = ();
+        type Error = IngestionError;
+
+        async fn process_checkpoint(
+            &self,
+            checkpoint: Arc<CheckpointData>,
+        ) -> Result<Self::Message, Self::Error> {
+            if checkpoint.checkpoint_summary.sequence_number == self.0 {
+                return Err(IngestionError::CheckpointProcessing(
+                    "the worker failed".into(),
+                ));
+            }
+            Ok(())
+        }
+    }
+
+    /// Runs a backfill of `0..=20` in `order` with one worker. A pull from the store times out
+    /// after 10 milliseconds, and the retries are exhausted after 50 milliseconds.
+    async fn run_backfill<W: Worker + 'static>(
+        order: IngestionOrder,
+        source: impl BackfillSource + 'static,
+        worker: W,
+    ) -> IngestionResult<Option<CheckpointSequenceNumber>> {
+        let options = BackfillOptions {
+            order,
+            timeout: Duration::from_millis(10),
+            backoff: ExponentialBackoff {
+                initial_interval: Duration::from_millis(1),
+                max_elapsed_time: Some(Duration::from_millis(50)),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let executor = BackfillExecutor::with_source(
+            Box::new(source),
+            worker,
+            options,
+            CancellationToken::new(),
+        );
+        timeout(Duration::from_secs(30), executor.run(0..=20))
+            .await
+            .expect("the backfill did not finish")
+    }
+
+    #[rstest]
+    #[case::in_the_middle_ascending(
+        IngestionOrder::Ascending,
+        10,
+        "worker pool shutdown error: `stopped before checkpoint 10 of 0..=20 was processed`"
+    )]
+    #[case::in_the_middle_descending(
+        IngestionOrder::Descending,
+        10,
+        "worker pool shutdown error: `stopped before checkpoint 10 of 0..=20 was processed`"
+    )]
+    #[case::on_the_first_checkpoint_ascending(
+        IngestionOrder::Ascending,
+        0,
+        "worker pool shutdown error: `stopped before checkpoint 0 of 0..=20 was processed`"
+    )]
+    #[case::on_the_first_checkpoint_descending(
+        IngestionOrder::Descending,
+        20,
+        "worker pool shutdown error: `stopped before checkpoint 20 of 0..=20 was processed`"
+    )]
+    #[tokio::test]
+    async fn says_how_far_the_run_got_when_a_worker_exhausts_its_retries(
+        #[case] order: IngestionOrder,
+        #[case] failing_checkpoint: CheckpointSequenceNumber,
+        #[case] expected_error: &str,
+    ) {
+        // One worker processes the checkpoints one after another, so the last processed one is
+        // exact.
+        let err = run_backfill(order, TestSource, FailingWorker(failing_checkpoint))
+            .await
+            .unwrap_err();
+        assert_eq!(err.to_string(), expected_error);
+    }
+
+    /// Records every checkpoint it finishes and cancels the token while it processes the given
+    /// one, as a caller does on Ctrl+C or SIGTERM. Some checkpoints take longer, so several
+    /// workers finish out of order.
+    struct CancellingWorker {
+        cancel_at: CheckpointSequenceNumber,
+        token: CancellationToken,
+        processed: Arc<Mutex<Vec<CheckpointSequenceNumber>>>,
+    }
+
+    #[async_trait]
+    impl Worker for CancellingWorker {
+        type Message = ();
+        type Error = IngestionError;
+
+        async fn process_checkpoint(
+            &self,
+            checkpoint: Arc<CheckpointData>,
+        ) -> Result<Self::Message, Self::Error> {
+            let sequence_number = checkpoint.checkpoint_summary.sequence_number;
+            tokio::time::sleep(Duration::from_millis(sequence_number % 4)).await;
+            if sequence_number == self.cancel_at {
+                self.token.cancel();
+            }
+            self.processed.lock().unwrap().push(sequence_number);
+            Ok(())
+        }
+    }
+
+    #[rstest]
+    #[case::ascending(IngestionOrder::Ascending)]
+    #[case::descending(IngestionOrder::Descending)]
+    #[tokio::test]
+    async fn shuts_down_gracefully_when_the_caller_cancels(#[case] order: IngestionOrder) {
+        let token = CancellationToken::new();
+        let processed = Arc::new(Mutex::new(vec![]));
+        let worker = CancellingWorker {
+            cancel_at: 10,
+            token: token.clone(),
+            processed: processed.clone(),
+        };
+        let options = BackfillOptions {
+            order,
+            ..Default::default()
+        };
+        let executor = BackfillExecutor::with_source(Box::new(TestSource), worker, options, token);
+        let last_processed = timeout(Duration::from_secs(30), executor.run(0..=20))
+            .await
+            .expect("the backfill did not stop")
+            .unwrap();
+
+        // With one worker the checkpoint in progress is finished, and none after it is started.
+        let expected: Vec<_> = if order.is_descending() {
+            (10..=20).rev().collect()
+        } else {
+            (0..=10).collect()
+        };
+        assert_eq!(*processed.lock().unwrap(), expected);
+        assert_eq!(last_processed, Some(10));
+    }
+
+    #[rstest]
+    #[case::ascending(IngestionOrder::Ascending)]
+    #[case::descending(IngestionOrder::Descending)]
+    #[tokio::test]
+    async fn reports_the_end_of_the_unbroken_run_when_several_workers_are_cancelled(
+        #[case] order: IngestionOrder,
+    ) {
+        let token = CancellationToken::new();
+        let processed = Arc::new(Mutex::new(vec![]));
+        let worker = CancellingWorker {
+            cancel_at: 100,
+            token: token.clone(),
+            processed: processed.clone(),
+        };
+        let options = BackfillOptions::default()
+            .with_order(order)
+            .with_worker_concurrency(NonZeroUsize::new(4).unwrap());
+        let executor = BackfillExecutor::with_source(Box::new(TestSource), worker, options, token);
+        let last_processed = timeout(Duration::from_secs(30), executor.run(0..=200))
+            .await
+            .expect("the backfill did not stop")
+            .unwrap()
+            .expect("some checkpoints are processed before the cancel");
+
+        let processed = processed.lock().unwrap();
+        let mut in_order = (0..=200).collect::<Vec<CheckpointSequenceNumber>>();
+        if order.is_descending() {
+            in_order.reverse();
+        }
+        let reported_at = in_order
+            .iter()
+            .position(|checkpoint| *checkpoint == last_processed)
+            .unwrap();
+        // Every checkpoint up to the reported one is processed, without a gap.
+        for checkpoint in &in_order[..=reported_at] {
+            assert!(
+                processed.contains(checkpoint),
+                "checkpoint {checkpoint} comes before the reported {last_processed} but was not processed"
+            );
+        }
+        // The run of processed checkpoints ends at the reported one.
+        if let Some(next) = in_order.get(reported_at + 1) {
+            assert!(
+                !processed.contains(next),
+                "checkpoint {next} was processed but the report stopped at {last_processed}"
+            );
+        }
+    }
+
+    /// How a `FaultySource` fails.
+    enum Fault {
+        /// The stream cannot be opened.
+        CannotOpen,
+        /// The stream is never opened.
+        NeverOpens,
+        /// The stream leaves out checkpoint 18.
+        Skips,
+        /// The stream ends before checkpoint 18.
+        EndsEarly,
+        /// The stream returns an error in place of checkpoint 18.
+        Fails,
+        /// The stream never returns checkpoint 18.
+        Hangs,
+    }
+
+    /// Serves any range and fails at checkpoint 18 in the given way. With `Fault::CannotOpen` and
+    /// `Fault::NeverOpens` it serves nothing.
+    struct FaultySource(Fault);
+
+    #[async_trait]
+    impl BackfillSource for FaultySource {
+        async fn checkpoints(
+            &self,
+            range: RangeInclusive<CheckpointSequenceNumber>,
+            order: IngestionOrder,
+        ) -> IngestionResult<BoxStream<'_, IngestionResult<CheckpointData>>> {
+            let mut sequence_numbers = range.collect::<Vec<_>>();
+            if order.is_descending() {
+                sequence_numbers.reverse();
+            }
+            let numbers = futures::stream::iter(sequence_numbers);
+            let is_not_18 =
+                |number: &CheckpointSequenceNumber| futures::future::ready(*number != 18);
+            let checkpoint = |number| Ok(mock_checkpoint_data_with_opt(number, 0, vec![]));
+            let failure = || IngestionError::HistoryRead("the store failed".into());
+            Ok(match self.0 {
+                Fault::CannotOpen => return Err(failure()),
+                Fault::NeverOpens => return futures::future::pending().await,
+                Fault::Skips => numbers.filter(is_not_18).map(checkpoint).boxed(),
+                Fault::EndsEarly => numbers.take_while(is_not_18).map(checkpoint).boxed(),
+                Fault::Fails => numbers
+                    .take_while(is_not_18)
+                    .map(checkpoint)
+                    .chain(futures::stream::once(futures::future::ready(
+                        Err(failure()),
+                    )))
+                    .boxed(),
+                Fault::Hangs => numbers
+                    .take_while(is_not_18)
+                    .map(checkpoint)
+                    .chain(futures::stream::pending())
+                    .boxed(),
+            })
+        }
+    }
+
+    #[rstest]
+    #[case::cannot_open_ascending(
+        Fault::CannotOpen,
+        IngestionOrder::Ascending,
+        "reading historical data failed: `the store failed`"
+    )]
+    #[case::cannot_open_descending(
+        Fault::CannotOpen,
+        IngestionOrder::Descending,
+        "reading historical data failed: `the store failed`"
+    )]
+    #[case::skips_ascending(
+        Fault::Skips,
+        IngestionOrder::Ascending,
+        "checkpoint verification failed: `expected checkpoint 18, the store returned 19`"
+    )]
+    #[case::skips_descending(
+        Fault::Skips,
+        IngestionOrder::Descending,
+        "checkpoint verification failed: `expected checkpoint 18, the store returned 17`"
+    )]
+    #[case::ends_early_ascending(
+        Fault::EndsEarly,
+        IngestionOrder::Ascending,
+        "checkpoint verification failed: `the store did not return checkpoints 18..=20`"
+    )]
+    #[case::ends_early_descending(
+        Fault::EndsEarly,
+        IngestionOrder::Descending,
+        "checkpoint verification failed: `the store did not return checkpoints 0..=18`"
+    )]
+    #[case::fails_ascending(
+        Fault::Fails,
+        IngestionOrder::Ascending,
+        "reading historical data failed: `the store failed`"
+    )]
+    #[case::fails_descending(
+        Fault::Fails,
+        IngestionOrder::Descending,
+        "reading historical data failed: `the store failed`"
+    )]
+    #[case::hangs_ascending(
+        Fault::Hangs,
+        IngestionOrder::Ascending,
+        "checkpoint not available yet"
+    )]
+    #[case::hangs_descending(
+        Fault::Hangs,
+        IngestionOrder::Descending,
+        "checkpoint not available yet"
+    )]
+    #[tokio::test]
+    async fn returns_an_error_for_a_faulty_store(
+        #[case] fault: Fault,
+        #[case] order: IngestionOrder,
+        #[case] expected_error: &str,
+    ) {
+        let err = run_backfill(order, FaultySource(fault), TestWorker)
+            .await
+            .unwrap_err();
+        assert_eq!(err.to_string(), expected_error);
+    }
+
+    /// Fails every commit.
+    struct FailingReducer;
+
+    #[async_trait]
+    impl Reducer<TestWorker> for FailingReducer {
+        async fn commit(&self, _batch: &[CheckpointSequenceNumber]) -> Result<(), IngestionError> {
+            Err(IngestionError::Reducer("the reducer failed".into()))
+        }
+    }
+
+    #[rstest]
+    #[case::ascending(IngestionOrder::Ascending, 0)]
+    #[case::descending(IngestionOrder::Descending, 20)]
+    #[tokio::test]
+    async fn says_that_nothing_was_processed_when_the_reducer_exhausts_its_retries(
+        #[case] order: IngestionOrder,
+        #[case] first: CheckpointSequenceNumber,
+    ) {
+        // The pool reports a checkpoint only after its commit, so no checkpoint counts as
+        // processed here.
+        let options = BackfillOptions {
+            order,
+            backoff: ExponentialBackoff {
+                initial_interval: Duration::from_millis(1),
+                max_elapsed_time: Some(Duration::from_millis(50)),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let executor = BackfillExecutor::with_source_and_reducer(
+            Box::new(TestSource),
+            TestWorker,
+            options,
+            CancellationToken::new(),
+            FailingReducer,
+        );
+        let err = timeout(Duration::from_secs(30), executor.run(0..=20))
+            .await
+            .expect("the backfill did not finish")
+            .unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            format!(
+                "worker pool shutdown error: `stopped before checkpoint {first} of 0..=20 was processed`"
+            )
+        );
+    }
+
+    #[rstest]
+    #[case::ascending(IngestionOrder::Ascending, 20)]
+    #[case::descending(IngestionOrder::Descending, 0)]
+    #[tokio::test]
+    async fn returns_the_last_checkpoint_of_a_run_without_a_reducer(
+        #[case] order: IngestionOrder,
+        #[case] last: CheckpointSequenceNumber,
+    ) {
+        let last_processed = run_backfill(order, TestSource, TestWorker).await.unwrap();
+        assert_eq!(last_processed, Some(last));
+    }
+
+    #[rstest]
+    #[case::ascending(IngestionOrder::Ascending)]
+    #[case::descending(IngestionOrder::Descending)]
+    #[tokio::test]
+    async fn returns_none_for_an_empty_range(#[case] order: IngestionOrder) {
+        let executor = BackfillExecutor::with_source(
+            Box::new(TestSource),
+            TestWorker,
+            BackfillOptions::default().with_order(order),
+            CancellationToken::new(),
+        );
+        let last_processed = executor.run(RangeInclusive::new(1, 0)).await.unwrap();
+        assert_eq!(last_processed, None);
+    }
+
+    #[rstest]
+    #[case::ascending(IngestionOrder::Ascending)]
+    #[case::descending(IngestionOrder::Descending)]
+    #[tokio::test]
+    async fn returns_none_when_the_caller_cancelled_before_the_run(#[case] order: IngestionOrder) {
+        let token = CancellationToken::new();
+        token.cancel();
+        let executor = BackfillExecutor::with_source(
+            Box::new(TestSource),
+            TestWorker,
+            BackfillOptions::default().with_order(order),
+            token,
+        );
+        let last_processed = timeout(Duration::from_secs(30), executor.run(0..=20))
+            .await
+            .expect("the backfill did not stop")
+            .unwrap();
+        assert_eq!(last_processed, None);
+    }
+
+    #[rstest]
+    #[case::ascending(IngestionOrder::Ascending)]
+    #[case::descending(IngestionOrder::Descending)]
+    #[tokio::test]
+    async fn returns_none_when_the_caller_cancels_while_the_store_is_opened(
+        #[case] order: IngestionOrder,
+    ) {
+        let token = CancellationToken::new();
+        let executor = BackfillExecutor::with_source(
+            Box::new(FaultySource(Fault::NeverOpens)),
+            TestWorker,
+            BackfillOptions::default().with_order(order),
+            token.clone(),
+        );
+        // The run is polled first and waits for the store, then the token is cancelled.
+        let (last_processed, ()) = tokio::join!(
+            biased;
+            timeout(Duration::from_secs(30), executor.run(0..=20)),
+            async { token.cancel() },
+        );
+        assert_eq!(
+            last_processed.expect("the backfill did not stop").unwrap(),
+            None
+        );
+    }
+
+    /// Serves any range. It fails when it is asked for a checkpoint while as many as may be in
+    /// progress are returned and not processed yet.
+    struct LimitCheckingSource {
+        returned: AtomicU64,
+        processed: Arc<AtomicU64>,
+        limit_reached: Arc<Notify>,
+    }
+
+    #[async_trait]
+    impl BackfillSource for LimitCheckingSource {
+        async fn checkpoints(
+            &self,
+            range: RangeInclusive<CheckpointSequenceNumber>,
+            order: IngestionOrder,
+        ) -> IngestionResult<BoxStream<'_, IngestionResult<CheckpointData>>> {
+            let mut sequence_numbers = range.collect::<Vec<_>>();
+            if order.is_descending() {
+                sequence_numbers.reverse();
+            }
+            // One mock is built and copied, since building thousands of them takes seconds.
+            let mock = mock_checkpoint_data_with_opt(0, 0, vec![]);
+            Ok(futures::stream::iter(sequence_numbers)
+                .map(move |sequence_number| {
+                    let limit = MAX_CHECKPOINTS_IN_PROGRESS as u64;
+                    let returned = self.returned.load(Ordering::SeqCst);
+                    let in_progress = returned - self.processed.load(Ordering::SeqCst);
+                    if in_progress >= limit {
+                        return Err(IngestionError::HistoryRead(format!(
+                            "asked for a checkpoint while {in_progress} are in progress"
+                        )));
+                    }
+                    self.returned.store(returned + 1, Ordering::SeqCst);
+                    if returned + 1 == limit {
+                        self.limit_reached.notify_one();
+                    }
+                    let mut checkpoint = mock.clone();
+                    checkpoint
+                        .checkpoint_summary
+                        .data_mut_for_testing()
+                        .sequence_number = sequence_number;
+                    Ok(checkpoint)
+                })
+                .boxed())
+        }
+    }
+
+    /// Counts the processed checkpoints. It holds the given checkpoint until the store has
+    /// returned as many checkpoints as may be in progress.
+    struct HoldingWorker {
+        hold: CheckpointSequenceNumber,
+        limit_reached: Arc<Notify>,
+        processed: Arc<AtomicU64>,
+    }
+
+    #[async_trait]
+    impl Worker for HoldingWorker {
+        type Message = ();
+        type Error = IngestionError;
+
+        async fn process_checkpoint(
+            &self,
+            checkpoint: Arc<CheckpointData>,
+        ) -> Result<Self::Message, Self::Error> {
+            if checkpoint.checkpoint_summary.sequence_number == self.hold {
+                self.limit_reached.notified().await;
+            }
+            self.processed.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+    }
+
+    #[rstest]
+    #[case::ascending(IngestionOrder::Ascending)]
+    #[case::descending(IngestionOrder::Descending)]
+    #[tokio::test]
+    async fn pulls_no_more_checkpoints_than_may_be_in_progress(#[case] order: IngestionOrder) {
+        // 100 checkpoints more than may be in progress, so a broken limit has more to pull.
+        let highest = MAX_CHECKPOINTS_IN_PROGRESS as u64 + 99;
+        let (first, last) = if order.is_descending() {
+            (highest, 0)
+        } else {
+            (0, highest)
+        };
+        let processed = Arc::new(AtomicU64::new(0));
+        let limit_reached = Arc::new(Notify::new());
+        let source = LimitCheckingSource {
+            returned: AtomicU64::new(0),
+            processed: processed.clone(),
+            limit_reached: limit_reached.clone(),
+        };
+        let worker = HoldingWorker {
+            hold: first,
+            limit_reached,
+            processed,
+        };
+        let executor = BackfillExecutor::with_source(
+            Box::new(source),
+            worker,
+            BackfillOptions::default().with_order(order),
+            CancellationToken::new(),
+        );
+        // A run that pulled fewer than the limit leaves the worker waiting until this timeout.
+        let last_processed = timeout(Duration::from_secs(60), executor.run(0..=highest))
+            .await
+            .expect("the backfill did not finish")
+            // The store returns an error when it is asked for more than may be in progress.
+            .unwrap();
+
+        // Once the first checkpoint was released the rest was ingested, so the limit only pauses
+        // the pulling.
+        assert_eq!(last_processed, Some(last));
+    }
+
+    #[rstest]
+    #[case::inside_the_files_ascending(IngestionOrder::Ascending, 1..=2, vec![1, 2])]
+    #[case::inside_the_files_descending(IngestionOrder::Descending, 1..=2, vec![2, 1])]
+    #[case::whole_archive_ascending(IngestionOrder::Ascending, 0..=3, vec![0, 1, 2, 3])]
+    #[case::whole_archive_descending(IngestionOrder::Descending, 0..=3, vec![3, 2, 1, 0])]
+    #[tokio::test]
+    async fn commits_a_range_of_a_history_archive_in_the_requested_order(
+        #[case] order: IngestionOrder,
+        #[case] range: RangeInclusive<CheckpointSequenceNumber>,
+        #[case] expected: Vec<CheckpointSequenceNumber>,
+    ) {
+        let archive = write_history_archive(false);
+        let committed = Arc::new(Mutex::new(vec![]));
+        let executor = BackfillExecutor::new_with_reducer(
+            RemoteUrl::HybridHistoricalStore {
+                historical_url: format!("file://{}", archive.path().display()),
+                live_url: None,
+            },
+            TestWorker,
+            BackfillOptions::default().with_order(order),
+            CancellationToken::new(),
+            TestReducer(committed.clone()),
+        )
+        .unwrap();
+        let last = timeout(Duration::from_secs(30), executor.run(range))
+            .await
+            .expect("the backfill did not finish")
+            .unwrap();
+
+        assert_eq!(last, expected.last().copied());
+        assert_eq!(*committed.lock().unwrap(), expected);
+    }
+
+    #[rstest]
+    #[case::ascending(IngestionOrder::Ascending)]
+    #[case::descending(IngestionOrder::Descending)]
+    #[tokio::test]
+    async fn returns_an_error_for_a_range_past_the_end_of_a_history_archive(
+        #[case] order: IngestionOrder,
+    ) {
+        let archive = write_history_archive(false);
+        let executor = BackfillExecutor::new(
+            RemoteUrl::HybridHistoricalStore {
+                historical_url: format!("file://{}", archive.path().display()),
+                live_url: None,
+            },
+            TestWorker,
+            BackfillOptions::default().with_order(order),
+            CancellationToken::new(),
+        )
+        .unwrap();
+        let err = timeout(Duration::from_secs(30), executor.run(0..=4))
+            .await
+            .expect("the backfill did not finish")
+            .unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "reading historical data failed: `checkpoints 0..=4 are not all stored, the historical store holds 0..4`"
+        );
+    }
+}
