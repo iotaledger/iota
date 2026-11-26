@@ -289,7 +289,7 @@ When the node starts to refuse a client outside dry run, it logs the line `clien
 
 Outside dry run, `default_action=deny` refuses every client that no allow rule names. On a validator this also refuses the other nodes that send it requests. With `client-id-source: socket-addr`, add allow rules for them first. With `x-forwarded-for`, allow rules cannot admit them, as [Proxy Mode Configuration](#proxy-mode-configuration) explains.
 
-A rejected request answers `400 Bad Request` with the reason.
+A rejected request answers `400 Bad Request` with the reason. The node also rejects a request with a query parameter that the route does not take, and the answer names that parameter.
 
 ## Monitoring and Tuning
 

@@ -6,7 +6,7 @@ use std::{net::SocketAddr, str::FromStr, sync::Arc};
 
 use axum::{
     Router,
-    extract::{Query, RawQuery, State},
+    extract::{Query, State, rejection::QueryRejection},
     http::StatusCode,
     response::{IntoResponse as _, Response},
     routing::{get, post},
@@ -741,27 +741,41 @@ fn error_response(err: IotaError) -> (StatusCode, String) {
     (status, format!("{err}\n"))
 }
 
+/// The query of a traffic control route that takes no parameters.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NoQueryParameters {}
+
 /// The traffic control settings in force, as JSON. Refuses a query, since a
 /// `GET` that carries the settings of a `POST` would change nothing.
 async fn traffic_control_status(
     State(state): State<Arc<AppState>>,
-    RawQuery(query): RawQuery,
+    query: Result<Query<NoQueryParameters>, QueryRejection>,
 ) -> Response {
-    traffic_control_status_response(&state.node.state(), query)
+    traffic_control_status_response(&state.node.state(), query.map(|_| ()))
 }
 
-fn traffic_control_status_response(state: &AuthorityState, query: Option<String>) -> Response {
-    if query.is_some_and(|query| !query.is_empty()) {
+fn traffic_control_status_response(
+    state: &AuthorityState,
+    query: Result<(), QueryRejection>,
+) -> Response {
+    if let Err(rejection) = query {
         return (
             StatusCode::BAD_REQUEST,
-            "GET /traffic-control takes no query; use POST to change the settings\n".to_string(),
+            format!(
+                "{}; use POST to change the settings\n",
+                rejection.body_text()
+            ),
         )
             .into_response();
     }
     json_response(state.traffic_control_status())
 }
 
-async fn traffic_control_config(State(state): State<Arc<AppState>>) -> Response {
+async fn traffic_control_config(
+    State(state): State<Arc<AppState>>,
+    _: Query<NoQueryParameters>,
+) -> Response {
     traffic_control_config_response(&state.node.state())
 }
 
@@ -769,7 +783,10 @@ fn traffic_control_config_response(state: &AuthorityState) -> Response {
     json_response(state.traffic_control_policy_config())
 }
 
-async fn traffic_control_rules(State(state): State<Arc<AppState>>) -> Response {
+async fn traffic_control_rules(
+    State(state): State<Arc<AppState>>,
+    _: Query<NoQueryParameters>,
+) -> Response {
     traffic_control_rules_response(&state.node.state())
 }
 
@@ -779,6 +796,7 @@ fn traffic_control_rules_response(state: &AuthorityState) -> Response {
 
 /// The query of `POST /traffic-control/rules/add` and `/rules/remove`.
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct AccessRuleChangeQuery {
     list: AccessRuleList,
     client: String,
@@ -838,6 +856,7 @@ fn remove_traffic_control_rule_response(
 
 /// The query of `GET /traffic-control/blocklist`.
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct BlocklistQuery {
     limit: Option<usize>,
 }
@@ -858,6 +877,7 @@ fn traffic_control_blocklist_response(
 
 /// The query of `POST /traffic-control/block`.
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ManualBlockQuery {
     client: String,
     ttl_sec: u64,
@@ -901,6 +921,7 @@ fn block_traffic_control_client_response(
 
 /// The query of `POST /traffic-control/unblock`.
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct UnblockQuery {
     client: String,
 }
@@ -929,6 +950,7 @@ fn unblock_traffic_control_client_response(
 
 /// The query of `GET /traffic-control/clients`.
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ClientUsageQuery {
     top: Option<usize>,
 }
@@ -1061,6 +1083,59 @@ mod tests {
         assert_eq!(params.simulation_burst_gas, Some(20));
     }
 
+    #[test]
+    fn the_traffic_control_routes_reject_an_unknown_query_parameter() {
+        fn rejection<T: DeserializeOwned>(uri: &str) -> QueryRejection {
+            match Query::<T>::try_from_uri(&uri.parse::<Uri>().unwrap()) {
+                Ok(_) => panic!("{uri} was accepted"),
+                Err(rejection) => rejection,
+            }
+        }
+        for (rejection, parameter) in [
+            (
+                rejection::<TrafficControlReconfigParams>(
+                    "/traffic-control?dry_run=false&default-action=deny",
+                ),
+                "default-action",
+            ),
+            (
+                rejection::<NoQueryParameters>("/traffic-control/config?limit=5"),
+                "limit",
+            ),
+            (
+                rejection::<AccessRuleChangeQuery>(
+                    "/traffic-control/rules/add?list=allow&client=192.0.2.1&ttl_sec=60",
+                ),
+                "ttl_sec",
+            ),
+            (
+                rejection::<BlocklistQuery>("/traffic-control/blocklist?top=5"),
+                "top",
+            ),
+            (
+                rejection::<ManualBlockQuery>(
+                    "/traffic-control/block?client=192.0.2.1&ttl_sec=60&ttl=60",
+                ),
+                "ttl",
+            ),
+            (
+                rejection::<UnblockQuery>("/traffic-control/unblock?client=192.0.2.1&list=deny"),
+                "list",
+            ),
+            (
+                rejection::<ClientUsageQuery>("/traffic-control/clients?limit=5"),
+                "limit",
+            ),
+        ] {
+            assert_eq!(rejection.status(), StatusCode::BAD_REQUEST);
+            let body = rejection.body_text();
+            assert!(
+                body.contains(&format!("unknown field `{parameter}`")),
+                "{body}"
+            );
+        }
+    }
+
     #[tokio::test]
     async fn every_route_rejects_a_request_while_traffic_control_is_off() {
         let state = authority(None).await;
@@ -1072,7 +1147,7 @@ mod tests {
             unblock_traffic_control_client_response(&state, query("/?client=192.0.2.1")),
         ];
         for response in [
-            traffic_control_status_response(&state, None),
+            traffic_control_status_response(&state, Ok(())),
             traffic_control_config_response(&state),
             traffic_control_rules_response(&state),
             traffic_control_blocklist_response(&state, query("/")),
@@ -1095,10 +1170,20 @@ mod tests {
         .await;
 
         let status: TrafficControlStatus =
-            json(traffic_control_status_response(&state, None)).await;
+            json(traffic_control_status_response(&state, Ok(()))).await;
         assert_eq!(status.default_action, DefaultAction::Limit);
-        let refused = traffic_control_status_response(&state, Some("dry_run=true".to_string()));
-        assert_eq!(refused.status(), StatusCode::BAD_REQUEST);
+        let (status, body) = body(traffic_control_status_response(
+            &state,
+            Query::<NoQueryParameters>::try_from_uri(&"/?dry_run=true".parse().unwrap())
+                .map(|_| ()),
+        ))
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert!(body.contains("unknown field `dry_run`"), "{body}");
+        assert!(
+            body.ends_with("; use POST to change the settings\n"),
+            "{body}"
+        );
         let config: PolicyConfig = json(traffic_control_config_response(&state)).await;
         assert!(!config.dry_run);
 
@@ -1114,7 +1199,7 @@ mod tests {
         }
         assert!(body.ends_with(UNTIL_RESTART), "{body}");
         let status: TrafficControlStatus =
-            json(traffic_control_status_response(&state, None)).await;
+            json(traffic_control_status_response(&state, Ok(()))).await;
         assert_eq!(status.default_action, DefaultAction::Deny);
         let (_, body) = reconfigure_traffic_control(&state, query("/?default_action=limit")).await;
         assert!(!body.contains(DEFAULT_DENY_WARNING), "{body}");

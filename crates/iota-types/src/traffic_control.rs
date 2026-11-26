@@ -62,6 +62,7 @@ pub enum ClientIdSource {
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct TrafficControlReconfigParams {
     pub error_threshold: Option<u64>,
     pub spam_threshold: Option<u64>,
