@@ -3,11 +3,11 @@
 
 //! The gas limit of simulations. Each client has a gas balance that refills by
 //! `gas-per-sec` up to `burst-gas`. A simulation reserves the computation cap
-//! of one transaction when it starts and gives back what it did not use when
-//! it ends, so simulations a client runs at the same time cannot pass the
-//! limit together. `governor` cannot do this: a GCRA cell can neither give
-//! back what it charged, nor tell whether a client is over its limit without
-//! charging it.
+//! of one transaction, or `burst-gas` if that is lower, when it starts and
+//! gives back what it did not use when it ends, so simulations a client runs
+//! at the same time cannot pass the limit together. `governor` cannot do
+//! this: a GCRA cell can neither give back what it charged, nor tell whether a
+//! client is over its limit without charging it.
 
 use std::{
     net::IpAddr,
