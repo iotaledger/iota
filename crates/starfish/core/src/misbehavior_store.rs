@@ -316,8 +316,8 @@ impl MisbehaviorStore {
     ) {
         let committee_size = self.in_memory.authorities.len();
         let fault_type = classify_fault(error);
-        let author = header_slot.filter(|_| matches!(fault_type, FaultType::Provable));
-        if let Some(slot) = author {
+        let provable_slot = header_slot.filter(|_| matches!(fault_type, FaultType::Provable));
+        if let Some(slot) = provable_slot {
             self.record_provable_fault(slot);
         }
         for peer in relayers {
@@ -328,7 +328,7 @@ impl MisbehaviorStore {
             }
             match fault_type {
                 FaultType::Provable | FaultType::Unprovable => {
-                    if author.is_none_or(|slot| slot.authority != peer) {
+                    if provable_slot.is_none_or(|slot| slot.authority != peer) {
                         self.in_memory.record_block_fault_unprovable(idx);
                     }
                 }
