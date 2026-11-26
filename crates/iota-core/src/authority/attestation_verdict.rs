@@ -36,6 +36,7 @@ use iota_types::{
     attestation::{self, Attestation, SharedInputIndex, list_move_authenticator_shared_objects},
     auth_context::AuthContextData,
     committee::EpochId,
+    digests::ChainIdentifier,
     effects::TransactionEffectsAPI,
     error::{ExecutionError, ExecutionErrorKind, IotaError},
     execution::{is_any_invariant_violation, is_cancellation, unwrap_move_authentication_error},
@@ -258,6 +259,7 @@ pub(crate) struct AttestationVerdictContext<'a> {
     pub executor: &'a dyn Executor,
     pub protocol_config: &'a ProtocolConfig,
     pub metrics: Arc<LimitsMetrics>,
+    pub chain_identifier: ChainIdentifier,
     pub epoch_id: EpochId,
     pub epoch_timestamp_ms: u64,
     pub reference_gas_price: u64,
@@ -605,18 +607,18 @@ impl AttestationVerdictContext<'_> {
         };
         let (transaction_kind, _, _) = self.transaction.transaction().execution_parts();
 
-        // No gas coins: the attested budget is charged to nobody.
-        let gas_data = GasPayment {
-            objects: Vec::new(),
-            ..self.gas_data.clone()
-        };
+        // The gas data execution has, gas coins included, so the re-run differs
+        // from execution only in the object versions. It charges nobody all the
+        // same: `authenticate_transaction` charges no gas coin, and the re-run
+        // is metered on `gas_status` alone, with its writes dropped.
         let (gas_status, result) = self.executor.authenticate_transaction(
             self.store,
             self.protocol_config,
             self.metrics.clone(),
+            self.chain_identifier,
             &self.epoch_id,
             self.epoch_timestamp_ms,
-            gas_data,
+            self.gas_data.clone(),
             gas_status,
             resolved,
             aggregated_input_objects,

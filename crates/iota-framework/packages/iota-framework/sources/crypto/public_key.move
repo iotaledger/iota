@@ -1,0 +1,220 @@
+// Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+/// A typed cryptographic public key.
+///
+/// A `PublicKey` stores the signature scheme and the raw key material.
+///
+/// Raw-byte lengths by scheme:
+///
+/// | Scheme     | Flag | Raw-byte length       |
+/// |------------|------|-----------------------|
+/// | Ed25519    | 0x00 | 32 bytes              |
+/// | Secp256k1  | 0x01 | 33 bytes (compressed) |
+/// | Secp256r1  | 0x02 | 33 bytes (compressed) |
+/// | MultiSig   | 0x03 | variable (BCS)        |
+/// | Passkey    | 0x06 | 33 bytes (compressed) |
+///
+/// `PublicKey` values are constructed exclusively through `create`. Once created,
+/// the inner fields are immutable.
+///
+/// **Validation scope**: `create` checks that the scheme is recognized, that the raw bytes form
+/// a valid curve point (which implicitly rejects wrong-length inputs), and — for MultiSig — that
+/// the BCS structure is well-formed (signer count, weights, threshold), every signer weight is
+/// non-zero, no signer is duplicated, and no Ed25519 signer among other schemes. These
+/// rules match the committee validation of the SDK. Member keys are not checked against curves.
+module iota::public_key;
+
+use iota::ecdsa_k1;
+use iota::ecdsa_r1;
+use iota::ed25519;
+use iota::multisig;
+use iota::signature_scheme::{Self, SignatureScheme};
+
+// === Errors ===
+
+#[error(code = 0)]
+const EPublicKeyBytesEmpty: vector<u8> = b"Public key bytes are empty.";
+#[error(code = 1)]
+const EUnknownPublicKeyScheme: vector<u8> = b"Unknown public key scheme.";
+#[error(code = 2)]
+const EInvalidPublicKeyBytes: vector<u8> = b"Public key bytes are not a valid key for the scheme.";
+
+// === Constants ===
+
+/// Length of an Ed25519 public key.
+const ED25519_PUBLIC_KEY_LENGTH: u64 = 32;
+/// Length of a compressed Secp256k1, Secp256r1 or Passkey public key.
+const COMPRESSED_PUBLIC_KEY_LENGTH: u64 = 33;
+
+// === Structs ===
+
+/// A validated public key consisting of a typed `scheme` and raw key material.
+public struct PublicKey has copy, drop, store {
+    /// The signature scheme identifying the key algorithm.
+    scheme: SignatureScheme,
+    /// Raw key material without the scheme flag prefix.
+    raw_bytes: vector<u8>,
+}
+
+// === Public Functions ===
+
+/// Constructs a `PublicKey` from a `scheme`-prefixed byte vector.
+///
+/// The first byte of `prefixed_bytes` is the scheme flag; the remaining bytes are the raw
+/// key material. Byte lengths after stripping the flag:
+/// 32 bytes for Ed25519, 33 bytes (compressed) for Secp256k1 / Secp256r1 / Passkey,
+/// BCS-encoded `MultiSigPublicKey` for MultiSig (1–10 distinct signers, each weight > 0,
+/// threshold > 0, total weight ≥ threshold, no Ed25519 signer among other schemes).
+///
+/// Aborts if `prefixed_bytes` is empty, if the flag byte is not a recognized scheme, if the
+/// remaining bytes are not a valid curve point, or if a MultiSig payload fails structural validation.
+public fun from_prefixed_bytes(mut prefixed_bytes: vector<u8>): PublicKey {
+    assert!(!prefixed_bytes.is_empty(), EPublicKeyBytesEmpty);
+    let flag = prefixed_bytes.remove(0);
+    create(signature_scheme::from_flag(flag), prefixed_bytes)
+}
+
+/// Constructs a `PublicKey` from an explicit `scheme` and raw key `raw_bytes`.
+///
+/// `raw_bytes` must be the raw key material **without** the scheme flag prefix:
+/// 32 bytes for Ed25519, 33 bytes (compressed) for Secp256k1 / Secp256r1 / Passkey,
+/// and a valid BCS-encoded `MultiSigPublicKey` for MultiSig (1–10 distinct signers, each
+/// weight > 0, threshold > 0, total weight ≥ threshold, no Ed25519 signer among other schemes).
+///
+/// Aborts if `raw_bytes` is empty, if `scheme` is not a recognized scheme, if the bytes do not
+/// form a valid curve point, or if a MultiSig payload fails structural validation.
+public fun create(scheme: SignatureScheme, raw_bytes: vector<u8>): PublicKey {
+    assert!(!raw_bytes.is_empty(), EPublicKeyBytesEmpty);
+
+    validate_public_key(scheme, &raw_bytes);
+
+    PublicKey { scheme, raw_bytes }
+}
+
+// === View Functions ===
+
+/// Returns the `SignatureScheme` that identifies this key's signature algorithm.
+public fun scheme(self: &PublicKey): SignatureScheme {
+    self.scheme
+}
+
+/// Returns a reference to the raw key bytes (without the scheme flag prefix).
+public fun raw_bytes(self: &PublicKey): &vector<u8> {
+    &self.raw_bytes
+}
+
+/// Derives the IOTA address for this public key, mirroring the node's `IotaAddress::from`.
+///
+/// See `to_iota_address_impl` for the exact per-scheme derivation rules.
+public fun to_iota_address(self: &PublicKey): address {
+    to_iota_address_impl(self.scheme.flag(), &self.raw_bytes)
+}
+
+// === Admin Functions ===
+
+// === Package Functions ===
+
+/// Returns `true` if `signature` is a valid signature, by `self`, of `message` signed as an IOTA
+/// personal message, using the signature scheme of `self`.
+///
+/// `signature` is in the flag-prefixed wire format of the key's scheme:
+///
+/// ```
+/// Ed25519:   0x00 || sig[64B] || pk[32B]                (97 bytes total)
+/// Secp256k1: 0x01 || sig[64B] || pk[33B]                (98 bytes total)
+/// Secp256r1: 0x02 || sig[64B] || pk[33B]                (98 bytes total)
+/// Passkey:   0x06 || <PasskeyAuthenticator wire bytes>  (variable length)
+/// ```
+///
+/// The signed bytes are `Blake2b256(IntentMessage(Intent::personal_message(),
+/// PersonalMessage(message)))`. For a Passkey, this hash is the challenge embedded in
+/// `clientDataJSON`.
+///
+/// Returns `false` if `self` is a MultiSig key, or if `signature` is malformed or of another
+/// scheme than `self`.
+///
+/// The gas cost grows with the length of `message` and of `signature`.
+public(package) fun verify_personal_message_signature(
+    self: &PublicKey,
+    signature: &vector<u8>,
+    message: &vector<u8>,
+): bool {
+    verify_personal_message_signature_impl(self, signature, message)
+}
+
+/// Returns `true` if `signature` is a valid signature, by `self`, of the transaction being
+/// authenticated, using the signature scheme of `self`.
+///
+/// Only the built-in authenticator calls it, while it authenticates a transaction: the native
+/// reads that transaction from the authentication context, which execution provides only
+/// during authentication, so a call anywhere else fails. See
+/// `builtin_authenticator_functions::builtin_authenticator_function_ref_v1` for the format of
+/// `signature`.
+public(package) fun verify_builtin_authenticator_signature(
+    self: &PublicKey,
+    signature: &vector<u8>,
+): bool {
+    verify_builtin_authenticator_signature_impl(self, signature)
+}
+
+// === Private Functions ===
+
+// The length is checked before each curve validator, which also accepts the
+// uncompressed and hybrid forms of a key. Those would store another encoding of
+// the same key, which compares unequal and does not hash to its address.
+fun validate_public_key(scheme: SignatureScheme, raw_bytes: &vector<u8>) {
+    if (scheme == signature_scheme::ed25519()) {
+        assert!(raw_bytes.length() == ED25519_PUBLIC_KEY_LENGTH, EInvalidPublicKeyBytes);
+        assert!(ed25519::ed25519_validate_pubkey(raw_bytes), EInvalidPublicKeyBytes);
+    } else if (scheme == signature_scheme::secp256k1()) {
+        assert!(raw_bytes.length() == COMPRESSED_PUBLIC_KEY_LENGTH, EInvalidPublicKeyBytes);
+        assert!(ecdsa_k1::secp256k1_validate_pubkey(raw_bytes), EInvalidPublicKeyBytes);
+    } else if (
+        scheme == signature_scheme::secp256r1() ||
+        scheme == signature_scheme::passkey()
+    ) {
+        assert!(raw_bytes.length() == COMPRESSED_PUBLIC_KEY_LENGTH, EInvalidPublicKeyBytes);
+        assert!(ecdsa_r1::secp256r1_validate_pubkey(raw_bytes), EInvalidPublicKeyBytes);
+    } else if (scheme == signature_scheme::multisig()) {
+        assert!(multisig::multisig_validate_pubkey(raw_bytes), EInvalidPublicKeyBytes);
+    } else {
+        abort EUnknownPublicKeyScheme
+    }
+}
+
+/// Derives the IOTA address for a `flag`-typed public key with raw key material `raw_bytes`
+/// (the key bytes **without** the scheme flag prefix), mirroring the node's address derivation:
+///   Ed25519:   Blake2b256(pk)
+///   Secp256k1: Blake2b256(0x01 || pk)
+///   Secp256r1: Blake2b256(0x02 || pk)
+///   MultiSig:  Blake2b256(0x03 || threshold_le16 || member*) where each Ed25519 member
+///              contributes `pk || weight` and each other member contributes
+///              `scheme_flag || pk || weight` (Ed25519 omits its flag — IOTA legacy rule)
+///   Passkey:   Blake2b256(0x06 || pk)
+///
+/// Aborts if `flag` is not a recognized scheme or `raw_bytes` is not a valid public key for it.
+native fun to_iota_address_impl(flag: u8, raw_bytes: &vector<u8>): address;
+
+/// Returns `true` if `signature` is a valid signature, by `public_key`, of `message` signed as an
+/// IOTA personal message. See `verify_personal_message_signature`.
+native fun verify_personal_message_signature_impl(
+    public_key: &PublicKey,
+    signature: &vector<u8>,
+    message: &vector<u8>,
+): bool;
+
+/// Returns `true` if `signature` is a valid signature, by `public_key`, of the transaction being
+/// authenticated. Only for the built-in authenticator; see
+/// `verify_builtin_authenticator_signature`.
+native fun verify_builtin_authenticator_signature_impl(
+    public_key: &PublicKey,
+    signature: &vector<u8>,
+): bool;
+
+// === Test Functions ===
+
+#[test_only]
+public fun derive_address_for_testing(prefixed_bytes: &vector<u8>): address {
+    from_prefixed_bytes(*prefixed_bytes).to_iota_address()
+}

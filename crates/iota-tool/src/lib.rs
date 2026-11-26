@@ -828,12 +828,40 @@ pub async fn check_completed_snapshot(
     }
 }
 
+/// Opens the restore target of a formal snapshot restore into the staging
+/// directory `path`, for `num_parallel_inserts` inserts at once. Unless
+/// `skip_rpc_indexes`, also returns the RPC indexes restorer that the target
+/// writes to. Blocks its thread.
+fn open_restore_target(
+    path: &Path,
+    perpetual_db: Arc<AuthorityPerpetualTables>,
+    num_parallel_inserts: NonZeroUsize,
+    skip_rpc_indexes: bool,
+) -> Result<(RestoreWithIndexes, Option<Arc<RpcIndexesRestorer>>)> {
+    // Both groups, because a restore cannot know which of them the node will
+    // enable later.
+    let rpc_indexes = (!skip_rpc_indexes)
+        .then(|| {
+            RpcIndexesRestorer::open(
+                path.join(RPC_INDEXES_DIR),
+                BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
+                num_parallel_inserts,
+            )
+        })
+        .transpose()?
+        .map(Arc::new);
+    let restore_target =
+        RestoreWithIndexes::new(perpetual_db, rpc_indexes.clone(), num_parallel_inserts);
+    Ok((restore_target, rpc_indexes))
+}
+
 pub async fn download_formal_snapshot(
     path: &Path,
     epoch: EpochId,
     genesis: &Path,
     snapshot_store_config: ObjectStoreConfig,
     num_parallel_downloads: NonZeroUsize,
+    num_parallel_inserts: NonZeroUsize,
     verify: SnapshotVerifyMode,
     skip_rpc_indexes: bool,
     disable_progress_bar: bool,
@@ -948,34 +976,25 @@ pub async fn download_formal_snapshot(
         epoch,
     )?;
 
-    // Both groups, because a restore cannot know which of them the node will
-    // enable later.
-    let rpc_indexes = (!skip_rpc_indexes)
-        .then(|| {
-            RpcIndexesRestorer::open(
-                path.join(RPC_INDEXES_DIR),
-                BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
-            )
-        })
-        .transpose()?
-        .map(Arc::new);
+    let (restore_target, rpc_indexes) = open_restore_target(
+        &path,
+        perpetual_db.clone(),
+        num_parallel_inserts,
+        skip_rpc_indexes,
+    )?;
 
     let (_abort_handle, abort_registration) = AbortHandle::new_pair();
-    let perpetual_db_clone = perpetual_db.clone();
 
     // TODO if verify is false, we should skip generating these and
     // not pass in a channel to the reader
     let (sender, mut receiver) = mpsc::channel(num_parallel_downloads.get());
     let (accumulation_done_sender, accumulation_done_receiver) = oneshot::channel();
-    let rpc_indexes_clone = rpc_indexes.clone();
 
     let snapshot_handle = tokio::spawn(async move {
         let accumulator = Some(StateAccumulatorSender {
             partials: sender,
             completion: accumulation_done_sender,
         });
-        let restore_target =
-            RestoreWithIndexes::new(&perpetual_db_clone, rpc_indexes_clone.as_deref());
         reader
             .read_to_db(&restore_target, abort_registration, accumulator)
             .await
@@ -1120,4 +1139,42 @@ pub async fn download_formal_snapshot(
     println!("Successfully restored state from snapshot at end of epoch {epoch}");
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{num::NonZeroUsize, sync::Arc};
+
+    use iota_core::authority::authority_store_tables::AuthorityPerpetualTables;
+    use iota_snapshot::restore::Restore;
+
+    use super::open_restore_target;
+
+    #[tokio::test]
+    async fn the_restore_target_and_the_restorer_are_sized_for_the_parallel_inserts() {
+        let num_parallel_inserts = NonZeroUsize::new(3).unwrap();
+        for skip_rpc_indexes in [false, true] {
+            let dir = iota_common::tempdir();
+            let perpetual_db = Arc::new(AuthorityPerpetualTables::open(
+                &dir.path().join("store"),
+                None,
+            ));
+            let (restore_target, rpc_indexes) = open_restore_target(
+                dir.path(),
+                perpetual_db,
+                num_parallel_inserts,
+                skip_rpc_indexes,
+            )
+            .unwrap();
+            assert_eq!(
+                restore_target.max_concurrent_inserts(),
+                num_parallel_inserts,
+                "skip_rpc_indexes = {skip_rpc_indexes}"
+            );
+            assert_eq!(
+                rpc_indexes.map(|restorer| restorer.partitions_at_once()),
+                (!skip_rpc_indexes).then_some(num_parallel_inserts)
+            );
+        }
+    }
 }

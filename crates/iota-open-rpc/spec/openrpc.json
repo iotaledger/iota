@@ -1288,15 +1288,15 @@
           "params": [
             {
               "name": "version",
-              "value": 41
+              "value": 42
             }
           ],
           "result": {
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "41",
-              "protocolVersion": "41",
+              "maxSupportedProtocolVersion": "42",
+              "protocolVersion": "42",
               "featureFlags": {
                 "accept_passkey_in_multisig": true,
                 "additional_borrow_checks": true,
@@ -1337,11 +1337,14 @@
                 "disallow_randomness_in_move_authenticator": true,
                 "disallow_self_identifier": true,
                 "disallow_self_identifier_in_transactions": true,
+                "enable_builtin_move_authenticators": true,
+                "enable_claim_account_transaction": false,
                 "enable_group_ops_native_function_msm": true,
                 "enable_move_authentication": true,
                 "enable_move_authentication_for_sponsor": true,
                 "enable_pcool_flow": true,
                 "enable_poseidon": true,
+                "enable_smart_accounts": true,
                 "enable_transaction_dependencies": true,
                 "enable_validator_attestation": true,
                 "enable_vdf": true,
@@ -1524,6 +1527,8 @@
                 "checkpoint_summary_version_specific_data": {
                   "u64": "2"
                 },
+                "claim_account_max_computation_units": null,
+                "claim_account_storage_bytes_bound": null,
                 "config_read_setting_impl_cost_base": {
                   "u64": "100"
                 },
@@ -1635,6 +1640,9 @@
                 "ecdsa_k1_ecrecover_sha256_msg_cost_per_byte": {
                   "u64": "2"
                 },
+                "ecdsa_k1_secp256k1_validate_pubkey_cost_base": {
+                  "u64": "176"
+                },
                 "ecdsa_k1_secp256k1_verify_keccak256_cost_base": {
                   "u64": "1470"
                 },
@@ -1671,6 +1679,9 @@
                 "ecdsa_r1_ecrecover_sha256_msg_cost_per_byte": {
                   "u64": "2"
                 },
+                "ecdsa_r1_secp256r1_validate_pubkey_cost_base": {
+                  "u64": "325"
+                },
                 "ecdsa_r1_secp256r1_verify_keccak256_cost_base": {
                   "u64": "4225"
                 },
@@ -1697,6 +1708,9 @@
                 },
                 "ecvrf_ecvrf_verify_cost_base": {
                   "u64": "4848"
+                },
+                "ed25519_ed25519_validate_pubkey_cost_base": {
+                  "u64": "170"
                 },
                 "ed25519_ed25519_verify_cost_base": {
                   "u64": "1802"
@@ -2112,6 +2126,9 @@
                 "move_binary_format_version": {
                   "u32": "7"
                 },
+                "multisig_multisig_validate_pubkey_cost_base": {
+                  "u64": "72"
+                },
                 "obj_access_cost_delete_per_byte": {
                   "u64": "40"
                 },
@@ -2166,6 +2183,21 @@
                 "poseidon_bn254_cost_per_block": {
                   "u64": "388"
                 },
+                "public_key_to_iota_address_impl_cost_base": {
+                  "u64": "341"
+                },
+                "public_key_verify_builtin_authenticator_signature_impl_cost_base": {
+                  "u64": "0"
+                },
+                "public_key_verify_personal_message_signature_impl_cost_base": {
+                  "u64": "4225"
+                },
+                "public_key_verify_personal_message_signature_impl_msg_cost_per_byte": {
+                  "u64": "2"
+                },
+                "public_key_verify_personal_message_signature_impl_sig_cost_per_byte": {
+                  "u64": "2"
+                },
                 "random_beacon_dkg_timeout_round": {
                   "u32": "3000"
                 },
@@ -2186,6 +2218,9 @@
                 },
                 "scorer_version": {
                   "u16": "2"
+                },
+                "smart_account_builtin_authenticator_key_proof_message_cost_base": {
+                  "u64": "52"
                 },
                 "storage_gas_price": {
                   "u64": "76"
@@ -2229,6 +2264,9 @@
                 "transfer_transfer_internal_cost_base": {
                   "u64": "52"
                 },
+                "tx_context_chain_identifier_cost_base": {
+                  "u64": "30"
+                },
                 "tx_context_derive_id_cost_base": {
                   "u64": "52"
                 },
@@ -2263,6 +2301,9 @@
                   "u64": "30"
                 },
                 "tx_context_sponsor_cost_base": {
+                  "u64": "30"
+                },
+                "tx_context_tx_nonce_cost_base": {
                   "u64": "30"
                 },
                 "type_name_get_base_cost": {
@@ -2368,7 +2409,7 @@
           "name": "Read API"
         }
       ],
-      "description": "Return the transaction response object.",
+      "description": "Return the transaction response object. The method will throw an error if the node does not have the transaction, or its effects when they are needed for the requested fields, or if the requested transaction or effects can't be converted. A requested field that can't be loaded otherwise, such as events or balance changes, is left out and the reason is added to `errors`. `timestampMs` is left out when the node no longer has the checkpoint's summary. Balance and object changes are derived from the object versions the transaction read, so they can only be returned while the node still keeps those versions; by default, nodes keep past object versions for fewer epochs than transactions.",
       "params": [
         {
           "name": "digest",
@@ -2773,7 +2814,7 @@
           "name": "Read API"
         }
       ],
-      "description": "Returns an ordered list of transaction responses The method will throw an error if the input contains any duplicate or the input size exceeds QUERY_MAX_RESULT_LIMIT",
+      "description": "Returns an ordered list of transaction responses The method will throw an error if the input contains any duplicate or the input size exceeds QUERY_MAX_RESULT_LIMIT. On a fullnode, the list has one response per digest, in the order of the input, and data missing for one transaction does not fail the request: if the node does not have a transaction or its effects, or a requested field such as events or balance changes can't be loaded or converted, the response for that digest leaves out the affected fields and the reason is added to its `errors`. Balance and object changes are derived from the object versions the transaction read, so they can only be returned while the node still keeps those versions; by default, nodes keep past object versions for fewer epochs than transactions.",
       "params": [
         {
           "name": "digests",
@@ -7606,6 +7647,42 @@
           }
         ]
       },
+      "IotaAccountClaimKind": {
+        "description": "The type of account created by an `IotaClaimAccountTransaction`.",
+        "oneOf": [
+          {
+            "description": "Parameters the claimed `SmartAccount` was created with.",
+            "type": "object",
+            "required": [
+              "public_key_raw_bytes",
+              "public_key_scheme",
+              "type"
+            ],
+            "properties": {
+              "public_key_raw_bytes": {
+                "description": "Raw public key bytes of the claimed address, without the scheme flag prefix. For MultiSig this is a BCS-encoded multisig public key.",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Base64"
+                  }
+                ]
+              },
+              "public_key_scheme": {
+                "description": "Signature scheme flag of the public key of the claimed address (0=Ed25519, 1=Secp256k1, 2=Secp256r1, 3=MultiSig, 6=Passkey).",
+                "type": "integer",
+                "format": "uint8",
+                "minimum": 0.0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "smartAccount"
+                ]
+              }
+            }
+          }
+        ]
+      },
       "IotaArgument": {
         "description": "An argument to a transaction in a programmable transaction block",
         "oneOf": [
@@ -9389,7 +9466,7 @@
         ]
       },
       "IotaTransactionKind": {
-        "description": "Represents the type of a transaction. All transactions except `ProgrammableTransaction` are considered system transactions.",
+        "description": "Represents the type of a transaction. All transactions except `ProgrammableTransaction` and `ClaimAccount` are considered system transactions.",
         "oneOf": [
           {
             "type": "string",
@@ -9399,7 +9476,8 @@
               "ConsensusCommitPrologueV1",
               "RandomnessStateUpdate",
               "EndOfEpochTransaction",
-              "TransactionDenyRulesUpdate"
+              "TransactionDenyRulesUpdate",
+              "ClaimAccount"
             ]
           },
           {
@@ -11878,6 +11956,30 @@
                 "items": {
                   "$ref": "#/components/schemas/IotaEndOfEpochTransactionKind"
                 }
+              }
+            }
+          },
+          {
+            "description": "A transaction that claims an on-chain account object",
+            "type": "object",
+            "required": [
+              "account_kind",
+              "kind"
+            ],
+            "properties": {
+              "account_kind": {
+                "description": "The type of account created by the claim.",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/IotaAccountClaimKind"
+                  }
+                ]
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "ClaimAccount"
+                ]
               }
             }
           }

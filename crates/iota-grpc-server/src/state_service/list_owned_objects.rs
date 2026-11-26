@@ -22,6 +22,7 @@ use crate::{
     merge::Merge,
     metrics::{RequestMetrics, ResponseItemKind},
     types::{GrpcReader, OwnedObjectCursor},
+    utils::shorten_parse_error,
     validation::{
         decode_page_token, encode_page_token, page_token_mismatch, require_address,
         validate_page_size, validate_read_mask,
@@ -63,7 +64,7 @@ pub(crate) fn list_owned_objects(
         .map(|t| {
             iota_types::parse_iota_struct_tag(t).map_err(|e| {
                 FieldViolation::new("object_type")
-                    .with_description(format!("invalid object_type: {e}"))
+                    .with_description(format!("invalid object_type: {}", shorten_parse_error(e)))
                     .with_reason(ErrorReason::FieldInvalid)
             })
         })

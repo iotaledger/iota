@@ -34,6 +34,15 @@ public native fun secp256r1_ecrecover(
     hash: u8,
 ): vector<u8>;
 
+/// @param public_key: A candidate secp256r1 public key in SEC1 form: compressed (33 bytes,
+/// prefix 0x02 or 0x03) or uncompressed (65 bytes, prefix 0x04).
+///
+/// Returns true if `public_key` is a valid point on the secp256r1 (P-256) curve in one of these
+/// forms. For a compressed key, the x-coordinate (bytes 1–32) must have a corresponding y on the
+/// curve; approximately half of all 33-byte inputs with a valid prefix byte fail this check.
+/// Returns false otherwise. Passkey public keys use this same curve.
+public native fun secp256r1_validate_pubkey(public_key: &vector<u8>): bool;
+
 /// @param signature: A 64-bytes signature in form (r, s) that is signed using
 /// Secp256r1. This is an non-recoverable signature without recovery id.
 /// Reference implementation on signature generation using RFC6979:

@@ -88,6 +88,10 @@ public struct TxContextBuilder has drop {
     gas_price: u64,
     gas_budget: u64,
     sponsor: Option<address>,
+    // when not set, the context keeps the chain identifier of the test
+    chain_identifier: Option<vector<u8>>,
+    // nonce of the transaction, or empty if it has none
+    tx_nonce: vector<u8>,
 }
 
 /// The effects of a transaction
@@ -115,7 +119,9 @@ public struct TransactionEffects has drop {
 //
 
 /// Create a new `TxContextBuilder` with the given `sender` address.
-/// Also provides default for all other fields.
+/// Also provides default for all other fields, except the chain identifier: unless
+/// `set_chain_identifier` is called, the context keeps the chain identifier of the test,
+/// which an earlier scenario of the same test may have set.
 public fun ctx_builder_from_sender(sender: address): TxContextBuilder {
     TxContextBuilder {
         sender,
@@ -126,6 +132,8 @@ public fun ctx_builder_from_sender(sender: address): TxContextBuilder {
         gas_price: 1_000,
         gas_budget: 100_000_000,
         sponsor: option::none(),
+        chain_identifier: option::none(),
+        tx_nonce: vector[],
     }
 }
 
@@ -135,6 +143,7 @@ public fun ctx_builder(scenario: &Scenario): TxContextBuilder {
 }
 
 /// Create a `TxContextBuilder` from an existing `TxContext`.
+/// The builder has no nonce: each transaction has its own, so set one with `set_tx_nonce`.
 public fun ctx_builder_from_context(ctx: &TxContext): TxContextBuilder {
     TxContextBuilder {
         sender: ctx.sender(),
@@ -145,6 +154,8 @@ public fun ctx_builder_from_context(ctx: &TxContext): TxContextBuilder {
         gas_price: ctx.gas_price(),
         gas_budget: ctx.gas_budget(),
         sponsor: ctx.sponsor(),
+        chain_identifier: option::some(ctx.chain_identifier()),
+        tx_nonce: vector[],
     }
 }
 
@@ -196,6 +207,22 @@ public fun set_sponsor(mut builder: TxContextBuilder, sponsor: Option<address>):
     builder
 }
 
+/// Set the chain identifier for the `TxContextBuilder`. It must be 32 bytes.
+public fun set_chain_identifier(
+    mut builder: TxContextBuilder,
+    chain_identifier: vector<u8>,
+): TxContextBuilder {
+    builder.chain_identifier = option::some(chain_identifier);
+    builder
+}
+
+/// Set the 32-byte nonce of the transaction for the `TxContextBuilder`, or remove it if `nonce`
+/// is empty.
+public fun set_tx_nonce(mut builder: TxContextBuilder, nonce: vector<u8>): TxContextBuilder {
+    builder.tx_nonce = nonce;
+    builder
+}
+
 /// Clone a `TxContextBuilder`.
 /// This is useful for building a new context that is mostly the same as an existing one.
 public fun clone(builder: &TxContextBuilder): TxContextBuilder {
@@ -208,13 +235,15 @@ public fun clone(builder: &TxContextBuilder): TxContextBuilder {
         gas_price: builder.gas_price,
         gas_budget: builder.gas_budget,
         sponsor: builder.sponsor,
+        chain_identifier: builder.chain_identifier,
+        tx_nonce: builder.tx_nonce,
     }
 }
 
 // Create a `TxContext` from a `TxContextBuilder`.
 // This is an internal function called when building a `Scenario`.
 fun make_tx_context(builder: TxContextBuilder, tx_hash: vector<u8>): TxContext {
-    tx_context::create(
+    let mut ctx = tx_context::create(
         builder.sender,
         tx_hash,
         builder.epoch,
@@ -225,7 +254,12 @@ fun make_tx_context(builder: TxContextBuilder, tx_hash: vector<u8>): TxContext {
         builder.gas_price,
         builder.gas_budget,
         builder.sponsor,
-    )
+    );
+    builder
+        .chain_identifier
+        .do!(|chain_identifier| ctx.set_chain_identifier_for_testing(chain_identifier));
+    ctx.set_tx_nonce_for_testing(builder.tx_nonce);
+    ctx
 }
 
 /// Begin a new multi-transaction test scenario in a context where `sender` is the tx sender

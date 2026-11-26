@@ -1556,12 +1556,14 @@ impl TestClusterBuilder {
         let wallet_conf = swarm.dir().join(IOTA_CLIENT_CONFIG);
         let wallet = WalletContext::new(&wallet_conf).unwrap();
 
-        TestCluster {
+        let test_cluster = TestCluster {
             swarm,
             wallet,
             fullnode_handle,
             faucet,
-        }
+        };
+        test_cluster.wait_for_checkpoint(0, None).await;
+        test_cluster
     }
 
     /// Start a Swarm and set up WalletConfig

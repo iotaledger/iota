@@ -17,7 +17,9 @@ use iota_grpc_types::{
 use iota_sdk_move_types::iota_framework::coin;
 use iota_sdk_types::{Address, Owner, TypeTag};
 
-use crate::{error::RpcError, types::GrpcReader, validation::object_id_proto};
+use crate::{
+    error::RpcError, types::GrpcReader, utils::shorten_parse_error, validation::object_id_proto,
+};
 
 /// Get coin info for a given coin type.
 ///
@@ -39,7 +41,7 @@ pub(crate) fn get_coin_info(
 
     let core_coin_type = iota_types::parse_iota_struct_tag(coin_type_str).map_err(|e| {
         FieldViolation::new("coin_type")
-            .with_description(format!("invalid coin_type: {e}"))
+            .with_description(format!("invalid coin_type: {}", shorten_parse_error(e)))
             .with_reason(ErrorReason::FieldInvalid)
     })?;
 

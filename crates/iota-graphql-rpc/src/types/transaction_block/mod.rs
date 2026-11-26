@@ -119,7 +119,9 @@ impl TransactionBlockInner {
     }
 }
 
-/// An input filter selecting for either system or programmable transactions.
+/// An input filter selecting transactions by kind: system transactions,
+/// programmable transactions, claims of an account, or one kind of system
+/// transaction.
 #[derive(Enum, Copy, Clone, Eq, PartialEq, Debug)]
 pub(crate) enum TransactionBlockKindInput {
     /// A system transaction can be one of several types of transactions.
@@ -135,6 +137,8 @@ pub(crate) enum TransactionBlockKindInput {
     RandomnessStateUpdate = 5,
     /// The end of epoch transaction block.
     EndOfEpochTx = 6,
+    /// A claim of the sender's address as an account object.
+    ClaimAccount = 8,
 }
 
 type Query<ST, GB> = data::Query<ST, transactions::table, GB>;

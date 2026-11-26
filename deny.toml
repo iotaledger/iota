@@ -83,12 +83,6 @@ ignore = [
   # secp256r1 secret keys are only used client-side. Remove once fastcrypto
   # moves to elliptic-curve 0.14.
   "RUSTSEC-2026-0387",
-  # zstd 0.13 and zstd-safe 7 advisories, fixed only in zstd 0.14 and
-  # zstd-safe 8. The latest `tonic` and `parquet` releases still require zstd
-  # 0.13. Remove once they move to 0.14.
-  "RUSTSEC-2026-0391",
-  "RUSTSEC-2026-0398",
-  "RUSTSEC-2026-0403",
   # `clear_on_drop` is unmaintained. Only reachable through `bulletproofs`,
   # pinned by `fastcrypto`; neither has a newer release that drops it.
   "RUSTSEC-2026-0283",
@@ -261,6 +255,7 @@ unknown-git = "warn"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 # List of URLs for allowed Git repositories
 allow-git = [
+  "https://github.com/iotaledger/iota-rust-sdk.git",
   "https://github.com/iotaledger/iota-sim.git",
   "https://github.com/mystenlabs/anemo.git",
   "https://github.com/iotaledger/tokio-madsim-fork.git",

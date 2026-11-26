@@ -1,0 +1,51 @@
+// Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+use async_graphql::{Object, SimpleObject, Union};
+use iota_sdk_types::{
+    AccountClaimKind as NativeAccountClaimKind,
+    ClaimAccountTransaction as NativeClaimAccountTransaction,
+};
+
+use crate::types::base64::Base64;
+
+#[derive(Clone, Eq, PartialEq)]
+pub(crate) struct ClaimAccountTransaction {
+    pub native: NativeClaimAccountTransaction,
+}
+
+/// A transaction that claims the sender's address as an account object.
+#[Object]
+impl ClaimAccountTransaction {
+    /// The type of account created by the claim.
+    async fn kind(&self) -> AccountClaimKind {
+        match &self.native.kind {
+            NativeAccountClaimKind::SmartAccount(smart) => {
+                AccountClaimKind::SmartAccount(SmartAccountClaim {
+                    public_key_scheme: smart.public_key_scheme,
+                    public_key_raw_bytes: Base64::from(smart.public_key_raw_bytes.as_slice()),
+                })
+            }
+            _ => unimplemented!(
+                "a new AccountClaimKind enum variant was added and needs to be handled"
+            ),
+        }
+    }
+}
+
+/// The type of account created by a claim.
+#[derive(Union, Clone, Eq, PartialEq)]
+pub(crate) enum AccountClaimKind {
+    SmartAccount(SmartAccountClaim),
+}
+
+/// Parameters the claimed SmartAccount was created with.
+#[derive(SimpleObject, Clone, Eq, PartialEq)]
+pub(crate) struct SmartAccountClaim {
+    /// The signature scheme flag byte of the public key (0=Ed25519,
+    /// 1=Secp256k1, 2=Secp256r1, 3=MultiSig, 6=Passkey).
+    pub public_key_scheme: u8,
+    /// Raw public key bytes of the claimed address, without the scheme flag
+    /// prefix. For MultiSig this is a BCS-encoded multisig public key.
+    pub public_key_raw_bytes: Base64,
+}

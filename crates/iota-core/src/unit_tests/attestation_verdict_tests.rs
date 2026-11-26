@@ -37,7 +37,8 @@ use iota_types::{
 use crate::{
     authority::{
         abstract_account_test_utils::{
-            AA_AUTHENTICATE_ED25519_VIA_SIGNING_DIGEST, AbstractAccountTestEnv,
+            AA_AUTHENTICATE_ED25519_READING_TX_NONCE, AA_AUTHENTICATE_ED25519_VIA_SIGNING_DIGEST,
+            AA_TX_NONCE_MODULE, AbstractAccountTestEnv,
         },
         pre_execution_failure_tests::{
             assert_moved_unchanged, assert_no_object_created_deleted_or_wrapped,
@@ -189,6 +190,40 @@ async fn honest_attestation_of_a_rotated_account_is_recorded_valid_and_charged()
 
     // Attest while authentication still passes, so the attestation is genuine
     // and records the account at the version it authenticated against.
+    let attestation = env.attest(&tx);
+    let attested_version = env.account_ref().version();
+
+    env.rotate_owner_key().await;
+    assert_ne!(
+        env.account_ref().version(),
+        attested_version,
+        "the rotation must supersede the attested version"
+    );
+
+    let effects = env.submit(tx, Some(attestation)).await;
+
+    assert_move_authentication_error(&effects);
+    assert_record(&env, &effects, AttestationVerdict::Valid);
+    assert_charged(&effects);
+}
+
+/// As above, with an authenticator that reads the transaction nonce: the
+/// judge's re-run reads the nonce of the transaction's gas coin, as the
+/// attestor's dry run did, so it passes at the recorded versions and the
+/// account pays.
+#[tokio::test]
+async fn honest_attestation_of_a_rotated_account_whose_authenticator_reads_the_nonce_is_recorded_valid_and_charged()
+ {
+    let _guard = attestation_config(None);
+
+    let mut env = AbstractAccountTestEnv::new_with_tx_nonce_authenticator().await;
+    env.rotate_authenticator_function_in(
+        AA_TX_NONCE_MODULE,
+        AA_AUTHENTICATE_ED25519_READING_TX_NONCE,
+    )
+    .await;
+    let tx = env.account_transaction();
+
     let attestation = env.attest(&tx);
     let attested_version = env.account_ref().version();
 

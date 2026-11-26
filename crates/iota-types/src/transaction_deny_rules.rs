@@ -3,16 +3,19 @@
 
 use std::fmt;
 
-use iota_sdk_move_types::iota_framework::{
-    linked_table::{LinkedTable, Node},
-    transaction_deny_rules::{TransactionDenyRules, TransactionDenyRulesInnerV1},
+use iota_sdk_move_types::{
+    MoveType,
+    iota_framework::{
+        linked_table::{LinkedTable, Node},
+        transaction_deny_rules::{TransactionDenyRules, TransactionDenyRulesInnerV1},
+    },
 };
 use iota_sdk_types::{DenyRuleSet, Identifier, Version};
 use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
 use serde::{Serialize, de::DeserializeOwned};
 
 use crate::{
-    IOTA_FRAMEWORK_ADDRESS, IOTA_TRANSACTION_DENY_RULES_OBJECT_ID, MoveTypeTagTrait,
+    IOTA_FRAMEWORK_ADDRESS, IOTA_TRANSACTION_DENY_RULES_OBJECT_ID,
     dynamic_field::get_dynamic_field_from_store,
     error::{IotaError, IotaResult},
     storage::ObjectStore,
@@ -115,7 +118,7 @@ fn walk_linked_table<K>(
     table: &LinkedTable<K, bool>,
 ) -> IotaResult<Vec<K>>
 where
-    K: MoveTypeTagTrait + Serialize + DeserializeOwned + Clone + fmt::Debug,
+    K: MoveType + Serialize + DeserializeOwned + Clone + fmt::Debug,
 {
     let table_id = table.id.id.bytes;
     let mut keys = Vec::with_capacity(table.size as usize);

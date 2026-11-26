@@ -3,3 +3,4 @@
 
 pub mod account;
 pub mod authenticator_function;
+pub mod builtin_authenticator_functions;

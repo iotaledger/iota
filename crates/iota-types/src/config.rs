@@ -2,10 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 
-use crate::{MoveTypeTagTrait, base_types::EpochId};
+use crate::base_types::EpochId;
 
 /// Rust representation of the Move type 0x2::config::Setting.
 #[derive(Debug, Serialize, Deserialize)]
@@ -19,16 +18,6 @@ pub struct SettingData<V> {
     pub newer_value_epoch: u64,
     pub newer_value: Option<V>,
     pub older_value_opt: Option<V>,
-}
-
-pub fn setting_type(value_tag: TypeTag) -> StructTag {
-    StructTag::new_config_setting(value_tag)
-}
-
-impl<V: MoveTypeTagTrait> MoveTypeTagTrait for Setting<V> {
-    fn get_type_tag() -> TypeTag {
-        TypeTag::Struct(Box::new(setting_type(V::get_type_tag())))
-    }
 }
 
 impl<V> Setting<V> {

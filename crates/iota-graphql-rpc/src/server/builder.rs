@@ -73,7 +73,10 @@ use crate::{
     server::{
         exchange_rates_task::TriggerExchangeRatesTask,
         system_package_task::SystemPackageTask,
-        version::{check_version_middleware, set_version_middleware},
+        version::{
+            IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN_HEADER, VERSION_HEADER, check_version_middleware,
+            set_version_middleware,
+        },
         watermark_task::{Watermark, WatermarkLock, WatermarkTask},
     },
     types::{
@@ -324,7 +327,7 @@ impl ServerBuilder {
         self
     }
 
-    fn cors() -> Result<CorsLayer, Error> {
+    pub(crate) fn cors() -> Result<CorsLayer, Error> {
         let acl = match std::env::var("ACCESS_CONTROL_ALLOW_ORIGIN") {
             Ok(value) => {
                 let allow_hosts = value
@@ -347,7 +350,13 @@ impl ServerBuilder {
             .allow_methods([Method::POST, Method::GET])
             // Allow requests from any origin
             .allow_origin(acl)
-            .allow_headers([hyper::header::CONTENT_TYPE, LIMITS_HEADER.clone()]);
+            .allow_headers([hyper::header::CONTENT_TYPE, LIMITS_HEADER.clone()])
+            // A browser hides response headers from a client on another origin unless they are
+            // listed here.
+            .expose_headers([
+                VERSION_HEADER.clone(),
+                IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN_HEADER.clone(),
+            ]);
         Ok(cors)
     }
 

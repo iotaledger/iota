@@ -1,0 +1,9 @@
+[package]
+name = "key_proof"
+edition = "2024"
+
+[dependencies]
+Iota = { local = "../../../iota-framework/packages/iota-framework" }
+
+[addresses]
+key_proof = "0x0"

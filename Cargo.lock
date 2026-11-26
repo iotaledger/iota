@@ -603,14 +603,14 @@ dependencies = [
 
 [[package]]
 name = "arrow-array"
-version = "59.3.2"
+version = "59.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72b5b1682924f11ecf6929689c16cbc69efbb6dd141b06ad98ee1cb10d858c43"
+checksum = "48fd7dff6ff36252331feeb62a29b343e75f24d07f5519fd8ef0b175d06570fc"
 dependencies = [
  "ahash 0.8.11",
- "arrow-buffer 59.3.2",
- "arrow-data 59.3.2",
- "arrow-schema 59.3.2",
+ "arrow-buffer 59.3.3",
+ "arrow-data 59.3.3",
+ "arrow-schema 59.3.3",
  "chrono",
  "half",
  "hashbrown 0.17.1",
@@ -632,9 +632,9 @@ dependencies = [
 
 [[package]]
 name = "arrow-buffer"
-version = "59.3.2"
+version = "59.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5d687afc6c927965a8a759f3b68de91933d9dfa2e1bb6e156bac84b85665e92"
+checksum = "d2efd8a063bdc2e88c67a6f5fa130346bb0ec9089754dea276380858535030c5"
 dependencies = [
  "bytes",
  "half",
@@ -692,12 +692,12 @@ dependencies = [
 
 [[package]]
 name = "arrow-data"
-version = "59.3.2"
+version = "59.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb0a031c7ff5e2bdb443117054fb466af1d4df5b7f0ecbe197713dc8b113b1ba"
+checksum = "1aee86955e4b574e821fd64d65bd9bf41c2c61b863750671ecb38c75fa56de5d"
 dependencies = [
- "arrow-buffer 59.3.2",
- "arrow-schema 59.3.2",
+ "arrow-buffer 59.3.3",
+ "arrow-schema 59.3.3",
  "half",
  "num-integer",
  "num-traits",
@@ -718,15 +718,15 @@ dependencies = [
 
 [[package]]
 name = "arrow-ipc"
-version = "59.3.2"
+version = "59.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f5dd1afadda2eb821aaf851bb4c0adef60c30cc0f1a29bd02fb99dd07fb9f58d"
+checksum = "ea79f6056557715de2b463ea7f979fe54fbfd6088ffcd144401a777ef28914f9"
 dependencies = [
- "arrow-array 59.3.2",
- "arrow-buffer 59.3.2",
- "arrow-data 59.3.2",
- "arrow-schema 59.3.2",
- "arrow-select 59.3.2",
+ "arrow-array 59.3.3",
+ "arrow-buffer 59.3.3",
+ "arrow-data 59.3.3",
+ "arrow-schema 59.3.3",
+ "arrow-select 59.3.3",
  "flatbuffers 25.12.19",
 ]
 
@@ -786,9 +786,9 @@ checksum = "39cfaf5e440be44db5413b75b72c2a87c1f8f0627117d110264048f2969b99e9"
 
 [[package]]
 name = "arrow-schema"
-version = "59.3.2"
+version = "59.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e87acb0c6bf6237fca7a50d7b51e801c98a18a5fe6f3bb34f7d77b85ca165388"
+checksum = "f56aa009563c7100bafca7f0c4259b9ae83a439d676a6314b3a8c96f12a92f51"
 
 [[package]]
 name = "arrow-select"
@@ -806,15 +806,15 @@ dependencies = [
 
 [[package]]
 name = "arrow-select"
-version = "59.3.2"
+version = "59.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c844141958d805b47d1208e0d12aac53fcf388ce8011639fe82aa492adde0bb4"
+checksum = "83df2939d169e46983b07a65bea222bcca9aa564d33e1529877ecb3395cd20e6"
 dependencies = [
  "ahash 0.8.11",
- "arrow-array 59.3.2",
- "arrow-buffer 59.3.2",
- "arrow-data 59.3.2",
- "arrow-schema 59.3.2",
+ "arrow-array 59.3.3",
+ "arrow-buffer 59.3.3",
+ "arrow-data 59.3.3",
+ "arrow-schema 59.3.3",
  "num-traits",
 ]
 
@@ -4629,6 +4629,10 @@ name = "futures-timer"
 version = "3.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f288b0a4f20f9a56b5d1da57e2227c661b7b16168e2f72365f57b63326e29b24"
+dependencies = [
+ "gloo-timers",
+ "send_wrapper 0.4.0",
+]
 
 [[package]]
 name = "futures-util"
@@ -4820,6 +4824,18 @@ name = "glob"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2fabcfbdc87f4758337ca535fb41a6d701b65693ce38287d856d1674551ec9b"
+
+[[package]]
+name = "gloo-timers"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b995a66bb87bebce9a0f4a95aed01daca4872c050bfcb21653361c03bc35e5c"
+dependencies = [
+ "futures-channel",
+ "futures-core",
+ "js-sys",
+ "wasm-bindgen",
+]
 
 [[package]]
 name = "governor"
@@ -5697,8 +5713,6 @@ dependencies = [
  "iota-json",
  "iota-json-rpc-types",
  "iota-keys",
- "iota-ledger",
- "iota-ledger-signer",
  "iota-macros",
  "iota-metrics",
  "iota-move",
@@ -5711,6 +5725,7 @@ dependencies = [
  "iota-sdk",
  "iota-sdk-crypto",
  "iota-sdk-grpc-client",
+ "iota-sdk-ledger",
  "iota-sdk-move-types",
  "iota-sdk-transaction-builder",
  "iota-sdk-types",
@@ -5804,7 +5819,7 @@ version = "1.38.0-alpha"
 dependencies = [
  "anyhow",
  "arrow-array 54.3.1",
- "arrow-array 59.3.2",
+ "arrow-array 59.3.3",
  "async-trait",
  "bcs 0.2.1",
  "clap",
@@ -6785,7 +6800,6 @@ dependencies = [
  "arc-swap",
  "async-trait",
  "axum 0.8.8",
- "backoff",
  "bcs 0.2.1",
  "cached",
  "chrono",
@@ -6973,42 +6987,6 @@ dependencies = [
  "telemetry-subscribers",
  "tokio",
  "tracing",
-]
-
-[[package]]
-name = "iota-ledger"
-version = "1.38.0-alpha"
-dependencies = [
- "anyhow",
- "bcs 0.2.1",
- "bip32",
- "clap",
- "fastcrypto",
- "hex",
- "hidapi",
- "iota-sdk-types",
- "iota-types",
- "ledger-transport",
- "ledger-transport-hid",
- "serde",
- "thiserror 1.0.64",
- "tracing",
-]
-
-[[package]]
-name = "iota-ledger-signer"
-version = "1.38.0-alpha"
-dependencies = [
- "anyhow",
- "bcs 0.2.1",
- "bip32",
- "clap",
- "fastcrypto",
- "iota-ledger",
- "iota-sdk",
- "iota-sdk-types",
- "thiserror 1.0.64",
- "tokio",
 ]
 
 [[package]]
@@ -7769,8 +7747,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6838d80d7fefbf4453468fcc126071570af4cd787fd3fb5f0a52c43e7e0458d"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=76684f1b13b4e1ed655f13dc11d1da339448a235#76684f1b13b4e1ed655f13dc11d1da339448a235"
 dependencies = [
  "base64ct",
  "bech32 0.12.0",
@@ -7795,8 +7772,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-graphql-client"
 version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d6e785b13c21cb361ec7280ad308e08f4a502c08f3b4daf16cfba9918670593"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=76684f1b13b4e1ed655f13dc11d1da339448a235#76684f1b13b4e1ed655f13dc11d1da339448a235"
 dependencies = [
  "async-stream",
  "base64ct",
@@ -7830,8 +7806,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-graphql-client-build"
 version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "945bf6f94466ce86a4eaa50729bef03753ddb7996e8d91c031f50d61955e6e3f"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=76684f1b13b4e1ed655f13dc11d1da339448a235#76684f1b13b4e1ed655f13dc11d1da339448a235"
 dependencies = [
  "cynic-codegen",
 ]
@@ -7839,8 +7814,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-grpc-client"
 version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f970900db88189090cd172aa1aa2d533588142bc6eae23acc4debbc8768afa5b"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=76684f1b13b4e1ed655f13dc11d1da339448a235#76684f1b13b4e1ed655f13dc11d1da339448a235"
 dependencies = [
  "async-stream",
  "base64 0.23.1",
@@ -7862,8 +7836,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-grpc-types"
 version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b89f478162be158e44624e3d1ddd9a361cfc8f063b3baa6e05f7ee303441c79"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=76684f1b13b4e1ed655f13dc11d1da339448a235#76684f1b13b4e1ed655f13dc11d1da339448a235"
 dependencies = [
  "bcs 0.2.1",
  "iota-sdk-types",
@@ -7877,10 +7850,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "iota-sdk-ledger"
+version = "1.0.0-rc.1"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=76684f1b13b4e1ed655f13dc11d1da339448a235#76684f1b13b4e1ed655f13dc11d1da339448a235"
+dependencies = [
+ "bcs 0.2.1",
+ "futures",
+ "futures-timer",
+ "hex",
+ "iota-sdk-crypto",
+ "iota-sdk-types",
+ "ledger-transport",
+ "ledger-transport-hid",
+ "serde",
+ "sha2 0.11.0",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
 name = "iota-sdk-move-types"
 version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "304aa3c8b689609243296b45e3b4cfacdd551b0c8cd51ba623842c621e346de9"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=76684f1b13b4e1ed655f13dc11d1da339448a235#76684f1b13b4e1ed655f13dc11d1da339448a235"
 dependencies = [
  "bcs 0.2.1",
  "iota-sdk-types",
@@ -7893,26 +7884,26 @@ dependencies = [
 [[package]]
 name = "iota-sdk-transaction-builder"
 version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "787643076ac2ea32537d5f8bffcb7504a8a82464d37d93495ab469d58d9750aa"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=76684f1b13b4e1ed655f13dc11d1da339448a235#76684f1b13b4e1ed655f13dc11d1da339448a235"
 dependencies = [
  "bcs 0.2.1",
  "derive_more 2.1.1",
  "iota-sdk-crypto",
+ "iota-sdk-ledger",
  "iota-sdk-move-types",
  "iota-sdk-types",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
+ "tracing",
  "variadics_please",
 ]
 
 [[package]]
 name = "iota-sdk-types"
 version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0861826266781b920ed9dfa427a4f8f5b4e1abbc8470ce41e1d653e8e52114df"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=76684f1b13b4e1ed655f13dc11d1da339448a235#76684f1b13b4e1ed655f13dc11d1da339448a235"
 dependencies = [
  "base64ct",
  "bcs 0.2.1",
@@ -8005,6 +7996,7 @@ dependencies = [
  "bytes",
  "fastcrypto",
  "futures",
+ "http 1.5.0",
  "indicatif",
  "integer-encoding",
  "iota-common",
@@ -11210,17 +11202,17 @@ dependencies = [
 
 [[package]]
 name = "parquet"
-version = "59.3.2"
+version = "59.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8eb260d566f2fbdabe356d26aaa5d13403aac29b5b4e44463b8f9bd7b2b12680"
+checksum = "20033034bc38d6bbb14518717e115cceed4bce3f2425232034a6f6be91877425"
 dependencies = [
  "ahash 0.8.11",
- "arrow-array 59.3.2",
- "arrow-buffer 59.3.2",
- "arrow-data 59.3.2",
- "arrow-ipc 59.3.2",
- "arrow-schema 59.3.2",
- "arrow-select 59.3.2",
+ "arrow-array 59.3.3",
+ "arrow-buffer 59.3.3",
+ "arrow-data 59.3.3",
+ "arrow-ipc 59.3.3",
+ "arrow-schema 59.3.3",
+ "arrow-select 59.3.3",
  "base64 0.23.1",
  "brotli",
  "bytes",
@@ -13211,6 +13203,12 @@ checksum = "61697e0a1c7e512e84a621326239844a24d8207b4669b41bc18b32ea5cbf988b"
 dependencies = [
  "serde",
 ]
+
+[[package]]
+name = "send_wrapper"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f638d531eccd6e23b980caf34876660d38e265409d8e99b397ab71eb3612fad0"
 
 [[package]]
 name = "send_wrapper"
@@ -16561,7 +16559,7 @@ dependencies = [
  "log",
  "pharos",
  "rustc_version",
- "send_wrapper",
+ "send_wrapper 0.6.0",
  "thiserror 2.0.18",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -16789,27 +16787,27 @@ checksum = "ac93432f5b761b22864c774aac244fa5c0fd877678a4c37ebf6cf42208f9c9ec"
 
 [[package]]
 name = "zstd"
-version = "0.13.3"
+version = "0.13.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e91ee311a569c327171651566e07972200e76fcfe2242a4fa446149a3881c08a"
+checksum = "b04655dc7bf4abd8ebe23dac6bef20fceea52a29ad19e37a4101b3951d7e8b45"
 dependencies = [
  "zstd-safe",
 ]
 
 [[package]]
 name = "zstd-safe"
-version = "7.3.0"
+version = "7.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64d80649ab6db9d9f6f9c80a40becd948eda4714a0a5ac8c4d157a32231c7882"
+checksum = "df2575690b2a3eccad509fe7898cdde32a5afca06a06449ff4dcfb318c7b7281"
 dependencies = [
  "zstd-sys",
 ]
 
 [[package]]
 name = "zstd-sys"
-version = "2.1.2+zstd.1.5.7"
+version = "2.2.0+zstd.1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "481ada9c543b2323cbb7bbdbb5249177fbf0188ed959ed2c15e4b22421c84ed3"
+checksum = "c3f4089cda6dda4dc43c43dd9f8964140064fd2f752f3da46c3a483c3c175160"
 dependencies = [
  "cc",
  "pkg-config",

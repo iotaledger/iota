@@ -45,6 +45,16 @@ const AA_PACKAGE_PATH: &[&str] = &[
     "abstract_account",
     "abstract_account",
 ];
+/// A package that depends on the account package and holds an authenticator
+/// that reads the transaction nonce, relative to this crate's manifest
+/// directory. It is published bundled with the account package.
+const AA_TX_NONCE_PACKAGE_PATH: &[&str] = &[
+    "..",
+    "iota-e2e-tests",
+    "tests",
+    "abstract_account",
+    "abstract_account_tx_nonce",
+];
 /// The module holding `AbstractAccount` and its field accessors.
 const AA_MODULE: &str = "abstract_account";
 const AA_ACCOUNT_TYPE: &str = "AbstractAccount";
@@ -53,6 +63,10 @@ const AA_KEYED_MODULE: &str = "abstract_account_keyed";
 const AA_AUTHENTICATE_ED25519: &str = "authenticate_ed25519";
 pub const AA_AUTHENTICATE_ED25519_VIA_SIGNING_DIGEST: &str =
     "authenticate_ed25519_via_signing_digest";
+/// The module of `AA_TX_NONCE_PACKAGE_PATH` holding
+/// `AA_AUTHENTICATE_ED25519_READING_TX_NONCE`.
+pub const AA_TX_NONCE_MODULE: &str = "abstract_account_tx_nonce";
+pub const AA_AUTHENTICATE_ED25519_READING_TX_NONCE: &str = "authenticate_ed25519_reading_tx_nonce";
 /// The funder's coin that the setup leaves untouched, so a sponsored
 /// transaction can pay with it.
 const SPONSOR_GAS_INDEX: usize = 7;
@@ -62,6 +76,9 @@ pub struct AbstractAccountTestEnv {
     funder: Address,
     funder_key: AccountPrivateKey,
     gas_ids: Vec<ObjectId>,
+    /// The path of the published package, relative to this crate's manifest
+    /// directory.
+    package_path: &'static [&'static str],
     package_id: ObjectId,
     metadata_ref: ObjectReference,
     account: SharedObjectReference,
@@ -90,7 +107,34 @@ impl AbstractAccountTestEnv {
         let (_, owner_key): (_, AccountPrivateKey) = get_key_pair();
         let gas_ids = (0..8).map(|_| ObjectId::random()).collect();
 
-        Self::new_with(funder, funder_key, owner_key, gas_ids, overload_config).await
+        Self::new_with(
+            funder,
+            funder_key,
+            owner_key,
+            gas_ids,
+            overload_config,
+            AA_PACKAGE_PATH,
+        )
+        .await
+    }
+
+    /// Like [`Self::new()`], with the account package published bundled with
+    /// the package of `AA_AUTHENTICATE_ED25519_READING_TX_NONCE`, in
+    /// `AA_TX_NONCE_MODULE`.
+    pub async fn new_with_tx_nonce_authenticator() -> Self {
+        let (funder, funder_key): (_, AccountPrivateKey) = get_key_pair();
+        let (_, owner_key): (_, AccountPrivateKey) = get_key_pair();
+        let gas_ids = (0..8).map(|_| ObjectId::random()).collect();
+
+        Self::new_with(
+            funder,
+            funder_key,
+            owner_key,
+            gas_ids,
+            AuthorityOverloadConfig::default(),
+            AA_TX_NONCE_PACKAGE_PATH,
+        )
+        .await
     }
 
     /// Two environments built from the same keys and objects through the same
@@ -107,6 +151,7 @@ impl AbstractAccountTestEnv {
             owner_key.clone(),
             gas_ids.clone(),
             AuthorityOverloadConfig::default(),
+            AA_PACKAGE_PATH,
         )
         .await;
         let second = Self::new_with(
@@ -115,6 +160,7 @@ impl AbstractAccountTestEnv {
             owner_key,
             gas_ids,
             AuthorityOverloadConfig::default(),
+            AA_PACKAGE_PATH,
         )
         .await;
 
@@ -127,6 +173,7 @@ impl AbstractAccountTestEnv {
         owner_key: Ed25519PrivateKey,
         gas_ids: Vec<ObjectId>,
         overload_config: AuthorityOverloadConfig,
+        package_path: &'static [&'static str],
     ) -> Self {
         let objects: Vec<Object> = gas_ids
             .iter()
@@ -143,6 +190,7 @@ impl AbstractAccountTestEnv {
             funder,
             funder_key,
             gas_ids,
+            package_path,
             package_id: ObjectId::ZERO,
             metadata_ref: ObjectReference::new(ObjectId::ZERO, 1.into(), Default::default()),
             account: SharedObjectReference {
@@ -204,9 +252,10 @@ impl AbstractAccountTestEnv {
 
     async fn publish_package(&mut self) {
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        path.extend(AA_PACKAGE_PATH);
+        path.extend(self.package_path);
         let compiled_package = BuildConfig::new_for_testing().build(&path).unwrap();
-        let modules = compiled_package.get_package_bytes(false);
+        // With the account package when `package_path` depends on it.
+        let modules = compiled_package.get_package_bytes(true);
         let dependencies = compiled_package.get_dependency_storage_package_ids();
 
         let pt = {
@@ -237,13 +286,32 @@ impl AbstractAccountTestEnv {
         builder: &mut ProgrammableTransactionBuilder,
         target_function: &str,
         authenticate_function: &str,
+        leading_arguments: Vec<Argument>,
+    ) {
+        self.call_with_auth_function_ref_in(
+            builder,
+            target_function,
+            AA_KEYED_MODULE,
+            authenticate_function,
+            leading_arguments,
+        );
+    }
+
+    /// Like [`Self::call_with_auth_function_ref()`], for an authenticator in
+    /// `authenticate_module` of the published package.
+    fn call_with_auth_function_ref_in(
+        &self,
+        builder: &mut ProgrammableTransactionBuilder,
+        target_function: &str,
+        authenticate_module: &str,
+        authenticate_function: &str,
         mut leading_arguments: Vec<Argument>,
     ) {
         let arguments = vec![
             builder
                 .obj(CallArg::ImmutableOrOwned(self.metadata_ref))
                 .unwrap(),
-            builder.pure(AA_KEYED_MODULE).unwrap(),
+            builder.pure(authenticate_module).unwrap(),
             builder.pure(authenticate_function).unwrap(),
         ];
         let auth_fn_ref = builder.programmable_move_call(
@@ -617,6 +685,17 @@ impl AbstractAccountTestEnv {
     /// the current public key, so a transaction that authenticated under the
     /// previous authenticator no longer does.
     pub async fn rotate_authenticator_function(&mut self, authenticate_function: &str) {
+        self.rotate_authenticator_function_in(AA_KEYED_MODULE, authenticate_function)
+            .await;
+    }
+
+    /// Like [`Self::rotate_authenticator_function()`], for an authenticator in
+    /// `authenticate_module` of the published package.
+    pub async fn rotate_authenticator_function_in(
+        &mut self,
+        authenticate_module: &str,
+        authenticate_function: &str,
+    ) {
         let public_key = self.owner_key.public_key().bytes().to_vec();
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -627,9 +706,10 @@ impl AbstractAccountTestEnv {
                 }))
                 .unwrap();
             let public_key = builder.pure(public_key).unwrap();
-            self.call_with_auth_function_ref(
+            self.call_with_auth_function_ref_in(
                 &mut builder,
                 "rotate_public_key",
+                authenticate_module,
                 authenticate_function,
                 vec![account, public_key],
             );

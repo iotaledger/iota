@@ -18,7 +18,10 @@ use move_core_types::{
 };
 use serde_json::json;
 
-use crate::{IotaMoveStruct, IotaMoveValue, ObjectChange};
+use crate::{
+    IotaAccountClaimKind, IotaClaimAccountTransaction, IotaMoveStruct, IotaMoveValue,
+    IotaSmartAccountClaim, IotaTransactionBlockKind, IotaTransactionKind, ObjectChange,
+};
 
 #[test]
 fn test_move_value_to_iota_coin() {
@@ -195,5 +198,45 @@ fn test_type_tag_struct_tag_devnet_inc_222() {
         let serde_json = serde_json::to_string(&oc).unwrap();
         let deser: ObjectChange = serde_json::from_str(&serde_json).unwrap();
         assert_eq!(oc, deser);
+    }
+}
+
+#[test]
+fn claim_account_kind_display_shows_the_claimed_key() {
+    let kind = IotaTransactionBlockKind::ClaimAccount(IotaClaimAccountTransaction {
+        account_kind: IotaAccountClaimKind::SmartAccount(IotaSmartAccountClaim {
+            public_key_scheme: 0,
+            public_key_raw_bytes: vec![7; 32],
+        }),
+    });
+
+    assert_eq!(
+        kind.to_string(),
+        "Transaction Kind: Claim Account\n\
+         Account Kind: Smart Account, Public Key Scheme Flag: 0, \
+         Public Key: BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=\n"
+    );
+}
+
+#[test]
+fn only_the_non_system_kinds_are_not_system_transactions() {
+    use IotaTransactionKind::*;
+
+    assert_eq!(
+        IotaTransactionKind::NON_SYSTEM_KINDS,
+        [ProgrammableTransaction, ClaimAccount]
+    );
+    for kind in IotaTransactionKind::NON_SYSTEM_KINDS {
+        assert!(!kind.is_system_transaction(), "{kind}");
+    }
+    for kind in [
+        SystemTransaction,
+        Genesis,
+        ConsensusCommitPrologueV1,
+        RandomnessStateUpdate,
+        EndOfEpochTransaction,
+        TransactionDenyRulesUpdate,
+    ] {
+        assert!(kind.is_system_transaction(), "{kind}");
     }
 }

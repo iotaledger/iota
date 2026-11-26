@@ -5,12 +5,13 @@
 use std::{
     collections::BTreeMap,
     fs::{self, File},
+    future::Future,
     io::Read,
     num::NonZeroUsize,
     path::PathBuf,
     sync::{
         Arc,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
 };
 
@@ -19,8 +20,9 @@ use byteorder::{BigEndian, ByteOrder, ReadBytesExt};
 use bytes::{Buf, Bytes};
 use fastcrypto::hash::{HashFunction, MultisetHash, Sha3_256};
 use futures::{
-    StreamExt, TryStreamExt,
+    StreamExt,
     future::{AbortRegistration, Abortable},
+    stream::FuturesUnordered,
 };
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use integer_encoding::VarIntReader;
@@ -42,7 +44,7 @@ use iota_types::{digests::ChainIdentifier, global_state_hash::GlobalStateHash};
 use object_store::path::Path;
 use tokio::{
     sync::{Mutex, mpsc, oneshot},
-    task::JoinHandle,
+    task::{JoinError, JoinSet},
 };
 use tracing::info;
 
@@ -56,6 +58,124 @@ use crate::{
     },
     restore::Restore,
 };
+
+/// Downloads one object file. Returns its bytes and metadata, and the sha3
+/// digest of its partition from `sha3_digests`.
+///
+/// # Panics
+///
+/// Panics if `sha3_digests` holds no digest for the partition.
+async fn download_object_file(
+    remote_object_store: Arc<dyn ObjectStoreGetExt>,
+    file_path: Path,
+    obj_progress: Arc<DownloadProgressBar>,
+    sha3_digests: Arc<Mutex<DigestByBucketAndPartition>>,
+    bucket: u32,
+    part_num: u32,
+    file_metadata: FileMetadata,
+) -> Result<(Bytes, FileMetadata, [u8; 32])> {
+    // Downloads object file with retries
+    let bytes = get_with_progress(&remote_object_store, &file_path, &obj_progress)
+        .await
+        .with_context(|| format!("Failed to download object file {file_path}"))?;
+
+    // Gets the sha3 digest of the partition
+    let sha3_digest = *sha3_digests
+        .lock()
+        .await
+        .get(&bucket)
+        .expect("Bucket not in digest map")
+        .get(&part_num)
+        .expect("sha3 digest not in bucket map");
+    Ok((bytes, file_metadata, sha3_digest))
+}
+
+/// Computes the state hash of the objects that one reference file lists.
+/// Returns it with the number of these objects.
+///
+/// # Panics
+///
+/// Panics if the reference file cannot be opened or has a wrong magic header,
+/// or if the computation is cancelled.
+async fn compute_state_hash_of_ref_file(
+    file_metadata: FileMetadata,
+    local_staging_dir_root: PathBuf,
+    epoch_dir: Path,
+) -> (GlobalStateHash, u64) {
+    let hashed = tokio::task::spawn_blocking(move || {
+        let obj_digests = ObjectRefIter::new(&file_metadata, local_staging_dir_root, epoch_dir)
+            .expect("Failed to create object ref iter")
+            .map(|obj_ref| obj_ref.digest);
+        let mut num_objects = 0u64;
+        let mut state_hash = GlobalStateHash::default();
+        state_hash.insert_all(obj_digests.inspect(|_| num_objects += 1));
+        (state_hash, num_objects)
+    })
+    .await;
+    match hashed {
+        Ok(hashed) => hashed,
+        Err(e) if e.is_panic() => std::panic::resume_unwind(e.into_panic()),
+        // No completion is sent after this panic, so the restore fails. A
+        // release build aborts the process.
+        Err(e) => panic!("hashing a .ref file was cancelled: {e}"),
+    }
+}
+
+/// Returns the object file that a download task produced, or the error of the
+/// download.
+///
+/// # Panics
+///
+/// Panics if the download task panicked.
+fn object_file_from_download_task(
+    task_result: Result<Result<(Bytes, FileMetadata, [u8; 32])>, JoinError>,
+) -> Result<(Bytes, FileMetadata, [u8; 32])> {
+    match task_result {
+        Ok(download_result) => download_result,
+        Err(e) if e.is_panic() => std::panic::resume_unwind(e.into_panic()),
+        // A cancelled download is an error: its partition would be missing.
+        Err(e) => Err(anyhow::Error::new(e).context("download cancelled")),
+    }
+}
+
+/// Inserts one partition.
+///
+/// An insert that has not started when `stop` is set does not start; it
+/// returns `Ok(())` without inserting.
+async fn insert_partition_unless_stopped(
+    database: &impl Restore,
+    file_metadata: FileMetadata,
+    bytes: Bytes,
+    sha3_digest: [u8; 32],
+    stop: &AtomicBool,
+) -> Result<()> {
+    // The check is here, not where the reader takes the insert: the insert
+    // starts at its first poll, and a failure can come before that poll.
+    if stop.load(Ordering::SeqCst) {
+        return Ok(());
+    }
+    let (bucket, part) = (file_metadata.bucket_num, file_metadata.part_num);
+    database
+        .insert_partition(file_metadata, bytes, &sha3_digest)
+        .await
+        .with_context(|| format!("failed to insert object file {bucket}_{part}"))
+}
+
+/// Stops `downloads` and the inserts of `inserts` that have not started.
+/// Returns when no insert runs any more.
+///
+/// The inserts must check `stop_inserts` before they start.
+async fn stop_downloads_and_inserts<T>(
+    downloads: JoinSet<T>,
+    mut inserts: FuturesUnordered<impl Future<Output = Result<()>>>,
+    stop_inserts: &AtomicBool,
+) {
+    stop_inserts.store(true, Ordering::SeqCst);
+    drop(downloads);
+    // The errors of these inserts are not reported: the caller already has
+    // the first error, which is almost always enough.
+    while inserts.next().await.is_some() {}
+}
 
 pub type SnapshotChecksums = (DigestByBucketAndPartition, GlobalStateHash);
 pub type DigestByBucketAndPartition = BTreeMap<u32, BTreeMap<u32, [u8; 32]>>;
@@ -110,8 +230,28 @@ impl StateSnapshotReaderV1 {
         multi_progress_bar: MultiProgress,
         skip_reset_local_store: bool,
     ) -> Result<Self> {
-        let epoch_dir = format!("epoch_{epoch}");
         let remote_object_store = make_remote_store(remote_store_config)?;
+        Self::new_from_store(
+            epoch,
+            remote_object_store,
+            local_store_config,
+            download_concurrency,
+            multi_progress_bar,
+            skip_reset_local_store,
+        )
+        .await
+    }
+
+    /// [`Self::new`] with the remote store already built.
+    pub(crate) async fn new_from_store(
+        epoch: u64,
+        remote_object_store: Arc<dyn ObjectStoreGetExt>,
+        local_store_config: &ObjectStoreConfig,
+        download_concurrency: NonZeroUsize,
+        multi_progress_bar: MultiProgress,
+        skip_reset_local_store: bool,
+    ) -> Result<Self> {
+        let epoch_dir = format!("epoch_{epoch}");
         let local_object_store: Arc<dyn ObjectStorePutExt> =
             local_store_config.make().map(Arc::new)?;
         let local_object_store_list: Arc<dyn ObjectStoreListExt> =
@@ -375,6 +515,12 @@ impl StateSnapshotReaderV1 {
     ///    and verify the root hash of the live objects encoded in the snapshot. See
     ///    [`GlobalStateHash`].
     /// 4. Reading, inserting, and verifying all encoded live objects to the given `database`.
+    ///
+    /// # Errors
+    ///
+    /// When a download or an insert of an object file fails, the read returns the first such
+    /// error, after the inserts that still run have ended. A dropped or aborted read does not
+    /// wait for them.
     pub async fn read_to_db(
         &mut self,
         database: &impl Restore,
@@ -472,8 +618,13 @@ impl StateSnapshotReaderV1 {
 
         checksum_ticker.finish_with_message("Checksumming complete");
 
-        let accum_handle = accumulator
-            .map(|accumulator| self.spawn_accumulation_tasks(accumulator, num_part_files));
+        let accum_handle = accumulator.map(|accumulator| {
+            let this = self.clone();
+            tokio::spawn(async move {
+                this.compute_and_send_state_hashes(accumulator, num_part_files)
+                    .await
+            })
+        });
 
         // Downloads all object files from remote in parallel and inserts the objects
         // into the database of choice
@@ -499,19 +650,19 @@ impl StateSnapshotReaderV1 {
         sync_result
     }
 
-    /// Spawns accumulation tasks to accumulate the sha3 digests of all objects
-    /// then sends the accumulator to the sender.
-    fn spawn_accumulation_tasks(
+    /// Computes the state hash of each reference file and sends each one
+    /// through `accumulator`, then the completion.
+    async fn compute_and_send_state_hashes(
         &self,
         accumulator: StateAccumulatorSender,
         num_part_files: usize,
-    ) -> JoinHandle<()> {
+    ) {
         let StateAccumulatorSender {
             partials: sender,
             completion,
         } = accumulator;
         // Spawns accumulation progress bar, whose position the ticker takes
-        // from the counter the accumulation task below advances
+        // from the counter the loop below advances
         let concurrency = self.concurrency;
         let accum_counter = Arc::new(AtomicU64::new(0));
         let accum_ticker = ProgressTicker::spawn(
@@ -529,67 +680,30 @@ impl StateSnapshotReaderV1 {
             Some(accum_counter.clone()),
         );
 
-        // spawns accumualation task
-        let ref_files = self.ref_files.clone();
         let epoch_dir = self.epoch_dir();
-        let local_staging_dir_root = self.local_staging_dir_root.clone();
-        tokio::task::spawn(async move {
-            let local_staging_dir_root_clone = local_staging_dir_root.clone();
-            let epoch_dir_clone = epoch_dir.clone();
-            for (bucket, part_files) in ref_files.clone().iter() {
-                futures::stream::iter(part_files.iter())
-                    .map(|(part, _part_files)| {
-                        // TODO depending on concurrency limit here, we may be
-                        // materializing too many refs into memory at once.
-
-                        // Takes the sha3 digests of every object in the partition
-                        // This is only done because ObjectRefIter is not Send
-                        let obj_digests = {
-                            // TODO: Make sure that we can remove this getter, just take _part_files
-                            // here
-                            let file_metadata = ref_files
-                                .get(bucket)
-                                .expect("No ref files found for bucket: {bucket_num}")
-                                .get(part)
-                                .expect(
-                                    "No ref files found for bucket: {bucket_num}, part: {part_num}",
-                                );
-                            ObjectRefIter::new(
-                                file_metadata,
-                                local_staging_dir_root_clone.clone(),
-                                epoch_dir_clone.clone(),
-                            )
-                            .expect("Failed to create object ref iter")
-                        }
-                        .map(|obj_ref| obj_ref.digest)
-                        .collect::<Vec<ObjectDigest>>();
-
-                        // Spawns a task to accumulate the sha3 digests and send the accumulator
-                        // to the sender.
-                        let sender_clone = sender.clone();
-                        tokio::spawn(async move {
-                            let mut partial_acc = GlobalStateHash::default();
-                            let num_objects = obj_digests.len();
-                            partial_acc.insert_all(obj_digests);
-                            // The receiver is only dropped once the caller
-                            // has given up on the restore, so a failed send
-                            // has nothing left to report to.
-                            let _ = sender_clone.send((partial_acc, num_objects as u64)).await;
-                        })
-                    })
-                    .boxed()
-                    .buffer_unordered(concurrency.into())
-                    .for_each(|result| {
-                        // Update the progress bar
-                        result.expect("Failed to generate partial accumulator");
-                        accum_counter.fetch_add(1, Ordering::Relaxed);
-                        futures::future::ready(())
-                    })
-                    .await;
-            }
-            accum_ticker.finish_with_message("Accumulation complete");
-            let _ = completion.send(());
-        })
+        for part_files in self.ref_files.values() {
+            futures::stream::iter(part_files.values())
+                .map(|file_metadata| {
+                    compute_state_hash_of_ref_file(
+                        file_metadata.clone(),
+                        self.local_staging_dir_root.clone(),
+                        epoch_dir.clone(),
+                    )
+                })
+                .boxed()
+                .buffer_unordered(concurrency.into())
+                .for_each(|state_hash_and_num_objects| async {
+                    // The receiver is only dropped once the caller
+                    // has given up on the restore, so a failed send
+                    // has nothing left to report to.
+                    let _ = sender.send(state_hash_and_num_objects).await;
+                    // Update the progress bar
+                    accum_counter.fetch_add(1, Ordering::Relaxed);
+                })
+                .await;
+        }
+        accum_ticker.finish_with_message("Accumulation complete");
+        let _ = completion.send(());
     }
 
     /// Downloads all object files from remote in parallel and inserts the
@@ -613,65 +727,91 @@ impl StateSnapshotReaderV1 {
                 parts
                     .clone()
                     .into_iter()
-                    .map(|entry| (bucket, entry))
+                    .map(|entry| (*bucket, entry))
                     .collect::<Vec<_>>()
             })
             .collect();
         // Continues the bar the reference files were downloaded on, whose
         // totals already include these object files.
         let obj_progress = download_progress;
-        let obj_progress_clone = obj_progress.clone();
+        let obj_progress_insert = obj_progress.clone();
         let obj_progress_download = obj_progress.clone();
 
         let ret = Abortable::new(
             async move {
-                // Downloads all object files from remote store to local store in parallel
-                // and inserts the objects into the AuthorityPerpetualTables
-                futures::stream::iter(input_files.iter())
-                    .map(|(bucket, (part_num, file_metadata))| {
-                        let epoch_dir = epoch_dir.clone();
-                        let file_path = file_metadata.file_path(&epoch_dir);
-                        let remote_object_store = remote_object_store.clone();
-                        let sha3_digests_cloned = sha3_digests.clone();
-                        let obj_progress = obj_progress_download.clone();
-                        async move {
-                            // Downloads object file with retries
-                            let bytes =
-                                get_with_progress(&remote_object_store, &file_path, &obj_progress)
-                                    .await
-                                    .with_context(|| {
-                                        format!("Failed to download object file {file_path}")
-                                    })?;
-
-                            // Gets the sha3 digest of the partition
-                            let sha3_digest = sha3_digests_cloned.lock().await;
-                            let bucket_map = sha3_digest
-                                .get(bucket)
-                                .expect("Bucket not in digest map")
-                                .clone();
-                            let sha3_digest = *bucket_map
-                                .get(part_num)
-                                .expect("sha3 digest not in bucket map");
-                            Ok::<(Bytes, FileMetadata, [u8; 32]), anyhow::Error>((
-                                bytes,
-                                (*file_metadata).clone(),
-                                sha3_digest,
-                            ))
+                let download_input_file =
+                    |(bucket, (part_num, file_metadata)): (u32, (u32, FileMetadata))| {
+                        download_object_file(
+                            remote_object_store.clone(),
+                            file_metadata.file_path(&epoch_dir),
+                            obj_progress_download.clone(),
+                            sha3_digests.clone(),
+                            bucket,
+                            part_num,
+                            file_metadata,
+                        )
+                    };
+                // Each download is its own task, so that it keeps running while a
+                // partition is inserted. The next download starts before the insert.
+                // Dropping the set aborts the downloads.
+                let mut files_to_download = input_files.into_iter();
+                let mut downloads = JoinSet::new();
+                for file in files_to_download.by_ref().take(concurrency.get()) {
+                    downloads.spawn(download_input_file(file));
+                }
+                // A finished download stays in the set until an insert slot is free,
+                // so it still counts against `concurrency`.
+                let max_inserts = database.max_concurrent_inserts().get();
+                let stop_inserts = AtomicBool::new(false);
+                let mut inserts = FuturesUnordered::new();
+                // This loop runs in one task, and nothing else touches `downloads` and `inserts`.
+                let download_and_insert_all = async {
+                    loop {
+                        let insert_slot_is_free = inserts.len() < max_inserts;
+                        tokio::select! {
+                            // A download is ready and an insert slot is free: start the next
+                            // download, then the insert.
+                            Some(task_result) = downloads.join_next(), if insert_slot_is_free => {
+                                let (bytes, file_metadata, sha3_digest) =
+                                    object_file_from_download_task(task_result)?;
+                                if let Some(file) = files_to_download.next() {
+                                    downloads.spawn(download_input_file(file));
+                                }
+                                inserts.push(insert_partition_unless_stopped(
+                                    database,
+                                    file_metadata,
+                                    bytes,
+                                    sha3_digest,
+                                    &stop_inserts,
+                                ));
+                            }
+                            // An insert ended.
+                            Some(insert_result) = inserts.next() => {
+                                insert_result?;
+                                obj_progress_insert.file_done();
+                            }
+                            // No download and no insert is left.
+                            else => return Ok(()),
                         }
-                    })
-                    .boxed()
-                    .buffer_unordered(concurrency.into())
-                    .try_for_each(|(bytes, file_metadata, sha3_digest)| {
-                        let obj_progress = &obj_progress_clone;
-                        async move {
-                            database
-                                .insert_partition(file_metadata, bytes, &sha3_digest)
-                                .await?;
-                            obj_progress.file_done();
-                            Ok(())
-                        }
-                    })
-                    .await
+                    }
+                };
+                let result = download_and_insert_all.await;
+                if let Err(error) = result {
+                    if !inserts.is_empty() {
+                        // A panic of a running insert would end the restore before this
+                        // error is returned.
+                        println_or_log(
+                            &self.multi_progress_bar,
+                            format!("Restore failed, waiting for the running inserts: {error:#}"),
+                        )
+                        .ok();
+                    }
+                    // An abort, a drop of the read future or a panic does not wait for the running
+                    // inserts.
+                    stop_downloads_and_inserts(downloads, inserts, &stop_inserts).await;
+                    return Err(error);
+                }
+                Ok(())
             },
             abort_registration,
         )

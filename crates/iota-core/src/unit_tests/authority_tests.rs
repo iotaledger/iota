@@ -21,16 +21,20 @@ use iota_macros::sim_test;
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
-use iota_sdk_crypto::IotaSigner as _;
+use iota_sdk_crypto::{IotaSigner as _, Signer as _, ed25519::Ed25519PrivateKey};
 use iota_sdk_move_types::iota_system::iota_system::IotaSystemState as IotaSystemStateWrapper;
 use iota_sdk_types::{
     Address, Argument, CanceledTransaction, CheckpointContents, CheckpointSequenceNumber, Command,
     ConsensusDeterminedVersionAssignments, Digest, EpochId, ExecutionError, ExecutionStatus,
     GasPayment, Identifier, MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectReference,
     OwnedObjectReference, Owner, ProgrammableTransaction, RandomnessRound, SharedObjectReference,
-    StructTag, Transaction, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
-    TransactionExpiration, TransactionKind, TransactionV1, TypeTag, Version, VersionAssignment,
-    crypto::{Intent, IntentScope},
+    SignatureScheme, StructTag, Transaction, TransactionDigest, TransactionEffects,
+    TransactionEffectsDigest, TransactionExpiration, TransactionKind, TransactionV1, TypeTag,
+    UserSignature, Version, VersionAssignment,
+    crypto::{
+        Intent, IntentScope, MultisigAggregatedSignature, MultisigCommittee, MultisigMember,
+        MultisigMemberSignature, PersonalMessage,
+    },
 };
 use iota_types::{
     attestation::AttestedTransaction,
@@ -42,6 +46,7 @@ use iota_types::{
         AccountPrivateKey, AggregateAuthorityPublicKey, AuthorityKeyPair, AuthoritySignInfo,
         get_key_pair, random_committee_key_pairs_of_size,
     },
+    digests::ChainIdentifier,
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     effects::{TestEffectsBuilder, TransactionEffectsAPI, TransactionEffectsExt},
     epoch_data::EpochData,
@@ -50,6 +55,7 @@ use iota_types::{
     execution::SharedInput,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     gas_coin::{GasCoin, SIMULATION_GAS_COIN_VALUE},
+    gas_model::units_types::Gas,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::PackageStoreWithFallback,
     iota_system_state::IotaSystemStateTrait,
@@ -78,7 +84,7 @@ use move_binary_format::{
     file_format::{self, AddressIdentifierIndex, IdentifierIndex, ModuleHandle},
     file_format_common::BinaryConstants,
 };
-use move_core_types::account_address::AccountAddress;
+use move_core_types::{account_address::AccountAddress, gas_algebra::InternalGas};
 use rand::{
     RngExt, SeedableRng,
     distr::{Distribution, Uniform},
@@ -1568,6 +1574,314 @@ async fn test_simulate_rejects_a_system_transaction() {
     }
 }
 
+/// Turns the `ClaimAccount` kind on, with the bounds on a claim's cost that it
+/// needs.
+fn enable_claim_account(mut config: ProtocolConfig) -> ProtocolConfig {
+    config.set_claim_account_max_computation_units_for_testing(5_000);
+    config.set_claim_account_storage_bytes_bound_for_testing(2_000);
+    config.set_enable_claim_account_transaction_for_testing(true);
+    config
+}
+
+/// A claim of a new Ed25519 key, and the address the key derives.
+fn ed25519_claim() -> (iota_sdk_types::SmartAccountClaim, Address) {
+    let (sender, private_key): (Address, AccountPrivateKey) = get_key_pair();
+    let claim = iota_sdk_types::SmartAccountClaim::new(
+        &iota_sdk_types::crypto::PublicKey::Ed25519(private_key.public_key()),
+    );
+    (claim, sender)
+}
+
+/// A `ClaimAccount` of `claim` sent from `sender`, with the gas it declares.
+fn claim_account_transaction(
+    claim: &iota_sdk_types::SmartAccountClaim,
+    sender: Address,
+    gas: ObjectReference,
+    gas_price: u64,
+    gas_budget: u64,
+) -> Transaction {
+    Transaction::V1(TransactionV1 {
+        kind: TransactionKind::new_claim_account(
+            iota_sdk_types::ClaimAccountTransaction::new_smart_account(claim.clone()),
+        ),
+        sender,
+        gas_payment: GasPayment {
+            objects: vec![gas],
+            owner: sender,
+            price: gas_price,
+            budget: gas_budget,
+        },
+        expiration: TransactionExpiration::None,
+    })
+}
+
+/// Simulates a `ClaimAccount` of `claim` on `fullnode`, paid with a new gas
+/// coin that holds `gas_balance`. A zero gas price or gas budget is left for
+/// the simulation to fill in.
+fn simulate_claim_account(
+    fullnode: &Arc<AuthorityState>,
+    claim: &iota_sdk_types::SmartAccountClaim,
+    sender: Address,
+    gas_balance: u64,
+    gas_price: u64,
+    gas_budget: u64,
+    checks: VmChecks,
+) -> IotaResult<SimulateTransactionResult> {
+    let gas_object = Object::new_gas_with_balance_and_owner_for_testing(gas_balance, sender);
+    let gas_object_ref = gas_object.object_ref();
+    fullnode.insert_genesis_object(gas_object);
+
+    fullnode.simulate_transaction(
+        claim_account_transaction(claim, sender, gas_object_ref, gas_price, gas_budget),
+        checks,
+    )
+}
+
+/// A dry run holds a `ClaimAccount` to the minimum gas budget that signing
+/// requires of it, at the gas price the claim declares. A dev inspect accepts a
+/// declared budget below that minimum. Both fill in an unset budget no lower
+/// than it.
+#[tokio::test]
+async fn test_simulate_bounds_a_claim_account_gas_budget_as_signing_does() {
+    use iota_types::transaction::claim_account_min_gas_budget;
+
+    let _guard =
+        ProtocolConfig::apply_overrides_for_testing(|_, config| enable_claim_account(config));
+    let (claim, sender) = ed25519_claim();
+    let (_validator, fullnode, _object_basics) =
+        init_state_with_ids_and_object_basics_with_fullnode(vec![]).await;
+    let epoch_store = fullnode.epoch_store_for_testing();
+    let reference_gas_price = epoch_store.reference_gas_price();
+    let min_budget_at = |gas_price: u64| {
+        claim_account_min_gas_budget(
+            epoch_store.protocol_config(),
+            gas_price,
+            claim.public_key_raw_bytes.len() as u64,
+        )
+    };
+    let min_budget = min_budget_at(reference_gas_price);
+    let simulate = |gas_balance: u64, gas_price: u64, gas_budget: u64, checks| {
+        simulate_claim_account(
+            &fullnode,
+            &claim,
+            sender,
+            gas_balance,
+            gas_price,
+            gas_budget,
+            checks,
+        )
+    };
+
+    // A budget below the minimum is rejected, as signing rejects it, even
+    // though the coin covers it.
+    let Err(error) = simulate(min_budget, 0, min_budget - 1, VmChecks::Enabled) else {
+        panic!("a dry run should reject a claim budget below the minimum");
+    };
+    assert!(
+        matches!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::GasBudgetTooLow { gas_budget, min_budget: reported }
+            } if gas_budget == min_budget - 1 && reported == min_budget
+        ),
+        "unexpected error: {error:?}"
+    );
+
+    // The minimum is the one at the gas price the claim declares: a budget
+    // that is enough at the reference gas price is not at twice that price.
+    let declared_gas_price = 2 * reference_gas_price;
+    let min_budget_at_declared_price = min_budget_at(declared_gas_price);
+    assert!(min_budget_at_declared_price > min_budget);
+    let Err(error) = simulate(
+        min_budget_at_declared_price,
+        declared_gas_price,
+        min_budget,
+        VmChecks::Enabled,
+    ) else {
+        panic!("a dry run should reject a claim budget below the minimum at its gas price");
+    };
+    assert!(
+        matches!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::GasBudgetTooLow { min_budget: reported, .. }
+            } if reported == min_budget_at_declared_price
+        ),
+        "unexpected error: {error:?}"
+    );
+
+    // An unset budget is filled in no lower than the minimum under both check
+    // modes, so a coin that holds less is reported against its balance, not
+    // against a budget the caller never set.
+    for checks in [VmChecks::Enabled, VmChecks::Disabled] {
+        let Err(error) = simulate(min_budget - 1, 0, 0, checks) else {
+            panic!("{checks:?} should reject a balance below the minimum claim budget");
+        };
+        assert!(
+            matches!(
+                error,
+                IotaError::UserInput {
+                    error: UserInputError::GasBalanceTooLow { gas_balance, needed_gas_amount }
+                } if gas_balance == u128::from(min_budget - 1)
+                    && needed_gas_amount == u128::from(min_budget)
+            ),
+            "unexpected error for {checks:?}: {error:?}"
+        );
+    }
+
+    // A dev inspect lets the declared budget the dry run rejected through,
+    // unchanged. The run stops at the next gas check instead, which a coin
+    // holding less than that budget fails.
+    let Err(error) = simulate(min_budget - 2, 0, min_budget - 1, VmChecks::Disabled) else {
+        panic!("a dev inspect should reject a balance below the budget");
+    };
+    assert!(
+        matches!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::GasBalanceTooLow { gas_balance, needed_gas_amount }
+            } if gas_balance == u128::from(min_budget - 2)
+                && needed_gas_amount == u128::from(min_budget - 1)
+        ),
+        "unexpected error: {error:?}"
+    );
+}
+
+/// Of the rules a simulation can relax, only the one that leaves the gas
+/// budget unbounded takes the minimum gas budget of a `ClaimAccount` out of
+/// the input checks.
+#[test]
+fn test_claim_account_gas_budget_is_checked_unless_the_budget_is_unbounded() {
+    use iota_transaction_checks::{VerifierLimitsSource, check_transaction_input};
+    use iota_types::{
+        metrics::BytecodeVerifierMetrics,
+        transaction::{
+            InputObjects, ObjectReadResult, ReceivingObjects, claim_account_min_gas_budget,
+        },
+        transaction_executor::InputCheckRules,
+    };
+
+    let config = enable_claim_account(ProtocolConfig::get_for_version(
+        ProtocolVersion::MAX,
+        Chain::Unknown,
+    ));
+    let (claim, sender) = ed25519_claim();
+    let gas_price = 1_000;
+    let min_budget =
+        claim_account_min_gas_budget(&config, gas_price, claim.public_key_raw_bytes.len() as u64);
+    let metrics = Arc::new(BytecodeVerifierMetrics::new(
+        &prometheus_filtered::Registry::default(),
+    ));
+    let check = |gas_budget: u64, input_checks: InputCheckRules| {
+        let gas_object = Object::new_gas_with_balance_and_owner_for_testing(min_budget, sender);
+        check_transaction_input(
+            &config,
+            gas_price,
+            &claim_account_transaction(
+                &claim,
+                sender,
+                gas_object.object_ref(),
+                gas_price,
+                gas_budget,
+            ),
+            InputObjects::new(vec![ObjectReadResult::new_from_gas_object(&gas_object)]),
+            &ReceivingObjects::from(vec![]),
+            &metrics,
+            VerifierLimitsSource::ProtocolConfig,
+            0,
+            false,
+            input_checks,
+        )
+        .map(|_| ())
+    };
+    let is_below_the_minimum = |result: &IotaResult<()>| {
+        matches!(
+            result,
+            Err(IotaError::UserInput {
+                error: UserInputError::GasBudgetTooLow { min_budget: reported, .. }
+            }) if *reported == min_budget
+        )
+    };
+
+    check(min_budget, InputCheckRules::STRICT).expect("exactly the minimum must pass");
+    let result = check(min_budget - 1, InputCheckRules::STRICT);
+    assert!(is_below_the_minimum(&result), "{result:?}");
+
+    // Every relaxation but the unbounded budget still applies the minimum.
+    let result = check(
+        min_budget - 1,
+        InputCheckRules {
+            unbounded_gas_budget: false,
+            ..InputCheckRules::RELAXED_UNSAFE
+        },
+    );
+    assert!(is_below_the_minimum(&result), "{result:?}");
+
+    // The unbounded budget alone drops it.
+    check(
+        min_budget - 1,
+        InputCheckRules {
+            unbounded_gas_budget: true,
+            ..InputCheckRules::STRICT
+        },
+    )
+    .expect("an unbounded budget may be below the minimum");
+}
+
+/// With the execution of a `ClaimAccount` in place, a dry run runs a claim
+/// whose gas budget is exactly the minimum, and a dev inspect runs one whose
+/// gas budget is below it.
+#[tokio::test]
+async fn test_simulate_runs_a_claim_account_at_and_below_its_minimum_gas_budget() {
+    use iota_types::transaction::claim_account_min_gas_budget;
+
+    let _guard =
+        ProtocolConfig::apply_overrides_for_testing(|_, config| enable_claim_account(config));
+    let (claim, sender) = ed25519_claim();
+    let (_validator, fullnode, _object_basics) =
+        init_state_with_ids_and_object_basics_with_fullnode(vec![]).await;
+    let epoch_store = fullnode.epoch_store_for_testing();
+    let min_budget = claim_account_min_gas_budget(
+        epoch_store.protocol_config(),
+        epoch_store.reference_gas_price(),
+        claim.public_key_raw_bytes.len() as u64,
+    );
+
+    let result = simulate_claim_account(
+        &fullnode,
+        &claim,
+        sender,
+        min_budget,
+        0,
+        min_budget,
+        VmChecks::Enabled,
+    )
+    .unwrap_or_else(|e| panic!("a dry run should accept a claim budget at the minimum: {e}"));
+    assert!(
+        result.effects.status().is_success(),
+        "{:?}",
+        result.effects.status()
+    );
+
+    let result = simulate_claim_account(
+        &fullnode,
+        &claim,
+        sender,
+        min_budget,
+        0,
+        min_budget - 1,
+        VmChecks::Disabled,
+    )
+    .unwrap_or_else(|e| {
+        panic!("a dev inspect should accept a claim budget below the minimum: {e}")
+    });
+    assert!(
+        result.effects.status().is_success(),
+        "{:?}",
+        result.effects.status()
+    );
+}
+
 /// A child object named as an owned input is rejected by both check modes: it
 /// has to be reached through its parent, not passed directly.
 #[tokio::test]
@@ -2969,6 +3283,8 @@ async fn test_publish_dependent_module_ok() {
         gas_price,
         gas_budget,
         None,
+        ChainIdentifier::default(),
+        None,
         protocol_config,
     )
     .fresh_id();
@@ -3026,6 +3342,8 @@ async fn test_publish_module_no_dependencies_ok() {
         rgp,
         gas_price,
         gas_budget,
+        None,
+        ChainIdentifier::default(),
         None,
         protocol_config,
     )
@@ -3372,6 +3690,175 @@ async fn test_conflicting_transactions() {
                 &[gas_object.object_ref(), object.object_ref()],
                 &authority_state.epoch_store_for_testing(),
             );
+    }
+}
+
+/// A 1-of-2 multisig sender, which can sign one transaction with one key or
+/// with both: two valid copies with one digest and different signatures.
+struct TwoKeyMultisig {
+    first_key: Ed25519PrivateKey,
+    second_key: Ed25519PrivateKey,
+    committee: MultisigCommittee,
+}
+
+impl TwoKeyMultisig {
+    fn new() -> Self {
+        let first_key = Ed25519PrivateKey::random();
+        let second_key = Ed25519PrivateKey::random();
+        let committee = MultisigCommittee::new(
+            vec![
+                MultisigMember::new(first_key.public_key(), 1),
+                MultisigMember::new(second_key.public_key(), 1),
+            ],
+            1,
+        )
+        .unwrap();
+        Self {
+            first_key,
+            second_key,
+            committee,
+        }
+    }
+
+    fn address(&self) -> Address {
+        Address::from(&self.committee)
+    }
+
+    /// Returns the copy signed with the first key and the copy signed with
+    /// both keys.
+    fn copies(
+        &self,
+        epoch_store: &AuthorityPerEpochStore,
+        data: Transaction,
+    ) -> (VerifiedTransaction, VerifiedTransaction) {
+        let signing_digest = data.signing_digest();
+        let first_signature =
+            MultisigMemberSignature::Ed25519(self.first_key.sign(&signing_digest));
+        let second_signature =
+            MultisigMemberSignature::Ed25519(self.second_key.sign(&signing_digest));
+        let make_copy = |signatures, bitmap| {
+            let multisig = MultisigAggregatedSignature::new_unchecked(
+                signatures,
+                bitmap,
+                self.committee.clone(),
+            );
+            epoch_store
+                .verify_transaction(TransactionEnvelope::from_user_sig_data(
+                    data.clone(),
+                    vec![UserSignature::Multisig(multisig)],
+                ))
+                .unwrap()
+        };
+        let short_copy = make_copy(vec![first_signature.clone()], 0b01);
+        let long_copy = make_copy(vec![first_signature, second_signature], 0b11);
+        assert_eq!(short_copy.digest(), long_copy.digest());
+        (short_copy, long_copy)
+    }
+}
+
+#[tokio::test]
+async fn test_handle_transaction_impl_returns_the_stored_signature_for_another_copy() {
+    let multisig = TwoKeyMultisig::new();
+    let sender = multisig.address();
+    let object_id = ObjectId::random();
+    let gas_object_id = ObjectId::random();
+    let authority_state =
+        init_state_with_ids(vec![(sender, object_id), (sender, gas_object_id)]).await;
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let epoch_store = authority_state.load_epoch_store_one_call_per_task();
+    let data = Transaction::new_transfer(
+        dbg_addr(2),
+        authority_state.get_object(&object_id).unwrap().object_ref(),
+        sender,
+        authority_state
+            .get_object(&gas_object_id)
+            .unwrap()
+            .object_ref(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        rgp,
+    );
+    let (short_copy, long_copy) = multisig.copies(&epoch_store, data);
+
+    let short_signed = authority_state
+        .handle_transaction_impl(short_copy.clone(), &epoch_store)
+        .await
+        .unwrap();
+    // A copy that passed the check at the top of `handle_transaction` before the
+    // first copy was stored.
+    let long_signed = authority_state
+        .handle_transaction_impl(long_copy, &epoch_store)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        bcs::to_bytes(long_signed.auth_sig()).unwrap(),
+        bcs::to_bytes(short_signed.auth_sig()).unwrap()
+    );
+    let stored = epoch_store
+        .get_signed_transaction(short_copy.digest())
+        .unwrap()
+        .unwrap();
+    assert_eq!(stored.signatures(), short_copy.signatures());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn test_handle_transaction_signs_one_copy_of_a_transaction() {
+    const TRIALS: usize = 20;
+    const COPIES: usize = 8;
+
+    let multisig = TwoKeyMultisig::new();
+    let sender = multisig.address();
+    let objects: Vec<_> = (0..TRIALS)
+        .map(|_| (ObjectId::random(), ObjectId::random()))
+        .collect();
+    let authority_state =
+        init_state_with_ids(objects.iter().flat_map(|(object_id, gas_object_id)| {
+            [(sender, *object_id), (sender, *gas_object_id)]
+        }))
+        .await;
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let epoch_store = authority_state.load_epoch_store_one_call_per_task();
+
+    for (object_id, gas_object_id) in objects {
+        let data = Transaction::new_transfer(
+            dbg_addr(2),
+            authority_state.get_object(&object_id).unwrap().object_ref(),
+            sender,
+            authority_state
+                .get_object(&gas_object_id)
+                .unwrap()
+                .object_ref(),
+            rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+            rgp,
+        );
+        let (short_copy, long_copy) = multisig.copies(&epoch_store, data);
+
+        let tasks: Vec<_> = (0..COPIES)
+            .flat_map(|_| [short_copy.clone(), long_copy.clone()])
+            .map(|transaction| {
+                let authority_state = authority_state.clone();
+                let epoch_store = epoch_store.clone();
+                tokio::spawn(async move {
+                    authority_state
+                        .handle_transaction(&epoch_store, transaction)
+                        .await
+                        .unwrap()
+                        .status
+                        .into_signed_for_testing()
+                })
+            })
+            .collect();
+        let signatures: HashSet<_> = futures::future::join_all(tasks)
+            .await
+            .into_iter()
+            .map(|signature| bcs::to_bytes(&signature.unwrap()).unwrap())
+            .collect();
+        assert_eq!(
+            signatures.len(),
+            1,
+            "the validator signed both copies of {}",
+            short_copy.digest()
+        );
     }
 }
 
@@ -6558,6 +7045,238 @@ pub fn dev_inspect_with_budget(
         expiration: TransactionExpiration::None,
     });
     authority.simulate_transaction_in_epoch(&epoch_store, transaction, VmChecks::Disabled)
+}
+
+/// Simulates on `fullnode`, with the Move VM checks relaxed so that a PTB can
+/// call the package function `public_key::verify_personal_message_signature`, a
+/// transaction that checks `signature` of `message`, as a personal message, by
+/// the public key of `signer`. Returns the result of the check and the
+/// computation cost of the transaction.
+fn verify_personal_message_signature_in_ptb(
+    fullnode: &AuthorityState,
+    signer: &AccountPrivateKey,
+    signature: Vec<u8>,
+    message: &[u8],
+) -> (bool, u64) {
+    let mut prefixed_public_key = vec![SignatureScheme::Ed25519.to_u8()];
+    prefixed_public_key.extend_from_slice(signer.public_key().as_ref());
+
+    let mut builder = ProgrammableTransactionBuilder::new();
+    let prefixed_public_key = builder.pure(prefixed_public_key).unwrap();
+    let public_key = builder.command(Command::new_move_call(
+        ObjectId::FRAMEWORK,
+        Identifier::from_static("public_key"),
+        Identifier::from_static("from_prefixed_bytes"),
+        vec![],
+        vec![prefixed_public_key],
+    ));
+    let signature = builder.pure(signature).unwrap();
+    let message = builder.pure(message.to_vec()).unwrap();
+    builder.command(Command::new_move_call(
+        ObjectId::FRAMEWORK,
+        Identifier::from_static("public_key"),
+        Identifier::from_static("verify_personal_message_signature"),
+        vec![],
+        vec![public_key, signature, message],
+    ));
+    let kind = TransactionKind::new_programmable(builder.finish());
+    let rgp = fullnode.reference_gas_price_for_testing().unwrap();
+    let result = dev_inspect(fullnode, Address::random(), kind, Some(rgp)).unwrap();
+    assert!(
+        result.effects.status().is_success(),
+        "{:?}",
+        result.effects.status()
+    );
+
+    let (_, return_values) = result.execution_result.unwrap().pop().unwrap();
+    let (is_valid, _) = &return_values[0];
+    (
+        bcs::from_bytes(is_valid).unwrap(),
+        result.effects.gas_cost_summary().computation_cost,
+    )
+}
+
+/// Returns the signature, by `signer`, of `message` as a personal message, in
+/// wire format.
+fn personal_message_signature(signer: &AccountPrivateKey, message: &[u8]) -> Vec<u8> {
+    signer
+        .sign_personal_message(&PersonalMessage(message.into()))
+        .unwrap()
+        .to_bytes()
+}
+
+/// How many bytes longer the long argument is in the gas tests of
+/// `public_key::verify_personal_message_signature`. A multiple of 1000 bytes, so that
+/// their cost is a whole number of gas units for any cost per byte, and the
+/// rounding of the total cost does not change the difference between the two
+/// transactions.
+const PERSONAL_MESSAGE_EXTRA_BYTES: usize = 16_000;
+
+/// Returns the computation cost, at the reference gas price of `fullnode`, of
+/// `PERSONAL_MESSAGE_EXTRA_BYTES` bytes charged at `cost_per_byte`.
+fn personal_message_extra_bytes_cost(fullnode: &AuthorityState, cost_per_byte: u64) -> u64 {
+    let gas: Gas =
+        InternalGas::new(cost_per_byte * PERSONAL_MESSAGE_EXTRA_BYTES as u64).to_unit_round_down();
+    u64::from(gas) * fullnode.reference_gas_price_for_testing().unwrap()
+}
+
+#[tokio::test]
+async fn verify_personal_message_signature_charges_per_message_byte() {
+    // With the default rounding step both transactions would be charged the
+    // same computation cost.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_gas_rounding_step_for_testing(1);
+        config
+    });
+    let (_, fullnode) = init_state_validator_with_fullnode().await;
+    let (_, signer): (_, AccountPrivateKey) = get_key_pair();
+    let short_message = vec![7; 16];
+    let long_message = vec![7; 16 + PERSONAL_MESSAGE_EXTRA_BYTES];
+
+    let (short_is_valid, short_cost) = verify_personal_message_signature_in_ptb(
+        &fullnode,
+        &signer,
+        personal_message_signature(&signer, &short_message),
+        &short_message,
+    );
+    let (long_is_valid, long_cost) = verify_personal_message_signature_in_ptb(
+        &fullnode,
+        &signer,
+        personal_message_signature(&signer, &long_message),
+        &long_message,
+    );
+
+    assert!(short_is_valid);
+    assert!(long_is_valid);
+    let msg_cost_per_byte = fullnode
+        .epoch_store_for_testing()
+        .protocol_config()
+        .public_key_verify_personal_message_signature_impl_msg_cost_per_byte();
+    assert_eq!(
+        long_cost - short_cost,
+        personal_message_extra_bytes_cost(&fullnode, msg_cost_per_byte)
+    );
+}
+
+#[tokio::test]
+async fn verify_personal_message_signature_charges_per_signature_byte() {
+    // With the default rounding step both transactions would be charged the
+    // same computation cost.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_gas_rounding_step_for_testing(1);
+        config
+    });
+    let (_, fullnode) = init_state_validator_with_fullnode().await;
+    let (_, signer): (_, AccountPrivateKey) = get_key_pair();
+    let message = [7; 16];
+    let signature = personal_message_signature(&signer, &message);
+    // The trailing bytes make the signature fail to decode, after they are
+    // charged.
+    let mut long_signature = signature.clone();
+    long_signature.extend([0; PERSONAL_MESSAGE_EXTRA_BYTES]);
+
+    let (is_valid, cost) =
+        verify_personal_message_signature_in_ptb(&fullnode, &signer, signature, &message);
+    let (long_is_valid, long_cost) =
+        verify_personal_message_signature_in_ptb(&fullnode, &signer, long_signature, &message);
+
+    assert!(is_valid);
+    assert!(!long_is_valid);
+    let sig_cost_per_byte = fullnode
+        .epoch_store_for_testing()
+        .protocol_config()
+        .public_key_verify_personal_message_signature_impl_sig_cost_per_byte();
+    assert_eq!(
+        long_cost - cost,
+        personal_message_extra_bytes_cost(&fullnode, sig_cost_per_byte)
+    );
+}
+
+/// Simulates on `fullnode` a transaction whose two commands each read the nonce
+/// of the transaction with `tx_context::tx_nonce`, and returns what they read.
+fn read_tx_nonce_twice(
+    fullnode: &AuthorityState,
+    sender: Address,
+    gas_payment: GasPayment,
+) -> Vec<Vec<u8>> {
+    let tx_nonce = Command::new_move_call(
+        ObjectId::FRAMEWORK,
+        Identifier::from_static("tx_context"),
+        Identifier::from_static("tx_nonce"),
+        vec![],
+        vec![],
+    );
+    let transaction = Transaction::V1(TransactionV1 {
+        kind: TransactionKind::new_programmable(ProgrammableTransaction {
+            inputs: vec![],
+            commands: vec![tx_nonce; 2],
+        }),
+        sender,
+        gas_payment,
+        expiration: TransactionExpiration::None,
+    });
+    let result = fullnode
+        .simulate_transaction(transaction, VmChecks::Disabled)
+        .unwrap();
+    assert!(
+        result.effects.status().is_success(),
+        "{:?}",
+        result.effects.status()
+    );
+
+    result
+        .execution_result
+        .unwrap()
+        .into_iter()
+        .map(|(_, return_values)| {
+            let [(nonce, _)] = <[_; 1]>::try_from(return_values).unwrap();
+            bcs::from_bytes(&nonce).unwrap()
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn tx_nonce_is_the_sdk_nonce_of_the_gas_payment_in_every_command() {
+    let sender = Address::random();
+    let gas_object = Object::with_id_owner_version_for_testing(
+        ObjectId::random(),
+        Version::from_u64(5),
+        Owner::Address(sender),
+    );
+    let (_, fullnode) = init_state_validator_with_fullnode().await;
+    let gas_payment = GasPayment {
+        objects: vec![gas_object.object_ref()],
+        owner: sender,
+        price: 0,
+        budget: 0,
+    };
+    fullnode.insert_genesis_object(gas_object);
+
+    let nonces = read_tx_nonce_twice(&fullnode, sender, gas_payment.clone());
+
+    // The nonce is computed from the gas coin version the transaction lists,
+    // not from the one the coin gets from the execution.
+    let expected = gas_payment.nonce().unwrap().to_vec();
+    assert_eq!(nonces, vec![expected.clone(), expected]);
+}
+
+#[tokio::test]
+async fn tx_nonce_of_a_sponsored_transaction_is_the_nonce_of_the_sponsor_gas_coin() {
+    let sender = Address::random();
+    let sponsor = Address::random();
+    let sponsor_gas_object = Object::with_id_owner_for_testing(ObjectId::random(), sponsor);
+    let (_, fullnode) = init_state_validator_with_fullnode().await;
+    let gas_payment = GasPayment {
+        objects: vec![sponsor_gas_object.object_ref()],
+        owner: sponsor,
+        price: 0,
+        budget: 0,
+    };
+    fullnode.insert_genesis_object(sponsor_gas_object);
+
+    let nonces = read_tx_nonce_twice(&fullnode, sender, gas_payment.clone());
+
+    assert_eq!(nonces[0], gas_payment.nonce().unwrap().to_vec());
 }
 
 /// Resolve a simulation's events for display the way the RPC layer does: over

@@ -28,6 +28,7 @@ pub use crate::committee::EpochId;
 use crate::{
     IOTA_FRAMEWORK_ADDRESS, MOVE_STDLIB_ADDRESS,
     crypto::{AuthorityPublicKeyBytes, DefaultHash, PublicKey},
+    digests::ChainIdentifier,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     epoch_data::EpochData,
     error::{ExecutionError, ExecutionErrorKind},
@@ -428,6 +429,12 @@ pub struct TxContext {
     gas_budget: u64,
     /// Address of the sponsor if any (gas owner != sender)
     sponsor: Option<AccountAddress>,
+    /// Identifier of the chain: the digest of its genesis checkpoint
+    chain_identifier: ChainIdentifier,
+    /// Nonce of the transaction, which a key proof names. At most one
+    /// executed transaction has a given nonce. `None` for transactions
+    /// without a gas coin.
+    nonce: Option<[u8; 32]>,
     /// Whether the `TxContext` is native or not (i.e., Move reads values via
     /// native functions instead of struct fields).
     is_native: bool,
@@ -452,6 +459,8 @@ impl TxContext {
         gas_price: u64,
         gas_budget: u64,
         sponsor: Option<Address>,
+        chain_identifier: ChainIdentifier,
+        nonce: Option<[u8; 32]>,
         protocol_config: &ProtocolConfig,
     ) -> Self {
         Self::new_from_components(
@@ -463,6 +472,8 @@ impl TxContext {
             gas_price,
             gas_budget,
             sponsor,
+            chain_identifier,
+            nonce,
             protocol_config,
         )
     }
@@ -476,6 +487,8 @@ impl TxContext {
         gas_price: u64,
         gas_budget: u64,
         sponsor: Option<Address>,
+        chain_identifier: ChainIdentifier,
+        nonce: Option<[u8; 32]>,
         protocol_config: &ProtocolConfig,
     ) -> Self {
         Self {
@@ -488,6 +501,8 @@ impl TxContext {
             gas_price,
             gas_budget,
             sponsor: sponsor.map(|s| AccountAddress::new(s.into_bytes())),
+            chain_identifier,
+            nonce,
             is_native: protocol_config.move_native_tx_context(),
         }
     }
@@ -535,6 +550,10 @@ impl TxContext {
         self.sponsor.map(|a| Address::from(a.into_bytes()))
     }
 
+    pub fn chain_identifier(&self) -> ChainIdentifier {
+        self.chain_identifier
+    }
+
     pub fn rgp(&self) -> u64 {
         self.rgp
     }
@@ -563,6 +582,11 @@ impl TxContext {
         Address::new(self.sender.into_bytes())
     }
 
+    /// Returns the nonce of the transaction, or `None` if it has none.
+    pub fn nonce(&self) -> Option<[u8; 32]> {
+        self.nonce
+    }
+
     pub fn to_vec(&self) -> Vec<u8> {
         bcs::to_bytes(&self).unwrap()
     }
@@ -582,6 +606,8 @@ impl TxContext {
                 gas_price: 0,
                 gas_budget: 0,
                 sponsor: None,
+                chain_identifier: ChainIdentifier::default(),
+                nonce: None,
                 is_native: true,
             };
             tx_context.into()
@@ -611,7 +637,9 @@ impl TxContext {
         Ok(())
     }
 
-    /// Replace all fields. Used by Move test-only native functions.
+    /// Replace every field except the chain identifier and the nonce, which
+    /// [`Self::set_chain_identifier`] and [`Self::replace_nonce`] replace, and
+    /// whether the context is native. Used by Move test-only native functions.
     pub fn replace(
         &mut self,
         sender: AccountAddress,
@@ -635,6 +663,16 @@ impl TxContext {
         self.sponsor = sponsor;
     }
 
+    /// Replace the chain identifier. Used by Move test-only native functions.
+    pub fn set_chain_identifier(&mut self, chain_identifier: ChainIdentifier) {
+        self.chain_identifier = chain_identifier;
+    }
+
+    /// Replace the nonce. Used by Move test-only native functions.
+    pub fn replace_nonce(&mut self, nonce: Option<[u8; 32]>) {
+        self.nonce = nonce;
+    }
+
     // Generate a random TxContext for testing.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn random_for_testing_only() -> Self {
@@ -645,6 +683,8 @@ impl TxContext {
             0,
             0,
             0,
+            None,
+            ChainIdentifier::default(),
             None,
             &ProtocolConfig::get_for_max_version_UNSAFE(),
         )

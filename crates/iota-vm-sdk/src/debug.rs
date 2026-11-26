@@ -20,8 +20,8 @@ pub struct DebugConfig {
     /// Enable the Move VM gas profiler and choose where the Speedscope JSON
     /// ends up.
     pub profile: Option<ProfileSink>,
-    /// Enable instruction-level execution tracing. Only captured on the
-    /// `MoveAuthenticator` path; see [`with_tracing`](Self::with_tracing).
+    /// Enable instruction-level execution tracing; see
+    /// [`with_tracing`](Self::with_tracing).
     pub trace: bool,
 }
 
@@ -41,13 +41,11 @@ impl DebugConfig {
     /// Requires the crate's `tracing` feature; without it
     /// [`DebugArtifacts::trace`] stays `None`.
     ///
-    /// Tracing is only captured for signed transactions that authorize via a
-    /// `MoveAuthenticator`. The unsigned
-    /// [`LocalVm::execute`](crate::LocalVm::execute) path and
-    /// standard-signature transactions run through the engine's dev-inspect
-    /// entry point, which accepts no trace builder; for those,
-    /// [`DebugArtifacts::trace`] stays `None` even when tracing was
-    /// requested.
+    /// The trace records the contents of transferred objects, with a budget of
+    /// 1 MiB for the type and field names of one object. A transaction that
+    /// transfers an object over that budget fails when traced, even though it
+    /// succeeds untraced. Raise the budget by setting the
+    /// `MAX_ANNOTATED_VALUE_SIZE` environment variable to a number of bytes.
     #[must_use]
     pub fn with_tracing(mut self) -> Self {
         self.trace = true;
@@ -186,9 +184,10 @@ impl std::fmt::Debug for ExecutionTrace {
 #[derive(Debug, Default)]
 #[non_exhaustive]
 pub struct DebugArtifacts {
-    /// Gas profile output, if [`DebugConfig::profile`] was set.
+    /// Gas profile output, if [`DebugConfig::profile`] was set and the crate
+    /// was built with the `tracing` feature.
     pub profile: Option<ProfileOutput>,
-    /// Instruction-level execution trace. `None` unless the run went through
-    /// the `MoveAuthenticator` path (see [`DebugConfig::with_tracing`]).
+    /// Instruction-level execution trace, if [`DebugConfig::trace`] was set and
+    /// the crate was built with the `tracing` feature.
     pub trace: Option<ExecutionTrace>,
 }

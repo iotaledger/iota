@@ -182,16 +182,6 @@ pub struct BuilderCheckpointSummary {
 
 #[derive(DBMapUtils)]
 pub struct CheckpointStoreTables {
-    /// The flat checkpoint tables [`HistoricCheckpoints`] replaced; dropped
-    /// when the database is opened.
-    // TODO(https://github.com/iotaledger/iota/issues/13576): remove these tables.
-    #[rename = "checkpoint_content"]
-    #[deprecated_db_map]
-    _checkpoint_content: Option<DBMap<(), ()>>,
-    #[rename = "checkpoint_by_digest"]
-    #[deprecated_db_map]
-    _checkpoint_by_digest: Option<DBMap<(), ()>>,
-
     /// Certified checkpoint summaries, keyed by sequence number.
     ///
     /// Intentionally never pruned: only these summaries carry a certified
@@ -235,13 +225,6 @@ pub struct CheckpointStoreTables {
     /// Watermarks used to determine the highest verified, fully synced, and
     /// fully executed checkpoints
     pub(crate) watermarks: DBMap<CheckpointWatermark, (CheckpointSequenceNumber, CheckpointDigest)>,
-
-    /// The progress of the one-time move into the per-epoch buckets; dropped
-    /// when the database is opened.
-    // TODO(https://github.com/iotaledger/iota/issues/13576): remove this table.
-    #[rename = "checkpoint_backlog_migration_progress"]
-    #[deprecated_db_map]
-    _checkpoint_backlog_migration_progress: Option<DBMap<(), ()>>,
 }
 
 impl CheckpointStoreTables {
@@ -1712,6 +1695,7 @@ impl CheckpointBuilder {
             }
             _ = self.build_until_stopped(consensus_replay_waiter) => {}
         }
+        epoch_store.clear_user_signatures_for_checkpoints();
     }
 
     async fn build_until_stopped(mut self, consensus_replay_waiter: Option<ReplayWaiter>) {
@@ -3974,6 +3958,61 @@ mod tests {
         );
     }
 
+    // A build that fails after `create_checkpoints`, for example while writing
+    // the checkpoints, leaves the pending checkpoint in place, and the builder
+    // builds it again on its next round.
+    #[tokio::test]
+    async fn builder_rebuilds_pending_checkpoint_after_unwritten_build() {
+        let state = TestAuthorityBuilder::new().build().await;
+        let epoch_store = state.epoch_store_for_testing();
+
+        let tx = VerifiedTransaction::new_genesis_transaction(vec![], vec![]);
+        let digest = *tx.digest();
+        let mut effects_map = HashMap::new();
+        store_executed_tx(&state, &mut effects_map, &tx);
+        let effects = effects_map[&digest].clone();
+
+        let tmp_dir = iota_common::tempdir();
+        let checkpoint_store = CheckpointStore::new(tmp_dir.path());
+        let service = manual_checkpoint_service(&state, checkpoint_store.clone(), effects_map);
+        let (mut builder, _aggregator, _hasher) = service.service.state.lock().take_unstarted();
+
+        service
+            .service
+            .write_and_notify_checkpoint_for_testing(&epoch_store, p(0, vec![digest], 0))
+            .unwrap();
+
+        let details = PendingCheckpointInfo {
+            timestamp_ms: 0,
+            last_of_epoch: false,
+            checkpoint_height: 0,
+        };
+        let unwritten = builder
+            .create_checkpoints(vec![effects], &details, &HashSet::from([digest]))
+            .await
+            .unwrap();
+        let expected_summary = unwritten.first().summary.clone();
+
+        builder
+            .maybe_build_checkpoints()
+            .await
+            .expect("the rebuild must find the user signatures");
+
+        let built = checkpoint_store
+            .tables
+            .locally_computed_checkpoints
+            .get(&expected_summary.sequence_number)
+            .unwrap()
+            .expect("the rebuild must write the checkpoint");
+        assert_eq!(built, expected_summary);
+        assert!(
+            epoch_store
+                .user_signatures_for_checkpoint(&[tx], &[digest])
+                .is_err(),
+            "user signatures must be dropped once the checkpoint is built"
+        );
+    }
+
     /// The checkpoint builder stops once this node executes synced checkpoints
     /// for the rest of the epoch.
     #[tokio::test]
@@ -4005,12 +4044,27 @@ mod tests {
                 .is_err()
         );
 
+        let tx = VerifiedTransaction::new_genesis_transaction(vec![], vec![]);
+        let digest = *tx.digest();
+        epoch_store.test_insert_user_signature(digest, tx.signatures().to_vec());
+        assert!(
+            epoch_store
+                .user_signatures_for_checkpoint(std::slice::from_ref(&tx), &[digest])
+                .is_ok()
+        );
+
         epoch_store.start_executing_synced_checkpoints().await;
         tokio::time::timeout(Duration::from_secs(5), tasks.join_next())
             .await
             .expect("the checkpoint builder should stop")
             .unwrap()
             .unwrap();
+        assert!(
+            epoch_store
+                .user_signatures_for_checkpoint(&[tx], &[digest])
+                .is_err(),
+            "user signatures must be dropped once the checkpoint builder stops"
+        );
     }
 
     // A validator does not verify its own consensus blocks, so under the P-COOL

@@ -141,6 +141,7 @@ task 16, lines 66-71:
 //# run-graphql --show-usage --show-headers --show-service-version
 Headers: {
     "access-control-allow-origin": "*",
+    "access-control-expose-headers": "x-iota-rpc-version,x-iota-sdk-graphql-client-version-min",
     "content-length": "157",
     "content-type": "application/graphql-response+json",
     "vary": "origin, access-control-request-method, access-control-request-headers",

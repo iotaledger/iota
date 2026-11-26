@@ -66,6 +66,21 @@ pub(crate) fn quote_filter_input(value: &str) -> String {
     format!("{:?}... ({} bytes)", &value[..end], value.len())
 }
 
+/// Longest parser error, in bytes, that an error message repeats.
+const MAX_PARSE_ERROR_LENGTH: usize = 256;
+
+/// Formats a parser error for an error message, cut to
+/// [`MAX_PARSE_ERROR_LENGTH`] bytes. The move-core parser's errors include the
+/// rest of the input, which can be as long as the request.
+pub(crate) fn shorten_parse_error(error: impl std::fmt::Display) -> String {
+    let message = error.to_string();
+    if message.len() <= MAX_PARSE_ERROR_LENGTH {
+        return message;
+    }
+    let end = message.floor_char_boundary(MAX_PARSE_ERROR_LENGTH);
+    format!("{}... ({} bytes)", &message[..end], message.len())
+}
+
 /// Per-item overhead when an item is placed in a protobuf `repeated`
 /// length-delimited field (field number 1-15):
 ///   field_tag (1 byte) + length_delimiter_varint

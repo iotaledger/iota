@@ -61,6 +61,7 @@ const iotaSDK = [
                 },
                 items: [
                     'developer/iota-sdk/how-tos/transactions/sign-send-iota',
+                    'developer/iota-sdk/how-tos/transactions/ledger-sign-send-iota',
                     'developer/iota-sdk/how-tos/transactions/stake',
                     'developer/iota-sdk/how-tos/transactions/move-call-results',
                 ],

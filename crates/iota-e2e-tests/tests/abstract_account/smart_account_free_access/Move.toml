@@ -1,0 +1,9 @@
+[package]
+name = "smart_account_free_access"
+edition = "2024"
+
+[dependencies]
+Iota = { local = "../../../../iota-framework/packages/iota-framework" }
+
+[addresses]
+smart_account_free_access = "0x0"
