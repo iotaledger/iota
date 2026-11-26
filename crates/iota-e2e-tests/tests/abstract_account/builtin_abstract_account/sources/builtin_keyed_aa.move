@@ -6,9 +6,8 @@
 /// `AbstractAccount` shared object.
 ///
 /// This lives in its own package because `iota::builtin_authenticator_functions`
-/// and `iota::public_key` only exist in the framework of the latest protocol
-/// version, while the `abstract_account` package must also publish on earlier
-/// versions.
+/// and `iota::public_key` only exist in the framework from protocol version 42,
+/// while the `abstract_account` package must also publish on earlier versions.
 module builtin_abstract_account::builtin_keyed_aa;
 
 use abstract_account::abstract_account::{Self, AbstractAccount};

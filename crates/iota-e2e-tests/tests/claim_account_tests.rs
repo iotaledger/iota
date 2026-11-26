@@ -221,7 +221,6 @@ async fn test_claim_account_twice_is_not_yet_prevented() {
 #[cfg(msim)]
 #[sim_test]
 async fn test_claim_account_rejected_when_disabled() {
-    use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
     use iota_keys::keystore::AccountKeystore;
     use iota_sdk_crypto::simple::SimpleKeypair;
     use iota_sdk_types::{
@@ -272,33 +271,17 @@ async fn test_claim_account_rejected_when_disabled() {
     );
 
     // The transaction must be rejected before execution
-    // (UserInputError::Unsupported).
-    let result = test_cluster
+    // (UserInputError::Unsupported), not executed and failed.
+    let err = test_cluster
         .wallet
         .execute_transaction_may_fail(test_cluster.wallet.sign_transaction(&tx_data))
-        .await;
-
-    match result {
-        Err(e) => {
-            let msg = e.to_string().to_lowercase();
-            assert!(
-                msg.contains("claim account transactions are not enabled")
-                    || msg.contains("unsupported"),
-                "unexpected error message: {msg}",
-            );
-        }
-        Ok(resp) => {
-            let status = resp
-                .effects
-                .as_ref()
-                .expect("response must include effects")
-                .status();
-            assert!(
-                status.is_err(),
-                "ClaimAccount must be rejected when the feature flag is disabled; got success",
-            );
-        }
-    }
+        .await
+        .expect_err("a ClaimAccount must be rejected while the kind is disabled");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("claim account transactions are not enabled"),
+        "unexpected error message: {msg}",
+    );
 }
 
 /// Verify that a `ClaimAccountTransaction` whose public key is not a valid
@@ -309,7 +292,6 @@ async fn test_claim_account_rejected_when_disabled() {
 #[cfg(msim)]
 #[sim_test]
 async fn test_claim_account_rejected_with_invalid_public_key() {
-    use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
     use iota_keys::keystore::AccountKeystore;
     use iota_sdk_types::{
         Address, ClaimAccountTransaction, SmartAccountClaim, Transaction, TransactionKind,
@@ -352,32 +334,18 @@ async fn test_claim_account_rejected_with_invalid_public_key() {
     );
 
     // The transaction must be rejected before execution
-    // (UserInputError::Unsupported).
-    let result = test_cluster
+    // (UserInputError::Unsupported), not executed and aborted in
+    // `public_key::create`.
+    let err = test_cluster
         .wallet
         .execute_transaction_may_fail(test_cluster.wallet.sign_transaction(&tx_data))
-        .await;
-
-    match result {
-        Err(e) => {
-            let msg = e.to_string().to_lowercase();
-            assert!(
-                msg.contains("invalid claim account public key"),
-                "unexpected error message: {msg}",
-            );
-        }
-        Ok(resp) => {
-            let status = resp
-                .effects
-                .as_ref()
-                .expect("response must include effects")
-                .status();
-            assert!(
-                status.is_err(),
-                "ClaimAccount with an invalid public key must be rejected; got success",
-            );
-        }
-    }
+        .await
+        .expect_err("a ClaimAccount with an invalid public key must be rejected");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("invalid claim account public key: "),
+        "unexpected error message: {msg}",
+    );
 }
 
 /// A `ClaimAccount` at exactly the budget floor the validity check demands

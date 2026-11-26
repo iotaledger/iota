@@ -13,7 +13,7 @@
 //! order to not depend on an external folder and to enable easier changes to
 //! the Move code. The built-in authenticator tests publish
 //! `./tests/abstract_account/builtin_abstract_account` on top of it, since
-//! that package needs framework modules of the latest protocol version only.
+//! that package needs framework modules that protocol version 42 brings.
 use std::{net::SocketAddr, str::FromStr};
 
 use fastcrypto::{
@@ -106,11 +106,15 @@ const AA_RECEIVE_OBJECT_FN_NAME_NO_SENDER_CHECK: &str = "receive_object_without_
 // The package of the `builtin_keyed_aa` Move module, published together with
 // the `abstract_account` package it depends on.
 const AA_BUILTIN_PACKAGE_PATH: &str = "tests/abstract_account/builtin_abstract_account";
+#[cfg(msim)]
 const SMART_ACCOUNT_FREE_ACCESS_PACKAGE_PATH: &str =
     "tests/abstract_account/smart_account_free_access";
+#[cfg(msim)]
 const SMART_ACCOUNT_FREE_ACCESS_MODULE_NAME: &str = "smart_account_free_access";
+#[cfg(msim)]
 const SMART_ACCOUNT_FREE_ACCESS_FN_NAME: &str = "authenticate";
 /// The code of `smart_account::ESmartAccountsNotEnabled`.
+#[cfg(msim)]
 const SMART_ACCOUNTS_NOT_ENABLED_ERROR_CODE: u8 = 1;
 /// The last epoch in which the key proofs of the `SmartAccount` tests are
 /// valid.
@@ -759,6 +763,11 @@ const PCOOL_FLOW_OFF_VERSION: u64 = PCOOL_FLOW_ON_VERSION - 1;
 /// on.
 #[cfg(msim)]
 const PCOOL_FLOW_ON_VERSION: u64 = iota_protocol_config::ProtocolVersion::MAX.as_u64();
+
+/// The protocol version that brings the `SmartAccount` modules and the
+/// built-in authenticators.
+#[cfg(msim)]
+const SMART_ACCOUNTS_VERSION: u64 = 42;
 
 /// How long the upgrade tests wait for each condition on the nodes.
 #[cfg(msim)]
@@ -5668,6 +5677,10 @@ async fn test_builtin_authenticator_rejects_malformed_signature_argument()
 /// `EBuiltinAuthenticatorsNotEnabled` (code 0) before an
 /// `AuthenticatorFunctionRefV1` is ever produced, so the account creation
 /// transaction itself fails — it never reaches the authentication step.
+///
+/// Simulator only: the protocol config override reaches the validators only
+/// there.
+#[cfg(msim)]
 #[sim_test]
 async fn test_builtin_move_gate_blocks_account_creation() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
@@ -5942,6 +5955,10 @@ async fn test_smart_account_key_rotation() -> Result<(), anyhow::Error> {
 /// Where `enable_smart_accounts` is off, as on testnet and mainnet,
 /// `smart_account::builder_v1` refuses an account with a custom authenticator
 /// too.
+///
+/// Simulator only: the protocol config override reaches the validators only
+/// there.
+#[cfg(msim)]
 #[sim_test]
 async fn test_smart_account_with_custom_authenticator_refused_without_smart_accounts()
 -> Result<(), anyhow::Error> {
@@ -5982,9 +5999,9 @@ async fn test_smart_account_with_custom_authenticator_refused_without_smart_acco
     Ok(())
 }
 
-/// The `SmartAccount` modules and the built-in authenticators come with the
-/// latest protocol version. On a network one version below, a `SmartAccount`
-/// cannot be created. After the upgrade, an account with the built-in
+/// The `SmartAccount` modules and the built-in authenticators come with
+/// protocol version `SMART_ACCOUNTS_VERSION`. On a network one version below,
+/// a `SmartAccount` cannot be created. After the upgrade, an account with the built-in
 /// authenticator and one with a custom authenticator are created and send
 /// transactions under the P-COOL flow.
 ///
@@ -5993,7 +6010,6 @@ async fn test_smart_account_with_custom_authenticator_refused_without_smart_acco
 #[cfg(msim)]
 #[sim_test]
 async fn test_smart_account_created_after_the_protocol_upgrade() -> Result<(), anyhow::Error> {
-    use iota_protocol_config::ProtocolVersion;
     use iota_types::{
         iota_system_state::IotaSystemStateTrait,
         supported_protocol_versions::SupportedProtocolVersions,
@@ -6001,15 +6017,14 @@ async fn test_smart_account_created_after_the_protocol_upgrade() -> Result<(), a
 
     telemetry_subscribers::init_for_testing();
 
-    let latest = ProtocolVersion::MAX.as_u64();
     let mut test_env = TestEnvironment::with_cluster(
         TestClusterBuilder::new()
             .with_num_validators(4)
             .with_epoch_duration_ms(30_000)
-            .with_protocol_version((latest - 1).into())
+            .with_protocol_version((SMART_ACCOUNTS_VERSION - 1).into())
             .with_supported_protocol_versions(SupportedProtocolVersions::new_for_testing(
-                latest - 1,
-                latest,
+                SMART_ACCOUNTS_VERSION - 1,
+                SMART_ACCOUNTS_VERSION,
             ))
             .build()
             .await,
@@ -6037,7 +6052,7 @@ async fn test_smart_account_created_after_the_protocol_upgrade() -> Result<(), a
 
     let system_state = test_env
         .test_cluster
-        .wait_for_protocol_version_with_timeout(latest.into(), UPGRADE_TEST_TIMEOUT)
+        .wait_for_protocol_version_with_timeout(SMART_ACCOUNTS_VERSION.into(), UPGRADE_TEST_TIMEOUT)
         .await;
     wait_for_running_nodes_to_reach_epoch(&test_env.test_cluster, system_state.epoch()).await;
     assert_pcool_flow_on(&test_env.test_cluster);
@@ -7002,8 +7017,8 @@ impl TestEnvironment {
     // -----------------------------------------------
 
     /// Publishes the AA package (assumed already done via
-    /// `init_abstract_account_state`), then creates an `AbstractAccount`
-    /// shared object backed by a built-in authenticator.
+    /// `init_builtin_abstract_account_state`), then creates an
+    /// `AbstractAccount` shared object backed by a built-in authenticator.
     ///
     /// `scheme` and `raw_bytes` are passed directly to Move's
     /// `public_key::create`.
@@ -7033,7 +7048,7 @@ impl TestEnvironment {
         raw_bytes: &[u8],
     ) -> anyhow::Result<TransactionEnvelope> {
         let Some(aa_package_id) = self.aa_package_id else {
-            anyhow::bail!("AA package id not set — call init_abstract_account_state first");
+            anyhow::bail!("AA package id not set — call init_builtin_abstract_account_state first");
         };
 
         let pt = {
@@ -7164,6 +7179,7 @@ impl TestEnvironment {
     }
 
     /// Publishes the package with a custom authenticator for `SmartAccount`.
+    #[cfg(msim)]
     async fn publish_smart_account_free_access_package(&mut self) -> ObjectId {
         let path = [
             env!("CARGO_MANIFEST_DIR"),
@@ -7179,6 +7195,7 @@ impl TestEnvironment {
     /// Crafts a signed transaction that creates a `SmartAccount` through
     /// `smart_account::builder_v1` and `smart_account::build_v1`, with the
     /// free-access authenticator of the package `package_id`.
+    #[cfg(msim)]
     async fn craft_create_custom_authenticator_smart_account(
         &self,
         package_id: ObjectId,
