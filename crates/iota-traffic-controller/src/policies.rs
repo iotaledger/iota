@@ -9,11 +9,14 @@
 use std::{
     net::IpAddr,
     num::{NonZeroU32, NonZeroUsize},
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, Instant},
 };
 
-use arc_swap::ArcSwap;
+use arc_swap::{ArcSwap, ArcSwapOption};
 use governor::{
     Quota, RateLimiter,
     clock::MonotonicClock,
@@ -188,10 +191,6 @@ impl ClientCells {
         }
     }
 
-    fn breaches(&self, client: IpAddr) -> bool {
-        self.breaches_n(client, NonZeroU32::MIN)
-    }
-
     fn breaches_n(&self, client: IpAddr, n: NonZeroU32) -> bool {
         let mut cells = self.cells.lock();
         if let Some(cell) = cells.get_mut(&client) {
@@ -227,12 +226,101 @@ impl DirectLimiter {
     }
 }
 
+/// A configured rate-limit dimension: a threshold and the limiter built from it.
+struct ConfiguredLimiter {
+    threshold: u64,
+    limiter: Limiter,
+}
+
+/// An optional rate-limit dimension charged a per-tally count. It carries two
+/// independent pieces of state: a configured value (its threshold and limiter,
+/// absent until set) and an enforce/don't-enforce gate. Blocking needs both —
+/// a configured but gated-off dimension never blocks, and a gated-on dimension
+/// with no configured value never blocks. Applies to the direct client only.
+struct DimensionLimiter {
+    name: &'static str,
+    quota_kind: QuotaKind,
+    evictions: IntCounter,
+    configured: ArcSwapOption<ConfiguredLimiter>,
+    enabled: AtomicBool,
+}
+
+impl DimensionLimiter {
+    fn new(
+        name: &'static str,
+        quota_kind: QuotaKind,
+        threshold: Option<u64>,
+        evictions: IntCounter,
+    ) -> Self {
+        let configured = threshold.map(|threshold| {
+            Arc::new(ConfiguredLimiter {
+                threshold,
+                limiter: quota_kind.limiter(clamp_threshold(threshold, name), &evictions),
+            })
+        });
+        Self {
+            enabled: AtomicBool::new(configured.is_some()),
+            configured: ArcSwapOption::new(configured),
+            name,
+            quota_kind,
+            evictions,
+        }
+    }
+
+    /// Whether charging `count` to `client` should block: only when enforced
+    /// (gate on and a limiter configured) and the charge breaches. A zero count
+    /// consumes nothing.
+    fn breaches(&self, client: IpAddr, count: u32) -> bool {
+        let Some(count) = NonZeroU32::new(count) else {
+            return false;
+        };
+        if !self.enabled.load(Ordering::Relaxed) {
+            return false;
+        }
+        self.configured
+            .load()
+            .as_ref()
+            .is_some_and(|configured| configured.limiter.breaches_n(client, count))
+    }
+
+    /// Sets the value and/or the gate. A new threshold rebuilds the limiter,
+    /// discarding tracked client state. Enabling a dimension that has no
+    /// configured value is rejected. Both `None` is a no-op.
+    fn set(&self, threshold: Option<u64>, enabled: Option<bool>) -> Result<(), String> {
+        if let Some(threshold) = threshold {
+            self.configured.store(Some(Arc::new(ConfiguredLimiter {
+                threshold,
+                limiter: self
+                    .quota_kind
+                    .limiter(clamp_threshold(threshold, self.name), &self.evictions),
+            })));
+        }
+        if let Some(enabled) = enabled {
+            if enabled && self.configured.load().is_none() {
+                return Err(format!("set a {} threshold before enabling it", self.name));
+            }
+            self.enabled.store(enabled, Ordering::Relaxed);
+        }
+        Ok(())
+    }
+
+    /// The configured threshold (`None` if unset) and whether the gate is on.
+    fn state(&self) -> (Option<u64>, bool) {
+        (
+            self.configured.load().as_ref().map(|c| c.threshold),
+            self.enabled.load(Ordering::Relaxed),
+        )
+    }
+}
+
 /// Rate limits direct clients, and proxied clients when the policy configures a
 /// separate threshold for them.
 struct RateLimitPolicy {
     quota_kind: QuotaKind,
     direct: ArcSwap<DirectLimiter>,
     proxied: Option<Limiter>,
+    response_items: DimensionLimiter,
+    rendered_fields: DimensionLimiter,
     evictions: IntCounter,
 }
 
@@ -241,6 +329,8 @@ impl RateLimitPolicy {
         quota_kind: QuotaKind,
         direct_threshold: u64,
         proxied_threshold: Option<u64>,
+        response_items_threshold: Option<u64>,
+        rendered_fields_threshold: Option<u64>,
         evictions: IntCounter,
     ) -> Self {
         Self {
@@ -250,6 +340,18 @@ impl RateLimitPolicy {
                 &evictions,
             )),
             proxied: proxied_threshold.map(|threshold| quota_kind.limiter(threshold, &evictions)),
+            response_items: DimensionLimiter::new(
+                "response-items",
+                quota_kind,
+                response_items_threshold,
+                evictions.clone(),
+            ),
+            rendered_fields: DimensionLimiter::new(
+                "rendered-fields",
+                quota_kind,
+                rendered_fields_threshold,
+                evictions.clone(),
+            ),
             quota_kind,
             evictions,
         }
@@ -258,15 +360,48 @@ impl RateLimitPolicy {
     fn charge(&self, tally: &TrafficTally) -> PolicyResponse {
         let direct = self.direct.load();
         PolicyResponse {
-            block_client: tally
-                .direct
-                .filter(|client| direct.limiter.breaches(*client)),
+            block_client: tally.direct.filter(|client| {
+                // Every dimension is evaluated so each is charged independently;
+                // the direct client is blocked when any one breaches. The
+                // response-item and rendered-field dimensions apply to the
+                // direct client only; proxied support is a later addition.
+                let requests = direct.limiter.breaches(*client);
+                let response_items = self.response_items.breaches(*client, tally.response_items);
+                let rendered_fields = self
+                    .rendered_fields
+                    .breaches(*client, tally.rendered_fields);
+                requests || response_items || rendered_fields
+            }),
             block_proxied_client: tally.through_fullnode.filter(|client| {
                 self.proxied
                     .as_ref()
                     .is_some_and(|limiter| limiter.breaches(*client))
             }),
         }
+    }
+
+    fn set_response_items(
+        &self,
+        threshold: Option<u64>,
+        enabled: Option<bool>,
+    ) -> Result<(), String> {
+        self.response_items.set(threshold, enabled)
+    }
+
+    fn set_rendered_fields(
+        &self,
+        threshold: Option<u64>,
+        enabled: Option<bool>,
+    ) -> Result<(), String> {
+        self.rendered_fields.set(threshold, enabled)
+    }
+
+    fn response_items_state(&self) -> (Option<u64>, bool) {
+        self.response_items.state()
+    }
+
+    fn rendered_fields_state(&self) -> (Option<u64>, bool) {
+        self.rendered_fields.state()
     }
 
     fn set_direct_threshold(&self, threshold: u64) {
@@ -303,9 +438,8 @@ impl TrafficControlPolicy {
                 client_threshold,
                 proxied_client_threshold,
                 burst_secs,
-                // The response-item and rendered-field dimensions are wired in
-                // a later change; this builder reads only the request threshold.
-                ..
+                response_items_threshold,
+                rendered_fields_threshold,
             }) => {
                 if *burst_secs == 0 {
                     fatal!("freq-threshold burst-secs must be more than zero");
@@ -319,6 +453,8 @@ impl TrafficControlPolicy {
                         *proxied_client_threshold,
                         "proxied-client-threshold",
                     )),
+                    *response_items_threshold,
+                    *rendered_fields_threshold,
                     evictions,
                 ))
             }
@@ -328,6 +464,8 @@ impl TrafficControlPolicy {
                     reset_period: exact_count_reset_period(connection_blocklist_ttl_sec),
                 },
                 *threshold,
+                None,
+                None,
                 None,
                 evictions,
             )),
@@ -358,6 +496,48 @@ impl TrafficControlPolicy {
     pub(super) fn set_client_threshold(&self, threshold: u64) {
         if let Policy::Limit(policy) = &self.0 {
             policy.set_direct_threshold(threshold);
+        }
+    }
+
+    /// Sets the response-item dimension's value and/or gate. A no-op for a
+    /// policy that does not rate limit. See [`DimensionLimiter::set`].
+    pub(super) fn set_response_items(
+        &self,
+        threshold: Option<u64>,
+        enabled: Option<bool>,
+    ) -> Result<(), String> {
+        match &self.0 {
+            Policy::Limit(policy) => policy.set_response_items(threshold, enabled),
+            _ => Ok(()),
+        }
+    }
+
+    /// Sets the rendered-field dimension's value and/or gate. A no-op for a
+    /// policy that does not rate limit. See [`DimensionLimiter::set`].
+    pub(super) fn set_rendered_fields(
+        &self,
+        threshold: Option<u64>,
+        enabled: Option<bool>,
+    ) -> Result<(), String> {
+        match &self.0 {
+            Policy::Limit(policy) => policy.set_rendered_fields(threshold, enabled),
+            _ => Ok(()),
+        }
+    }
+
+    /// The response-item dimension's configured threshold and gate state.
+    pub(super) fn response_items_state(&self) -> (Option<u64>, bool) {
+        match &self.0 {
+            Policy::Limit(policy) => policy.response_items_state(),
+            _ => (None, false),
+        }
+    }
+
+    /// The rendered-field dimension's configured threshold and gate state.
+    pub(super) fn rendered_fields_state(&self) -> (Option<u64>, bool) {
+        match &self.0 {
+            Policy::Limit(policy) => policy.rendered_fields_state(),
+            _ => (None, false),
         }
     }
 }
@@ -441,6 +621,94 @@ mod tests {
         let client = IpAddr::from([10, 0, 0, 3]);
         let over_burst = NonZeroU32::new(200).unwrap();
         assert!(limiter.breaches_n(client, over_burst));
+    }
+
+    /// A FreqThreshold spam policy with `burst_secs: 1`, so each new dimension's
+    /// burst equals its threshold.
+    fn freq_threshold_with_dimensions(
+        client_threshold: u64,
+        response_items_threshold: Option<u64>,
+        rendered_fields_threshold: Option<u64>,
+    ) -> TrafficControlPolicy {
+        TrafficControlPolicy::from_policy_type(
+            &PolicyType::FreqThreshold(FreqThresholdConfig {
+                client_threshold,
+                proxied_client_threshold: client_threshold,
+                burst_secs: 1,
+                response_items_threshold,
+                rendered_fields_threshold,
+            }),
+            0,
+            evictions(),
+        )
+    }
+
+    fn tally_with(client: IpAddr, response_items: u32, rendered_fields: u32) -> TrafficTally {
+        let mut tally = TrafficTally::new(Some(client), None, None, Weight::one());
+        tally.response_items = response_items;
+        tally.rendered_fields = rendered_fields;
+        tally
+    }
+
+    #[test]
+    fn rendered_fields_over_threshold_blocks() {
+        // Requests threshold is huge, so only the rendered-field dimension can
+        // block. Burst 100: 60 fits, a second 60 does not.
+        let policy = freq_threshold_with_dimensions(1_000_000, None, Some(100));
+        let client = IpAddr::from([10, 1, 0, 1]);
+        assert!(policy.charge(&tally_with(client, 0, 60)).block_client.is_none());
+        assert_eq!(
+            policy.charge(&tally_with(client, 0, 60)).block_client,
+            Some(client)
+        );
+    }
+
+    #[test]
+    fn response_items_over_threshold_blocks() {
+        let policy = freq_threshold_with_dimensions(1_000_000, Some(100), None);
+        let client = IpAddr::from([10, 1, 0, 2]);
+        assert!(policy.charge(&tally_with(client, 60, 0)).block_client.is_none());
+        assert_eq!(
+            policy.charge(&tally_with(client, 60, 0)).block_client,
+            Some(client)
+        );
+    }
+
+    #[test]
+    fn zero_counts_never_block_new_dimensions() {
+        // Tiny dimension thresholds, but a tally that charges neither dimension
+        // consumes no cells and never blocks.
+        let policy = freq_threshold_with_dimensions(1_000_000, Some(1), Some(1));
+        let client = IpAddr::from([10, 1, 0, 3]);
+        for _ in 0..10 {
+            assert!(policy.charge(&tally_with(client, 0, 0)).block_client.is_none());
+        }
+    }
+
+    #[test]
+    fn disabled_dimension_never_blocks() {
+        // Configured then gated off: no enforcement however large the count.
+        let policy = freq_threshold_with_dimensions(1_000_000, None, Some(1));
+        let client = IpAddr::from([10, 1, 0, 4]);
+        policy.set_rendered_fields(None, Some(false)).unwrap();
+        assert!(
+            policy
+                .charge(&tally_with(client, 0, 10_000))
+                .block_client
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn a_dimension_breach_blocks_while_requests_are_under_limit() {
+        // Requests threshold is huge; a single rendered-field charge above the
+        // whole burst can never be served, so the client is blocked on it alone.
+        let policy = freq_threshold_with_dimensions(1_000_000, None, Some(50));
+        let client = IpAddr::from([10, 1, 0, 5]);
+        assert_eq!(
+            policy.charge(&tally_with(client, 0, 60)).block_client,
+            Some(client)
+        );
     }
 
     #[sim_test]

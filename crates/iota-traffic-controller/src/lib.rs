@@ -483,6 +483,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn dry_run_serves_a_new_dimension_breach() {
+        // A rendered-field charge above the whole burst breaches that dimension.
+        // Dry run serves the client and counts the block instead of applying it,
+        // exactly as it does for a request-dimension breach.
+        let controller = TrafficController::init_for_test(PolicyConfig {
+            spam_policy_type: PolicyType::FreqThreshold(FreqThresholdConfig {
+                client_threshold: 1_000_000,
+                proxied_client_threshold: 1_000_000,
+                burst_secs: 1,
+                rendered_fields_threshold: Some(100),
+                ..Default::default()
+            }),
+            spam_sample_rate: Weight::one(),
+            connection_blocklist_ttl_sec: 120,
+            dry_run: true,
+            ..Default::default()
+        });
+        let mut tally = TrafficTally::new(Some(CLIENT), None, None, Weight::one());
+        tally.rendered_fields = 200;
+        controller.tally(tally);
+        assert_eq!(controller.metrics.connection_ip_blocklist_len.get(), 1);
+
+        assert!(controller.check(&Some(CLIENT), &None));
+        assert_eq!(controller.metrics.num_dry_run_blocked_requests.get(), 1);
+    }
+
+    #[tokio::test]
     async fn test_the_admin_api_turns_dry_run_off_at_once() {
         let controller = TrafficController::init_for_test(policy_config(true, PolicyKind::Spam));
         controller.tally(breach(PolicyKind::Spam));
