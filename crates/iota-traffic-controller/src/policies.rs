@@ -156,9 +156,16 @@ enum Limiter {
 
 impl Limiter {
     fn breaches(&self, client: IpAddr) -> bool {
+        self.breaches_n(client, NonZeroU32::MIN)
+    }
+
+    /// Whether charging `n` cells to `client` breaches the limit now. A charge
+    /// larger than the limiter's whole burst can never be served, so it
+    /// breaches outright.
+    fn breaches_n(&self, client: IpAddr, n: NonZeroU32) -> bool {
         match self {
             Self::BlockAll => true,
-            Self::Cells(cells) => cells.breaches(client),
+            Self::Cells(cells) => cells.breaches_n(client, n),
         }
     }
 }
@@ -182,12 +189,18 @@ impl ClientCells {
     }
 
     fn breaches(&self, client: IpAddr) -> bool {
+        self.breaches_n(client, NonZeroU32::MIN)
+    }
+
+    fn breaches_n(&self, client: IpAddr, n: NonZeroU32) -> bool {
         let mut cells = self.cells.lock();
         if let Some(cell) = cells.get_mut(&client) {
-            return cell.check().is_err();
+            return !matches!(cell.check_n(n), Ok(Ok(())));
         }
         let cell = RateLimiter::direct_with_clock(self.quota, &MonotonicClock);
-        let breached = cell.check().is_err();
+        // `check_n` is `Ok(Ok(()))` only when the whole charge fits; a partial
+        // fit is rate-limited and an over-burst charge can never be served.
+        let breached = !matches!(cell.check_n(n), Ok(Ok(())));
         // `push` returns the entry it displaced; at capacity that is another
         // client's state, which counts as an eviction.
         if let Some((evicted, _)) = cells.push(client, cell) {
@@ -399,6 +412,35 @@ mod tests {
             exact_count_reset_period(0),
             EXACT_COUNT_FALLBACK_RESET_PERIOD
         );
+    }
+
+    #[test]
+    fn breaches_n_under_burst_is_false() {
+        // Burst of 100 cells; a single charge of 1 is well under it.
+        let limiter = QuotaKind::Sustained { burst_secs: 1 }.limiter(100, &evictions());
+        let client = IpAddr::from([10, 0, 0, 1]);
+        assert!(!limiter.breaches_n(client, NonZeroU32::MIN));
+    }
+
+    #[test]
+    fn breaches_n_over_burst_is_true() {
+        // Burst of 100 cells. 60 fits; a second 60 does not, so the client is
+        // rate-limited on the second charge.
+        let limiter = QuotaKind::Sustained { burst_secs: 1 }.limiter(100, &evictions());
+        let client = IpAddr::from([10, 0, 0, 2]);
+        let sixty = NonZeroU32::new(60).unwrap();
+        assert!(!limiter.breaches_n(client, sixty));
+        assert!(limiter.breaches_n(client, sixty));
+    }
+
+    #[test]
+    fn breaches_n_above_max_burst_is_true() {
+        // A single charge larger than the whole burst can never be served, so
+        // it breaches outright.
+        let limiter = QuotaKind::Sustained { burst_secs: 1 }.limiter(100, &evictions());
+        let client = IpAddr::from([10, 0, 0, 3]);
+        let over_burst = NonZeroU32::new(200).unwrap();
+        assert!(limiter.breaches_n(client, over_burst));
     }
 
     #[sim_test]
