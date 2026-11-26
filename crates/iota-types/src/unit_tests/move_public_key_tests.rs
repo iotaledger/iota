@@ -13,7 +13,7 @@ use iota_sdk_crypto::{
 use iota_sdk_types::{
     Address, Ed25519PublicKey, MoveAuthenticator, MoveAuthenticatorV1, ObjectDigest, ObjectId,
     ObjectReference, Secp256k1PublicKey, Secp256r1PublicKey, SharedObjectReference,
-    SignatureScheme, SimpleSignature, Transaction, TypeTag, UserSignature, Version,
+    SignatureScheme, SigningDigest, SimpleSignature, Transaction, TypeTag, UserSignature, Version,
     crypto::{
         Intent, IntentMessage, MultisigAggregatedSignature, MultisigCommittee, MultisigMember,
         PasskeyAuthenticator, PersonalMessage,
@@ -25,8 +25,7 @@ use crate::{
     crypto::PublicKey,
     error::IotaError,
     move_public_key::{
-        MovePublicKey, transaction_signing_digest, verify_builtin_authenticator_signature,
-        verify_personal_message_signature,
+        MovePublicKey, verify_builtin_authenticator_signature, verify_personal_message_signature,
     },
     transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
 };
@@ -499,11 +498,10 @@ fn verify_builtin_authenticator_signature_ok_multisig() {
     let sender = Address::from(&multisig_public_key);
 
     let tx_data = dummy_tx_data(sender);
-    let tx_data_bytes = bcs::to_bytes(&tx_data).unwrap();
     let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data);
 
-    let msg = intent_msg.signing_digest();
-    let sig1: SimpleSignature = kp1.sign(&msg);
+    let tx_signing_digest = intent_msg.signing_digest();
+    let sig1: SimpleSignature = kp1.sign(&tx_signing_digest);
     let multisig = UserSignature::Multisig(
         MultisigAggregatedSignature::new(vec![sig1.into()], multisig_public_key.clone()).unwrap(),
     );
@@ -515,7 +513,7 @@ fn verify_builtin_authenticator_signature_ok_multisig() {
         )
         .unwrap(),
         signature: multisig.to_bytes(),
-        tx_data_bytes,
+        tx_signing_digest,
     };
     assert!(verifier.verify().is_ok());
 }
@@ -532,17 +530,17 @@ fn verify_builtin_authenticator_signature_ok_passkey() {
     let sender = Address::from(&passkey_public_key);
 
     let tx_data = dummy_tx_data(sender);
-    let tx_data_bytes = bcs::to_bytes(&tx_data).unwrap();
     let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data);
 
     // Challenge = Blake2b256 hash of the BCS-encoded intent message.
-    let signature = passkey_signature(&key_pair, &intent_msg.signing_digest());
+    let tx_signing_digest = intent_msg.signing_digest();
+    let signature = passkey_signature(&key_pair, &tx_signing_digest);
 
     let verifier = BuiltinSignatureVerifier {
         public_key: MovePublicKey::new(SignatureScheme::PasskeyAuthenticator, raw_public_key)
             .unwrap(),
         signature: signature.to_bytes(),
-        tx_data_bytes,
+        tx_signing_digest,
     };
     assert!(verifier.verify().is_ok());
 }
@@ -626,31 +624,16 @@ fn verify_builtin_authenticator_signature_error_other_public_key() {
 }
 
 #[test]
-fn verify_builtin_authenticator_signature_error_invalid_tx_data_bytes() {
+fn verify_builtin_authenticator_signature_error_other_tx_signing_digest() {
     let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(seeded_rng()));
     let mut verifier = builtin_signature_verifier(&key_pair);
-    // Bytes that are not a `Transaction` are not decoded: the signature does
-    // not match their digest.
-    verifier.tx_data_bytes = vec![];
+    verifier.tx_signing_digest = [0; 32];
 
     assert!(matches!(
         verifier.verify().unwrap_err(),
         IotaError::InvalidSignature { error }
             if error.contains("Fail to verify user sig")
     ));
-}
-
-// === transaction_signing_digest() ===
-
-#[test]
-fn transaction_signing_digest_equals_intent_message_signing_digest() {
-    let tx_data = dummy_tx_data(Address::new([1; 32]));
-    let tx_data_bytes = bcs::to_bytes(&tx_data).unwrap();
-
-    assert_eq!(
-        transaction_signing_digest(&tx_data_bytes),
-        IntentMessage::new(Intent::iota_transaction(), tx_data).signing_digest(),
-    );
 }
 
 // === verify_personal_message_signature() happy path ===
@@ -896,7 +879,7 @@ const PERSONAL_MESSAGE: &[u8] = b"a personal message";
 struct BuiltinSignatureVerifier {
     public_key: MovePublicKey,
     signature: Vec<u8>,
-    tx_data_bytes: Vec<u8>,
+    tx_signing_digest: SigningDigest,
 }
 
 impl BuiltinSignatureVerifier {
@@ -905,7 +888,7 @@ impl BuiltinSignatureVerifier {
             &ProtocolConfig::get_for_max_version_UNSAFE(),
             &self.public_key,
             &self.signature,
-            &self.tx_data_bytes,
+            &self.tx_signing_digest,
         )
     }
 }
@@ -956,15 +939,15 @@ fn dummy_tx_data(sender: Address) -> Transaction {
 fn builtin_signature_verifier(key_pair: &SimpleKeypair) -> BuiltinSignatureVerifier {
     let public_key = key_pair.public_key();
     let tx_data = dummy_tx_data(public_key.derive_address());
-    let tx_data_bytes = bcs::to_bytes(&tx_data).unwrap();
 
     let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data);
-    let sig: SimpleSignature = key_pair.sign(&intent_msg.signing_digest());
+    let tx_signing_digest = intent_msg.signing_digest();
+    let sig: SimpleSignature = key_pair.sign(&tx_signing_digest);
 
     BuiltinSignatureVerifier {
         public_key: MovePublicKey::from(key_pair),
         signature: UserSignature::Simple(sig).to_bytes(),
-        tx_data_bytes,
+        tx_signing_digest,
     }
 }
 

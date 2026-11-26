@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use eyre::eyre;
-use fastcrypto::hash::HashFunction;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::{
@@ -14,7 +13,7 @@ use move_core_types::runtime_value::{MoveStructLayout, MoveTypeLayout};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    crypto::{DefaultHash, PublicKey},
+    crypto::PublicKey,
     error::{IotaError, IotaResult},
     move_signature_scheme::MoveSignatureScheme,
     signature::{AuthenticatorTrait, VerifyParams},
@@ -148,10 +147,8 @@ impl From<&SimpleKeypair> for MovePublicKey {
 /// whose scheme must be the scheme of `public_key`. This format is consistent
 /// for all schemes: Ed25519, Secp256k1, Secp256r1, MultiSig, and Passkey.
 ///
-/// `tx_data_bytes` is the BCS-encoded `Transaction`. The signing message is
-/// `IntentMessage(Intent::iota_transaction(), tx_data)`. Its signing digest is
-/// computed from `tx_data_bytes` without decoding them, so bytes that are not
-/// a `Transaction` fail as a wrong signature.
+/// `tx_signing_digest` is the signing digest of the transaction: the digest of
+/// `IntentMessage(Intent::iota_transaction(), tx_data)`.
 ///
 /// The multisig and passkey verification rules are taken from
 /// `protocol_config`.
@@ -159,27 +156,13 @@ pub fn verify_builtin_authenticator_signature(
     protocol_config: &ProtocolConfig,
     public_key: &MovePublicKey,
     signature_bytes: &[u8],
-    tx_data_bytes: &[u8],
+    tx_signing_digest: &SigningDigest,
 ) -> IotaResult<()> {
     let (signature, address) = parse_signature_of_public_key(public_key, signature_bytes)?;
 
-    let digest = transaction_signing_digest(tx_data_bytes);
-
     let verify_params = VerifyParams::from_protocol_config(protocol_config);
 
-    signature.verify_signing_digest(&digest, address, &verify_params)
-}
-
-/// Returns the signing digest of
-/// `IntentMessage(Intent::iota_transaction(), tx_data)`, where `tx_data_bytes`
-/// is the BCS encoding of `tx_data`.
-fn transaction_signing_digest(tx_data_bytes: &[u8]) -> SigningDigest {
-    // The BCS encoding of an `IntentMessage` is the intent bytes followed by
-    // the BCS encoding of its value.
-    let mut hasher = DefaultHash::default();
-    hasher.update(Intent::iota_transaction().to_bytes());
-    hasher.update(tx_data_bytes);
-    hasher.finalize().digest
+    signature.verify_signing_digest(tx_signing_digest, address, &verify_params)
 }
 
 /// Verifies a signature, by `public_key`, of a personal message.
