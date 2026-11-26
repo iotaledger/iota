@@ -52,7 +52,8 @@ use crate::{
 /// - `outputs.return_values` — the call ran and returned;
 /// - `outputs.execution_error` — the call ran but aborted;
 /// - `error` — the server rejected the call before running it (not a `#[view]` function, unknown
-///   package/module/function, or an argument that could not be resolved).
+///   package/module/function, an argument that could not be resolved, or a node limit on
+///   simulations, which answers `RESOURCE_EXHAUSTED`).
 ///
 /// The request's `read_mask` selects which fields of each result to populate,
 /// defaulting to [`VIEW_FUNCTION_CALLS_READ_MASK`].
