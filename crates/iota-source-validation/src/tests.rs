@@ -689,6 +689,54 @@ async fn successful_versioned_dependency_verification() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
+async fn successful_verification_with_function_attributes() -> anyhow::Result<()> {
+    let mut cluster = TestClusterBuilder::new().build().await;
+    let context = &mut cluster.wallet;
+
+    let b_ref_fixtures = iota_common::tempdir();
+    let b_ref = {
+        let b_src = copy_published_package(&b_ref_fixtures, "attributes-b", Address::ZERO).await?;
+        publish_package(context, b_src).await.0
+    };
+
+    // Built as a root package, `b` carries the runtime metadata of its
+    // `#[view]` and `#[authenticator]` functions in the format chosen by the
+    // build's protocol config, here the one without view functions.
+    let b_pkg_fixtures = iota_common::tempdir();
+    let b_pkg = {
+        let b_src =
+            copy_published_package(&b_pkg_fixtures, "attributes-b", b_ref.object_id.into()).await?;
+        let mut config = BuildConfig::new_for_testing();
+        config.protocol_build_config.allow_view_function = false;
+        config.build(&b_src).unwrap()
+    };
+
+    // Built as a dependency of `a`, `b` carries no runtime metadata.
+    let a_fixtures = iota_common::tempdir();
+    let a_pkg = {
+        copy_published_package(&a_fixtures, "attributes-b", b_ref.object_id.into()).await?;
+        let a_src =
+            copy_published_package(&a_fixtures, "attributes-a-depends-on-b", Address::ZERO).await?;
+        compile_package(a_src)
+    };
+
+    let client = context.get_client().await?;
+    let verifier = BytecodeSourceVerifier::new(client.read_api());
+
+    verifier
+        .verify(&a_pkg, ValidationMode::deps())
+        .await
+        .unwrap();
+
+    verifier
+        .verify(&b_pkg, ValidationMode::root())
+        .await
+        .unwrap();
+
+    Ok(())
+}
+
+#[tokio::test]
 #[ignore] // TODO: DVX-786
 async fn successful_verification_with_bytecode_dep() -> anyhow::Result<()> {
     let mut cluster = TestClusterBuilder::new().build().await;
