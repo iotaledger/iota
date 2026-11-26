@@ -16,13 +16,14 @@ use iota_core::authority_client::{
 };
 use iota_json_rpc_api::TRANSACTION_NOT_FOUND_ERROR_CODE;
 use iota_json_rpc_types::{
-    DryRunTransactionBlockResponse, IotaObjectResponse, IotaTransactionBlockEffectsAPI,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    DevInspectResults, DryRunTransactionBlockResponse, IotaMoveViewCallResults, IotaObjectResponse,
+    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions, ObjectChange,
 };
 use iota_macros::sim_test;
 use iota_network::default_iota_network_config;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{TransactionDigest, UserSignature};
+use iota_sdk_types::{Owner, TransactionDigest, UserSignature};
 use iota_swarm_config::network_config_builder::ConfigBuilder;
 use iota_test_transaction_builder::{TestTransactionBuilder, batch_make_transfer_transactions};
 use iota_traffic_controller::sim::TrafficSim;
@@ -430,16 +431,21 @@ async fn test_fullnode_simulation_gas_limit() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-/// A fullnode refuses a client's JSON-RPC dry run and dev inspect with
-/// `ServerIsBusy` once the client is over its simulation gas limit, and still
-/// serves its other requests.
+/// A fullnode charges a client's JSON-RPC dry runs, dev inspects and view
+/// calls to the client's simulation gas balance, which its gRPC simulations
+/// share, at the gas price the simulation ran with. It refuses them with
+/// `ServerIsBusy` once the balance is below the computation cap of one
+/// transaction, and still serves the client's other requests.
 #[tokio::test]
 async fn test_fullnode_json_rpc_simulation_gas_limit() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
+    let computation_cap = ProtocolConfig::get_for_max_version_UNSAFE().max_gas_computation_bucket();
     let policy_config = PolicyConfig {
+        // Room for two reservations of the cap. It refills too slowly to
+        // matter here.
         simulation_gas_limit: Some(SimulationGasLimitConfig {
             gas_per_sec: 1,
-            burst_gas: 5_000_000,
+            burst_gas: 2 * computation_cap,
         }),
         // A refusal must not feed the error policy.
         error_policy_type: PolicyType::TestNConnIP(1),
@@ -451,24 +457,87 @@ async fn test_fullnode_json_rpc_simulation_gas_limit() -> Result<(), anyhow::Err
         .build()
         .await;
     let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
+    let publish = test_cluster
+        .test_transaction_builder_with_sender(test_cluster.get_address_0())
+        .await
+        .publish_examples("view_functions")
+        .build();
+    let object_changes = test_cluster
+        .wallet
+        .execute_transaction_must_succeed(test_cluster.wallet.sign_transaction(&publish))
+        .await
+        .object_changes
+        .expect("the response has the object changes");
+    let package_id = object_changes
+        .iter()
+        .find_map(|change| match change {
+            ObjectChange::Published { package_id, .. } => Some(*package_id),
+            _ => None,
+        })
+        .expect("the package is published");
+    let counter_id = object_changes
+        .iter()
+        .find_map(|change| match change {
+            ObjectChange::Created {
+                object_id,
+                owner: Owner::Shared(_),
+                ..
+            } => Some(*object_id),
+            _ => None,
+        })
+        .expect("the package creates a shared counter");
+    let view_call = rpc_params![
+        format!("{package_id}::counter::value"),
+        Option::<Vec<String>>::None,
+        vec![counter_id.to_string()]
+    ];
     let (sender, gas) = test_cluster.wallet.get_one_gas_object().await?.unwrap();
     let rgp = test_cluster.get_reference_gas_price().await;
     let transaction = TestTransactionBuilder::new(sender, gas, rgp)
         .transfer_iota(None, sender)
         .build();
     let tx_bytes = Base64::from_bytes(&bcs::to_bytes(&transaction)?);
+    let iota_sdk_types::Transaction::V1(transaction_v1) = &transaction else {
+        unreachable!("the test transaction is V1")
+    };
+    let kind_bytes = Base64::from_bytes(&bcs::to_bytes(&transaction_v1.kind)?);
 
+    // A view call and a dev inspect leave the gas price to the simulation.
+    // Each is charged the little it used at that price, so the balance stays
+    // above the cap for the dry run. A charge of the whole cap would leave too
+    // little for it.
+    let results: IotaMoveViewCallResults = jsonrpc_client
+        .request("iota_view", view_call.clone())
+        .await
+        .expect("a view call is within the limit");
+    assert!(results.error().is_none(), "{results:?}");
+    let results: DevInspectResults = jsonrpc_client
+        .request(
+            "iota_devInspectTransactionBlock",
+            rpc_params![sender, kind_bytes.clone()],
+        )
+        .await
+        .expect("a dev inspect is within the limit");
+    assert!(results.error.is_none(), "{results:?}");
     let _: DryRunTransactionBlockResponse = jsonrpc_client
         .request("iota_dryRunTransactionBlock", rpc_params![tx_bytes.clone()])
         .await
-        .expect("the first dry run is within the limit");
-    let error = jsonrpc_client
-        .request::<DryRunTransactionBlockResponse, _>(
-            "iota_dryRunTransactionBlock",
-            rpc_params![tx_bytes],
-        )
+        .expect("a dry run is within the limit");
+    // The balance is cut to the new burst at its next refill.
+    test_cluster
+        .fullnode_handle
+        .iota_node
+        .state()
+        .reconfigure_traffic_control(TrafficControlReconfigParams {
+            simulation_burst_gas: Some(computation_cap),
+            ..Default::default()
+        })
+        .await?;
+    let _: DryRunTransactionBlockResponse = jsonrpc_client
+        .request("iota_dryRunTransactionBlock", rpc_params![tx_bytes.clone()])
         .await
-        .expect_err("the second dry run is over the limit");
+        .expect("a full balance is within the limit");
+
     let busy = |error: jsonrpsee::core::ClientError| match error {
         jsonrpsee::core::ClientError::Call(error) => {
             assert!(
@@ -482,20 +551,39 @@ async fn test_fullnode_json_rpc_simulation_gas_limit() -> Result<(), anyhow::Err
         other => panic!("expected an error from the method, got {other}"),
     };
     let server_is_busy = jsonrpsee::types::error::ErrorCode::ServerIsBusy.code();
-    assert_eq!(busy(error), server_is_busy);
-    // A dev inspect, and with it a view call, takes from the same balance.
-    let iota_sdk_types::Transaction::V1(transaction) = &transaction else {
-        unreachable!("the test transaction is V1")
-    };
-    let kind_bytes = Base64::from_bytes(&bcs::to_bytes(&transaction.kind)?);
     let error = jsonrpc_client
-        .request::<serde_json::Value, _>(
+        .request::<DryRunTransactionBlockResponse, _>(
+            "iota_dryRunTransactionBlock",
+            rpc_params![tx_bytes],
+        )
+        .await
+        .expect_err("the dry run left the balance below the cap");
+    assert_eq!(busy(error), server_is_busy);
+    let error = jsonrpc_client
+        .request::<DevInspectResults, _>(
             "iota_devInspectTransactionBlock",
             rpc_params![sender, kind_bytes],
         )
         .await
-        .expect_err("a dev inspect over the limit is refused too");
+        .expect_err("a dev inspect over the limit is refused");
     assert_eq!(busy(error), server_is_busy);
+    let error = jsonrpc_client
+        .request::<IotaMoveViewCallResults, _>("iota_view", view_call)
+        .await
+        .expect_err("a view call over the limit is refused");
+    assert_eq!(busy(error), server_is_busy);
+    // gRPC simulations take from the same balance.
+    let error = test_cluster
+        .grpc_client()
+        .simulate_transaction(transaction)
+        .await
+        .expect_err("a gRPC simulation over the limit is refused");
+    assert!(
+        error
+            .to_string()
+            .contains("simulation gas limit reached, retry in "),
+        "{error}"
+    );
     let _: IotaObjectResponse = jsonrpc_client
         .request("iota_getObject", rpc_params![gas.object_id])
         .await
