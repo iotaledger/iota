@@ -9,7 +9,6 @@ use rstest::rstest;
 use starfish_config::AuthorityIndex;
 
 use crate::{
-    Round,
     block_header::{
         BlockHeaderAPI, Slot, TestBlockHeader, TestBlockHeaderVersion, VerifiedBlockHeader,
     },
@@ -310,29 +309,36 @@ const UNDECIDED: &str = "DAG {
 }";
 
 /// Decides the leaders of a parsed DAG and checks the whole decided sequence
-/// as `(leader round, committed)`; a leader that is not committed is skipped.
+/// as `(leader slot, committed)`; a leader that is not committed is skipped.
 #[rstest]
-#[case::direct_skip_no_leader_votes(DIRECT_SKIP_NO_LEADER_VOTES, &[(1, false)])]
+#[case::direct_skip_no_leader_votes(DIRECT_SKIP_NO_LEADER_VOTES, &[(Slot::new(1, 1), false)])]
 #[case::direct_skip_missing_leader_block(
     DIRECT_SKIP_MISSING_LEADER_BLOCK,
-    &[(1, true), (2, true), (3, false)]
+    &[(Slot::new(1, 1), true), (Slot::new(2, 2), true), (Slot::new(3, 3), false)]
 )]
 #[case::indirect_commit(
     INDIRECT_COMMIT,
-    &[(1, true), (2, true), (3, true), (4, true), (5, true), (6, true)]
+    &[
+        (Slot::new(1, 1), true), (Slot::new(2, 2), true), (Slot::new(3, 3), true),
+        (Slot::new(4, 0), true), (Slot::new(5, 1), true), (Slot::new(6, 2), true),
+    ]
 )]
 #[case::indirect_skip(
     INDIRECT_SKIP,
-    &[(1, true), (2, true), (3, true), (4, false), (5, true), (6, true), (7, true)]
+    &[
+        (Slot::new(1, 1), true), (Slot::new(2, 2), true), (Slot::new(3, 3), true),
+        (Slot::new(4, 0), false), (Slot::new(5, 1), true), (Slot::new(6, 2), true),
+        (Slot::new(7, 3), true),
+    ]
 )]
 #[case::undecided(UNDECIDED, &[])]
 #[tokio::test]
-async fn try_decide_parsed_dag(#[case] dag: &str, #[case] expected: &[(Round, bool)]) {
+async fn try_decide_parsed_dag(#[case] dag: &str, #[case] expected: &[(Slot, bool)]) {
     let mut committer = committer_for(dag);
-    let decided: Vec<(Round, bool)> = committer
+    let decided: Vec<(Slot, bool)> = committer
         .try_decide(Slot::new(0, 0))
         .iter()
-        .map(|leader| (leader.round(), matches!(leader, DecidedLeader::Commit(..))))
+        .map(|leader| (leader.slot(), matches!(leader, DecidedLeader::Commit(..))))
         .collect();
     assert_eq!(decided, expected);
 }
