@@ -515,17 +515,145 @@ mod client_ip_forwarding_tests {
 
 #[cfg(test)]
 mod traffic_tally_tests {
-    use std::net::{IpAddr, Ipv4Addr};
+    use std::{
+        net::{IpAddr, Ipv4Addr},
+        sync::Arc,
+    };
 
+    use iota_network::{
+        api::{self, Validator, ValidatorV2},
+        tonic,
+    };
     use iota_traffic_controller::{ClientAccess, TrafficController};
     use iota_types::{
         error::IotaError,
-        traffic_control::{AccessRuleList, AccessRules, PolicyConfig, PolicyType, Weight},
+        messages_grpc::SystemStateRequest,
+        traffic_control::{
+            AccessRuleList, AccessRules, ClientIdSource, PolicyConfig, PolicyType, Weight,
+        },
     };
 
-    use super::record_tally;
+    use super::{
+        ValidatorService, ValidatorServiceMetrics, make_tonic_request_for_testing, record_tally,
+        soft_lock::PreConsensusSoftLocks,
+    };
+    use crate::{
+        authority::test_authority_builder::TestAuthorityBuilder,
+        consensus_adapter::ConsensusAdapter,
+    };
 
     const CLIENT: IpAddr = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
+
+    /// The client that a request from [`make_tonic_request_for_testing`] comes
+    /// from.
+    fn test_request_client() -> IpAddr {
+        make_tonic_request_for_testing(())
+            .remote_addr()
+            .expect("the test request has a peer address")
+            .ip()
+    }
+
+    /// A validator service on a test authority, with a traffic controller that
+    /// blocks a client on its first tallied request and serves `allowed`
+    /// without a tally. It is built as [`ValidatorService::new`] builds it,
+    /// with this traffic controller in place of the one of the authority.
+    async fn validator_service_allowing(
+        allowed: IpAddr,
+    ) -> (ValidatorService, Arc<TrafficController>) {
+        let state = TestAuthorityBuilder::new().build().await;
+        let traffic_controller = Arc::new(TrafficController::init_for_test(PolicyConfig {
+            spam_policy_type: PolicyType::TestNConnIP(1),
+            spam_sample_rate: Weight::one(),
+            dry_run: false,
+            access_rules: AccessRules {
+                allow: vec![allowed.to_string()],
+                ..Default::default()
+            },
+            ..Default::default()
+        }));
+        let service = ValidatorService {
+            consensus_adapter: Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
+                state.name,
+            )),
+            state,
+            metrics: Arc::new(ValidatorServiceMetrics::new_for_tests()),
+            traffic_controller: Some(traffic_controller.clone()),
+            client_id_source: Some(ClientIdSource::SocketAddr),
+            soft_locks: Arc::new(PreConsensusSoftLocks::new()),
+        };
+        (service, traffic_controller)
+    }
+
+    /// A handler that `handle_with_decoration!` wraps does not tally a client
+    /// that an allow rule serves, so no policy blocks the client.
+    #[tokio::test]
+    async fn a_decorated_handler_does_not_tally_an_allowed_client() {
+        let client = test_request_client();
+        let (service, traffic_controller) = validator_service_allowing(client).await;
+        let get_system_state = || {
+            service.get_system_state_object(make_tonic_request_for_testing(SystemStateRequest {
+                _unused: false,
+            }))
+        };
+        for _ in 0..3 {
+            get_system_state()
+                .await
+                .expect("the node serves an allowed client");
+        }
+        traffic_controller
+            .remove_access_rule(AccessRuleList::Allow, &client.to_string())
+            .unwrap();
+        assert_eq!(
+            traffic_controller.check(&Some(client), &None),
+            ClientAccess::Limited
+        );
+
+        // Without the rule, one request blocks the client.
+        get_system_state()
+            .await
+            .expect("the client is not blocked yet");
+        assert_eq!(
+            traffic_controller.check(&Some(client), &None),
+            ClientAccess::Refused
+        );
+    }
+
+    /// `pre_handle` does not tally a client that an allow rule serves. It
+    /// tallies a request that does not convert, such as a status query
+    /// without a digest.
+    #[tokio::test]
+    async fn pre_handle_does_not_tally_an_allowed_client() {
+        let client = test_request_client();
+        let (service, traffic_controller) = validator_service_allowing(client).await;
+        let get_tx_status_without_digest = || async {
+            service
+                .get_tx_status(make_tonic_request_for_testing(api::GetTxStatusRequest {
+                    queries: vec![api::TxStatusQuery::default()],
+                }))
+                .await
+                .err()
+                .expect("a status query without a digest does not convert")
+        };
+        for _ in 0..3 {
+            let status = get_tx_status_without_digest().await;
+            assert_eq!(status.code(), tonic::Code::Internal, "{status}");
+        }
+        traffic_controller
+            .remove_access_rule(AccessRuleList::Allow, &client.to_string())
+            .unwrap();
+        assert_eq!(
+            traffic_controller.check(&Some(client), &None),
+            ClientAccess::Limited
+        );
+
+        // Without the rule, one request blocks the client.
+        let status = get_tx_status_without_digest().await;
+        assert_eq!(status.code(), tonic::Code::Internal, "{status}");
+        assert_eq!(
+            traffic_controller.check(&Some(client), &None),
+            ClientAccess::Refused
+        );
+    }
 
     /// A request from a client that an allow rule serves is not tallied, so
     /// an error policy that blocks on the first error does not block it.
