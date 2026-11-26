@@ -5,7 +5,6 @@
 module iota::smart_account_builtin_authenticator_tests;
 
 use iota::authenticator_function::{Self, AuthenticatorFunctionRefV1};
-use iota::bcs;
 use iota::builtin_authenticator_functions::{
     Self,
     PublicKeyAttached,
@@ -111,10 +110,15 @@ fun builder_v1_emits_public_key_attached() {
         scenario.ctx(),
     ).build_v1();
 
-    assert_public_key_event_counts(1, 0, 0);
-    assert_eq(
-        bcs::to_bytes(&event::events_by_type<PublicKeyAttached>()[0]),
-        public_key_event_bytes(object::id_from_address(account), key()),
+    assert_public_key_events(
+        vector[
+            builtin_authenticator_functions::create_public_key_attached_for_testing(
+                object::id_from_address(account),
+                key(),
+            ),
+        ],
+        vector[],
+        vector[],
     );
 
     scenario.end();
@@ -390,10 +394,15 @@ fun rotate_to_builtin_authenticator_v1_emits_public_key_attached() {
             scenario.ctx(),
         );
 
-        assert_public_key_event_counts(1, 0, 0);
-        assert_eq(
-            bcs::to_bytes(&event::events_by_type<PublicKeyAttached>()[0]),
-            public_key_event_bytes(object::id(account), key()),
+        assert_public_key_events(
+            vector[
+                builtin_authenticator_functions::create_public_key_attached_for_testing(
+                    object::id(account),
+                    key(),
+                ),
+            ],
+            vector[],
+            vector[],
         );
     });
 }
@@ -518,10 +527,15 @@ fun rotate_to_custom_authenticator_v1_emits_public_key_detached() {
             scenario.ctx(),
         );
 
-        assert_public_key_event_counts(0, 1, 0);
-        assert_eq(
-            bcs::to_bytes(&event::events_by_type<PublicKeyDetached>()[0]),
-            public_key_event_bytes(object::id(account), key()),
+        assert_public_key_events(
+            vector[],
+            vector[
+                builtin_authenticator_functions::create_public_key_detached_for_testing(
+                    object::id(account),
+                    key(),
+                ),
+            ],
+            vector[],
         );
     });
 }
@@ -623,10 +637,16 @@ fun rotate_public_key_emits_public_key_rotated() {
             scenario.ctx(),
         );
 
-        assert_public_key_event_counts(0, 0, 1);
-        assert_eq(
-            bcs::to_bytes(&event::events_by_type<PublicKeyRotated>()[0]),
-            public_key_rotated_event_bytes(object::id(account), key(), other_key()),
+        assert_public_key_events(
+            vector[],
+            vector[],
+            vector[
+                builtin_authenticator_functions::create_public_key_rotated_for_testing(
+                    object::id(account),
+                    key(),
+                    other_key(),
+                ),
+            ],
         );
     });
 }
@@ -853,29 +873,16 @@ fun builtin_authenticator(): AuthenticatorFunctionRefV1<SmartAccount> {
     builtin_authenticator_functions::builtin_authenticator_function_ref_v1()
 }
 
-/// Asserts how many `PublicKeyAttached`, `PublicKeyDetached` and `PublicKeyRotated` events the
-/// current transaction has emitted.
-fun assert_public_key_event_counts(attached: u64, detached: u64, rotated: u64) {
-    assert_eq(event::events_by_type<PublicKeyAttached>().length(), attached);
-    assert_eq(event::events_by_type<PublicKeyDetached>().length(), detached);
-    assert_eq(event::events_by_type<PublicKeyRotated>().length(), rotated);
-}
-
-// The event fields are private to `builtin_authenticator_functions`, so the tests compare BCS
-// bytes: a struct's BCS bytes are those of its fields, in declaration order.
-
-/// Returns the BCS bytes of a `PublicKeyAttached` or `PublicKeyDetached` event.
-fun public_key_event_bytes(account_id: ID, public_key: PublicKey): vector<u8> {
-    let mut bytes = bcs::to_bytes(&account_id);
-    bytes.append(bcs::to_bytes(&public_key));
-    bytes
-}
-
-/// Returns the BCS bytes of a `PublicKeyRotated` event.
-fun public_key_rotated_event_bytes(account_id: ID, from: PublicKey, to: PublicKey): vector<u8> {
-    let mut bytes = public_key_event_bytes(account_id, from);
-    bytes.append(bcs::to_bytes(&to));
-    bytes
+/// Asserts that the current transaction has emitted exactly these `PublicKeyAttached`,
+/// `PublicKeyDetached` and `PublicKeyRotated` events.
+fun assert_public_key_events(
+    attached: vector<PublicKeyAttached>,
+    detached: vector<PublicKeyDetached>,
+    rotated: vector<PublicKeyRotated>,
+) {
+    assert_eq(event::events_by_type<PublicKeyAttached>(), attached);
+    assert_eq(event::events_by_type<PublicKeyDetached>(), detached);
+    assert_eq(event::events_by_type<PublicKeyRotated>(), rotated);
 }
 
 /// Runs `$f` on a shared `SmartAccount` at `ACCOUNT`, built by
