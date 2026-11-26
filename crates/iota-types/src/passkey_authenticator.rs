@@ -4,7 +4,7 @@
 
 use iota_sdk_crypto::{Verifier, passkey::PasskeyVerifier};
 use iota_sdk_types::{
-    Address,
+    Address, SigningDigest,
     crypto::{IntentMessage, PasskeyAuthenticator},
 };
 use serde::Serialize;
@@ -24,16 +24,23 @@ impl AuthenticatorTrait for PasskeyAuthenticator {
         &self,
         intent_msg: &IntentMessage<T>,
         author: Address,
-        _aux_verify_data: &VerifyParams,
+        aux_verify_data: &VerifyParams,
     ) -> IotaResult
     where
         T: Serialize,
     {
-        let digest = intent_msg.signing_digest();
+        self.verify_signing_digest(&intent_msg.signing_digest(), author, aux_verify_data)
+    }
 
+    fn verify_signing_digest(
+        &self,
+        digest: &SigningDigest,
+        author: Address,
+        _aux_verify_data: &VerifyParams,
+    ) -> IotaResult {
         PasskeyVerifier::new()
             .with_address(author)
-            .verify(&digest, self)
+            .verify(digest, self)
             .map_err(|e| IotaError::InvalidSignature {
                 error: format!("Invalid passkey authentication: {e}"),
             })
