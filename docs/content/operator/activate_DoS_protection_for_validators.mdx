@@ -275,6 +275,8 @@ The admin API of the node (`admin-interface-address`, `127.0.0.1:1337` by defaul
 
 `blocklist` shows at most `limit` blocks, and `clients` at most `top` gas balances and `top` blocks, 200 by default. A listing says how many entries it left out. The spam and error policies cannot report what they counted for a client, so `clients` shows only the gas balances and the blocks.
 
+When the node starts to refuse a client outside dry run, it logs the line `client_blocked client=<client> reason=<spam|error|manual> ttl_secs=<seconds>` at level `info` under the log target `iota_node::client_blocked`. Host firewall tools such as fail2ban and CrowdSec can act on this line.
+
 `block` and `unblock` take an IP address, or an IPv6 prefix as the blocklist names it, such as `2001:db8:1:2::/64`:
 
 - A manual block of an IPv6 address blocks its whole `ipv6-prefix-len` prefix.
@@ -283,7 +285,7 @@ The admin API of the node (`admin-interface-address`, `127.0.0.1:1337` by defaul
 - The node rejects a manual block of a client that an allow rule serves, since a firewall that acts on the block line would ban that client.
 - Under dry run the node keeps the block, but still serves the client.
 - An unblock also removes the block of the client where it reached the node through a fullnode. It resets what the spam and error policies counted for the client, and its gas balance; otherwise the next request of the client would block it again.
-- For a block whose block line it logged, the node logs a `client_unblocked client=<client>` line under the same target, so a firewall that acts on the block line can lift its ban.
+- For a block whose block line it logged, the node logs a `client_unblocked client=<client>` line under the same log target, `iota_node::client_blocked`, so a firewall that acts on the block line can lift its ban.
 
 Outside dry run, `default_action=deny` refuses every client that no allow rule names. On a validator this also refuses the other nodes that send it requests. With `client-id-source: socket-addr`, add allow rules for them first. With `x-forwarded-for`, allow rules cannot admit them, as [Proxy Mode Configuration](#proxy-mode-configuration) explains.
 
