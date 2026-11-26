@@ -152,7 +152,13 @@ fn parse_version(version: &str) -> Option<(&str, &str)> {
 mod tests {
     use std::net::SocketAddr;
 
-    use axum::{Router, body::Body, middleware, routing::get};
+    use axum::{
+        Router,
+        body::Body,
+        http::header::{ACCESS_CONTROL_EXPOSE_HEADERS, ORIGIN},
+        middleware,
+        routing::get,
+    };
     use expect_test::expect;
     use http_body_util::BodyExt;
     use iota_metrics;
@@ -163,7 +169,7 @@ mod tests {
     use crate::{
         config::{ConnectionConfig, ServiceConfig, Version},
         metrics::Metrics,
-        server::builder::AppState,
+        server::builder::{AppState, ServerBuilder},
     };
 
     fn metrics() -> Metrics {
@@ -274,6 +280,33 @@ mod tests {
                 IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN
             ))
         );
+    }
+
+    #[tokio::test]
+    async fn cross_origin_response_exposes_version_headers() {
+        let service = service().layer(ServerBuilder::cors().unwrap());
+        let request = Request::builder()
+            .uri("/graphql")
+            .header(ORIGIN, "https://example.com")
+            .body(Body::empty())
+            .unwrap();
+        let response = service.oneshot(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let exposed: Vec<_> = response
+            .headers()
+            .get_all(ACCESS_CONTROL_EXPOSE_HEADERS)
+            .iter()
+            .flat_map(|value| value.to_str().unwrap().split(','))
+            .map(str::trim)
+            .collect();
+        for header in [&VERSION_HEADER, &IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN_HEADER] {
+            assert!(response.headers().contains_key(header));
+            assert!(
+                exposed.contains(&header.as_str()),
+                "{header} is not in {exposed:?}"
+            );
+        }
     }
 
     #[tokio::test]
