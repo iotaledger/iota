@@ -33,7 +33,7 @@ pub struct TrafficControllerMetrics {
 
 impl TrafficControllerMetrics {
     pub fn new(registry: &Registry) -> Self {
-        Self {
+        let metrics = Self {
             tallies: register_int_counter_with_registry!("tallies", "Number of tallies", registry)
                 .unwrap(),
             unresolved_client_requests: register_int_counter_with_registry!(
@@ -153,7 +153,13 @@ impl TrafficControllerMetrics {
                 registry
             )
             .unwrap(),
-        }
+        };
+        // No dimension enforces until a rate-limiting policy configures it, so
+        // start the gauges at the -1 "not enforcing" sentinel rather than the
+        // registration default of 0 (which the gauge reads as enforcing at 0).
+        metrics.spam_response_items_threshold.set(-1);
+        metrics.spam_rendered_fields_threshold.set(-1);
+        metrics
     }
 
     pub fn new_for_tests() -> Self {

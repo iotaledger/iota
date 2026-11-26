@@ -421,7 +421,7 @@ enum Policy {
 /// Which of a traffic controller's two policies is being built. The
 /// response-item and rendered-field dimensions are spam-only, so the error
 /// policy ignores any dimension thresholds in its config.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 pub(super) enum PolicyRole {
     Spam,
     Error,

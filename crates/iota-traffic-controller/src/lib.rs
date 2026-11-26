@@ -1210,6 +1210,16 @@ mod tests {
     }
 
     #[test]
+    fn allowlist_mode_reports_the_dimensions_as_not_enforcing() {
+        // Allowlist mode tallies nothing, so neither dimension enforces; the
+        // gauges must read the -1 "not enforcing" sentinel, not the default 0
+        // (which the metric defines as enforcing at a rate of 0).
+        let controller = allowlist_mode();
+        assert_eq!(controller.metrics.spam_response_items_threshold.get(), -1);
+        assert_eq!(controller.metrics.spam_rendered_fields_threshold.get(), -1);
+    }
+
+    #[test]
     fn the_admin_api_rejects_a_blocklist_ttl_in_allowlist_mode() {
         let controller = allowlist_mode();
         for (connection_blocklist_ttl_sec, proxy_blocklist_ttl_sec) in
