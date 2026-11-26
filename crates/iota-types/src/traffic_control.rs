@@ -152,12 +152,14 @@ pub struct FreqThresholdConfig {
     pub burst_secs: u64,
     /// Sustained returned items per second allowed from a single direct client.
     /// `None` leaves the response-item dimension disabled; it builds no limiter
-    /// and never blocks.
+    /// and never blocks. A value of zero blocks every client that returns any
+    /// item, like a zero `client_threshold`.
     #[serde(default)]
     pub response_items_threshold: Option<u64>,
     /// Sustained server-rendered fields per second allowed from a single direct
     /// client. `None` leaves the rendered-field dimension disabled; it builds no
-    /// limiter and never blocks.
+    /// limiter and never blocks. A value of zero blocks every client that
+    /// renders any field, like a zero `client_threshold`.
     #[serde(default)]
     pub rendered_fields_threshold: Option<u64>,
 }

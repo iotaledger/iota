@@ -201,10 +201,10 @@ impl TrafficController {
                 .map_err(IotaError::InvalidAdminRequest)?;
             self.metrics
                 .spam_response_items_threshold
-                .set(spam.response_items_state().0.unwrap_or(0) as i64);
+                .set(enforced_threshold(spam.response_items_state()));
             self.metrics
                 .spam_rendered_fields_threshold
-                .set(spam.rendered_fields_state().0.unwrap_or(0) as i64);
+                .set(enforced_threshold(spam.rendered_fields_state()));
         }
         self.client_access.reconfigure(
             dry_run,
@@ -318,6 +318,18 @@ fn validate_dimension(
     Ok(())
 }
 
+/// The threshold a dimension is currently enforcing, for its metric gauge: the
+/// configured value when the gate is on, else 0. An operator reads a non-zero
+/// gauge as "this dimension is enforcing at this rate"; the configured value of
+/// a gated-off dimension is in [`TrafficController::get_current_state`].
+fn enforced_threshold((threshold, enabled): (Option<u64>, bool)) -> i64 {
+    if enabled {
+        threshold.unwrap_or(0) as i64
+    } else {
+        0
+    }
+}
+
 /// Reports the thresholds the policies enforce.
 fn set_policy_config_metrics(
     policies: &Policies,
@@ -332,10 +344,10 @@ fn set_policy_config_metrics(
     }
     metrics
         .spam_response_items_threshold
-        .set(policies.spam.response_items_state().0.unwrap_or(0) as i64);
+        .set(enforced_threshold(policies.spam.response_items_state()));
     metrics
         .spam_rendered_fields_threshold
-        .set(policies.spam.rendered_fields_state().0.unwrap_or(0) as i64);
+        .set(enforced_threshold(policies.spam.rendered_fields_state()));
     if let PolicyType::FreqThreshold(config) = &policy_config.spam_policy_type {
         metrics
             .spam_proxied_client_threshold
@@ -685,6 +697,21 @@ mod tests {
         assert_eq!(state.rendered_fields_enabled, Some(true));
         assert_eq!(state.response_items_threshold, None);
         assert_eq!(state.response_items_enabled, Some(false));
+    }
+
+    #[tokio::test]
+    async fn gauge_reports_the_enforced_threshold_only() {
+        let controller = rendered_field_controller(Some(100));
+        assert_eq!(controller.metrics.spam_rendered_fields_threshold.get(), 100);
+
+        controller
+            .admin_reconfigure(TrafficControlReconfigParams {
+                rendered_fields_enabled: Some(false),
+                ..Default::default()
+            })
+            .expect("disables the rendered-field dimension");
+        // Configured at 100 but gated off: the gauge reads 0 (not enforcing).
+        assert_eq!(controller.metrics.spam_rendered_fields_threshold.get(), 0);
     }
 
     #[tokio::test]
