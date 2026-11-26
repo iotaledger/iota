@@ -76,7 +76,8 @@ impl std::fmt::Display for SimulationGasRefusal {
     }
 }
 
-/// The gas balances of the clients. Only a reservation adds an entry, so a
+/// The gas balances of the clients. Only a simulation adds an entry: its
+/// reservation, or its settle when it charges more than it reserved. So a
 /// client that never simulates takes none. A settle that brings the balance
 /// back to `burst-gas` removes the entry.
 pub(crate) struct SimulationGasLimiter {
