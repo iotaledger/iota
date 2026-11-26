@@ -34,7 +34,7 @@ use iota_types::{
 
 use crate::{
     authority::{
-        AuthorityState, ExecutionEnv,
+        AuthorityMetrics, AuthorityState, ExecutionEnv,
         authority_per_epoch_store::{
             CongestionControlParameters, PreviouslyDeferredTransactions,
             consensus_quarantine::ConsensusCommitOutput,
@@ -1301,6 +1301,14 @@ async fn test_combined_tracker_schedules_randomness_with_regular_transactions() 
     // limit), not cancelled.
     let metrics = &authority.metrics;
     assert_eq!(metrics.consensus_handler_deferred_transactions.get(), 2);
+    // The gauges describe the second commit: one transaction deferred, the
+    // other on the single worker until the end of the commit's budget.
+    assert_eq!(
+        metrics.consensus_handler_commit_deferred_transactions.get(),
+        1
+    );
+    assert_eq!(metrics.consensus_handler_execution_worker_end_time.get(), 1);
+    assert_eq!(metrics.consensus_handler_execution_worker_debt.get(), 0);
     for (reason, congested) in [
         ("execution_worker_congestion", 2),
         ("shared_object_congestion", 0),
@@ -3091,4 +3099,52 @@ async fn test_dependency_wait_records_no_suggested_gas_price() {
             .collect::<Vec<_>>(),
         vec![None]
     );
+}
+
+/// A validator that leaves `metrics.groups` at its default exposes the
+/// congestion control metrics of the consensus handler.
+#[test]
+fn test_congestion_control_metrics_are_exposed_with_the_default_metric_groups() {
+    let (filter, errors) = iota_metrics::MetricGroups::default().startup_filter(None);
+    assert!(errors.is_empty(), "{errors:?}");
+    let registry = prometheus_filtered::Registry::new_custom(None, None, Some(Arc::new(filter)))
+        .expect("an unprefixed registry without labels is valid");
+    let metrics = AuthorityMetrics::new(&registry);
+
+    // A metric with labels is gathered only once one of its label values is
+    // in use.
+    let reason = &["shared_object_congestion"];
+    metrics
+        .consensus_handler_congested_transactions
+        .with_label_values(reason);
+    metrics
+        .consensus_handler_cancelled_transactions
+        .with_label_values(reason);
+    metrics
+        .consensus_handler_suggested_gas_price_increase
+        .with_label_values(reason);
+    metrics
+        .consensus_handler_max_object_costs
+        .with_label_values(&["regular_commit"]);
+
+    let exposed: BTreeSet<String> = registry
+        .gather()
+        .iter()
+        .map(|family| family.name().to_owned())
+        .collect();
+    for name in [
+        "consensus_handler_deferred_transactions",
+        "consensus_handler_congested_transactions",
+        "consensus_handler_dependency_deferred_transactions",
+        "consensus_handler_cancelled_transactions",
+        "consensus_handler_commit_deferred_transactions",
+        "consensus_handler_suggested_gas_price_increase",
+        "consensus_handler_execution_worker_debt",
+        "consensus_handler_execution_worker_end_time",
+        "consensus_handler_load_shedding_dropped_transactions",
+        "consensus_handler_load_shedding_percentage",
+        "consensus_handler_max_congestion_control_object_costs",
+    ] {
+        assert!(exposed.contains(name), "{name} is not exposed");
+    }
 }
