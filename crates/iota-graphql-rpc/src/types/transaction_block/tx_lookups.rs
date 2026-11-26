@@ -33,7 +33,8 @@
 //!
 //! - If a `sender` filter is included, then it is incorporated into each constituent query,
 //!   leveraging their secondary indices (2), otherwise each constituent query filters only based on
-//!   its filter value using the primary index (1).
+//!   its filter value using the primary index (1). `tx_kinds` is the exception: it has no `sender`
+//!   column, so a `kind` filter with a sender is intersected with `tx_senders` instead.
 //!
 //! - The fact that both the primary and secondary indices contain the transaction sequence number
 //!   help to ensure that the output from an index scan is already sorted, which avoids a
@@ -62,6 +63,7 @@ use std::{
 
 use diesel::{ExpressionMethods, QueryDsl};
 use iota_indexer::{ingestion::common::CommitterTables, schema::pruner_cp_watermark};
+use iota_json_rpc_types::IotaTransactionKind;
 
 use crate::{
     data::{Conn, DbConnection, pg::bytea_literal},
@@ -352,7 +354,7 @@ pub(crate) fn subqueries(
         });
     }
     if let Some(kind) = &filter.kind {
-        subqueries.push(("tx_kinds", select_kind(*kind, sender, tx_bounds)));
+        subqueries.push(("tx_kinds", select_kind(*kind, tx_bounds)));
     }
     if let Some(recv) = &filter.recv_address {
         subqueries.push(("tx_recipients", select_recipient(recv, sender, tx_bounds)));
@@ -415,11 +417,8 @@ pub(crate) fn subquery_tables(filter: &TransactionBlockFilter) -> Vec<CommitterT
             FqNameFilter::ByFqName(..) => TxCallsFun,
         });
     }
-    if let Some(kind) = &filter.kind {
-        tables.push(match (kind, sender) {
-            (TransactionBlockKindInput::ProgrammableTx, Some(_)) => TxSenders,
-            _ => TxKinds,
-        });
+    if filter.kind.is_some() {
+        tables.push(TxKinds);
     }
     if filter.recv_address.is_some() {
         tables.push(TxRecipients);
@@ -527,32 +526,28 @@ fn select_fun(
     )
 }
 
-/// Returns a RawQuery that selects transactions of a specific kind. If SystemTX
-/// is specified, we ignore the `sender`. If ProgrammableTX is specified, we
-/// filter against the `tx_kinds` table if no `sender` is provided; otherwise,
-/// we just query the `tx_senders` table. Other combinations, in particular when
-/// kind is SystemTx and sender is specified and not 0x0, are inconsistent and
-/// will not produce any results. These inconsistent cases are expected to be
-/// checked for before this is called.
-fn select_kind(
-    kind: TransactionBlockKindInput,
-    sender: Option<IotaAddress>,
-    bound: TxBounds,
-) -> RawQuery {
-    match (kind, sender) {
-        // We can simplify the query to just the `tx_senders` table if ProgrammableTX and sender is
-        // specified.
-        (TransactionBlockKindInput::ProgrammableTx, Some(sender)) => select_sender(&sender, bound),
-        // Otherwise, we can ignore the sender always, and just query the `tx_kinds` table.
-        _ => filter!(
-            select_tx(None, bound, "tx_kinds"),
-            if TransactionBlockKindInput::SystemTx == kind {
-                "tx_kind != 1".to_string()
-            } else {
-                format!("tx_kind = {}", kind as i16)
-            }
-        ),
-    }
+/// Returns a RawQuery that selects transactions of a specific kind from
+/// `tx_kinds`. The sender is not applied here, because `tx_kinds` has no
+/// `sender` column: a `kind` filter with a sender needs to be intersected with
+/// `tx_senders` by the caller.
+fn select_kind(kind: TransactionBlockKindInput, bound: TxBounds) -> RawQuery {
+    filter!(
+        select_tx(None, bound, "tx_kinds"),
+        if TransactionBlockKindInput::SystemTx == kind {
+            // `tx_kinds` stores `IotaTransactionKind` numbers, and every kind
+            // outside its `NON_SYSTEM_KINDS` is a system kind.
+            format!(
+                "tx_kind NOT IN ({})",
+                IotaTransactionKind::NON_SYSTEM_KINDS
+                    .iter()
+                    .map(|kind| (*kind as i16).to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        } else {
+            format!("tx_kind = {}", kind as i16)
+        }
+    )
 }
 
 fn select_sender(sender: &IotaAddress, bound: TxBounds) -> RawQuery {

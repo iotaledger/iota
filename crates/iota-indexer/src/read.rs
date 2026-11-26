@@ -151,6 +151,26 @@ fn escape_like(value: &str) -> String {
         .replace('%', r"\%")
 }
 
+/// The `tx_kind` condition that matches every system transaction, and the
+/// transactions of the `requested` kinds.
+///
+/// Every kind outside `IotaTransactionKind::NON_SYSTEM_KINDS` is a system
+/// kind, so the condition excludes the non-system kinds that were not
+/// requested.
+fn system_tx_kind_condition(requested: &[IotaTransactionKind]) -> String {
+    let excluded = IotaTransactionKind::NON_SYSTEM_KINDS
+        .iter()
+        .filter(|kind| !requested.contains(kind))
+        .map(|kind| *kind as u8)
+        .join(", ");
+
+    if excluded.is_empty() {
+        "1 = 1".to_string()
+    } else {
+        format!("tx_kind NOT IN ({excluded})")
+    }
+}
+
 /// A condition on the type of an object in the `objects` table.
 type ObjectTypeFilter = Box<dyn BoxableExpression<objects::table, Pg, SqlType = Nullable<Bool>>>;
 
@@ -1710,7 +1730,7 @@ impl IndexerReader {
                 // The `SystemTransaction` variant can be used to filter for all types of system
                 // transactions.
                 if kind == IotaTransactionKind::SystemTransaction {
-                    ("tx_kinds".into(), "tx_kind != 1".to_string())
+                    ("tx_kinds".into(), system_tx_kind_condition(&[]))
                 } else {
                     ("tx_kinds".into(), format!("tx_kind = {}", kind as u8))
                 }
@@ -1723,52 +1743,14 @@ impl IndexerReader {
                     ));
                 }
 
-                let mut has_system_transaction = false;
-                let mut has_programmable_transaction = false;
-                let mut other_kinds = HashSet::new();
-
-                for kind in kind_vec.iter() {
-                    match kind {
-                        IotaTransactionKind::SystemTransaction => has_system_transaction = true,
-                        IotaTransactionKind::ProgrammableTransaction => {
-                            has_programmable_transaction = true
-                        }
-                        other => {
-                            other_kinds.insert(*other as u8);
-                        }
-                    }
-                }
-
-                let query = if has_system_transaction {
-                    // Case: If `SystemTransaction` is present but `ProgrammableTransaction` is not,
-                    // we need to filter out `ProgrammableTransaction`.
-                    if !has_programmable_transaction {
-                        "tx_kind != 1".to_string()
-                    } else {
-                        // No filter applied if both exist
-                        "1 = 1".to_string()
-                    }
+                let query = if kind_vec.contains(&IotaTransactionKind::SystemTransaction) {
+                    // `SystemTransaction` stands for every system kind.
+                    system_tx_kind_condition(&kind_vec)
                 } else {
-                    // Case: `ProgrammableTransaction` is present
-                    if has_programmable_transaction {
-                        other_kinds.insert(IotaTransactionKind::ProgrammableTransaction as u8);
-                    }
-
-                    if other_kinds.is_empty() {
-                        // If there's nothing to filter on, return an empty query
-                        "1 = 1".to_string()
-                    } else {
-                        let mut query = String::from("tx_kind IN (");
-                        query.push_str(
-                            &other_kinds
-                                .iter()
-                                .map(ToString::to_string)
-                                .collect::<Vec<_>>()
-                                .join(", "),
-                        );
-                        query.push(')');
-                        query
-                    }
+                    format!(
+                        "tx_kind IN ({})",
+                        kind_vec.iter().map(|kind| *kind as u8).unique().join(", ")
+                    )
                 };
 
                 ("tx_kinds".into(), query)
@@ -3780,9 +3762,9 @@ pub(crate) enum TransactionFilterKind {
 mod tests {
     use std::num::NonZeroUsize;
 
-    use iota_json_rpc_types::Checkpoint;
+    use iota_json_rpc_types::{Checkpoint, IotaTransactionKind};
 
-    use super::{IndexerReader, escape_like};
+    use super::{IndexerReader, escape_like, system_tx_kind_condition};
 
     #[test]
     fn escape_like_escapes_wildcards() {
@@ -3790,6 +3772,29 @@ mod tests {
         assert_eq!(escape_like("100%"), r"100\%");
         assert_eq!(escape_like(r"back\slash"), r"back\\slash");
         assert_eq!(escape_like("plain"), "plain");
+    }
+
+    #[test]
+    fn system_tx_kind_condition_excludes_the_non_system_kinds_not_requested() {
+        use IotaTransactionKind::*;
+
+        assert_eq!(system_tx_kind_condition(&[]), "tx_kind NOT IN (1, 8)");
+        assert_eq!(
+            system_tx_kind_condition(&[SystemTransaction, Genesis]),
+            "tx_kind NOT IN (1, 8)"
+        );
+        assert_eq!(
+            system_tx_kind_condition(&[SystemTransaction, ProgrammableTransaction]),
+            "tx_kind NOT IN (8)"
+        );
+        assert_eq!(
+            system_tx_kind_condition(&[SystemTransaction, ClaimAccount]),
+            "tx_kind NOT IN (1)"
+        );
+        assert_eq!(
+            system_tx_kind_condition(&[SystemTransaction, ProgrammableTransaction, ClaimAccount]),
+            "1 = 1"
+        );
     }
 
     fn dummy_checkpoint(sequence_number: u64) -> Checkpoint {
