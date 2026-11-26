@@ -715,7 +715,7 @@ impl Core {
     /// Fails if reading the stored commits fails or the node is shutting down.
     pub(crate) async fn reinitialize_components(
         &mut self,
-        block_headers: Vec<VerifiedBlockHeader>,
+        mut block_headers: Vec<VerifiedBlockHeader>,
     ) -> ConsensusResult<()> {
         let _scope = monitored_scope("Core::reinitialize_components");
         let _s = self
@@ -729,6 +729,9 @@ impl Core {
             "Reinitializing components with {} block headers",
             block_headers.len(),
         );
+        // Ancestors and acknowledgments are in earlier rounds, so in round order
+        // each header is accepted after the headers it references.
+        block_headers.sort_unstable_by_key(VerifiedBlockHeader::reference);
 
         // Hold the dag_state lock for the entire flow to ensure consistency
         let (threshold_round, last_commit_leader) = {
@@ -2046,7 +2049,7 @@ mod test {
     };
 
     use futures::{StreamExt, stream::FuturesUnordered};
-    use iota_metrics::monitored_mpsc::unbounded_channel;
+    use iota_metrics::monitored_mpsc::{self, unbounded_channel};
     use iota_protocol_config::ProtocolConfig;
     use rstest::rstest;
     use serial_test::serial;
@@ -2061,6 +2064,7 @@ mod test {
             genesis_block_headers, genesis_blocks,
         },
         commit::{CommitAPI, CommitDigest, CommitInfo, CommitRange, CommitRef},
+        cordial_knowledge::{CordialKnowledgeMessage, EvictionRounds},
         leader_scoring::ReputationScores,
         storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
@@ -4875,5 +4879,84 @@ mod test {
         );
         assert!(new_round_receiver.has_changed().unwrap());
         assert_eq!(*new_round_receiver.borrow(), signaled_round);
+    }
+
+    /// When fast sync ends, the first `NewHeader` message for each fetched
+    /// header carries the commitment of every fetched header it acknowledges,
+    /// whatever order the headers were fetched in.
+    #[tokio::test]
+    async fn fast_sync_reinitialization_reports_commitments_of_acknowledged_headers() {
+        telemetry_subscribers::init_for_testing();
+        // GIVEN headers fetched in reverse round order, where each header above
+        // round 1 acknowledges every header of the round before.
+        let (context, _) = Context::new_for_test(4);
+        let mut fixture = CoreTestFixture::new(
+            context.clone(),
+            vec![1; 4],
+            AuthorityIndex::new_for_test(0),
+            true,
+            false,
+            None,
+        )
+        .await;
+        let mut dag_builder = DagBuilder::new(Arc::new(context));
+        dag_builder.layers(1..=4).build();
+        let headers = dag_builder.block_headers(1..=4);
+        let commitments: BTreeMap<BlockRef, TransactionsCommitment> = headers
+            .iter()
+            .map(|header| (header.reference(), header.transactions_commitment()))
+            .collect();
+        let (sender, mut receiver) = monitored_mpsc::channel("cordial_knowledge", 1000);
+        let (eviction_sender, _eviction_receiver) = watch::channel(EvictionRounds::default());
+        fixture
+            .core
+            .dag_state
+            .write()
+            .set_cordial_knowledge_senders(sender, eviction_sender);
+
+        // WHEN fast sync ends.
+        fixture
+            .core
+            .reinitialize_components(headers.into_iter().rev().collect())
+            .await
+            .unwrap();
+
+        // THEN the first message for each header, the one `CordialKnowledge`
+        // keeps, comes in round order and has every acknowledged commitment.
+        let mut reported = Vec::new();
+        let mut checked_acknowledgments = 0;
+        while let Ok(message) = receiver.try_recv() {
+            let CordialKnowledgeMessage::NewHeader {
+                header,
+                ack_transactions_commitments,
+            } = message
+            else {
+                continue;
+            };
+            if reported.contains(&header.reference()) {
+                continue;
+            }
+            reported.push(header.reference());
+            for (acknowledgment, commitment) in header
+                .acknowledgments()
+                .iter()
+                .zip(&ack_transactions_commitments)
+            {
+                assert_eq!(
+                    *commitment,
+                    commitments.get(acknowledgment).copied(),
+                    "{} acknowledges {acknowledgment}",
+                    header.reference()
+                );
+                checked_acknowledgments += 1;
+            }
+        }
+        assert!(reported.is_sorted());
+        assert!(
+            commitments
+                .keys()
+                .all(|block_ref| reported.contains(block_ref))
+        );
+        assert!(checked_acknowledgments > 0);
     }
 }
