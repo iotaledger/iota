@@ -1812,7 +1812,9 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
 
         tokio::pin!(fetcher_timeout);
 
-        loop {
+        // Stop once no request is in flight: none may have been sent because
+        // all headers were locked, or the last one failed with no peer left.
+        while !request_futures.is_empty() {
             tokio::select! {
                 Some((response, blocks_guard, _retries, peer_index, highest_rounds)) = request_futures.next() => {
                     let peer_hostname = &context.committee.authority(peer_index).hostname;
@@ -1820,11 +1822,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                         Ok(fetched) => {
                             debug!("Fetched {} block headers from peer {}", fetched.serialized_headers.len(), peer_hostname);
                             results.push((blocks_guard, fetched, peer_index, highest_rounds));
-
-                            // no more pending requests are left, just break the loop
-                            if request_futures.is_empty() {
-                                break;
-                            }
                         },
                         Err(err) => {
                             misbehavior_store.record_fetch_fault(peer_index, &err);
@@ -3763,6 +3760,71 @@ mod tests {
             None,
             "a speculatively asked peer returning nothing should not be recorded"
         );
+    }
+
+    /// Periodic sync returns as soon as no request is in flight instead of
+    /// waiting out `FETCH_FROM_PEERS_TIMEOUT`.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn periodic_fetch_returns_when_no_request_is_in_flight() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let header = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(10, 1).build());
+        let peers = [1, 2, 3].map(AuthorityIndex::new_for_test);
+        // Known by every peer, so each is asked at once and none is left for a retry.
+        let missing = BTreeMap::from([(header.reference(), BTreeSet::from(peers))]);
+
+        let fetch = |inflight: Arc<InflightBlockHeadersMap>,
+                     network_client: Arc<MockNetworkClient>| {
+            HeaderSynchronizer::<MockNetworkClient, NoopBlockVerifier, SyncMockDispatcher>
+                ::fetch_block_headers_from_authorities_periodic(
+                    context.clone(),
+                    inflight,
+                    network_client,
+                    missing.clone(),
+                    dag_state.clone(),
+                    Arc::new(MisbehaviorStore::new(&context)),
+                )
+        };
+
+        // No request is sent: other fetches already hold every lock on the header.
+        let inflight = InflightBlockHeadersMap::new();
+        let _held_locks = peers.map(|peer| {
+            inflight
+                .lock_headers(
+                    BTreeSet::from([header.reference()]),
+                    peer,
+                    SyncMethod::Periodic,
+                )
+                .unwrap()
+        });
+        let network_client = Arc::new(MockNetworkClient::default());
+        let start = tokio::time::Instant::now();
+        let results = fetch(inflight, network_client.clone()).await;
+        assert!(results.is_empty());
+        assert!(network_client.fetch_headers_requests().await.is_empty());
+        assert_eq!(start.elapsed(), Duration::ZERO);
+
+        // Every peer is asked at once and fails, so no peer is left to retry.
+        let network_client = Arc::new(MockNetworkClient::default());
+        for peer in peers {
+            network_client
+                .stub_fetch_headers_response(
+                    vec![header.clone()],
+                    peer,
+                    Some(2 * FETCH_REQUEST_TIMEOUT),
+                )
+                .await;
+        }
+        let start = tokio::time::Instant::now();
+        let results = fetch(InflightBlockHeadersMap::new(), network_client.clone()).await;
+        assert!(results.is_empty());
+        assert_eq!(
+            network_client.fetch_headers_requests().await.len(),
+            peers.len()
+        );
+        assert_eq!(start.elapsed(), FETCH_REQUEST_TIMEOUT);
     }
 
     #[tokio::test(flavor = "current_thread")]
