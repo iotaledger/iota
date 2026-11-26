@@ -3103,8 +3103,8 @@ async fn test_dependency_wait_records_no_suggested_gas_price() {
 
 /// A validator that leaves `metrics.groups` at its default exposes the
 /// congestion control metrics of the consensus handler.
-#[test]
-fn test_congestion_control_metrics_are_exposed_with_the_default_metric_groups() {
+#[tokio::test]
+async fn test_congestion_control_metrics_are_exposed_with_the_default_metric_groups() {
     let (filter, errors) = iota_metrics::MetricGroups::default().startup_filter(None);
     assert!(errors.is_empty(), "{errors:?}");
     let registry = prometheus_filtered::Registry::new_custom(None, None, Some(Arc::new(filter)))
