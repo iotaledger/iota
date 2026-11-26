@@ -777,8 +777,9 @@ fn traffic_control_rules_response(state: &AuthorityState) -> Response {
     json_response(state.traffic_control_access_rules())
 }
 
+/// The query of `POST /traffic-control/rules/add` and `/rules/remove`.
 #[derive(Debug, Deserialize)]
-struct AccessRuleChange {
+struct AccessRuleChangeQuery {
     list: AccessRuleList,
     client: String,
 }
@@ -793,14 +794,14 @@ fn list_name(list: AccessRuleList) -> &'static str {
 
 async fn add_traffic_control_rule(
     State(state): State<Arc<AppState>>,
-    Query(change): Query<AccessRuleChange>,
+    Query(change): Query<AccessRuleChangeQuery>,
 ) -> (StatusCode, String) {
     add_traffic_control_rule_response(&state.node.state(), change)
 }
 
 fn add_traffic_control_rule_response(
     state: &AuthorityState,
-    AccessRuleChange { list, client }: AccessRuleChange,
+    AccessRuleChangeQuery { list, client }: AccessRuleChangeQuery,
 ) -> (StatusCode, String) {
     let list_name = list_name(list);
     change_response(
@@ -815,14 +816,14 @@ fn add_traffic_control_rule_response(
 
 async fn remove_traffic_control_rule(
     State(state): State<Arc<AppState>>,
-    Query(change): Query<AccessRuleChange>,
+    Query(change): Query<AccessRuleChangeQuery>,
 ) -> (StatusCode, String) {
     remove_traffic_control_rule_response(&state.node.state(), change)
 }
 
 fn remove_traffic_control_rule_response(
     state: &AuthorityState,
-    AccessRuleChange { list, client }: AccessRuleChange,
+    AccessRuleChangeQuery { list, client }: AccessRuleChangeQuery,
 ) -> (StatusCode, String) {
     let list_name = list_name(list);
     change_response(
@@ -835,41 +836,43 @@ fn remove_traffic_control_rule_response(
     )
 }
 
+/// The query of `GET /traffic-control/blocklist`.
 #[derive(Debug, Deserialize)]
-struct ListingLimit {
+struct BlocklistQuery {
     limit: Option<usize>,
 }
 
 async fn traffic_control_blocklist(
     State(state): State<Arc<AppState>>,
-    Query(limit): Query<ListingLimit>,
+    Query(query): Query<BlocklistQuery>,
 ) -> Response {
-    traffic_control_blocklist_response(&state.node.state(), limit)
+    traffic_control_blocklist_response(&state.node.state(), query)
 }
 
 fn traffic_control_blocklist_response(
     state: &AuthorityState,
-    ListingLimit { limit }: ListingLimit,
+    BlocklistQuery { limit }: BlocklistQuery,
 ) -> Response {
     json_response(state.traffic_control_blocklist(limit.unwrap_or(DEFAULT_BLOCKLIST_LIMIT)))
 }
 
+/// The query of `POST /traffic-control/block`.
 #[derive(Debug, Deserialize)]
-struct ManualBlock {
+struct ManualBlockQuery {
     client: String,
     ttl_sec: u64,
 }
 
 async fn block_traffic_control_client(
     State(state): State<Arc<AppState>>,
-    Query(block): Query<ManualBlock>,
+    Query(query): Query<ManualBlockQuery>,
 ) -> (StatusCode, String) {
-    block_traffic_control_client_response(&state.node.state(), block)
+    block_traffic_control_client_response(&state.node.state(), query)
 }
 
 fn block_traffic_control_client_response(
     state: &AuthorityState,
-    ManualBlock { client, ttl_sec }: ManualBlock,
+    ManualBlockQuery { client, ttl_sec }: ManualBlockQuery,
 ) -> (StatusCode, String) {
     change_response(
         state
@@ -896,21 +899,22 @@ fn block_traffic_control_client_response(
     )
 }
 
+/// The query of `POST /traffic-control/unblock`.
 #[derive(Debug, Deserialize)]
-struct Client {
+struct UnblockQuery {
     client: String,
 }
 
 async fn unblock_traffic_control_client(
     State(state): State<Arc<AppState>>,
-    Query(client): Query<Client>,
+    Query(query): Query<UnblockQuery>,
 ) -> (StatusCode, String) {
-    unblock_traffic_control_client_response(&state.node.state(), client)
+    unblock_traffic_control_client_response(&state.node.state(), query)
 }
 
 fn unblock_traffic_control_client_response(
     state: &AuthorityState,
-    Client { client }: Client,
+    UnblockQuery { client }: UnblockQuery,
 ) -> (StatusCode, String) {
     change_response(state.unblock_traffic_control_client(&client).map(
         |unblocked| match unblocked {
@@ -923,19 +927,23 @@ fn unblock_traffic_control_client_response(
     ))
 }
 
+/// The query of `GET /traffic-control/clients`.
 #[derive(Debug, Deserialize)]
-struct Top {
+struct ClientUsageQuery {
     top: Option<usize>,
 }
 
 async fn traffic_control_clients(
     State(state): State<Arc<AppState>>,
-    Query(top): Query<Top>,
+    Query(query): Query<ClientUsageQuery>,
 ) -> Response {
-    traffic_control_clients_response(&state.node.state(), top)
+    traffic_control_clients_response(&state.node.state(), query)
 }
 
-fn traffic_control_clients_response(state: &AuthorityState, Top { top }: Top) -> Response {
+fn traffic_control_clients_response(
+    state: &AuthorityState,
+    ClientUsageQuery { top }: ClientUsageQuery,
+) -> Response {
     json_response(state.traffic_control_client_usage(top.unwrap_or(DEFAULT_CLIENTS_TOP)))
 }
 
@@ -1027,22 +1035,26 @@ mod tests {
 
     #[test]
     fn the_traffic_control_routes_read_their_queries() {
-        let change: AccessRuleChange =
+        let change: AccessRuleChangeQuery =
             query("/traffic-control/rules/add?list=deny&client=192.0.2.0/24");
         assert_eq!(change.list, AccessRuleList::Deny);
         assert_eq!(change.client, "192.0.2.0/24");
-        let block: ManualBlock = query("/traffic-control/block?client=203.0.113.9&ttl_sec=3600");
+        let block: ManualBlockQuery =
+            query("/traffic-control/block?client=203.0.113.9&ttl_sec=3600");
         assert_eq!(
             (block.client.as_str(), block.ttl_sec),
             ("203.0.113.9", 3600)
         );
-        let client: Client = query("/traffic-control/unblock?client=203.0.113.9");
-        assert_eq!(client.client, "203.0.113.9");
+        let unblock: UnblockQuery = query("/traffic-control/unblock?client=203.0.113.9");
+        assert_eq!(unblock.client, "203.0.113.9");
         assert_eq!(
-            query::<ListingLimit>("/traffic-control/blocklist").limit,
+            query::<BlocklistQuery>("/traffic-control/blocklist").limit,
             None
         );
-        assert_eq!(query::<Top>("/traffic-control/clients?top=5").top, Some(5));
+        assert_eq!(
+            query::<ClientUsageQuery>("/traffic-control/clients?top=5").top,
+            Some(5)
+        );
         let params: TrafficControlReconfigParams =
             query("/traffic-control?default_action=deny&simulation_burst_gas=20");
         assert_eq!(params.default_action, Some(DefaultAction::Deny));
