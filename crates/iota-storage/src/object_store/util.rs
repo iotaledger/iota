@@ -422,7 +422,7 @@ mod tests {
             Err(object_store::Error::NotFound { .. })
         ));
         store
-            .head(&epoch_dir.clone().join(MANIFEST_FILENAME))
+            .head(&epoch_dir.join(MANIFEST_FILENAME))
             .await
             .unwrap();
     }
