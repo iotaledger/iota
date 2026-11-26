@@ -134,7 +134,7 @@ The change lasts until the node restarts. The balances are kept, and cut to a lo
 
 ## Trusted Forwarders
 
-A GraphQL server and an indexer serve dry runs, dev inspects and view calls by calling the gRPC API of a fullnode, and name the user of each call in the `x-iota-client-ip` header. List them in `access-rules.forwarders` of the fullnode, so that the fullnode treats each user as its own client:
+A GraphQL server serves dry runs and view calls, and an indexer serves dry runs, dev inspects and view calls, by calling the gRPC API of a fullnode. For each of these simulations they name the user in the `x-iota-client-ip` header. List them in `access-rules.forwarders` of the fullnode, so that the fullnode treats each user as its own client:
 
 ```yaml
 policy-config:
@@ -143,13 +143,14 @@ policy-config:
 ```
 
 - A forwarder is an IP address or a CIDR network, written like an access rule.
+- GraphQL and the indexer name the user only for these simulations. Their other calls to the fullnode, such as the execution of a transaction, carry no header, so the fullnode counts them for the service itself.
 - For a request from a forwarder that carries the header, the fullnode takes the IP address in the header as the client, for the access rules, the blocklist, the spam and error policies and the simulation gas limit. It does not count the request for the forwarder. `traffic_control_forwarded_requests` counts these requests. With `default: deny`, the fullnode thus refuses a user that no allow rule names, even when an allow rule names the forwarder.
 - A request from a forwarder without the header, with the header more than once, or with a value that is not an IP address, is the forwarder's own.
 - The fullnode ignores the header from every other client.
 - The fullnode trusts the header by the IP address of the forwarder alone, so the forwarder must connect to the fullnode directly, or through a proxy that keeps the address of the forwarder. With `client-id-source: x-forwarded-for` the forwarders match the client that that header names, and the node logs a warning at startup.
 - List only the addresses of the services themselves. Do not list a proxy, a load balancer or a wide network that other clients also pass through: each of those clients could then name any user in the header, also one that an allow rule serves, and so escape the simulation gas limit, the access rules and the blocklist.
 - GraphQL and the indexer name the address that connects to them, and send it to the fullnode they call whether or not that fullnode lists them. Behind a load balancer or a proxy, that is the address of the load balancer or the proxy, so all users behind it share one client. Do not give that address an allow rule: simulation through it would then have no limit.
-- When the fullnode refuses a call (`RESOURCE_EXHAUSTED`), GraphQL answers with the code `TOO_MANY_REQUESTS`, and the indexer with the `ServerIsBusy` error code (-32009), with the message of the fullnode. This holds for every call of the indexer to the fullnode, not only simulations.
+- When the fullnode refuses a call (`RESOURCE_EXHAUSTED`), the indexer answers with the `ServerIsBusy` error code (-32009) and the message of the fullnode, for every call it makes to the fullnode. GraphQL answers a refused dry run or view call with the code `TOO_MANY_REQUESTS` and the message of the fullnode. For its other calls, such as the execution of a transaction, GraphQL reports a refusal like any other error.
 - Validators do not apply `forwarders`, though they still check that each entry is an IP address or a CIDR network.
 
 `iota-tool admin traffic-control rules list` and `GET /traffic-control/rules` show the forwarders. They are set in the configuration only.
