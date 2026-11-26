@@ -22,6 +22,7 @@
 //! 3. [`IndexerExecutor`]: Orchestrates the shutdown of all worker pools and and finalizes system
 //!    termination.
 
+mod backfill;
 mod errors;
 mod executor;
 pub mod history;
@@ -40,6 +41,7 @@ use std::{
 };
 
 use async_trait::async_trait;
+pub use backfill::{BackfillExecutor, BackfillOptions, IngestionOrder};
 pub use errors::{IngestionError, IngestionResult};
 pub use executor::{
     IndexerExecutor, IngestionLimit, MAX_CHECKPOINTS_IN_PROGRESS, ShutdownAction,
