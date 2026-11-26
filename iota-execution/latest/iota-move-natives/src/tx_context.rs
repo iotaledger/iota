@@ -438,8 +438,8 @@ pub struct TxContextTxNonceCostParams {
 /// vector<u8>`
 ///
 /// Returns the 32-byte nonce of the transaction. Aborts with `E_NO_TX_NONCE`
-/// if the transaction has none, which is the case while authenticators run
-/// and for transactions without a gas coin.
+/// if the transaction has none, which is the case for transactions without a
+/// gas coin.
 ///
 /// gas cost: tx_context_tx_nonce_cost_base
 pub fn tx_nonce(

@@ -3284,6 +3284,7 @@ async fn test_publish_dependent_module_ok() {
         gas_budget,
         None,
         ChainIdentifier::default(),
+        None,
         protocol_config,
     )
     .fresh_id();
@@ -3343,6 +3344,7 @@ async fn test_publish_module_no_dependencies_ok() {
         gas_budget,
         None,
         ChainIdentifier::default(),
+        None,
         protocol_config,
     )
     .fresh_id();

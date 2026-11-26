@@ -28,10 +28,15 @@ public fun assert_tx_nonce(expected: vector<u8>, ctx: &TxContext) {
     assert!(ctx.tx_nonce() == expected, EUnexpectedTxNonce);
 }
 
-/// Read the nonce of the transaction. It aborts, since an authenticator has no nonce.
+/// Accept the transaction only if the nonce read from `ctx` is `expected`.
 #[authenticator]
-public fun authenticate(_account: &TxNonceAccount, _: &AuthContext, ctx: &TxContext) {
-    ctx.tx_nonce();
+public fun authenticate(
+    _account: &TxNonceAccount,
+    expected: vector<u8>,
+    _: &AuthContext,
+    ctx: &TxContext,
+) {
+    assert_tx_nonce(expected, ctx);
 }
 
 /// Accept every transaction, without reading the nonce.

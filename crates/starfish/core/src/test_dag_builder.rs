@@ -9,7 +9,11 @@ use std::{
 };
 
 use parking_lot::RwLock;
-use rand::{RngExt, SeedableRng, rngs::StdRng, seq::SliceRandom};
+use rand::{
+    RngExt, SeedableRng,
+    rngs::StdRng,
+    seq::{IndexedRandom, SliceRandom},
+};
 use starfish_config::{AuthorityIndex, ProtocolKeyPair};
 
 use crate::{
@@ -714,6 +718,9 @@ pub struct LayerBuilder<'a> {
     skip_acknowledgements: Option<Vec<AuthorityIndex>>,
     // Only acknowledge blocks from specified authorities
     only_acknowledge: Option<Vec<AuthorityIndex>>,
+    // Each block acknowledges each block of the previous round with this
+    // percent chance, using the seed of the minimal ancestor links
+    random_acknowledgment_percentage: Option<u64>,
     // Skip leader link for specified authorities
     no_leader_link: bool,
 
@@ -776,6 +783,7 @@ impl<'a> LayerBuilder<'a> {
             fully_linked_acknowledgments: true,
             skip_acknowledgements: None,
             only_acknowledge: None,
+            random_acknowledgment_percentage: None,
             timestamp_delay_ms: None,
             ancestors,
             timestamps: vec![],
@@ -884,6 +892,16 @@ impl<'a> LayerBuilder<'a> {
         self
     }
 
+    // Each block acknowledges each block of the previous round with the given
+    // percent chance. Only applies together with `min_ancestor_links`, whose
+    // seed it uses.
+    pub fn random_acknowledgments(mut self, percentage: u64) -> Self {
+        assert!(percentage <= 100, "percentage must be in the range 0..=100");
+        self.random_acknowledgment_percentage = Some(percentage);
+        self.fully_linked_acknowledgments = false;
+        self
+    }
+
     pub fn with_timestamps(mut self, timestamps: Vec<BlockTimestampMs>) -> Self {
         // authorities must be specified for this to apply
         assert!(self.specified_authorities.is_some());
@@ -936,6 +954,8 @@ impl<'a> LayerBuilder<'a> {
                 self.configure_skipped_acknowledgements(authorities, acks_to_skip)
             } else if let Some(only_acknowledge) = self.only_acknowledge.clone() {
                 self.configure_only_acknowledge(authorities, only_acknowledge)
+            } else if let Some(percentage) = self.random_acknowledgment_percentage {
+                self.configure_random_acknowledgments(percentage)
             } else {
                 HashMap::new()
             };
@@ -970,10 +990,13 @@ impl<'a> LayerBuilder<'a> {
         self
     }
 
-    // Layer round is minimally and randomly connected with ancestors.
+    // Layer round is minimally and randomly connected with ancestors: each block
+    // links its own previous block and other authors up to a quorum, plus the
+    // leaders if configured, with one block per author. When an author
+    // equivocated, one of its blocks is picked at random.
     pub fn configure_min_parent_links(&mut self) -> Vec<(AuthorityIndex, Vec<BlockRef>)> {
         let quorum_threshold = self.dag_builder.context.committee.quorum_threshold() as usize;
-        let mut authorities: Vec<AuthorityIndex> = self
+        let authorities: Vec<AuthorityIndex> = self
             .dag_builder
             .context
             .committee
@@ -986,7 +1009,13 @@ impl<'a> LayerBuilder<'a> {
             None => rand::make_rng::<StdRng>(),
         };
 
-        let mut authorities_to_shuffle = authorities.clone();
+        let mut ancestors_by_author: BTreeMap<AuthorityIndex, Vec<BlockRef>> = BTreeMap::new();
+        for ancestor in &self.ancestors {
+            ancestors_by_author
+                .entry(ancestor.author)
+                .or_default()
+                .push(*ancestor);
+        }
 
         let mut leaders = vec![];
         if let Some(leader_round) = self.leader_round {
@@ -1004,25 +1033,37 @@ impl<'a> LayerBuilder<'a> {
         authorities
             .iter()
             .map(|authority| {
-                authorities_to_shuffle.shuffle(&mut rng);
+                let mut others: Vec<AuthorityIndex> = ancestors_by_author
+                    .keys()
+                    .filter(|author| *author != authority)
+                    .copied()
+                    .collect();
+                others.shuffle(&mut rng);
 
                 // TODO: handle quorum threshold properly with stake
-                let min_ancestors: HashSet<AuthorityIndex> = authorities_to_shuffle
-                    .iter()
+                let mut parent_authors: Vec<AuthorityIndex> = ancestors_by_author
+                    .contains_key(authority)
+                    .then_some(*authority)
+                    .into_iter()
+                    .chain(others)
                     .take(quorum_threshold)
-                    .cloned()
                     .collect();
+                for leader in &leaders {
+                    if !parent_authors.contains(leader) && ancestors_by_author.contains_key(leader)
+                    {
+                        parent_authors.push(*leader);
+                    }
+                }
 
-                (
-                    *authority,
-                    self.ancestors
-                        .iter()
-                        .filter(|a| {
-                            leaders.contains(&a.author) || min_ancestors.contains(&a.author)
-                        })
-                        .cloned()
-                        .collect::<Vec<BlockRef>>(),
-                )
+                let parents = parent_authors
+                    .iter()
+                    .map(|author| {
+                        *ancestors_by_author[author]
+                            .choose(&mut rng)
+                            .expect("every listed author has a block")
+                    })
+                    .collect();
+                (*authority, parents)
             })
             .collect()
     }
@@ -1061,6 +1102,31 @@ impl<'a> LayerBuilder<'a> {
         }
 
         self.configure_skipped_ancestor_links(authorities, missing_leaders)
+    }
+
+    fn configure_random_acknowledgments(
+        &mut self,
+        percentage: u64,
+    ) -> HashMap<AuthorityIndex, Vec<BlockRef>> {
+        // Offset the seed so acknowledgments do not repeat the parent choices.
+        let mut rng = match self.min_ancestor_links_random_seed {
+            Some(seed) => StdRng::seed_from_u64(seed.wrapping_add(1)),
+            None => rand::make_rng::<StdRng>(),
+        };
+        self.dag_builder
+            .context
+            .committee
+            .authorities()
+            .map(|authority| {
+                let acknowledged = self
+                    .ancestors
+                    .iter()
+                    .filter(|_| rng.random_range(0..100) < percentage)
+                    .copied()
+                    .collect();
+                (authority.0, acknowledged)
+            })
+            .collect()
     }
 
     fn configure_fully_linked_acknowledgments(&mut self) -> HashMap<AuthorityIndex, Vec<BlockRef>> {
@@ -1141,7 +1207,12 @@ impl<'a> LayerBuilder<'a> {
         transaction_acknowledgments: HashMap<AuthorityIndex, Vec<BlockRef>>,
     ) {
         let mut references = Vec::new();
-        let mut rng = rand::make_rng::<StdRng>();
+        // Offset the seed so the transactions do not repeat the parent or
+        // acknowledgment choices.
+        let mut rng = match self.min_ancestor_links_random_seed {
+            Some(seed) => StdRng::seed_from_u64(seed.wrapping_add(2)),
+            None => rand::make_rng::<StdRng>(),
+        };
         let version = TestBlockHeaderVersion::V2;
 
         for (authority, ancestors) in connections {
