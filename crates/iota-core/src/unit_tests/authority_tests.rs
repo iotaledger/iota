@@ -21,7 +21,7 @@ use iota_macros::sim_test;
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
-use iota_sdk_crypto::IotaSigner as _;
+use iota_sdk_crypto::{IotaSigner as _, Signer as _, ed25519::Ed25519PrivateKey};
 use iota_sdk_move_types::iota_system::iota_system::IotaSystemState as IotaSystemStateWrapper;
 use iota_sdk_types::{
     Address, Argument, CanceledTransaction, CheckpointContents, CheckpointSequenceNumber, Command,
@@ -30,8 +30,11 @@ use iota_sdk_types::{
     OwnedObjectReference, Owner, ProgrammableTransaction, RandomnessRound, SharedObjectReference,
     SignatureScheme, StructTag, Transaction, TransactionDigest, TransactionEffects,
     TransactionEffectsDigest, TransactionExpiration, TransactionKind, TransactionV1, TypeTag,
-    Version, VersionAssignment,
-    crypto::{Intent, IntentScope, PersonalMessage},
+    UserSignature, Version, VersionAssignment,
+    crypto::{
+        Intent, IntentScope, MultisigAggregatedSignature, MultisigCommittee, MultisigMember,
+        MultisigMemberSignature, PersonalMessage,
+    },
 };
 use iota_types::{
     attestation::AttestedTransaction,
@@ -3685,6 +3688,175 @@ async fn test_conflicting_transactions() {
                 &[gas_object.object_ref(), object.object_ref()],
                 &authority_state.epoch_store_for_testing(),
             );
+    }
+}
+
+/// A 1-of-2 multisig sender, which can sign one transaction with one key or
+/// with both: two valid copies with one digest and different signatures.
+struct TwoKeyMultisig {
+    first_key: Ed25519PrivateKey,
+    second_key: Ed25519PrivateKey,
+    committee: MultisigCommittee,
+}
+
+impl TwoKeyMultisig {
+    fn new() -> Self {
+        let first_key = Ed25519PrivateKey::random();
+        let second_key = Ed25519PrivateKey::random();
+        let committee = MultisigCommittee::new(
+            vec![
+                MultisigMember::new(first_key.public_key(), 1),
+                MultisigMember::new(second_key.public_key(), 1),
+            ],
+            1,
+        )
+        .unwrap();
+        Self {
+            first_key,
+            second_key,
+            committee,
+        }
+    }
+
+    fn address(&self) -> Address {
+        Address::from(&self.committee)
+    }
+
+    /// Returns the copy signed with the first key and the copy signed with
+    /// both keys.
+    fn copies(
+        &self,
+        epoch_store: &AuthorityPerEpochStore,
+        data: Transaction,
+    ) -> (VerifiedTransaction, VerifiedTransaction) {
+        let signing_digest = data.signing_digest();
+        let first_signature =
+            MultisigMemberSignature::Ed25519(self.first_key.sign(&signing_digest));
+        let second_signature =
+            MultisigMemberSignature::Ed25519(self.second_key.sign(&signing_digest));
+        let make_copy = |signatures, bitmap| {
+            let multisig = MultisigAggregatedSignature::new_unchecked(
+                signatures,
+                bitmap,
+                self.committee.clone(),
+            );
+            epoch_store
+                .verify_transaction(TransactionEnvelope::from_user_sig_data(
+                    data.clone(),
+                    vec![UserSignature::Multisig(multisig)],
+                ))
+                .unwrap()
+        };
+        let short_copy = make_copy(vec![first_signature.clone()], 0b01);
+        let long_copy = make_copy(vec![first_signature, second_signature], 0b11);
+        assert_eq!(short_copy.digest(), long_copy.digest());
+        (short_copy, long_copy)
+    }
+}
+
+#[tokio::test]
+async fn test_handle_transaction_impl_returns_the_stored_signature_for_another_copy() {
+    let multisig = TwoKeyMultisig::new();
+    let sender = multisig.address();
+    let object_id = ObjectId::random();
+    let gas_object_id = ObjectId::random();
+    let authority_state =
+        init_state_with_ids(vec![(sender, object_id), (sender, gas_object_id)]).await;
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let epoch_store = authority_state.load_epoch_store_one_call_per_task();
+    let data = Transaction::new_transfer(
+        dbg_addr(2),
+        authority_state.get_object(&object_id).unwrap().object_ref(),
+        sender,
+        authority_state
+            .get_object(&gas_object_id)
+            .unwrap()
+            .object_ref(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        rgp,
+    );
+    let (short_copy, long_copy) = multisig.copies(&epoch_store, data);
+
+    let short_signed = authority_state
+        .handle_transaction_impl(short_copy.clone(), &epoch_store)
+        .await
+        .unwrap();
+    // A copy that passed the check at the top of `handle_transaction` before the
+    // first copy was stored.
+    let long_signed = authority_state
+        .handle_transaction_impl(long_copy, &epoch_store)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        bcs::to_bytes(long_signed.auth_sig()).unwrap(),
+        bcs::to_bytes(short_signed.auth_sig()).unwrap()
+    );
+    let stored = epoch_store
+        .get_signed_transaction(short_copy.digest())
+        .unwrap()
+        .unwrap();
+    assert_eq!(stored.signatures(), short_copy.signatures());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn test_handle_transaction_signs_one_copy_of_a_transaction() {
+    const TRIALS: usize = 20;
+    const COPIES: usize = 8;
+
+    let multisig = TwoKeyMultisig::new();
+    let sender = multisig.address();
+    let objects: Vec<_> = (0..TRIALS)
+        .map(|_| (ObjectId::random(), ObjectId::random()))
+        .collect();
+    let authority_state =
+        init_state_with_ids(objects.iter().flat_map(|(object_id, gas_object_id)| {
+            [(sender, *object_id), (sender, *gas_object_id)]
+        }))
+        .await;
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let epoch_store = authority_state.load_epoch_store_one_call_per_task();
+
+    for (object_id, gas_object_id) in objects {
+        let data = Transaction::new_transfer(
+            dbg_addr(2),
+            authority_state.get_object(&object_id).unwrap().object_ref(),
+            sender,
+            authority_state
+                .get_object(&gas_object_id)
+                .unwrap()
+                .object_ref(),
+            rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+            rgp,
+        );
+        let (short_copy, long_copy) = multisig.copies(&epoch_store, data);
+
+        let tasks: Vec<_> = (0..COPIES)
+            .flat_map(|_| [short_copy.clone(), long_copy.clone()])
+            .map(|transaction| {
+                let authority_state = authority_state.clone();
+                let epoch_store = epoch_store.clone();
+                tokio::spawn(async move {
+                    authority_state
+                        .handle_transaction(&epoch_store, transaction)
+                        .await
+                        .unwrap()
+                        .status
+                        .into_signed_for_testing()
+                })
+            })
+            .collect();
+        let signatures: HashSet<_> = futures::future::join_all(tasks)
+            .await
+            .into_iter()
+            .map(|signature| bcs::to_bytes(&signature.unwrap()).unwrap())
+            .collect();
+        assert_eq!(
+            signatures.len(),
+            1,
+            "the validator signed both copies of {}",
+            short_copy.digest()
+        );
     }
 }
 
