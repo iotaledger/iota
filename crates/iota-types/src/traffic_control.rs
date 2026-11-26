@@ -142,6 +142,16 @@ pub struct FreqThresholdConfig {
     /// deprecated, but the node continues to accept it.
     #[serde(default = "default_burst_secs", alias = "window-size-secs")]
     pub burst_secs: u64,
+    /// Sustained returned items per second allowed from a single direct client.
+    /// `None` leaves the response-item dimension disabled; it builds no limiter
+    /// and never blocks.
+    #[serde(default)]
+    pub response_items_threshold: Option<u64>,
+    /// Sustained server-rendered fields per second allowed from a single direct
+    /// client. `None` leaves the rendered-field dimension disabled; it builds no
+    /// limiter and never blocks.
+    #[serde(default)]
+    pub rendered_fields_threshold: Option<u64>,
 }
 
 impl Default for FreqThresholdConfig {
@@ -150,6 +160,8 @@ impl Default for FreqThresholdConfig {
             client_threshold: default_client_threshold(),
             proxied_client_threshold: default_proxied_client_threshold(),
             burst_secs: default_burst_secs(),
+            response_items_threshold: None,
+            rendered_fields_threshold: None,
         }
     }
 }
@@ -319,5 +331,27 @@ mod tests {
         let config: super::FreqThresholdConfig =
             serde_json::from_str(r#"{"window-size-secs": 7}"#).unwrap();
         assert_eq!(config.burst_secs, 7);
+    }
+
+    #[test]
+    fn old_config_without_dimensions_deserializes_with_them_off() {
+        let config: super::FreqThresholdConfig =
+            serde_json::from_str(r#"{"client-threshold": 5}"#).unwrap();
+        assert_eq!(config.client_threshold, 5);
+        assert_eq!(config.response_items_threshold, None);
+        assert_eq!(config.rendered_fields_threshold, None);
+    }
+
+    #[test]
+    fn dimensions_round_trip() {
+        let config = super::FreqThresholdConfig {
+            response_items_threshold: Some(10_000),
+            rendered_fields_threshold: Some(5_000),
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&config).unwrap();
+        let parsed: super::FreqThresholdConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.response_items_threshold, Some(10_000));
+        assert_eq!(parsed.rendered_fields_threshold, Some(5_000));
     }
 }
