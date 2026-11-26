@@ -223,6 +223,22 @@ async fn simulate(
         .collect())
 }
 
+/// The error message of a simulation of one transaction that the server
+/// refuses.
+async fn refusal_message(client: &mut TransactionExecutionServiceClient<Channel>) -> String {
+    let response = client
+        .simulate_transactions(simulate_request(1))
+        .await
+        .unwrap()
+        .into_inner();
+    let Some(simulate_transaction_result::Result::Error(error)) =
+        &response.transaction_results[0].result
+    else {
+        panic!("the simulation is refused");
+    };
+    error.message.clone()
+}
+
 /// On a runtime with a single thread, a simulation that ran on the thread
 /// serving the request would stall every other request until it ended.
 #[tokio::test(flavor = "current_thread")]
@@ -310,22 +326,10 @@ async fn simulations_over_the_gas_limit_are_refused() {
             Code::ResourceExhausted
         ]
     );
-    let response = client
-        .simulate_transactions(simulate_request(1))
-        .await
-        .unwrap()
-        .into_inner();
-    let Some(simulate_transaction_result::Result::Error(error)) =
-        &response.transaction_results[0].result
-    else {
-        panic!("the simulation is refused");
-    };
+    let message = refusal_message(&mut client).await;
     assert!(
-        error
-            .message
-            .starts_with("simulation gas limit reached, retry in "),
-        "{}",
-        error.message
+        message.starts_with("simulation gas limit reached, retry in "),
+        "{message}"
     );
 
     // The error policy blocks the client on its first client error, so the
@@ -361,4 +365,40 @@ async fn a_failed_simulation_gives_its_gas_back() {
         simulate(&mut client, 3).await.unwrap(),
         [Code::Internal, Code::Internal, Code::Internal]
     );
+}
+
+/// A simulation that the executor refuses for want of a permit gives back the
+/// gas it reserved.
+#[tokio::test]
+async fn a_simulation_refused_for_a_permit_gives_its_gas_back() {
+    let executor = Arc::new(SimulationExecutor::new(1));
+    let (open_gate, gate) = mpsc::channel();
+    *executor.gate.lock().unwrap() = Some(gate);
+    let (_handle, mut client) = connect_with(
+        executor.clone(),
+        Some(SimulationGasLimitConfig {
+            gas_per_sec: 1,
+            burst_gas: 2 * MAX_COMPUTATION,
+        }),
+    )
+    .await;
+
+    let first = tokio::spawn({
+        let mut client = client.clone();
+        async move { simulate(&mut client, 1).await }
+    });
+    executor.started.notified().await;
+    // The running simulation holds the permit and half of the balance. Each
+    // simulation below reserves the other half before it is refused, so
+    // without a refund the second one would be refused for gas.
+    for _ in 0..2 {
+        let message = refusal_message(&mut client).await;
+        assert!(
+            message.contains("running as many simulations as it allows"),
+            "{message}"
+        );
+    }
+
+    open_gate.send(()).unwrap();
+    assert_eq!(first.await.unwrap().unwrap(), [Code::Internal]);
 }

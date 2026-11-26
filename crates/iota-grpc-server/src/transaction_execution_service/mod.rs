@@ -842,6 +842,7 @@ async fn execute_single_transaction(
 mod tests {
     use std::{
         collections::BTreeMap,
+        net::{IpAddr, Ipv4Addr},
         sync::{Mutex, mpsc},
     };
 
@@ -849,8 +850,11 @@ mod tests {
         Address, GasPayment, ProgrammableTransaction, Transaction, TransactionExpiration,
         TransactionKind, TransactionV1,
     };
+    use iota_traffic_controller::{ClientAccess, TrafficController};
     use iota_types::{
-        messages_checkpoint::CheckpointSequenceNumber, quorum_driver_types::QuorumDriverError,
+        messages_checkpoint::CheckpointSequenceNumber,
+        quorum_driver_types::QuorumDriverError,
+        traffic_control::{PolicyConfig, SimulationGasLimitConfig},
     };
     use tokio::sync::{Notify, Semaphore};
 
@@ -954,6 +958,66 @@ mod tests {
         );
 
         open_gate.send(()).unwrap();
+        wait_for_a_free_permit(&gated).await;
+    }
+
+    /// The gas that a simulation reserved is held until the simulation ends,
+    /// also when its request is dropped before.
+    #[tokio::test]
+    async fn a_dropped_simulation_keeps_its_gas_until_it_ends() {
+        let (open_gate, gate) = mpsc::channel();
+        let gated = Arc::new(GatedExecutor {
+            permits: Arc::new(Semaphore::new(1)),
+            started: Notify::new(),
+            gate: Mutex::new(Some(gate)),
+        });
+        let executor: Arc<dyn TransactionExecutor> = gated.clone();
+        let traffic_controller = Arc::new(TrafficController::init_for_test(PolicyConfig {
+            simulation_gas_limit: Some(SimulationGasLimitConfig {
+                gas_per_sec: 1,
+                burst_gas: 1_000,
+            }),
+            dry_run: false,
+            ..Default::default()
+        }));
+        traffic_controller.set_max_simulation_computation(1_000);
+        let tally_handle = TallyHandle::new(
+            traffic_controller,
+            Some(IpAddr::V4(Ipv4Addr::LOCALHOST)),
+            ClientAccess::Limited,
+        );
+
+        let simulation = tokio::spawn({
+            let executor = executor.clone();
+            let tally_handle = tally_handle.clone();
+            async move {
+                run_simulation(
+                    &executor,
+                    Some(&tally_handle),
+                    transaction(),
+                    VmChecks::Enabled,
+                )
+                .await
+            }
+        });
+        gated.started.notified().await;
+        simulation.abort();
+        assert!(matches!(simulation.await, Err(e) if e.is_cancelled()));
+        assert!(
+            tally_handle.reserve_simulation_gas().is_err(),
+            "the dropped simulation gave its gas back before it ended"
+        );
+
+        open_gate.send(()).unwrap();
+        wait_for_a_free_permit(&gated).await;
+        assert!(
+            matches!(tally_handle.reserve_simulation_gas(), Ok(Some(_))),
+            "the simulation kept its gas after it ended"
+        );
+    }
+
+    /// Waits until the simulation that holds the permit of `gated` ends.
+    async fn wait_for_a_free_permit(gated: &GatedExecutor) {
         tokio::time::timeout(Duration::from_secs(10), async {
             while gated.permits.available_permits() == 0 {
                 tokio::time::sleep(Duration::from_millis(10)).await;
