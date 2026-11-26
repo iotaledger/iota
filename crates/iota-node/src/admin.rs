@@ -711,7 +711,9 @@ async fn reconfigure_traffic_control(
 
 const DEFAULT_DENY_WARNING: &str = "Warning: outside dry run, the default action deny refuses \
     every client that no allow rule names. On a validator this also refuses the other nodes \
-    that send it requests, so add allow rules for them first.\n";
+    that send it requests. With `client-id-source: socket-addr`, add allow rules for them first. \
+    With `x-forwarded-for`, allow rules cannot admit them: their requests carry no \
+    x-forwarded-for header, so the node resolves no client to match.\n";
 
 /// A JSON response with `result`, or the error.
 fn json_response<T: Serialize>(result: IotaResult<T>) -> Response {
@@ -1092,6 +1094,12 @@ mod tests {
             reconfigure_traffic_control(&state, query("/?default_action=deny")).await;
         assert_eq!(status, StatusCode::OK);
         assert!(body.contains(DEFAULT_DENY_WARNING), "{body}");
+        for advice in [
+            "With `client-id-source: socket-addr`, add allow rules for them first.",
+            "With `x-forwarded-for`, allow rules cannot admit them",
+        ] {
+            assert!(body.contains(advice), "{body}");
+        }
         assert!(body.ends_with(UNTIL_RESTART), "{body}");
         let status: TrafficControlStatus =
             json(traffic_control_status_response(&state, None)).await;

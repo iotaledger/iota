@@ -285,7 +285,7 @@ The admin API of the node (`admin-interface-address`, `127.0.0.1:1337` by defaul
 - An unblock also removes the block of the client where it reached the node through a fullnode. It resets what the spam and error policies counted for the client, and its gas balance; otherwise the next request of the client would block it again.
 - For a block whose block line it logged, the node logs a `client_unblocked client=<client>` line under the same target, so a firewall that acts on the block line can lift its ban.
 
-Outside dry run, `default_action=deny` refuses every client that no allow rule names. On a validator this also refuses the other nodes that send it requests, so add allow rules for them first.
+Outside dry run, `default_action=deny` refuses every client that no allow rule names. On a validator this also refuses the other nodes that send it requests. With `client-id-source: socket-addr`, add allow rules for them first. With `x-forwarded-for`, allow rules cannot admit them, as [Proxy Mode Configuration](#proxy-mode-configuration) explains.
 
 A rejected request answers `400 Bad Request` with the reason.
 
