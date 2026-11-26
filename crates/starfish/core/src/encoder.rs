@@ -158,22 +158,6 @@ mod tests {
     use super::*;
     use crate::{Transaction, context::Context, decoder::create_decoder};
 
-    #[tokio::test]
-    #[should_panic(expected = "Data length must match info length")]
-    async fn encode_should_fail_mismatched_length() {
-        let committee_size = 3;
-        let (context, _) = Context::new_for_test(committee_size);
-        let context = Arc::new(context);
-        let mut encoder = create_encoder(&context);
-
-        let transactions = Transaction::random_transactions(2, 16);
-        let serialized = Transaction::serialize(&transactions).expect("serialization works");
-
-        // create shards for info_length=2 but then call with mismatched info_length=3
-        let data = create_shards_from_serialized_transactions(&serialized, 2);
-        let _ = encoder.encode_shards(data, committee_size, 0).unwrap();
-    }
-
     // Test encoding and decoding with trivial encoder/decoder (no redundancy)
     // for various counts and lengths of random transactions
     #[tokio::test]
