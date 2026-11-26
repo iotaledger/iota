@@ -768,36 +768,6 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
 
         Ok(CertifiedCommits::new(certified_commits))
     }
-
-    #[cfg(test)]
-    fn unhandled_commits_threshold(&self) -> CommitIndex {
-        self.inner.context.parameters.unhandled_commits_threshold()
-    }
-
-    #[cfg(test)]
-    fn pending_fetches(&self) -> BTreeSet<CommitRange> {
-        self.pending_fetches.clone()
-    }
-
-    #[cfg(test)]
-    fn fetched_ranges(&self) -> BTreeMap<CommitRange, CertifiedCommits> {
-        self.fetched_ranges.clone()
-    }
-
-    #[cfg(test)]
-    fn highest_scheduled_index(&self) -> Option<CommitIndex> {
-        self.highest_scheduled_index
-    }
-
-    #[cfg(test)]
-    fn highest_fetched_commit_index(&self) -> CommitIndex {
-        self.highest_fetched_commit_index
-    }
-
-    #[cfg(test)]
-    fn synced_commit_index(&self) -> CommitIndex {
-        self.synced_commit_index
-    }
 }
 
 #[cfg(test)]
@@ -882,11 +852,11 @@ mod tests {
         );
 
         // Check initial state.
-        assert!(commit_syncer.pending_fetches().is_empty());
-        assert!(commit_syncer.fetched_ranges().is_empty());
-        assert!(commit_syncer.highest_scheduled_index().is_none());
-        assert_eq!(commit_syncer.highest_fetched_commit_index(), 0);
-        assert_eq!(commit_syncer.synced_commit_index(), 0);
+        assert!(commit_syncer.pending_fetches.is_empty());
+        assert!(commit_syncer.fetched_ranges.is_empty());
+        assert!(commit_syncer.highest_scheduled_index.is_none());
+        assert_eq!(commit_syncer.highest_fetched_commit_index, 0);
+        assert_eq!(commit_syncer.synced_commit_index, 0);
 
         // Observe round 15 blocks voting for commit 10 from authorities 0 to 2 in
         // CommitVoteMonitor
@@ -902,11 +872,11 @@ mod tests {
         commit_syncer.try_schedule_once();
 
         // Verify state.
-        assert_eq!(commit_syncer.pending_fetches().len(), 2);
-        assert!(commit_syncer.fetched_ranges().is_empty());
-        assert_eq!(commit_syncer.highest_scheduled_index(), Some(10));
-        assert_eq!(commit_syncer.highest_fetched_commit_index(), 0);
-        assert_eq!(commit_syncer.synced_commit_index(), 0);
+        assert_eq!(commit_syncer.pending_fetches.len(), 2);
+        assert!(commit_syncer.fetched_ranges.is_empty());
+        assert_eq!(commit_syncer.highest_scheduled_index, Some(10));
+        assert_eq!(commit_syncer.highest_fetched_commit_index, 0);
+        assert_eq!(commit_syncer.synced_commit_index, 0);
 
         // Observe round 40 blocks voting for commit 35 from authorities 0 to 2 in
         // CommitVoteMonitor
@@ -922,18 +892,24 @@ mod tests {
         commit_syncer.try_schedule_once();
 
         // Verify commit syncer is paused after scheduling 15 commits to index 25.
-        assert_eq!(commit_syncer.unhandled_commits_threshold(), 25);
-        assert_eq!(commit_syncer.highest_scheduled_index(), Some(25));
-        let pending_fetches = commit_syncer.pending_fetches();
-        assert_eq!(pending_fetches.len(), 5);
+        assert_eq!(
+            commit_syncer
+                .inner
+                .context
+                .parameters
+                .unhandled_commits_threshold(),
+            25
+        );
+        assert_eq!(commit_syncer.highest_scheduled_index, Some(25));
+        assert_eq!(commit_syncer.pending_fetches.len(), 5);
 
         // Indicate commit index 25 is consumed, and try to schedule again.
         commit_consumer_monitor.set_highest_handled_commit(25);
         commit_syncer.try_schedule_once();
 
         // Verify commit syncer schedules fetches up to index 35.
-        assert_eq!(commit_syncer.highest_scheduled_index(), Some(35));
-        let pending_fetches = commit_syncer.pending_fetches();
+        assert_eq!(commit_syncer.highest_scheduled_index, Some(35));
+        let pending_fetches = &commit_syncer.pending_fetches;
         assert_eq!(pending_fetches.len(), 7);
 
         // Verify contiguous ranges are scheduled.
@@ -1025,7 +1001,7 @@ mod tests {
                 .syncer_paused_by_fast_sync
                 .with_label_values(&["regular_schedule"])
                 .get();
-            (commit_syncer.pending_fetches().len(), paused)
+            (commit_syncer.pending_fetches.len(), paused)
         }
 
         // Flag off (mainnet-style): scheduling proceeds, gate never fires.
