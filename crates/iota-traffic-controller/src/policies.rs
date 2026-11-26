@@ -253,9 +253,10 @@ impl DimensionLimiter {
         evictions: IntCounter,
     ) -> Self {
         let configured = threshold.map(|threshold| {
+            let threshold = clamp_threshold(threshold, name);
             Arc::new(ConfiguredLimiter {
                 threshold,
-                limiter: quota_kind.limiter(clamp_threshold(threshold, name), &evictions),
+                limiter: quota_kind.limiter(threshold, &evictions),
             })
         });
         Self {
@@ -283,17 +284,19 @@ impl DimensionLimiter {
             .is_some_and(|configured| configured.limiter.breaches_n(client, count))
     }
 
-    /// Sets the value and/or the gate. A new threshold rebuilds the limiter,
-    /// discarding tracked client state. Enabling a dimension that has no
-    /// configured value is rejected. Both `None` is a no-op.
+    /// Sets the value and/or the gate. A changed threshold rebuilds the
+    /// limiter, discarding tracked client state; re-asserting the current
+    /// threshold keeps it. Enabling a dimension that has no configured value is
+    /// rejected. Both `None` is a no-op.
     fn set(&self, threshold: Option<u64>, enabled: Option<bool>) -> Result<(), String> {
         if let Some(threshold) = threshold {
-            self.configured.store(Some(Arc::new(ConfiguredLimiter {
-                threshold,
-                limiter: self
-                    .quota_kind
-                    .limiter(clamp_threshold(threshold, self.name), &self.evictions),
-            })));
+            let threshold = clamp_threshold(threshold, self.name);
+            if self.configured.load().as_ref().map(|c| c.threshold) != Some(threshold) {
+                self.configured.store(Some(Arc::new(ConfiguredLimiter {
+                    threshold,
+                    limiter: self.quota_kind.limiter(threshold, &self.evictions),
+                })));
+            }
         }
         if let Some(enabled) = enabled {
             if enabled && self.configured.load().is_none() {
@@ -724,6 +727,45 @@ mod tests {
             policy.charge(&tally_with(client, 0, 60)).block_client,
             Some(client)
         );
+    }
+
+    #[test]
+    fn reasserting_a_dimension_threshold_keeps_client_state() {
+        // Burst 100 on the response-item dimension: 60 fits, a second 60 does
+        // not. Re-asserting the same threshold must keep the exhausted state,
+        // exactly as set_client_threshold does for the direct limiter.
+        let policy = freq_threshold_with_dimensions(1_000_000, Some(100), None);
+        let client = IpAddr::from([10, 2, 0, 1]);
+        assert!(
+            policy
+                .charge(&tally_with(client, 60, 0))
+                .block_client
+                .is_none()
+        );
+        assert_eq!(
+            policy.charge(&tally_with(client, 60, 0)).block_client,
+            Some(client)
+        );
+
+        policy.set_response_items(Some(100), None).unwrap();
+        assert_eq!(
+            policy.charge(&tally_with(client, 60, 0)).block_client,
+            Some(client)
+        );
+    }
+
+    #[test]
+    fn overlarge_dimension_thresholds_are_clamped_in_state() {
+        // A configured value above the max enforces the clamped value, so the
+        // reported state must be the clamped value, not the raw one, both at
+        // startup and after a runtime reconfiguration.
+        let policy = freq_threshold_with_dimensions(1_000, Some(2_000_000_000), None);
+        assert_eq!(policy.response_items_state().0, Some(MAX_CLIENT_THRESHOLD));
+
+        policy
+            .set_response_items(Some(2_000_000_000), None)
+            .unwrap();
+        assert_eq!(policy.response_items_state().0, Some(MAX_CLIENT_THRESHOLD));
     }
 
     #[sim_test]
