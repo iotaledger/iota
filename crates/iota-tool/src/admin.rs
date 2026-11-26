@@ -15,8 +15,9 @@ use anyhow::{Context, Result, bail};
 use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum};
 use comfy_table::Table;
 use iota_types::traffic_control::{
-    AccessRuleList, AccessRules, BlockedClients, ClientUsage, DefaultAction, PolicyConfig,
-    TrafficControlReconfigParams, TrafficControlStatus,
+    AccessRuleChangeQuery, AccessRuleList, AccessRules, BlockedClients, BlocklistQuery,
+    ClientUsage, ClientUsageQuery, DefaultAction, ManualBlockQuery, PolicyConfig,
+    TrafficControlReconfigParams, TrafficControlStatus, UnblockQuery,
 };
 use reqwest::{StatusCode, Url};
 use serde::{Serialize, de::DeserializeOwned};
@@ -275,7 +276,7 @@ impl TrafficControlCommand {
             }
             Self::Blocklist { limit } => {
                 let blocklist: BlockedClients = client
-                    .get("/traffic-control/blocklist", &given("limit", limit))
+                    .get("/traffic-control/blocklist", &BlocklistQuery { limit })
                     .await?;
                 print_blocklist(&blocklist, output)?;
             }
@@ -286,20 +287,26 @@ impl TrafficControlCommand {
                 let answer = client
                     .post(
                         "/traffic-control/block",
-                        &[("client", blocked), ("ttl_sec", ttl.to_string())],
+                        &ManualBlockQuery {
+                            client: blocked,
+                            ttl_sec: ttl,
+                        },
                     )
                     .await?;
                 print_answer(&answer, output)?;
             }
             Self::Unblock { client: unblocked } => {
                 let answer = client
-                    .post("/traffic-control/unblock", &[("client", unblocked)])
+                    .post(
+                        "/traffic-control/unblock",
+                        &UnblockQuery { client: unblocked },
+                    )
                     .await?;
                 print_answer(&answer, output)?;
             }
             Self::Clients { top } => {
                 let usage: ClientUsage = client
-                    .get("/traffic-control/clients", &given("top", top))
+                    .get("/traffic-control/clients", &ClientUsageQuery { top })
                     .await?;
                 print_usage(&usage, output)?;
             }
@@ -323,11 +330,6 @@ impl TrafficControlCommand {
     }
 }
 
-/// The query that names `value`, or none.
-fn given(name: &'static str, value: Option<usize>) -> Vec<(&'static str, usize)> {
-    value.map(|value| (name, value)).into_iter().collect()
-}
-
 async fn change_rule(
     client: &AdminClient,
     list: AccessRuleList,
@@ -338,12 +340,8 @@ async fn change_rule(
         RuleChange::Add { client } => ("/traffic-control/rules/add", client),
         RuleChange::Remove { client } => ("/traffic-control/rules/remove", client),
     };
-    let list = match list {
-        AccessRuleList::Allow => "allow",
-        AccessRuleList::Deny => "deny",
-    };
     let answer = client
-        .post(path, &[("list", list.to_string()), ("client", rule)])
+        .post(path, &AccessRuleChangeQuery { list, client: rule })
         .await?;
     print_answer(&answer, output)?;
     writeln!(output.notes, "{SAVE_HINT}")?;
