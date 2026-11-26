@@ -16,13 +16,12 @@ use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum};
 use comfy_table::Table;
 use iota_types::traffic_control::{
     AccessRuleChangeQuery, AccessRuleList, AccessRules, BlockedClients, BlocklistQuery,
-    ClientUsage, ClientUsageQuery, DefaultAction, ManualBlockQuery, PolicyConfig,
-    TrafficControlReconfigParams, TrafficControlStatus, UnblockQuery,
+    ClientUsage, ClientUsageQuery, DEFAULT_DENY_WARNING, DefaultAction, ManualBlockQuery,
+    PolicyConfig, TrafficControlReconfigParams, TrafficControlStatus, UnblockQuery,
 };
 use reqwest::{StatusCode, Url};
 use serde::{Serialize, de::DeserializeOwned};
 
-const UNTIL_RESTART: &str = "The change lasts until the node restarts.";
 const SAVE_HINT: &str = "Run `iota-tool admin traffic-control save --config <file>` to write \
     it to the node config.";
 /// How long to wait for the admin API to accept a connection.
@@ -247,22 +246,21 @@ impl TrafficControlCommand {
                 };
                 if params.default_action == Some(DefaultAction::Deny)
                     && !args.yes
-                    && !confirm(
-                        "Outside dry run, the default action deny refuses every client that \
-                         no allow rule names. On a validator this also refuses the other nodes \
-                         that send it requests, so add allow rules for them first. Continue?",
-                    )?
+                    && !confirm(&format!("{} Continue?", DEFAULT_DENY_WARNING.trim_end()))?
                 {
                     writeln!(output.notes, "Nothing changed.")?;
                     return Ok(());
                 }
-                client.post("/traffic-control", &params).await?;
+                // The answer holds the warning for the default action deny, and
+                // says how long the change lasts.
+                let answer = client.post("/traffic-control", &params).await?;
+                write!(output.notes, "{answer}")?;
                 let status: TrafficControlStatus =
                     client.get("/traffic-control", &()).await.context(
                         "the node made the change, but reading the settings in force failed",
                     )?;
                 print_status(&status, output)?;
-                writeln!(output.notes, "{UNTIL_RESTART} {SAVE_HINT}")?;
+                writeln!(output.notes, "{SAVE_HINT}")?;
             }
             Self::Rules(RulesCommand::List) => {
                 let rules: AccessRules = client.get("/traffic-control/rules", &()).await?;
@@ -796,13 +794,14 @@ mod tests {
 
     use axum::{
         Json, Router,
-        extract::State,
+        extract::{Query, State},
         http::{Method, StatusCode, Uri},
         routing::{get, post},
     };
     use iota_config::{Config, NodeConfig};
     use iota_types::traffic_control::{
-        BlockReason, BlockedClient, ClientGasBalance, SimulationGasLimitConfig, Weight,
+        BlockReason, BlockedClient, ClientGasBalance, DEFAULT_DENY_WARNING,
+        SimulationGasLimitConfig, Weight,
     };
 
     use super::*;
@@ -869,6 +868,21 @@ mod tests {
         CHANGED
     }
 
+    /// Answers a change of the settings as the node does, with the warning
+    /// for the default action deny.
+    async fn reconfigure(
+        State(requests): State<Requests>,
+        method: Method,
+        uri: Uri,
+        Query(params): Query<TrafficControlReconfigParams>,
+    ) -> String {
+        record(&requests, &method, &uri);
+        match params.default_action {
+            Some(DefaultAction::Deny) => format!("{CHANGED}{DEFAULT_DENY_WARNING}"),
+            _ => CHANGED.to_string(),
+        }
+    }
+
     async fn get_status(
         State(requests): State<Requests>,
         method: Method,
@@ -925,7 +939,7 @@ mod tests {
     async fn stub_node() -> (String, Requests) {
         let requests = Requests::default();
         let router = Router::new()
-            .route("/traffic-control", get(get_status).post(changed))
+            .route("/traffic-control", get(get_status).post(reconfigure))
             .route("/traffic-control/config", get(|| async { Json(policy()) }))
             .route(
                 "/traffic-control/rules",
@@ -959,6 +973,10 @@ mod tests {
     }
 
     async fn run(url: &str, args: &[&str], confirmed: bool) -> Result<Printed> {
+        run_asking(url, args, &|_: &str| Ok(confirmed)).await
+    }
+
+    async fn run_asking(url: &str, args: &[&str], confirm: Confirm<'_>) -> Result<Printed> {
         let mut argv = vec!["admin", "--admin-url", url];
         argv.extend_from_slice(args);
         let command = AdminCommand::try_parse_from(argv)?;
@@ -969,7 +987,7 @@ mod tests {
             notes: &mut notes,
             json,
         };
-        command.run(&mut output, &|_: &str| Ok(confirmed)).await?;
+        command.run(&mut output, confirm).await?;
         Ok(Printed {
             out: String::from_utf8(out)?,
             notes: String::from_utf8(notes)?,
@@ -1004,7 +1022,7 @@ mod tests {
         );
         assert!(printed.out.contains("spam threshold"), "{}", printed.out);
         assert!(printed.out.contains("1000000"), "{}", printed.out);
-        assert_eq!(printed.notes, format!("{UNTIL_RESTART} {SAVE_HINT}\n"));
+        assert_eq!(printed.notes, format!("{CHANGED}{SAVE_HINT}\n"));
     }
 
     #[tokio::test]
@@ -1039,11 +1057,7 @@ mod tests {
             serde_json::from_str::<TrafficControlStatus>(&printed.out).unwrap(),
             status()
         );
-        assert!(
-            printed.notes.starts_with(UNTIL_RESTART),
-            "{}",
-            printed.notes
-        );
+        assert!(printed.notes.starts_with(CHANGED), "{}", printed.notes);
 
         let printed = run(
             &url,
@@ -1059,17 +1073,42 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn the_default_action_deny_takes_a_confirmation() {
+    async fn the_default_action_deny_shows_the_warning_and_takes_a_confirmation() {
         let (url, requests) = stub_node().await;
         let args = ["traffic-control", "set", "--default-action", "deny"];
-        let printed = run(&url, &args, false).await.unwrap();
+        let questions = Mutex::new(Vec::new());
+        let printed = run_asking(&url, &args, &|question: &str| {
+            questions.lock().unwrap().push(question.to_string());
+            Ok(false)
+        })
+        .await
+        .unwrap();
         assert_eq!(printed.notes, "Nothing changed.\n");
         assert!(requests.lock().unwrap().is_empty());
+        let [question] = questions.into_inner().unwrap().try_into().unwrap();
+        assert!(
+            question.contains(DEFAULT_DENY_WARNING.trim_end()),
+            "{question}"
+        );
 
-        run(&url, &args, true).await.unwrap();
+        let printed = run(&url, &args, true).await.unwrap();
+        assert!(
+            printed.notes.contains(DEFAULT_DENY_WARNING),
+            "{}",
+            printed.notes
+        );
         let mut with_yes = args.to_vec();
         with_yes.push("--yes");
-        run(&url, &with_yes, false).await.unwrap();
+        let printed = run_asking(&url, &with_yes, &|question: &str| {
+            panic!("--yes asked {question:?}")
+        })
+        .await
+        .unwrap();
+        assert!(
+            printed.notes.contains(DEFAULT_DENY_WARNING),
+            "{}",
+            printed.notes
+        );
         let posts = requests
             .lock()
             .unwrap()
