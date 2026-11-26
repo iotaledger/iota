@@ -313,7 +313,9 @@ impl TrafficControlCommand {
                 output: written,
                 yes,
             } => {
-                let policy = known_policy(client.get("/traffic-control/config", &()).await?)?;
+                let policy = parse_policy_config_without_loss(
+                    client.get("/traffic-control/config", &()).await?,
+                )?;
                 save(
                     &config,
                     written.as_deref(),
@@ -361,7 +363,7 @@ fn print_answer(answer: &str, output: &mut Output<'_>) -> Result<()> {
 /// `policy`, the `policy-config` the node answers, read as this tool knows it.
 /// Fails when this tool reads it differently from what the node holds, such as
 /// a setting it does not know, since `save` would then write other settings.
-fn known_policy(policy: serde_json::Value) -> Result<PolicyConfig> {
+fn parse_policy_config_without_loss(policy: serde_json::Value) -> Result<PolicyConfig> {
     const OTHER_VERSION: &str = "the node and this iota-tool read the policy-config \
         differently; use the iota-tool of the same version as the node";
     let known: PolicyConfig = serde_json::from_value(policy.clone()).context(OTHER_VERSION)?;
@@ -446,7 +448,7 @@ fn save(
     }
     match written {
         Some(written) => {
-            write_like(path, written, &new)?;
+            replace_file_atomically(written, &new, path)?;
             writeln!(
                 out,
                 "Wrote {}. Move it over {name} for the node to read it at its next start.",
@@ -456,7 +458,7 @@ fn save(
         None => {
             let seconds = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
             let backup = backup(path, &old, seconds)?;
-            write_like(path, path, &new)?;
+            replace_file_atomically(path, &new, path)?;
             writeln!(
                 out,
                 "Wrote {name}, and kept the old file at {}. The node reads it at its next start.",
@@ -502,7 +504,7 @@ fn backup(path: &Path, old: &str, seconds: u64) -> Result<PathBuf> {
         std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
         match options.open(&backup) {
             Ok(mut file) => {
-                let written = take_like(&file, &metadata)
+                let written = copy_mode_and_owner(&file, &metadata)
                     .and_then(|()| file.write_all(old.as_bytes()))
                     .and_then(|()| file.sync_all());
                 if let Err(err) = written {
@@ -523,7 +525,7 @@ fn backup(path: &Path, old: &str, seconds: u64) -> Result<PathBuf> {
 
 /// Gives `file` the mode and, where it may, the owner of the file `metadata`
 /// describes.
-fn take_like(file: &File, metadata: &std::fs::Metadata) -> std::io::Result<()> {
+fn copy_mode_and_owner(file: &File, metadata: &std::fs::Metadata) -> std::io::Result<()> {
     file.set_permissions(metadata.permissions())?;
     #[cfg(unix)]
     {
@@ -535,10 +537,10 @@ fn take_like(file: &File, metadata: &std::fs::Metadata) -> std::io::Result<()> {
 }
 
 /// Writes `contents` to `target` with the mode and, where it may, the owner of
-/// `like`. The contents go to a file of their own next to `target` first,
-/// which is then moved over it, so that a failed write leaves `target` as it
-/// was.
-fn write_like(like: &Path, target: &Path, contents: &str) -> Result<()> {
+/// `mode_and_owner_of`. The contents go to a file of their own next to
+/// `target` first, which is then moved over it, so that a failed write leaves
+/// `target` as it was.
+fn replace_file_atomically(target: &Path, contents: &str, mode_and_owner_of: &Path) -> Result<()> {
     let folder = match target.parent() {
         Some(folder) if !folder.as_os_str().is_empty() => folder,
         _ => Path::new("."),
@@ -547,7 +549,8 @@ fn write_like(like: &Path, target: &Path, contents: &str) -> Result<()> {
     // Created readable by its owner only, so that no one else reads the
     // config before its mode is set.
     let mut file = tempfile::NamedTempFile::new_in(folder).with_context(failed)?;
-    take_like(file.as_file(), &std::fs::metadata(like)?).with_context(failed)?;
+    copy_mode_and_owner(file.as_file(), &std::fs::metadata(mode_and_owner_of)?)
+        .with_context(failed)?;
     file.write_all(contents.as_bytes())
         .and_then(|()| file.as_file().sync_all())
         .with_context(failed)?;
@@ -608,7 +611,7 @@ impl AdminClient {
             .send()
             .await
             .with_context(|| self.no_answer())?;
-        let response = check(response).await?;
+        let response = require_success(response).await?;
         response
             .json()
             .await
@@ -624,12 +627,12 @@ impl AdminClient {
             .send()
             .await
             .with_context(|| self.no_answer())?;
-        Ok(check(response).await?.text().await?)
+        Ok(require_success(response).await?.text().await?)
     }
 }
 
 /// Fails with what the node answers when it refuses a request.
-async fn check(response: reqwest::Response) -> Result<reqwest::Response> {
+async fn require_success(response: reqwest::Response) -> Result<reqwest::Response> {
     let status = response.status();
     if status.is_success() {
         return Ok(response);
@@ -651,7 +654,7 @@ fn print_json(value: &impl Serialize, out: &mut dyn Write) -> Result<()> {
     Ok(())
 }
 
-fn optional(value: Option<impl ToString>) -> String {
+fn value_or_dash(value: Option<impl ToString>) -> String {
     value.map_or_else(|| "-".to_string(), |value| value.to_string())
 }
 
@@ -662,8 +665,8 @@ fn print_status(status: &TrafficControlStatus, output: &mut Output<'_>) -> Resul
     let mut table = Table::new();
     table.set_header(["Setting", "Value"]);
     for (setting, value) in [
-        ("spam threshold", optional(status.spam_threshold)),
-        ("error threshold", optional(status.error_threshold)),
+        ("spam threshold", value_or_dash(status.spam_threshold)),
+        ("error threshold", value_or_dash(status.error_threshold)),
         ("dry run", status.dry_run.to_string()),
         (
             "connection blocklist TTL (s)",
@@ -679,7 +682,7 @@ fn print_status(status: &TrafficControlStatus, output: &mut Output<'_>) -> Resul
         ("blocked clients", status.blocked_clients.to_string()),
         (
             "simulation gas per sec",
-            optional(
+            value_or_dash(
                 status
                     .simulation_gas_limit
                     .as_ref()
@@ -688,7 +691,7 @@ fn print_status(status: &TrafficControlStatus, output: &mut Output<'_>) -> Resul
         ),
         (
             "simulation burst gas",
-            optional(
+            value_or_dash(
                 status
                     .simulation_gas_limit
                     .as_ref()
@@ -1637,11 +1640,13 @@ mod tests {
         assert!(text.contains("\"spam-sample-rate\":0.2"), "{text}");
         let mut answered: serde_json::Value = serde_json::from_str(&text).unwrap();
         assert_eq!(
-            known_policy(answered.clone()).unwrap().access_rules,
+            parse_policy_config_without_loss(answered.clone())
+                .unwrap()
+                .access_rules,
             policy().access_rules
         );
         answered["new-setting"] = serde_json::json!(true);
-        let error = known_policy(answered).unwrap_err();
+        let error = parse_policy_config_without_loss(answered).unwrap_err();
         assert!(
             error.to_string().contains("read the policy-config"),
             "{error}"
