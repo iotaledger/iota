@@ -167,6 +167,9 @@ pub fn create_remote_store_client_with_ops(
     request_timeout_secs: u64,
     retry_config: RetryConfig,
 ) -> IngestionResult<Box<dyn ObjectStore>> {
+    // Every store below builds a reqwest client, which panics if no rustls
+    // crypto provider is installed.
+    let _ = rustls::crypto::ring::default_provider().install_default();
     let client_options = ClientOptions::new()
         .with_timeout(Duration::from_secs(request_timeout_secs))
         .with_allow_http(true);
@@ -209,4 +212,35 @@ pub(crate) fn reset_backoff(backoff: &ExponentialBackoff) -> ExponentialBackoff 
     let mut backoff = backoff.clone();
     backoff.reset();
     backoff
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make(url: &str, options: Vec<(String, String)>) {
+        create_remote_store_client_with_ops(url.to_string(), options, 30, RetryConfig::default())
+            .unwrap();
+    }
+
+    #[test]
+    fn http_store() {
+        make("http://localhost:1/", vec![]);
+    }
+
+    #[test]
+    fn gcs_store() {
+        make(
+            "gs://bucket",
+            vec![("google_skip_signature".to_string(), "true".to_string())],
+        );
+    }
+
+    #[test]
+    fn s3_store() {
+        make(
+            "s3://bucket",
+            vec![("aws_region".to_string(), "us-east-1".to_string())],
+        );
+    }
 }

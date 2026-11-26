@@ -17,6 +17,7 @@ bytes.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }
 futures.workspace = true
 object_store.workspace = true
+rustls.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tap.workspace = true
