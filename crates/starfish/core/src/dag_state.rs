@@ -2631,35 +2631,6 @@ impl DagState {
         metrics_to_write
     }
 
-    /// Detects and returns the blocks of the round that forms the last quorum.
-    /// The method will return the quorum even if that's genesis.
-    #[cfg(test)]
-    pub(crate) fn last_quorum(&self) -> Vec<VerifiedBlockHeader> {
-        // the quorum should exist either on the highest accepted round or the one
-        // before. If we fail to detect a quorum then it means that our DAG has
-        // advanced with missing causal history.
-        for round in
-            (self.highest_accepted_round.saturating_sub(1)..=self.highest_accepted_round).rev()
-        {
-            if round == GENESIS_ROUND {
-                return self.genesis_block_headers();
-            }
-            use crate::stake_aggregator::{QuorumThreshold, StakeAggregator};
-            let mut quorum = StakeAggregator::<QuorumThreshold>::new();
-
-            // Since the wave length is 3 we expect to find a quorum in the
-            // uncommitted rounds.
-            let blocks = self.get_block_headers_at_round_above_last_commit(round);
-            for block in &blocks {
-                if quorum.add(block.author(), &self.context.committee) {
-                    return blocks;
-                }
-            }
-        }
-
-        panic!("Fatal error, no quorum has been detected in our DAG on the last two rounds.");
-    }
-
     #[cfg(test)]
     pub(crate) fn genesis_blocks(&self) -> Vec<VerifiedBlock> {
         self.genesis.values().cloned().collect()
@@ -3734,65 +3705,6 @@ mod test {
         // and end_round - 1 = 3 <= 3.
         let end_round = 4;
         dag_state.get_last_cached_block_header_per_authority(end_round);
-    }
-
-    #[tokio::test]
-    async fn test_last_quorum() {
-        // GIVEN
-        let (context, _) = Context::new_for_test(4);
-        let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
-
-        // WHEN no block headers exist, then genesis should be returned
-        {
-            let genesis = genesis_block_headers(&context);
-
-            assert_eq!(dag_state.read().last_quorum(), genesis);
-        }
-
-        // WHEN a fully connected DAG up to round 4 is created, then round 4 block
-        // headers should be returned as quorum
-        {
-            let mut dag_builder = DagBuilder::new(context);
-            dag_builder
-                .layers(1..=4)
-                .build()
-                .persist_layers(dag_state.clone());
-            let round_4_block_headers: Vec<_> = dag_builder
-                .block_headers(4..=4)
-                .into_iter()
-                .map(|block| block.reference())
-                .collect();
-
-            let last_quorum = dag_state.read().last_quorum();
-
-            assert_eq!(
-                last_quorum
-                    .into_iter()
-                    .map(|block_header| block_header.reference())
-                    .collect::<Vec<_>>(),
-                round_4_block_headers
-            );
-        }
-
-        // WHEN adding one more block header at round 5, still round 4 should be
-        // returned as quorum
-        {
-            let block_header =
-                VerifiedBlockHeader::new_for_test(TestBlockHeader::new(5, 0).build());
-            dag_state
-                .write()
-                .accept_block_header(block_header, DataSource::Test);
-
-            let round_4_block_headers = dag_state
-                .read()
-                .get_block_headers_at_round_above_last_commit(4);
-
-            let last_quorum = dag_state.read().last_quorum();
-
-            assert_eq!(last_quorum, round_4_block_headers);
-        }
     }
 
     #[tokio::test]
