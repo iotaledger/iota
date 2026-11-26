@@ -427,11 +427,12 @@ mod tests {
 
     #[test]
     fn an_unknown_access_rules_key_fails_to_load() {
-        let error =
-            serde_json::from_str::<super::PolicyConfig>(r#"{"access-rules": {"defualt": "deny"}}"#)
-                .unwrap_err()
-                .to_string();
-        assert!(error.contains("unknown field `defualt`"), "{error}");
+        let error = serde_json::from_str::<super::PolicyConfig>(
+            r#"{"access-rules": {"default-action": "deny"}}"#,
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("unknown field `default-action`"), "{error}");
     }
 
     #[test]
