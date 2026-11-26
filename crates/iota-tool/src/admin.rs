@@ -1546,6 +1546,60 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&path).unwrap(), TEMPLATE);
     }
 
+    /// Output that a test can read while the code under test still holds it.
+    #[derive(Clone, Default)]
+    struct SharedOutput(Arc<Mutex<Vec<u8>>>);
+
+    impl SharedOutput {
+        fn text(&self) -> String {
+            String::from_utf8(self.0.lock().unwrap().clone()).unwrap()
+        }
+    }
+
+    impl Write for SharedOutput {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn save_shows_the_lost_comments_before_it_asks() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("fullnode.yaml");
+        std::fs::write(&path, TEMPLATE).unwrap();
+        let shown = SharedOutput::default();
+        let shown_when_asked = Mutex::new(None);
+        save(
+            &path,
+            None,
+            &policy(),
+            false,
+            &mut shown.clone(),
+            &|_: &str| {
+                *shown_when_asked.lock().unwrap() = Some(shown.text());
+                Ok(false)
+            },
+        )
+        .unwrap();
+        let shown_when_asked = shown_when_asked.into_inner().unwrap().expect("save asks");
+        assert!(
+            shown_when_asked.contains("(its comments are not kept)"),
+            "{shown_when_asked}"
+        );
+        assert!(
+            shown_when_asked.contains(
+                "\n-# Update this value to the location you want IOTA to store its database\n"
+            ),
+            "{shown_when_asked}"
+        );
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), TEMPLATE);
+    }
+
     #[test]
     fn save_refuses_a_config_that_changed_while_it_asked() {
         let dir = tempfile::tempdir().unwrap();
