@@ -24,6 +24,8 @@ pub struct TrafficControllerMetrics {
     pub error_client_threshold: IntGauge,
     pub spam_proxied_client_threshold: IntGauge,
     pub error_proxied_client_threshold: IntGauge,
+    pub spam_response_items_threshold: IntGauge,
+    pub spam_rendered_fields_threshold: IntGauge,
     pub dry_run_enabled: IntGauge,
     pub connection_blocklist_ttl_sec: IntGauge,
     pub proxy_blocklist_ttl_sec: IntGauge,
@@ -118,6 +120,18 @@ impl TrafficControllerMetrics {
             error_proxied_client_threshold: register_int_gauge_with_registry!(
                 "error_proxied_client_threshold",
                 "Error proxied client threshold",
+                registry
+            )
+            .unwrap(),
+            spam_response_items_threshold: register_int_gauge_with_registry!(
+                "spam_response_items_threshold",
+                "Spam response-item threshold; 0 when the dimension is unset",
+                registry
+            )
+            .unwrap(),
+            spam_rendered_fields_threshold: register_int_gauge_with_registry!(
+                "spam_rendered_fields_threshold",
+                "Spam rendered-field threshold; 0 when the dimension is unset",
                 registry
             )
             .unwrap(),

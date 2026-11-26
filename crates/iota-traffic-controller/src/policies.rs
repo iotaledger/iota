@@ -419,7 +419,7 @@ impl RateLimitPolicy {
 
 enum Policy {
     NoOp,
-    Limit(RateLimitPolicy),
+    Limit(Box<RateLimitPolicy>),
     PanicOnInvocation,
 }
 
@@ -444,7 +444,7 @@ impl TrafficControlPolicy {
                 if *burst_secs == 0 {
                     fatal!("freq-threshold burst-secs must be more than zero");
                 }
-                Policy::Limit(RateLimitPolicy::new(
+                Policy::Limit(Box::new(RateLimitPolicy::new(
                     QuotaKind::Sustained {
                         burst_secs: *burst_secs,
                     },
@@ -456,10 +456,10 @@ impl TrafficControlPolicy {
                     *response_items_threshold,
                     *rendered_fields_threshold,
                     evictions,
-                ))
+                )))
             }
             // The exact-count test policy only ever blocks the direct client.
-            PolicyType::TestNConnIP(threshold) => Policy::Limit(RateLimitPolicy::new(
+            PolicyType::TestNConnIP(threshold) => Policy::Limit(Box::new(RateLimitPolicy::new(
                 QuotaKind::ExactCount {
                     reset_period: exact_count_reset_period(connection_blocklist_ttl_sec),
                 },
@@ -468,7 +468,7 @@ impl TrafficControlPolicy {
                 None,
                 None,
                 evictions,
-            )),
+            ))),
             PolicyType::TestPanicOnInvocation => Policy::PanicOnInvocation,
         })
     }
@@ -656,7 +656,12 @@ mod tests {
         // block. Burst 100: 60 fits, a second 60 does not.
         let policy = freq_threshold_with_dimensions(1_000_000, None, Some(100));
         let client = IpAddr::from([10, 1, 0, 1]);
-        assert!(policy.charge(&tally_with(client, 0, 60)).block_client.is_none());
+        assert!(
+            policy
+                .charge(&tally_with(client, 0, 60))
+                .block_client
+                .is_none()
+        );
         assert_eq!(
             policy.charge(&tally_with(client, 0, 60)).block_client,
             Some(client)
@@ -667,7 +672,12 @@ mod tests {
     fn response_items_over_threshold_blocks() {
         let policy = freq_threshold_with_dimensions(1_000_000, Some(100), None);
         let client = IpAddr::from([10, 1, 0, 2]);
-        assert!(policy.charge(&tally_with(client, 60, 0)).block_client.is_none());
+        assert!(
+            policy
+                .charge(&tally_with(client, 60, 0))
+                .block_client
+                .is_none()
+        );
         assert_eq!(
             policy.charge(&tally_with(client, 60, 0)).block_client,
             Some(client)
@@ -681,7 +691,12 @@ mod tests {
         let policy = freq_threshold_with_dimensions(1_000_000, Some(1), Some(1));
         let client = IpAddr::from([10, 1, 0, 3]);
         for _ in 0..10 {
-            assert!(policy.charge(&tally_with(client, 0, 0)).block_client.is_none());
+            assert!(
+                policy
+                    .charge(&tally_with(client, 0, 0))
+                    .block_client
+                    .is_none()
+            );
         }
     }
 

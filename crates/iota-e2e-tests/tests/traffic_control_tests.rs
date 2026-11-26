@@ -349,6 +349,7 @@ async fn test_validator_traffic_control_error_blocked_with_policy_reconfig(
                 dry_run: Some(false),
                 connection_blocklist_ttl_sec: None,
                 proxy_blocklist_ttl_sec: None,
+                ..Default::default()
             })
             .await
             .unwrap();

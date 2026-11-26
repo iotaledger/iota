@@ -61,13 +61,21 @@ pub enum ClientIdSource {
     XForwardedFor(usize),
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct TrafficControlReconfigParams {
     pub error_threshold: Option<u64>,
     pub spam_threshold: Option<u64>,
     pub dry_run: Option<bool>,
     pub connection_blocklist_ttl_sec: Option<u64>,
     pub proxy_blocklist_ttl_sec: Option<u64>,
+    /// Response-item dimension: its threshold, and whether it is enforced. In a
+    /// reconfigure request an omitted field leaves that part unchanged.
+    pub response_items_threshold: Option<u64>,
+    pub response_items_enabled: Option<bool>,
+    /// Rendered-field dimension: its threshold, and whether it is enforced. In a
+    /// reconfigure request an omitted field leaves that part unchanged.
+    pub rendered_fields_threshold: Option<u64>,
+    pub rendered_fields_enabled: Option<bool>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -340,6 +348,17 @@ mod tests {
         assert_eq!(config.client_threshold, 5);
         assert_eq!(config.response_items_threshold, None);
         assert_eq!(config.rendered_fields_threshold, None);
+    }
+
+    #[test]
+    fn old_admin_request_without_new_fields_deserializes() {
+        let params: super::TrafficControlReconfigParams =
+            serde_json::from_str(r#"{"spam_threshold": 5}"#).unwrap();
+        assert_eq!(params.spam_threshold, Some(5));
+        assert_eq!(params.response_items_threshold, None);
+        assert_eq!(params.response_items_enabled, None);
+        assert_eq!(params.rendered_fields_threshold, None);
+        assert_eq!(params.rendered_fields_enabled, None);
     }
 
     #[test]
