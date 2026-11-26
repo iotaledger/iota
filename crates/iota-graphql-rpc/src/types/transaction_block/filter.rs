@@ -32,8 +32,9 @@ pub(crate) struct TransactionBlockFilter {
     /// `package::module::name` of their function.
     pub function: Option<FqNameFilter>,
 
-    /// An input filter selecting for either system or programmable
-    /// transactions.
+    /// An input filter selecting transactions by kind: system transactions,
+    /// programmable transactions, claims of an account, or one kind of system
+    /// transaction.
     pub kind: Option<TransactionBlockKindInput>,
     /// Limit to transactions that occurred strictly after the given checkpoint.
     pub after_checkpoint: Option<UInt53>,
@@ -117,8 +118,8 @@ impl TransactionBlockFilter {
     ///
     /// Combining the remaining filters does not have this effect:
     ///
-    /// * `sent_address` is available as a denormalized column on the other filters' tables, and is
-    ///   served by `tx_senders` only when set on its own.
+    /// * `sent_address` is available as a denormalized column on the other filters' tables (except
+    ///   `tx_kinds`), and is served by `tx_senders` when set on its own or together with `kind`.
     /// * `{after,at,before}_checkpoint` bound the range of transactions each read is confined to.
     /// * `transaction_ids` matches at most one transaction per digest given.
     fn scan_count(&self) -> usize {
@@ -142,12 +143,18 @@ impl TransactionBlockFilter {
         self.scan_count() > 1
     }
 
-    /// Returns the transaction sender to query `tx_sender`.
+    /// Returns the transaction sender to query `tx_senders`.
     ///
     /// If there are other filters set that would query tables with a `sender`
-    /// column, then this returns `None`.
+    /// column, then this returns `None`. `tx_kinds` has no such column but requires sender
+    /// filtering for non-system transactions (system transactions don't need sender filtering since
+    /// they all have the same known sender=0x0).
     pub(crate) fn explicit_sender(&self) -> Option<IotaAddress> {
-        if self.scan_count() == 0 {
+        let only_nonsystem_kind = self.scan_count() == 1
+            && self
+                .kind
+                .is_some_and(|kind| kind != TransactionBlockKindInput::SystemTx);
+        if self.scan_count() == 0 || only_nonsystem_kind {
             self.sent_address
         } else {
             None
@@ -406,6 +413,58 @@ mod tests {
         for filter in TransactionBlockFilter::scanned() {
             let filter = filter.intersect(unscanned.clone()).unwrap();
             assert_eq!(filter.explicit_sender(), None);
+        }
+    }
+
+    #[test]
+    fn explicit_sender_kept_with_a_user_transaction_kind() {
+        let unscanned = TransactionBlockFilter::unscanned();
+
+        for kind in [
+            TransactionBlockKindInput::ProgrammableTx,
+            TransactionBlockKindInput::ClaimAccount,
+        ] {
+            let by_kind = TransactionBlockFilter {
+                kind: Some(kind),
+                ..Default::default()
+            };
+            let filter = by_kind.clone().intersect(unscanned.clone()).unwrap();
+            assert_eq!(
+                filter.explicit_sender(),
+                Some(TransactionBlockFilter::SENDER)
+            );
+
+            // Any other scanned filter carries the sender itself.
+            let filter = by_kind
+                .intersect(TransactionBlockFilter {
+                    recv_address: Some(TransactionBlockFilter::SENDER),
+                    ..unscanned.clone()
+                })
+                .unwrap();
+            assert_eq!(filter.explicit_sender(), None);
+        }
+    }
+
+    /// The pruning check sees every table a kind filter with a sender reads:
+    /// `tx_kinds` for the kind and `tx_senders` for the sender.
+    #[test]
+    fn subquery_tables_list_both_tables_of_a_kind_and_sender_filter() {
+        use CommitterTables::{TxKinds, TxSenders};
+
+        for kind in [
+            TransactionBlockKindInput::ProgrammableTx,
+            TransactionBlockKindInput::ClaimAccount,
+        ] {
+            let filter = TransactionBlockFilter {
+                kind: Some(kind),
+                sent_address: Some(TransactionBlockFilter::SENDER),
+                ..Default::default()
+            };
+            let tables = subquery_tables(&filter);
+            assert!(
+                tables.contains(&TxKinds) && tables.contains(&TxSenders),
+                "{kind:?}: {tables:?}"
+            );
         }
     }
 }

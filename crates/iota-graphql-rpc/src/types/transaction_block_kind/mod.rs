@@ -6,6 +6,7 @@ use async_graphql::*;
 use iota_sdk_types::TransactionKind as NativeTransactionKind;
 
 use self::{
+    claim_account::ClaimAccountTransaction,
     consensus_commit_prologue::ConsensusCommitPrologueTransaction, genesis::GenesisTransaction,
     randomness_state_update::RandomnessStateUpdateTransaction,
     transaction_deny_rules_update::TransactionDenyRulesUpdateTransaction,
@@ -17,6 +18,7 @@ use crate::{
     },
 };
 
+pub(crate) mod claim_account;
 pub(crate) mod consensus_commit_prologue;
 pub(crate) mod end_of_epoch;
 pub(crate) mod genesis;
@@ -24,8 +26,8 @@ pub(crate) mod programmable;
 pub(crate) mod randomness_state_update;
 pub(crate) mod transaction_deny_rules_update;
 
-/// The kind of transaction block, either a programmable transaction or a system
-/// transaction.
+/// The kind of transaction block: a programmable transaction, a claim of the
+/// sender's address as an account object, or a system transaction.
 #[derive(Union, PartialEq, Clone, Eq)]
 pub(crate) enum TransactionBlockKind {
     ConsensusCommitPrologue(ConsensusCommitPrologueTransaction),
@@ -34,6 +36,7 @@ pub(crate) enum TransactionBlockKind {
     Randomness(RandomnessStateUpdateTransaction),
     TransactionDenyRulesUpdate(TransactionDenyRulesUpdateTransaction),
     EndOfEpoch(EndOfEpochTransaction),
+    ClaimAccount(ClaimAccountTransaction),
 }
 
 impl TransactionBlockKind {
@@ -82,6 +85,9 @@ impl TransactionBlockKind {
                     checkpoint_viewed_at,
                 },
             )),
+            K::ClaimAccount(claim) => {
+                Ok(T::ClaimAccount(ClaimAccountTransaction { native: claim }))
+            }
             _ => Err(Error::Internal(
                 "unknown TransactionKind variant".to_string(),
             )),

@@ -38,14 +38,17 @@ use self::{
         ecdsa_k1,
         ecdsa_k1::{
             EcdsaK1DecompressPubkeyCostParams, EcdsaK1EcrecoverCostParams,
-            EcdsaK1Secp256k1VerifyCostParams,
+            EcdsaK1Secp256k1ValidatePubkeyCostParams, EcdsaK1Secp256k1VerifyCostParams,
         },
         ecdsa_r1,
-        ecdsa_r1::{EcdsaR1EcrecoverCostParams, EcdsaR1Secp256R1VerifyCostParams},
+        ecdsa_r1::{
+            EcdsaR1EcrecoverCostParams, EcdsaR1Secp256R1VerifyCostParams,
+            EcdsaR1Secp256r1ValidatePubkeyCostParams,
+        },
         ecvrf,
         ecvrf::EcvrfEcvrfVerifyCostParams,
         ed25519,
-        ed25519::Ed25519VerifyCostParams,
+        ed25519::{Ed25519ValidatePubkeyCostParams, Ed25519VerifyCostParams},
         groth16,
         groth16::{
             Groth16PrepareVerifyingKeyCostParams, Groth16VerifyGroth16ProofInternalCostParams,
@@ -54,6 +57,8 @@ use self::{
         hash::{HashBlake2b256CostParams, HashKeccak256CostParams},
         hmac,
         hmac::HmacHmacSha3256CostParams,
+        multisig,
+        multisig::MultisigValidatePubkeyCostParams,
         poseidon,
     },
     dynamic_field::{
@@ -87,6 +92,12 @@ use crate::{
         poseidon::PoseidonBN254CostParams,
         zklogin,
     },
+    public_key::{
+        PublicKeyToIotaAddressImplCostParams,
+        PublicKeyVerifyBuiltinAuthenticatorSignatureImplCostParams,
+        PublicKeyVerifyPersonalMessageSignatureImplCostParams,
+    },
+    smart_account_builtin_authenticator::SmartAccountBuiltinAuthenticatorKeyProofMessageCostParams,
     tx_context::TxContextDigestCostParams,
 };
 
@@ -100,7 +111,9 @@ mod event;
 mod object;
 pub mod object_runtime;
 pub mod protocol_config;
+mod public_key;
 mod random;
+mod smart_account_builtin_authenticator;
 pub mod test_scenario;
 mod test_utils;
 pub mod transaction_context;
@@ -187,10 +200,12 @@ pub struct NativesCostTable {
     // ecdsak1
     pub ecdsa_k1_ecrecover_cost_params: EcdsaK1EcrecoverCostParams,
     pub ecdsa_k1_decompress_pubkey_cost_params: EcdsaK1DecompressPubkeyCostParams,
+    pub ecdsa_k1_secp256k1_validate_pubkey_cost_params: EcdsaK1Secp256k1ValidatePubkeyCostParams,
     pub ecdsa_k1_secp256k1_verify_cost_params: EcdsaK1Secp256k1VerifyCostParams,
 
     // ecdsar1
     pub ecdsa_r1_ecrecover_cost_params: EcdsaR1EcrecoverCostParams,
+    pub ecdsa_r1_secp256r1_validate_pubkey_cost_params: EcdsaR1Secp256r1ValidatePubkeyCostParams,
     pub ecdsa_r1_secp256_r1_verify_cost_params: EcdsaR1Secp256R1VerifyCostParams,
 
     // ecvrf
@@ -198,6 +213,19 @@ pub struct NativesCostTable {
 
     // ed25519
     pub ed25519_verify_cost_params: Ed25519VerifyCostParams,
+    pub ed25519_validate_pubkey_cost_params: Ed25519ValidatePubkeyCostParams,
+
+    // multisig
+    pub multisig_validate_pubkey_cost_params: MultisigValidatePubkeyCostParams,
+
+    // public_key
+    pub public_key_to_iota_address_impl_cost_params: PublicKeyToIotaAddressImplCostParams,
+    pub public_key_verify_personal_message_signature_impl_cost_params:
+        PublicKeyVerifyPersonalMessageSignatureImplCostParams,
+    pub public_key_verify_builtin_authenticator_signature_impl_cost_params:
+        PublicKeyVerifyBuiltinAuthenticatorSignatureImplCostParams,
+    pub smart_account_builtin_authenticator_key_proof_message_cost_params:
+        SmartAccountBuiltinAuthenticatorKeyProofMessageCostParams,
 
     // groth16
     pub groth16_prepare_verifying_key_cost_params: Groth16PrepareVerifyingKeyCostParams,
@@ -356,6 +384,48 @@ impl NativesCostTable {
                     .ed25519_ed25519_verify_msg_cost_per_block()
                     .into(),
             },
+            // ed25519_validate_pubkey
+            ed25519_validate_pubkey_cost_params: Ed25519ValidatePubkeyCostParams {
+                ed25519_ed25519_validate_pubkey_cost_base: protocol_config
+                    .ed25519_ed25519_validate_pubkey_cost_base_as_option()
+                    .map(Into::into),
+            },
+            // multisig_validate_pubkey
+            multisig_validate_pubkey_cost_params: MultisigValidatePubkeyCostParams {
+                multisig_multisig_validate_pubkey_cost_base: protocol_config
+                    .multisig_multisig_validate_pubkey_cost_base_as_option()
+                    .map(Into::into),
+            },
+            // to_iota_address_impl
+            public_key_to_iota_address_impl_cost_params: PublicKeyToIotaAddressImplCostParams {
+                public_key_to_iota_address_impl_cost_base: protocol_config
+                    .public_key_to_iota_address_impl_cost_base_as_option()
+                    .map(Into::into),
+            },
+            public_key_verify_personal_message_signature_impl_cost_params:
+                PublicKeyVerifyPersonalMessageSignatureImplCostParams {
+                    public_key_verify_personal_message_signature_impl_cost_base: protocol_config
+                        .public_key_verify_personal_message_signature_impl_cost_base_as_option()
+                        .map(Into::into),
+                    public_key_verify_personal_message_signature_impl_msg_cost_per_byte: protocol_config
+                        .public_key_verify_personal_message_signature_impl_msg_cost_per_byte_as_option()
+                        .map(Into::into),
+                    public_key_verify_personal_message_signature_impl_sig_cost_per_byte: protocol_config
+                        .public_key_verify_personal_message_signature_impl_sig_cost_per_byte_as_option()
+                        .map(Into::into),
+                },
+            public_key_verify_builtin_authenticator_signature_impl_cost_params:
+                PublicKeyVerifyBuiltinAuthenticatorSignatureImplCostParams {
+                    public_key_verify_builtin_authenticator_signature_impl_cost_base: protocol_config
+                        .public_key_verify_builtin_authenticator_signature_impl_cost_base_as_option()
+                        .map(Into::into),
+                },
+            smart_account_builtin_authenticator_key_proof_message_cost_params:
+                SmartAccountBuiltinAuthenticatorKeyProofMessageCostParams {
+                    smart_account_builtin_authenticator_key_proof_message_cost_base: protocol_config
+                        .smart_account_builtin_authenticator_key_proof_message_cost_base_as_option()
+                        .map(Into::into),
+                },
             // hash
             hash_blake2b256_cost_params: HashBlake2b256CostParams {
                 hash_blake2b256_cost_base: protocol_config.hash_blake2b256_cost_base().into(),
@@ -594,6 +664,12 @@ impl NativesCostTable {
                     .ecdsa_k1_decompress_pubkey_cost_base()
                     .into(),
             },
+            ecdsa_k1_secp256k1_validate_pubkey_cost_params:
+                EcdsaK1Secp256k1ValidatePubkeyCostParams {
+                    ecdsa_k1_secp256k1_validate_pubkey_cost_base: protocol_config
+                        .ecdsa_k1_secp256k1_validate_pubkey_cost_base_as_option()
+                        .map(Into::into),
+                },
             ecdsa_k1_secp256k1_verify_cost_params: EcdsaK1Secp256k1VerifyCostParams {
                 ecdsa_k1_secp256k1_verify_keccak256_cost_base: protocol_config
                     .ecdsa_k1_secp256k1_verify_keccak256_cost_base()
@@ -634,6 +710,12 @@ impl NativesCostTable {
                     .ecdsa_r1_ecrecover_sha256_msg_cost_per_block()
                     .into(),
             },
+            ecdsa_r1_secp256r1_validate_pubkey_cost_params:
+                EcdsaR1Secp256r1ValidatePubkeyCostParams {
+                    ecdsa_r1_secp256r1_validate_pubkey_cost_base: protocol_config
+                        .ecdsa_r1_secp256r1_validate_pubkey_cost_base_as_option()
+                        .map(Into::into),
+                },
             ecdsa_r1_secp256_r1_verify_cost_params: EcdsaR1Secp256R1VerifyCostParams {
                 ecdsa_r1_secp256r1_verify_keccak256_cost_base: protocol_config
                     .ecdsa_r1_secp256r1_verify_keccak256_cost_base()
@@ -1081,6 +1163,51 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             "ed25519",
             "ed25519_verify",
             make_native!(ed25519::ed25519_verify),
+        ),
+        (
+            "ed25519",
+            "ed25519_validate_pubkey",
+            make_native!(ed25519::ed25519_validate_pubkey),
+        ),
+        (
+            "ecdsa_k1",
+            "secp256k1_validate_pubkey",
+            make_native!(ecdsa_k1::secp256k1_validate_pubkey),
+        ),
+        (
+            "ecdsa_r1",
+            "secp256r1_validate_pubkey",
+            make_native!(ecdsa_r1::secp256r1_validate_pubkey),
+        ),
+        (
+            "multisig",
+            "multisig_validate_pubkey",
+            make_native!(multisig::multisig_validate_pubkey),
+        ),
+        (
+            "public_key",
+            "to_iota_address_impl",
+            make_native!(public_key::to_iota_address_impl),
+        ),
+        (
+            "public_key",
+            "verify_personal_message_signature_impl",
+            make_native!(public_key::verify_personal_message_signature_impl),
+        ),
+        (
+            "public_key",
+            "verify_builtin_authenticator_signature_impl",
+            make_native!(public_key::verify_builtin_authenticator_signature_impl),
+        ),
+        (
+            "smart_account_builtin_authenticator",
+            "key_proof_message",
+            make_native!(smart_account_builtin_authenticator::key_proof_message),
+        ),
+        (
+            "builtin_authenticator_functions",
+            "borrow_account_uid",
+            make_native!(object::borrow_uid),
         ),
         ("event", "emit", make_native!(event::emit)),
         (
