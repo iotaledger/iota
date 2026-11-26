@@ -473,9 +473,9 @@ mod tests {
     }
 
     /// A method that reserves simulation gas, as the simulation methods do,
-    /// is refused with `ServerIsBusy` once its client is over the limit, and
-    /// the refusal does not feed the error policy, so the client is not
-    /// blocked.
+    /// is refused with `ServerIsBusy` and the time to retry once its client is
+    /// over the limit, and the refusal does not feed the error policy, so the
+    /// client is not blocked.
     #[tokio::test]
     async fn a_simulation_over_the_gas_limit_is_refused_as_busy() {
         let (router, traffic_controller) =
@@ -489,7 +489,7 @@ mod tests {
         let (_, body) = send(&router, Some("application/json"), request).await;
         assert!(
             body.contains(&ErrorCode::ServerIsBusy.code().to_string())
-                && body.contains("simulation gas limit reached"),
+                && body.contains("simulation gas limit reached, retry in "),
             "{body}"
         );
         assert!(

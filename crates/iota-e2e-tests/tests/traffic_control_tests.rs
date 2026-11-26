@@ -472,7 +472,9 @@ async fn test_fullnode_json_rpc_simulation_gas_limit() -> Result<(), anyhow::Err
     let busy = |error: jsonrpsee::core::ClientError| match error {
         jsonrpsee::core::ClientError::Call(error) => {
             assert!(
-                error.message().contains("simulation gas limit reached"),
+                error
+                    .message()
+                    .starts_with("simulation gas limit reached, retry in "),
                 "{error}"
             );
             error.code()
