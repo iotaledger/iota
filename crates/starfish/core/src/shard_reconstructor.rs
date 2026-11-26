@@ -1523,9 +1523,13 @@ mod tests {
         let carrier_block = VerifiedBlock::new_for_test(TestBlockHeader::new(2, 0).build());
 
         // GIVEN: a shard-source block (round 1, authority 1) — the block the shard
-        // was erasure-coded from. It is from a *different* round and author than the
-        // carrier block, which is the normal situation inside a BlockBundle.
-        let shard_source = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(1, 1).build());
+        // was erasure-coded from. It has a *different* round, author and commitment
+        // than the carrier block, which is the normal situation inside a BlockBundle.
+        let shard_source = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(1, 1)
+                .set_commitment(TransactionsCommitment::MAX)
+                .build(),
+        );
 
         // GIVEN: a ShardWithProof whose block_ref points to shard_source.
         let shard_with_proof = ShardWithProof::new(
