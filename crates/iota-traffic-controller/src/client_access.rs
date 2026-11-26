@@ -526,6 +526,19 @@ fn warn_about_rules(rules: &RuleSet, policy_config: &PolicyConfig) {
              reaches the node directly writes the whole header"
         );
     }
+    if rules.default == DefaultAction::Deny
+        && matches!(
+            policy_config.client_id_source,
+            ClientIdSource::XForwardedFor(_)
+        )
+    {
+        warn!(
+            "The default action `deny` refuses every request that carries no x-forwarded-for \
+             header, since the node resolves no client for it and no allow rule can match it. \
+             On a validator these are all the requests of the other nodes, which call it \
+             directly"
+        );
+    }
 }
 
 fn set_rule_metrics(rules: &RuleSet, metrics: &TrafficControllerMetrics) {
@@ -1043,6 +1056,26 @@ mod tests {
         });
         assert_eq!(warnings.len(), 1, "{warnings:?}");
         assert!(warnings[0].contains("x-forwarded-for"), "{warnings:?}");
+    }
+
+    #[tokio::test]
+    async fn the_default_deny_behind_a_proxy_is_warned_about() {
+        let warnings = startup_warnings(PolicyConfig {
+            client_id_source: ClientIdSource::XForwardedFor(1),
+            ..with_rules(&[], &[], DefaultAction::Deny)
+        });
+        assert_eq!(warnings.len(), 1, "{warnings:?}");
+        assert!(
+            warnings[0].contains(
+                "The default action `deny` refuses every request that carries no x-forwarded-for \
+                 header"
+            ),
+            "{warnings:?}"
+        );
+
+        // A client read from the connection is always resolved.
+        let warnings = startup_warnings(with_rules(&[], &[], DefaultAction::Deny));
+        assert!(warnings.is_empty(), "{warnings:?}");
     }
 
     #[tokio::test]

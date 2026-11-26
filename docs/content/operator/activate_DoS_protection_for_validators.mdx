@@ -99,7 +99,7 @@ In dry run mode the node serves the requests that steps 2 to 4 refuse, and only 
 
 The policies count an IPv6 client by the first `ipv6-prefix-len` bits of its address, but the rules match its full address. A client can thus avoid a deny rule longer than `ipv6-prefix-len` by moving to another address in its own prefix, and the node logs a warning at startup for such a rule.
 
-With `client-id-source: x-forwarded-for` the rules match the client that the header names. An allow rule then holds only if clients can reach the node through your proxy alone: a client that reaches the node port directly writes the whole header, and can name an allowed address. The node logs a warning at startup for allow rules with `x-forwarded-for`.
+With `client-id-source: x-forwarded-for` the rules match the client that the header names. An allow rule then holds only if clients can reach the node through your proxy alone: a client that reaches the node port directly writes the whole header, and can name an allowed address. The node logs a warning at startup for allow rules with `x-forwarded-for`. It also logs a warning for `default: deny` with `x-forwarded-for`: a request without the header matches no allow rule and is refused, and on a validator that is every request of the other nodes.
 
 The `allow-list` field is no longer accepted. A node whose configuration sets it to a list refuses to start. Use `allow` rules with `default: deny` instead:
 
