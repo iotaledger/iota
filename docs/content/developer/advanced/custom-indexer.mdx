@@ -247,6 +247,21 @@ Code for the `Cargo.toml` manifest file for the custom indexer.
 ```toml file=<rootDir>/examples/custom-indexer/rust/Cargo.toml
 ```
 
+## Backfill a Checkpoint Range
+
+The readers above are built and fine-tuned for continuous ingestion up to the tip of the network. For backfill purposes over a fixed range, in either ascending or descending order, [`BackfillExecutor`](https://iotaledger.github.io/iota/iota_data_ingestion_core/struct.BackfillExecutor.html) is a better fit.
+
+The executor reads the range from the [historical checkpoint store](#historical-checkpoint-store) and stops once the range is complete. It takes the same `Worker` as the readers above, and optionally a `Reducer`.
+
+```rust file=<rootDir>/examples/custom-indexer/rust/backfill.rs
+```
+
+Run the example with the first and the last checkpoint of the range and the order.
+
+```sh
+cargo run --bin backfill -- 1000 1100 desc
+```
+
 ## Source Code
 
 Find the following source code in the [IOTA repo](https://github.com/iotaledger/iota/tree/main/examples/custom-indexer/rust).
