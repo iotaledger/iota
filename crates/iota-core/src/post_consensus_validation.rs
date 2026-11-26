@@ -1541,6 +1541,12 @@ pub(crate) fn claim_lock_reference(address: Address) -> ObjectReference {
 /// a Move authenticator, other than the sender of a `ClaimAccount`, whose
 /// claim is checked on its own. Once a claim has made such an address
 /// explicit, the transaction is dropped.
+///
+/// A claim cannot carry a Move authenticator, so the sponsor of a claim is
+/// always among these addresses: a claimed address cannot sponsor a claim.
+/// An address that pays for claims, such as a gas station, has to stay
+/// unclaimed, or send coins to the new address so that the new address pays
+/// for its own claim.
 pub(crate) fn plain_signed_addresses(transaction: &SenderSignedTransaction) -> Vec<Address> {
     let data = transaction.transaction();
     let move_authenticated: HashSet<Address> = transaction
