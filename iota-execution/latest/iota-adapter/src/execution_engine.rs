@@ -149,22 +149,19 @@ mod checked {
             protocol_config,
         );
 
-        let tx_ctx = {
-            let mut tx_ctx = TxContext::new_from_components(
-                &transaction_signer,
-                &transaction_digest,
-                epoch_id,
-                epoch_timestamp_ms,
-                rgp,
-                gas_price,
-                gas_data.budget,
-                sponsor,
-                chain_identifier,
-                protocol_config,
-            );
-            tx_ctx.set_nonce(nonce);
-            tx_ctx
-        };
+        let tx_ctx = TxContext::new_from_components(
+            &transaction_signer,
+            &transaction_digest,
+            epoch_id,
+            epoch_timestamp_ms,
+            rgp,
+            gas_price,
+            gas_data.budget,
+            sponsor,
+            chain_identifier,
+            nonce,
+            protocol_config,
+        );
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
 
         execute_transaction_to_effects_inner::<Mode>(
@@ -411,10 +408,8 @@ mod checked {
             protocol_config,
         );
 
-        // Prepare the transaction context. It gets the nonce only once the
-        // authenticators have run: they get the same context, and a nonce is
-        // unique among executed transactions only, while authenticators also
-        // run for transactions that are never executed.
+        // Prepare the transaction context. The authenticators and the
+        // transaction body share it, so they read the same nonce.
         let tx_ctx = TxContext::new_from_components(
             &transaction_signer,
             &transaction_digest,
@@ -425,6 +420,7 @@ mod checked {
             gas_data.budget,
             sponsor,
             chain_identifier,
+            nonce,
             protocol_config,
         );
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
@@ -578,8 +574,6 @@ mod checked {
         // authenticate function and a result which is either empty or an error.
         // We can now start the creation of the transaction effects, either for an
         // authentication failure or for a normal execution of the transaction.
-
-        tx_ctx.borrow_mut().set_nonce(nonce);
 
         // Run the transaction execution and return the effects.
         let (inner_temp_store, gas_status, effects, timings, execution_result) =
@@ -966,8 +960,7 @@ mod checked {
             GasCharger::new(transaction_digest, vec![], gas_status, protocol_config);
 
         // Prepare the transaction context, equal for both authentication and
-        // transaction execution. It has no nonce: authenticators also run for
-        // transactions that are never executed.
+        // transaction execution, nonce included.
         let tx_ctx = TxContext::new_from_components(
             &transaction_signer,
             &transaction_digest,
@@ -978,6 +971,7 @@ mod checked {
             gas_data.budget,
             sponsor,
             chain_identifier,
+            gas_data.nonce(),
             protocol_config,
         );
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
