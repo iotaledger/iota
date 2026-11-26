@@ -20,8 +20,9 @@ use iota_types::{
     crypto::{RandomnessPartialSignature, RandomnessSignature},
     error::{IotaError, IotaResult},
     traffic_control::{
-        AccessRuleList, BlockReason, DEFAULT_DENY_WARNING, DefaultAction,
-        TrafficControlReconfigParams,
+        AccessRuleChangeQuery, AccessRuleList, BlockReason, BlocklistQuery, ClientUsageQuery,
+        DEFAULT_DENY_WARNING, DefaultAction, ManualBlockQuery, TrafficControlReconfigParams,
+        UnblockQuery,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -796,14 +797,6 @@ fn traffic_control_rules_response(state: &AuthorityState) -> Response {
     json_response(state.traffic_control_access_rules())
 }
 
-/// The query of `POST /traffic-control/rules/add` and `/rules/remove`.
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct AccessRuleChangeQuery {
-    list: AccessRuleList,
-    client: String,
-}
-
 /// The name of `list` in the admin API.
 fn list_name(list: AccessRuleList) -> &'static str {
     match list {
@@ -856,13 +849,6 @@ fn remove_traffic_control_rule_response(
     )
 }
 
-/// The query of `GET /traffic-control/blocklist`.
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct BlocklistQuery {
-    limit: Option<usize>,
-}
-
 async fn traffic_control_blocklist(
     State(state): State<Arc<AuthorityState>>,
     Query(query): Query<BlocklistQuery>,
@@ -876,14 +862,6 @@ fn traffic_control_blocklist_response(
 ) -> Response {
     const DEFAULT_BLOCKLIST_LIMIT: usize = 200;
     json_response(state.traffic_control_blocklist(limit.unwrap_or(DEFAULT_BLOCKLIST_LIMIT)))
-}
-
-/// The query of `POST /traffic-control/block`.
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ManualBlockQuery {
-    client: String,
-    ttl_sec: u64,
 }
 
 async fn block_traffic_control_client(
@@ -924,13 +902,6 @@ fn block_traffic_control_client_response(
     )
 }
 
-/// The query of `POST /traffic-control/unblock`.
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct UnblockQuery {
-    client: String,
-}
-
 async fn unblock_traffic_control_client(
     State(state): State<Arc<AuthorityState>>,
     Query(query): Query<UnblockQuery>,
@@ -951,13 +922,6 @@ fn unblock_traffic_control_client_response(
             ),
         },
     ))
-}
-
-/// The query of `GET /traffic-control/clients`.
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ClientUsageQuery {
-    top: Option<usize>,
 }
 
 async fn traffic_control_clients(

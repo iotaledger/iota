@@ -88,6 +88,44 @@ pub const DEFAULT_DENY_WARNING: &str = "Outside dry run, the default action deny
     `x-forwarded-for`, allow rules cannot admit them: their requests carry no x-forwarded-for \
     header, so the node resolves no client to match.";
 
+/// The query of the admin API routes `POST /traffic-control/rules/add` and
+/// `POST /traffic-control/rules/remove`.
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct AccessRuleChangeQuery {
+    pub list: AccessRuleList,
+    pub client: String,
+}
+
+/// The query of the admin API route `GET /traffic-control/blocklist`.
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct BlocklistQuery {
+    pub limit: Option<usize>,
+}
+
+/// The query of the admin API route `POST /traffic-control/block`.
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ManualBlockQuery {
+    pub client: String,
+    pub ttl_sec: u64,
+}
+
+/// The query of the admin API route `POST /traffic-control/unblock`.
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct UnblockQuery {
+    pub client: String,
+}
+
+/// The query of the admin API route `GET /traffic-control/clients`.
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ClientUsageQuery {
+    pub top: Option<usize>,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Weight(f32);
 
