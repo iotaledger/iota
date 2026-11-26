@@ -47,10 +47,11 @@ use tonic::{Code, transport::Channel};
 
 /// A `TransactionExecutor` that records the thread each simulation runs on.
 /// A simulation fails, or with `computation_cost` set succeeds at that cost
-/// and a gas price of 1. It allows `permits` simulations at once.
+/// and `gas_price`. It allows `permits` simulations at once.
 struct SimulationExecutor {
     permits: Arc<Semaphore>,
     computation_cost: Option<u64>,
+    gas_price: u64,
     threads: Mutex<Vec<ThreadId>>,
     /// Notified when a simulation starts.
     started: Notify,
@@ -64,15 +65,17 @@ impl SimulationExecutor {
         Self {
             permits: Arc::new(Semaphore::new(permits)),
             computation_cost: None,
+            gas_price: 1,
             threads: Mutex::default(),
             started: Notify::new(),
             gate: Mutex::default(),
         }
     }
 
-    fn costing(computation_cost: u64) -> Self {
+    fn costing(computation_cost: u64, gas_price: u64) -> Self {
         Self {
             computation_cost: Some(computation_cost),
+            gas_price,
             ..Self::new(1)
         }
     }
@@ -124,7 +127,7 @@ impl TransactionExecutor for SimulationExecutor {
             gas_data: GasPayment {
                 objects: vec![],
                 owner: Address::ZERO,
-                price: 1,
+                price: self.gas_price,
                 budget: computation_cost,
             },
         })
@@ -285,9 +288,9 @@ async fn a_simulation_is_refused_while_another_runs_and_served_after_it_ends() {
 /// are still served.
 #[tokio::test]
 async fn simulations_over_the_gas_limit_are_refused() {
-    // Each simulation reserves 1_000 and costs 600, so after two of them 800
-    // of the 2_000 are left.
-    let executor = Arc::new(SimulationExecutor::costing(600));
+    // Each simulation reserves 1_000 and is charged 4_000 / 10 = 400 of it,
+    // so after three of them 800 of the 2_000 are left.
+    let executor = Arc::new(SimulationExecutor::costing(4_000, 10));
     let (handle, mut client) = connect_with(
         executor,
         Some(SimulationGasLimitConfig {
@@ -298,8 +301,9 @@ async fn simulations_over_the_gas_limit_are_refused() {
     .await;
 
     assert_eq!(
-        simulate(&mut client, 4).await.unwrap(),
+        simulate(&mut client, 5).await.unwrap(),
         [
+            Code::Ok,
             Code::Ok,
             Code::Ok,
             Code::ResourceExhausted,
