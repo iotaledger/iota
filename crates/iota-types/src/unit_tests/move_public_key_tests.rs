@@ -25,7 +25,8 @@ use crate::{
     crypto::PublicKey,
     error::IotaError,
     move_public_key::{
-        MovePublicKey, verify_builtin_authenticator_signature, verify_personal_message_signature,
+        MovePublicKey, transaction_signing_digest, verify_builtin_authenticator_signature,
+        verify_personal_message_signature,
     },
     transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
 };
@@ -628,13 +629,28 @@ fn verify_builtin_authenticator_signature_error_other_public_key() {
 fn verify_builtin_authenticator_signature_error_invalid_tx_data_bytes() {
     let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(seeded_rng()));
     let mut verifier = builtin_signature_verifier(&key_pair);
+    // Bytes that are not a `Transaction` are not decoded: the signature does
+    // not match their digest.
     verifier.tx_data_bytes = vec![];
 
     assert!(matches!(
         verifier.verify().unwrap_err(),
         IotaError::InvalidSignature { error }
-            if error.contains("Failed to deserialize transaction data")
+            if error.contains("Fail to verify user sig")
     ));
+}
+
+// === transaction_signing_digest() ===
+
+#[test]
+fn transaction_signing_digest_equals_intent_message_signing_digest() {
+    let tx_data = dummy_tx_data(Address::new([1; 32]));
+    let tx_data_bytes = bcs::to_bytes(&tx_data).unwrap();
+
+    assert_eq!(
+        transaction_signing_digest(&tx_data_bytes),
+        IntentMessage::new(Intent::iota_transaction(), tx_data).signing_digest(),
+    );
 }
 
 // === verify_personal_message_signature() happy path ===
