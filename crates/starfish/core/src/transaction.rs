@@ -252,7 +252,7 @@ pub struct TransactionClient {
     sender: Sender<TransactionsGuard>,
     // Reserved channel for the validator's own high-priority submissions.
     priority_sender: Sender<TransactionsGuard>,
-    limits: TransactionSubmissionLimits,
+    limits: BlockTransactionLimits,
 }
 
 #[derive(Debug, Error)]
@@ -268,6 +268,22 @@ pub enum ClientError {
 
     #[error("Transaction bundle count ({0}) is over limit ({1})")]
     OversizedTransactionBundleCount(u64, u64),
+}
+
+impl From<BlockTransactionLimitError> for ClientError {
+    fn from(error: BlockTransactionLimitError) -> Self {
+        match error {
+            BlockTransactionLimitError::TransactionTooLarge { size, limit } => {
+                Self::OversizedTransaction(size, limit)
+            }
+            BlockTransactionLimitError::TooManyTransactions { count, limit } => {
+                Self::OversizedTransactionBundleCount(count, limit)
+            }
+            BlockTransactionLimitError::TooManyTransactionBytes { size, limit } => {
+                Self::OversizedTransactionBundleBytes(size, limit)
+            }
+        }
+    }
 }
 
 impl TransactionClient {
@@ -306,7 +322,7 @@ impl TransactionClient {
             Self {
                 sender,
                 priority_sender,
-                limits: TransactionSubmissionLimits::new(&context.protocol_config),
+                limits: BlockTransactionLimits::new(&context.protocol_config),
             },
             receiver,
             priority_receiver,
@@ -371,9 +387,11 @@ impl TransactionClient {
     }
 }
 
-/// The limits of Starfish on one submission of transactions.
+/// The limits of Starfish on the transactions of one block. They apply to one
+/// submission of transactions too, since Starfish puts a submission into one
+/// block.
 #[derive(Clone, Copy, Debug)]
-pub struct TransactionSubmissionLimits {
+pub struct BlockTransactionLimits {
     /// The largest serialized size of one transaction, in bytes.
     max_transaction_size: u64,
     /// The largest total serialized size of the transactions, in bytes.
@@ -382,7 +400,7 @@ pub struct TransactionSubmissionLimits {
     max_transactions_in_block_count: u64,
 }
 
-impl TransactionSubmissionLimits {
+impl BlockTransactionLimits {
     /// Returns the limits that `protocol_config` sets:
     /// [`ProtocolConfig::max_transaction_size_bytes()`],
     /// [`ProtocolConfig::max_transactions_in_block_bytes()`] and
@@ -400,20 +418,37 @@ impl TransactionSubmissionLimits {
     ///
     /// # Errors
     ///
-    /// [`ClientError::OversizedTransaction`] when it is larger.
-    pub fn check_transaction_size(&self, size: u64) -> Result<(), ClientError> {
+    /// [`BlockTransactionLimitError::TransactionTooLarge`] when it is larger.
+    pub fn check_transaction_size(&self, size: u64) -> Result<(), BlockTransactionLimitError> {
         if size > self.max_transaction_size {
-            return Err(ClientError::OversizedTransaction(
+            return Err(BlockTransactionLimitError::TransactionTooLarge {
                 size,
-                self.max_transaction_size,
-            ));
+                limit: self.max_transaction_size,
+            });
         }
 
         Ok(())
     }
 }
 
-/// Checks that Starfish accepts, as one submission, transactions whose
+/// The limit of [`BlockTransactionLimits`] that transactions are over.
+#[derive(Debug, Error)]
+pub enum BlockTransactionLimitError {
+    /// One transaction is larger than the limit on the size of a transaction.
+    #[error("transaction size ({size}B) is over limit ({limit}B)")]
+    TransactionTooLarge { size: u64, limit: u64 },
+
+    /// There are more transactions than the limit on their number.
+    #[error("transaction count ({count}) is over limit ({limit})")]
+    TooManyTransactions { count: u64, limit: u64 },
+
+    /// The transactions are larger in total than the limit on their total
+    /// size.
+    #[error("total transaction size ({size}B) is over limit ({limit}B)")]
+    TooManyTransactionBytes { size: u64, limit: u64 },
+}
+
+/// Checks that Starfish accepts, in one block, transactions whose
 /// serialized sizes are `transaction_sizes`: there are no more of them than
 /// `limits` allows, each is no larger than the size `limits` allows for one
 /// transaction, and together they are no larger than the total size `limits`
@@ -421,23 +456,25 @@ impl TransactionSubmissionLimits {
 ///
 /// # Errors
 ///
-/// [`ClientError::OversizedTransactionBundleCount`] when there are more
+/// [`BlockTransactionLimitError::TooManyTransactions`] when there are more
 /// transactions than the limit, and otherwise
-/// [`ClientError::OversizedTransaction`] or
-/// [`ClientError::OversizedTransactionBundleBytes`] for the first transaction
-/// that is over the size limit or takes the total over its limit. The total
-/// in [`ClientError::OversizedTransactionBundleBytes`] is the total up to and
-/// including that transaction, not the size of the whole submission.
+/// [`BlockTransactionLimitError::TransactionTooLarge`] or
+/// [`BlockTransactionLimitError::TooManyTransactionBytes`] for the first
+/// transaction that is over the size limit or takes the total over its limit.
+/// The total in [`BlockTransactionLimitError::TooManyTransactionBytes`] is the
+/// total up to and including that transaction, not the size of all the
+/// transactions.
 pub fn check_transactions_fit(
     transaction_sizes: &[u64],
-    limits: TransactionSubmissionLimits,
-) -> Result<(), ClientError> {
+    limits: BlockTransactionLimits,
+) -> Result<(), BlockTransactionLimitError> {
     let max_count = limits.max_transactions_in_block_count;
     let count = transaction_sizes.len() as u64;
     if count > max_count {
-        return Err(ClientError::OversizedTransactionBundleCount(
-            count, max_count,
-        ));
+        return Err(BlockTransactionLimitError::TooManyTransactions {
+            count,
+            limit: max_count,
+        });
     }
 
     let max_total_size = limits.max_transactions_in_block_bytes;
@@ -446,10 +483,10 @@ pub fn check_transactions_fit(
         limits.check_transaction_size(size)?;
         total_size = total_size.saturating_add(size);
         if total_size > max_total_size {
-            return Err(ClientError::OversizedTransactionBundleBytes(
-                total_size,
-                max_total_size,
-            ));
+            return Err(BlockTransactionLimitError::TooManyTransactionBytes {
+                size: total_size,
+                limit: max_total_size,
+            });
         }
     }
 
@@ -494,16 +531,16 @@ mod tests {
         block_verifier::SignedBlockVerifier,
         context::Context,
         transaction::{
-            BlockStatus, ClientError, LimitReached, NoopTransactionVerifier, Priority,
-            TransactionClient, TransactionConsumer, TransactionSubmissionLimits,
-            check_transactions_fit,
+            BlockStatus, BlockTransactionLimitError, BlockTransactionLimits, ClientError,
+            LimitReached, NoopTransactionVerifier, Priority, TransactionClient,
+            TransactionConsumer, check_transactions_fit,
         },
         transaction_ref::TransactionRef,
     };
 
     /// The limits the tests of [`check_transactions_fit()`] use: transactions
     /// of up to 10 bytes, at most 4 of them, and 25 bytes in total.
-    const LIMITS: TransactionSubmissionLimits = TransactionSubmissionLimits {
+    const LIMITS: BlockTransactionLimits = BlockTransactionLimits {
         max_transaction_size: 10,
         max_transactions_in_block_bytes: 25,
         max_transactions_in_block_count: 4,
@@ -517,7 +554,7 @@ mod tests {
         assert!(
             matches!(
                 check_transactions_fit(&[0; 5], LIMITS),
-                Err(ClientError::OversizedTransactionBundleCount(5, 4))
+                Err(BlockTransactionLimitError::TooManyTransactions { count: 5, limit: 4 })
             ),
             "a fifth transaction should not fit"
         );
@@ -526,7 +563,10 @@ mod tests {
         assert!(
             matches!(
                 check_transactions_fit(&[11], LIMITS),
-                Err(ClientError::OversizedTransaction(11, 10))
+                Err(BlockTransactionLimitError::TransactionTooLarge {
+                    size: 11,
+                    limit: 10
+                })
             ),
             "a transaction of 11 bytes should not fit"
         );
@@ -535,7 +575,10 @@ mod tests {
         assert!(
             matches!(
                 check_transactions_fit(&[10, 10, 6], LIMITS),
-                Err(ClientError::OversizedTransactionBundleBytes(26, 25))
+                Err(BlockTransactionLimitError::TooManyTransactionBytes {
+                    size: 26,
+                    limit: 25
+                })
             ),
             "26 bytes in total should not fit"
         );
@@ -552,17 +595,50 @@ mod tests {
         assert!(
             matches!(
                 check_transactions_fit(&[10, 10, 10, 1], LIMITS),
-                Err(ClientError::OversizedTransactionBundleBytes(30, 25))
+                Err(BlockTransactionLimitError::TooManyTransactionBytes {
+                    size: 30,
+                    limit: 25
+                })
             ),
             "the error should report the total up to the third transaction, not all 31 bytes"
         );
         assert!(
             matches!(
                 check_transactions_fit(&[10, 10, 10, 11], LIMITS),
-                Err(ClientError::OversizedTransactionBundleBytes(30, 25))
+                Err(BlockTransactionLimitError::TooManyTransactionBytes {
+                    size: 30,
+                    limit: 25
+                })
             ),
             "the total error should come before the oversized fourth transaction"
         );
+    }
+
+    /// Each error of [`check_transactions_fit()`] becomes the [`ClientError`]
+    /// of the same limit, with the same values.
+    #[test]
+    fn limit_errors_become_client_errors_of_same_limit() {
+        assert!(matches!(
+            ClientError::from(BlockTransactionLimitError::TransactionTooLarge {
+                size: 11,
+                limit: 10
+            }),
+            ClientError::OversizedTransaction(11, 10)
+        ));
+        assert!(matches!(
+            ClientError::from(BlockTransactionLimitError::TooManyTransactions {
+                count: 5,
+                limit: 4
+            }),
+            ClientError::OversizedTransactionBundleCount(5, 4)
+        ));
+        assert!(matches!(
+            ClientError::from(BlockTransactionLimitError::TooManyTransactionBytes {
+                size: 26,
+                limit: 25
+            }),
+            ClientError::OversizedTransactionBundleBytes(26, 25)
+        ));
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
