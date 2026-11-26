@@ -604,11 +604,19 @@ async fn traffic_control(
                 "Traffic control configured with:\n\
                  Error threshold: {:?}\n\
                  Spam threshold: {:?}\n\
+                 Response-items threshold: {:?}\n\
+                 Response-items enabled: {:?}\n\
+                 Rendered-fields threshold: {:?}\n\
+                 Rendered-fields enabled: {:?}\n\
                  Dry run: {:?}\n\
                  Connection blocklist TTL sec: {:?}\n\
                  Proxy blocklist TTL sec: {:?}\n",
                 updated_state.error_threshold,
                 updated_state.spam_threshold,
+                updated_state.response_items_threshold,
+                updated_state.response_items_enabled,
+                updated_state.rendered_fields_threshold,
+                updated_state.rendered_fields_enabled,
                 updated_state.dry_run,
                 updated_state.connection_blocklist_ttl_sec,
                 updated_state.proxy_blocklist_ttl_sec,

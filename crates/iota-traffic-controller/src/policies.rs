@@ -286,8 +286,10 @@ impl DimensionLimiter {
 
     /// Sets the value and/or the gate. A changed threshold rebuilds the
     /// limiter, discarding tracked client state; re-asserting the current
-    /// threshold keeps it. Enabling a dimension that has no configured value is
-    /// rejected. Both `None` is a no-op.
+    /// threshold keeps it. Setting a threshold enforces it unless the caller
+    /// also gates it off; `enabled` alone toggles an already-configured value,
+    /// and enabling a dimension that has no configured value is rejected. Both
+    /// `None` is a no-op.
     fn set(&self, threshold: Option<u64>, enabled: Option<bool>) -> Result<(), String> {
         if let Some(threshold) = threshold {
             let threshold = clamp_threshold(threshold, self.name);
@@ -298,7 +300,8 @@ impl DimensionLimiter {
                 })));
             }
         }
-        if let Some(enabled) = enabled {
+        // A supplied threshold enforces on its own; an explicit gate overrides.
+        if let Some(enabled) = enabled.or(threshold.map(|_| true)) {
             if enabled && self.configured.load().is_none() {
                 return Err(format!("set a {} threshold before enabling it", self.name));
             }
@@ -426,6 +429,15 @@ enum Policy {
     PanicOnInvocation,
 }
 
+/// Which of a traffic controller's two policies is being built. The
+/// response-item and rendered-field dimensions are spam-only, so the error
+/// policy ignores any dimension thresholds in its config.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum PolicyRole {
+    Spam,
+    Error,
+}
+
 /// The spam or error policy a traffic controller charges its tallies against.
 pub(super) struct TrafficControlPolicy(Policy);
 
@@ -434,6 +446,7 @@ impl TrafficControlPolicy {
         policy_type: &PolicyType,
         connection_blocklist_ttl_sec: u64,
         evictions: IntCounter,
+        role: PolicyRole,
     ) -> Self {
         Self(match policy_type {
             PolicyType::NoOp => Policy::NoOp,
@@ -447,6 +460,11 @@ impl TrafficControlPolicy {
                 if *burst_secs == 0 {
                     fatal!("freq-threshold burst-secs must be more than zero");
                 }
+                // The response-item and rendered-field dimensions are spam-only.
+                let (response_items_threshold, rendered_fields_threshold) = match role {
+                    PolicyRole::Spam => (*response_items_threshold, *rendered_fields_threshold),
+                    PolicyRole::Error => (None, None),
+                };
                 Policy::Limit(Box::new(RateLimitPolicy::new(
                     QuotaKind::Sustained {
                         burst_secs: *burst_secs,
@@ -456,8 +474,8 @@ impl TrafficControlPolicy {
                         *proxied_client_threshold,
                         "proxied-client-threshold",
                     )),
-                    *response_items_threshold,
-                    *rendered_fields_threshold,
+                    response_items_threshold,
+                    rendered_fields_threshold,
                     evictions,
                 )))
             }
@@ -576,6 +594,7 @@ mod tests {
             }),
             0,
             evictions(),
+            PolicyRole::Spam,
         )
     }
 
@@ -584,6 +603,7 @@ mod tests {
             &PolicyType::TestNConnIP(threshold),
             connection_blocklist_ttl_sec,
             evictions(),
+            PolicyRole::Spam,
         )
     }
 
@@ -643,6 +663,7 @@ mod tests {
             }),
             0,
             evictions(),
+            PolicyRole::Spam,
         )
     }
 
@@ -766,6 +787,49 @@ mod tests {
             .set_response_items(Some(2_000_000_000), None)
             .unwrap();
         assert_eq!(policy.response_items_state().0, Some(MAX_CLIENT_THRESHOLD));
+    }
+
+    #[test]
+    fn setting_a_dimension_threshold_enforces_it() {
+        // Setting a threshold through the admin path enforces it on its own; the
+        // caller does not also have to flip the gate, matching the direct
+        // threshold and the config path. Gating off stays explicit.
+        let policy = freq_threshold_with_dimensions(1_000_000, None, None);
+        let client = IpAddr::from([10, 4, 0, 1]);
+        policy.set_response_items(Some(50), None).unwrap();
+        assert_eq!(policy.response_items_state(), (Some(50), true));
+        assert_eq!(
+            policy.charge(&tally_with(client, 60, 0)).block_client,
+            Some(client)
+        );
+    }
+
+    #[test]
+    fn the_error_policy_ignores_dimension_thresholds() {
+        // The response-item and rendered-field dimensions are spam-only. An
+        // error policy whose config sets them builds no dimension limiter, so a
+        // tally far above the would-be threshold never blocks on them.
+        let policy = TrafficControlPolicy::from_policy_type(
+            &PolicyType::FreqThreshold(FreqThresholdConfig {
+                client_threshold: 1_000_000,
+                proxied_client_threshold: 1_000_000,
+                burst_secs: 1,
+                response_items_threshold: Some(1),
+                rendered_fields_threshold: Some(1),
+            }),
+            0,
+            evictions(),
+            PolicyRole::Error,
+        );
+        let client = IpAddr::from([10, 5, 0, 1]);
+        assert_eq!(policy.response_items_state(), (None, false));
+        assert_eq!(policy.rendered_fields_state(), (None, false));
+        assert!(
+            policy
+                .charge(&tally_with(client, 10_000, 10_000))
+                .block_client
+                .is_none()
+        );
     }
 
     #[sim_test]
@@ -958,7 +1022,12 @@ mod tests {
 
     #[test]
     fn test_non_limiting_policies_ignore_threshold_updates() {
-        let policy = TrafficControlPolicy::from_policy_type(&PolicyType::NoOp, 0, evictions());
+        let policy = TrafficControlPolicy::from_policy_type(
+            &PolicyType::NoOp,
+            0,
+            evictions(),
+            PolicyRole::Spam,
+        );
         assert_eq!(policy.client_threshold(), None);
         policy.set_client_threshold(10);
         assert_eq!(policy.client_threshold(), None);
@@ -971,6 +1040,7 @@ mod tests {
             &PolicyType::TestNConnIP(2),
             60,
             evictions.clone(),
+            PolicyRole::Spam,
         );
         let evicted = IpAddr::V4(Ipv4Addr::from(0x0A00_0000));
         assert_eq!(policy.charge(&direct_tally(evicted)).block_client, None);

@@ -30,7 +30,7 @@ use self::{
     client_access::{ClientAccessManager, client_prefix},
     metrics::TrafficControllerMetrics,
 };
-use crate::policies::{MAX_CLIENT_THRESHOLD, TrafficControlPolicy, TrafficTally};
+use crate::policies::{MAX_CLIENT_THRESHOLD, PolicyRole, TrafficControlPolicy, TrafficTally};
 
 /// The spam and error policies. Absent in allowlist mode, which does no
 /// tallying.
@@ -79,11 +79,13 @@ impl TrafficController {
                     &policy_config.spam_policy_type,
                     policy_config.connection_blocklist_ttl_sec,
                     metrics.rate_limiter_evictions.clone(),
+                    PolicyRole::Spam,
                 ),
                 error: TrafficControlPolicy::from_policy_type(
                     &policy_config.error_policy_type,
                     policy_config.connection_blocklist_ttl_sec,
                     metrics.rate_limiter_evictions.clone(),
+                    PolicyRole::Error,
                 ),
             };
             set_policy_config_metrics(&policies, &policy_config, &metrics);
