@@ -12772,3 +12772,69 @@ async fn served_checkpoint_contents_carry_the_pinned_signatures() {
             });
     }
 }
+
+/// A fullnode simulates a `ClaimAccount` of an address until its latest state
+/// records the address as claimed. From then on the simulation is rejected, as
+/// a validator rejects the claim before consensus.
+#[tokio::test]
+async fn test_simulate_rejects_a_claim_account_of_a_claimed_address() {
+    use iota_types::transaction::TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE;
+
+    let _guard =
+        ProtocolConfig::apply_overrides_for_testing(|_, config| enable_claim_account(config));
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let claim = iota_sdk_types::SmartAccountClaim::new(
+        &iota_sdk_types::crypto::PublicKey::Ed25519(sender_key.public_key()),
+    );
+    let gas = [ObjectId::random(), ObjectId::random()];
+    let (_validator, fullnode, _object_basics) =
+        init_state_with_ids_and_object_basics_with_fullnode(gas.map(|id| (sender, id))).await;
+    let epoch_store = fullnode.epoch_store_for_testing();
+    let gas_price = epoch_store.reference_gas_price();
+    let claim_paid_with = |gas_id: &ObjectId| {
+        claim_account_transaction(
+            &claim,
+            sender,
+            fullnode.get_object(gas_id).unwrap().object_ref(),
+            gas_price,
+            TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE * gas_price,
+        )
+    };
+    let first = claim_paid_with(&gas[0]);
+    let second = claim_paid_with(&gas[1]);
+
+    let simulated = fullnode
+        .simulate_transaction(second.clone(), VmChecks::Enabled)
+        .unwrap();
+    assert!(
+        simulated.effects.status().is_success(),
+        "{:?}",
+        simulated.effects.status()
+    );
+
+    let first = epoch_store
+        .verify_transaction(to_sender_signed_transaction(first, &sender_key))
+        .unwrap();
+    let executable =
+        VerifiedExecutableTransaction::new_from_checkpoint(first, epoch_store.epoch(), 1);
+    epoch_store.assign_to_a_new_commit_for_testing(&[executable.key()]);
+    let (effects, execution_error) = fullnode
+        .try_execute_immediately(&executable, ExecutionEnv::new(), &epoch_store)
+        .unwrap();
+    assert!(
+        effects.status().is_success(),
+        "{:?}, {execution_error:?}",
+        effects.status()
+    );
+
+    for checks in [VmChecks::Enabled, VmChecks::Disabled] {
+        let Err(error) = fullnode.simulate_transaction(second.clone(), checks) else {
+            panic!("{checks:?} should reject the claim");
+        };
+        assert_eq!(
+            error,
+            IotaError::from(UserInputError::AccountAlreadyExplicit { address: sender }),
+            "{checks:?}"
+        );
+    }
+}

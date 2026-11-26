@@ -14218,6 +14218,86 @@ async fn never_claimed_address_reads_as_not_claimed() {
     );
 }
 
+/// An address whose field the latest state holds deleted is answered from the
+/// rows: claimed while the deletion is above the horizon, not claimed once it
+/// is at the horizon. No transaction can delete the field, so the test writes
+/// the deletion to the store.
+#[tokio::test]
+async fn claimed_address_reads_as_claimed_while_its_field_deletion_is_above_the_horizon() {
+    use crate::transaction_outputs::TransactionOutputs;
+
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let (deleter, deleter_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas = ObjectId::random();
+    let deleter_gas = ObjectId::random();
+    let s = setup_claim_state(vec![
+        Object::with_id_owner_for_testing(gas, sender),
+        Object::with_id_owner_for_testing(deleter_gas, deleter),
+    ])
+    .await;
+    let claim = s.build_claim(sender, &key, &gas);
+    let claim_effects = s.execute_claim_with_assigned_commit(claim, 1);
+    s.complete_commit(1, &[&claim_effects]);
+    let k = s.horizon_distance();
+
+    let field_id = derive_authenticator_function_ref_v1_dynamic_field_id(sender).unwrap();
+    let field = s.authority.get_object(&field_id).unwrap();
+    let deletion = s.build_move_call(
+        "object_basics",
+        "create",
+        create_object_args(deleter),
+        &deleter_gas,
+        deleter,
+        &deleter_key,
+    );
+    let deletion_effects = TestEffectsBuilder::new(deletion.data())
+        .with_deleted_objects_owned_by([(field_id, field.version(), field.owner)])
+        .build();
+    let deletion_key = TransactionKey::Digest(*deletion.digest());
+    s.epoch_store
+        .assign_commit_to_transactions(3, vec![deletion_key]);
+    s.epoch_store
+        .record_executed_transaction(&deletion_key, &deletion_effects);
+    s.authority.get_cache_writer().write_transaction_outputs(
+        s.epoch_store.epoch(),
+        Arc::new(TransactionOutputs {
+            transaction: Arc::new(deletion),
+            effects: deletion_effects.clone(),
+            events: Default::default(),
+            superseded: vec![],
+            markers: vec![],
+            wrapped: vec![],
+            deleted: vec![ObjectKey(field_id, deletion_effects.lamport_version())],
+            live_object_markers_to_delete: vec![],
+            new_live_object_markers_to_init: vec![],
+            written: Default::default(),
+            attestation_record: None,
+        }),
+    );
+    s.complete_commit(3, &[&deletion_effects]);
+
+    let cache = s.authority.get_object_cache_reader();
+    assert!(cache.try_get_object(&field_id).unwrap().is_none());
+    assert!(
+        cache
+            .try_get_latest_object_ref_or_tombstone(field_id)
+            .unwrap()
+            .is_some(),
+        "the latest state must hold the field deleted"
+    );
+
+    // Horizon 2: the field is live there and its deletion at 3 is above.
+    assert_eq!(
+        s.reader_at(k + 2).read_claimed_address(sender).unwrap(),
+        ClaimedAddressAtHorizon::Claimed
+    );
+    // Horizon 3: the deletion is at the horizon.
+    assert_eq!(
+        s.reader_at(k + 3).read_claimed_address(sender).unwrap(),
+        ClaimedAddressAtHorizon::NotClaimed
+    );
+}
+
 /// An account claimed in an earlier epoch is in the store with no row this
 /// epoch, so a new claim of its address is dropped at the first commit.
 #[tokio::test]

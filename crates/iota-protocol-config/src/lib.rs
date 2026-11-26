@@ -1828,8 +1828,10 @@ pub struct ProtocolConfig {
     /// owned-object-only transactions are also scheduled, deferred and shed
     /// by the congestion tracker; `None` disables it. Must be positive when
     /// set. Requires `enable_pcool_flow`. A version that sets it where
-    /// `ClaimAccount` is accepted must first decide what a cancelled claim
-    /// means, as the claim's lock on its address holds until the epoch ends.
+    /// `ClaimAccount` is accepted must first make sure that a cancelled claim
+    /// cannot leave its address locked until the epoch ends: either the limit
+    /// never cancels a claim, or the address of a cancelled claim can be
+    /// claimed again in the same epoch.
     max_concurrent_execution_workers: Option<u16>,
 
     /// How many consensus commits back post-consensus validation reads object
@@ -5507,6 +5509,31 @@ mod test {
                     );
                 } else if rejects {
                     rejected_since = Some(version);
+                }
+            }
+        }
+    }
+
+    /// Every version and chain that accepts `ClaimAccount` has the built-in
+    /// Move authenticators on, and so does every later version, whether or not
+    /// it still accepts claims. A claimed account authenticates with them and
+    /// its address accepts no plain signature, so without them it could not
+    /// send a transaction, not even the one that rotates its authenticator.
+    #[test]
+    fn builtin_move_authenticators_stay_enabled_after_claims() {
+        for chain in [Chain::Unknown, Chain::Mainnet, Chain::Testnet] {
+            let mut claims_since = None;
+            for version in MIN_PROTOCOL_VERSION..=MAX_PROTOCOL_VERSION {
+                let config = ProtocolConfig::get_for_version(ProtocolVersion::new(version), chain);
+                if claims_since.is_none() && config.enable_claim_account_transaction() {
+                    claims_since = Some(version);
+                }
+                if let Some(since) = claims_since {
+                    assert!(
+                        config.enable_builtin_move_authenticators(),
+                        "version {version} on {chain:?} turns the built-in Move authenticators \
+                         off, although version {since} accepted ClaimAccount"
+                    );
                 }
             }
         }
