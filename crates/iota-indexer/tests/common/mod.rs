@@ -3,6 +3,7 @@
 
 pub mod backward_history;
 pub mod object_versions;
+pub mod smart_account;
 
 use std::{
     future::Future,

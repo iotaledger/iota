@@ -11,4 +11,5 @@ mod utils;
 mod checkpoints;
 mod events;
 mod objects;
+mod smart_account_keys;
 mod transactions;

@@ -1,15 +1,20 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::HashSet;
+
 use diesel::prelude::*;
 use iota_sdk_move_types::iota_framework::dynamic_field::Field;
-use iota_sdk_types::Owner;
+use iota_sdk_types::{Address, Identifier, MoveStruct, Owner, StructTag};
 use iota_types::{
     account_abstraction::builtin_authenticator_functions::PublicKeyFieldName,
     move_public_key::MovePublicKey, object::Object,
 };
 
-use crate::{errors::IndexerError, schema::smart_account_keys};
+use crate::{
+    errors::IndexerError, ingestion::common::prepare::RemovedObject,
+    models::objects::StoredDeletedObject, schema::smart_account_keys,
+};
 
 /// A public key dynamic field `Field<PublicKeyFieldName, PublicKey>` that is
 /// attached to a `SmartAccount` object, with the hash of the public key it
@@ -29,6 +34,55 @@ pub struct StoredSmartAccountKey {
 }
 
 impl StoredSmartAccountKey {
+    /// Returns the rows for the public key dynamic fields in `objects` that
+    /// are attached to a `SmartAccount` object.
+    ///
+    /// Attaching, replacing or removing a dynamic field mutates the object it
+    /// is attached to, so the parent `SmartAccount` objects are expected to be present in the same
+    /// `objects` batch. Public keys attached to objects other than `SmartAccount` are
+    /// filtered out.
+    pub fn from_objects<'a>(
+        objects: impl IntoIterator<Item = &'a Object>,
+    ) -> Result<Vec<Self>, IndexerError> {
+        let key_field_tag = public_key_field_tag();
+        let smart_account_tag = smart_account_tag();
+        let mut smart_accounts = HashSet::new();
+        let mut key_fields = Vec::new();
+        for object in objects {
+            let Some(tag) = struct_tag(object) else {
+                continue;
+            };
+            if *tag == smart_account_tag {
+                smart_accounts.insert(object.id());
+            } else if *tag == key_field_tag {
+                key_fields.push(object);
+            }
+        }
+        key_fields
+            .into_iter()
+            .filter(|field| {
+                matches!(field.owner(), Owner::Object(account_id) if smart_accounts.contains(account_id))
+            })
+            .map(Self::from_key_field)
+            .collect()
+    }
+
+    /// Returns the rows to delete from `smart_account_keys` based on all `removed` objects in a
+    /// batch.
+    ///
+    /// Checking if parent is a `SmartAccount` is skipped, since deleting a nonexistent row is a
+    /// noop.
+    pub(crate) fn deletions<'a>(
+        removed: impl IntoIterator<Item = &'a RemovedObject>,
+    ) -> Vec<StoredDeletedObject> {
+        let key_field_tag = public_key_field_tag();
+        removed
+            .into_iter()
+            .filter(|object| object.struct_tag() == Some(&key_field_tag))
+            .map(StoredDeletedObject::from)
+            .collect()
+    }
+
     /// Returns the row for `field`, a public key dynamic field
     /// `Field<PublicKeyFieldName, PublicKey>` that is known to be attached to a
     /// `SmartAccount` object.
@@ -58,4 +112,24 @@ impl StoredSmartAccountKey {
             key_id: field_contents.value.key_id().to_vec(),
         })
     }
+}
+
+fn struct_tag(object: &Object) -> Option<&StructTag> {
+    object.data.as_opt_struct().map(MoveStruct::struct_tag)
+}
+
+/// Returns the struct tag of `Field<PublicKeyFieldName, PublicKey>`, the
+/// public key dynamic field of a `SmartAccount`.
+pub fn public_key_field_tag() -> StructTag {
+    StructTag::new_dynamic_field(PublicKeyFieldName::tag(), MovePublicKey::tag())
+}
+
+/// Returns the struct tag of `0x2::smart_account::SmartAccount`.
+pub fn smart_account_tag() -> StructTag {
+    StructTag::new(
+        Address::FRAMEWORK,
+        Identifier::from_static("smart_account"),
+        Identifier::from_static("SmartAccount"),
+        Vec::new(),
+    )
 }

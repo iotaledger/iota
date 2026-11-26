@@ -73,6 +73,17 @@ impl TestSim {
         pg_store
     }
 
+    /// Returns the chain identifier: the digest of the genesis checkpoint.
+    pub(crate) fn chain_identifier(&self) -> [u8; 32] {
+        self.inner.with_store(|store| {
+            *store
+                .get_checkpoint_by_sequence_number(0)
+                .expect("the genesis checkpoint exists")
+                .digest()
+                .bytes()
+        })
+    }
+
     /// Returns the address of the first account in the keystore.
     pub(crate) fn sender(&self) -> Address {
         self.inner
