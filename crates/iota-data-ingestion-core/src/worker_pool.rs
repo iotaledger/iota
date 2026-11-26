@@ -225,6 +225,9 @@ pub struct WorkerPool<W: Worker> {
     /// The reducer instance, responsible for batch processing.
     reducer: Option<Box<dyn Reducer<W>>>,
     backoff: Arc<ExponentialBackoff>,
+    /// The checkpoint a backfill starts from. When set, progress is tracked as the 0-based
+    /// index of a checkpoint in ingestion order, which is its distance from this one.
+    backfill_starting_checkpoint: Option<CheckpointSequenceNumber>,
 }
 
 impl<W: Worker + 'static> WorkerPool<W> {
@@ -241,6 +244,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
             worker: Arc::new(worker),
             reducer: None,
             backoff: Arc::new(backoff),
+            backfill_starting_checkpoint: None,
         }
     }
 
@@ -261,7 +265,39 @@ impl<W: Worker + 'static> WorkerPool<W> {
             worker: Arc::new(worker),
             reducer: Some(Box::new(reducer)),
             backoff: Arc::new(backoff),
+            backfill_starting_checkpoint: None,
         }
+    }
+
+    /// Switches the pool to backfill mode for a run that starts at `starting_checkpoint`, its
+    /// first checkpoint in either direction.
+    ///
+    /// The watermark tracker only advances upward by 1, so in backfill mode the watermark and
+    /// progress reports are 0-based indices in ingestion order (the distance from
+    /// `starting_checkpoint`) rather than checkpoint sequence numbers. Each report also equals the
+    /// number of checkpoints done without a gap from the start of the run. Because a backfill
+    /// starts with none done, `run` should be called with a watermark of `0`. The index is computed
+    /// in `run`, at the point where a finished checkpoint is handed to the tracker.
+    ///
+    /// # Example
+    ///
+    /// A descending backfill from checkpoint 100 down to 0 starts at checkpoint 100:
+    ///
+    /// ```ignore
+    /// pool.with_backfill_starting_checkpoint(100)
+    ///     .run(0, checkpoint_receiver, pool_status_sender, token)
+    ///     .await;
+    /// ```
+    ///
+    /// Checkpoint 100 is tracked as index 0, 99 as index 1, and 98 as index 2. A progress
+    /// report of 3 means checkpoints 100, 99, and 98 are done.
+    #[expect(dead_code, reason = "used by the backfill executor in the next PR")]
+    pub(crate) fn with_backfill_starting_checkpoint(
+        mut self,
+        starting_checkpoint: CheckpointSequenceNumber,
+    ) -> Self {
+        self.backfill_starting_checkpoint = Some(starting_checkpoint);
+        self
     }
 
     /// Runs the worker pool main logic.
@@ -272,6 +308,14 @@ impl<W: Worker + 'static> WorkerPool<W> {
         pool_status_sender: mpsc::Sender<WorkerPoolStatus>,
         token: CancellationToken,
     ) {
+        // In backfill mode the watermark counts processed checkpoints, thus i should always be 0.
+        if self.backfill_starting_checkpoint.is_some() && watermark != 0 {
+            error!(
+                "worker pool `{}` runs in backfill mode and needs watermark to be 0, got {watermark}",
+                self.task_name
+            );
+            return;
+        }
         info!(
             "Starting indexing pipeline {} with concurrency {}. Current watermark is {watermark}.",
             self.task_name, self.concurrency
@@ -305,6 +349,17 @@ impl<W: Worker + 'static> WorkerPool<W> {
                     match worker_progress_msg {
                         WorkerStatus::Running((worker_id, checkpoint_number, message)) => {
                             idle.insert(worker_id);
+                            // The watermark tracker only advances upward by 1, so it cannot follow a
+                            // descending run directly. In backfill mode we send the 0-based index in
+                            // ingestion order (the distance from `backfill_starting_checkpoint`) as
+                            // the sequence key, while keeping the original checkpoint `message`
+                            // intact (e.g., descending from 100: 100 -> 0, 99 -> 1, 98 -> 2). The
+                            // tracker starts at the watermark, which in backfill mode is the number
+                            // of processed checkpoints, so it is 0.
+                            let checkpoint_number = match self.backfill_starting_checkpoint {
+                                Some(starting_checkpoint) => starting_checkpoint.abs_diff(checkpoint_number),
+                                None => checkpoint_number,
+                            };
                             // Try to send progress to reducer. If it fails (reducer has exited),
                             // we just continue - we still need to wait for all workers to shutdown.
                             let _ = watermark_sender.send((checkpoint_number, message)).await;
