@@ -93,6 +93,11 @@ pub struct TrafficTally {
     pub through_fullnode: Option<IpAddr>,
     pub error_info: Option<(Weight, String)>,
     pub spam_weight: Weight,
+    /// Items this tally returned, charged against the response-item dimension.
+    pub response_items: u32,
+    /// Server-rendered fields this tally produced, charged against the
+    /// rendered-field dimension.
+    pub rendered_fields: u32,
 }
 
 impl TrafficTally {
@@ -107,6 +112,8 @@ impl TrafficTally {
             through_fullnode,
             error_info,
             spam_weight,
+            response_items: 0,
+            rendered_fields: 0,
         }
     }
 }
@@ -283,6 +290,9 @@ impl TrafficControlPolicy {
                 client_threshold,
                 proxied_client_threshold,
                 burst_secs,
+                // The response-item and rendered-field dimensions are wired in
+                // a later change; this builder reads only the request threshold.
+                ..
             }) => {
                 if *burst_secs == 0 {
                     fatal!("freq-threshold burst-secs must be more than zero");
@@ -366,6 +376,7 @@ mod tests {
                 client_threshold,
                 proxied_client_threshold,
                 burst_secs,
+                ..Default::default()
             }),
             0,
             evictions(),

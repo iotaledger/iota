@@ -323,6 +323,8 @@ fn record_tally(
             (error_weight, error_type)
         }),
         spam_weight,
+        response_items: 0,
+        rendered_fields: 0,
     });
 }
 

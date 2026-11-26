@@ -732,6 +732,7 @@ mod tests {
             client_threshold,
             proxied_client_threshold: client_threshold,
             burst_secs: 5,
+            ..Default::default()
         })
     }
 
