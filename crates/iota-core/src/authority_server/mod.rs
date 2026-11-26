@@ -154,7 +154,7 @@ impl ValidatorService {
 
     fn tally_traffic<T>(
         &self,
-        client: TallyClient,
+        client_and_access: TallyClient,
         response: Result<(T, Weight), tonic::Status>,
     ) -> Result<T, tonic::Status> {
         let (spam_weight, error, unwrapped): (Weight, Option<IotaError>, Result<T, tonic::Status>) =
@@ -166,7 +166,12 @@ impl ValidatorService {
                     Err(status),
                 ),
             };
-        record_tally(self.traffic_controller.as_ref(), client, spam_weight, error);
+        record_tally(
+            self.traffic_controller.as_ref(),
+            client_and_access,
+            spam_weight,
+            error,
+        );
         unwrapped
     }
 
@@ -182,29 +187,34 @@ impl ValidatorService {
         ProtoReq: TryInto<DomainReq>,
         ProtoReq::Error: std::fmt::Display,
     {
-        let ip = self.check_traffic(self.extract_client_ip(&request)?)?;
+        let client_and_access = self.check_traffic(self.extract_client_ip(&request)?)?;
         // TODO(#11095): move deserialization off the critical path (spawn_blocking).
         let domain_req = request.into_inner().try_into().map_err(|e| {
             // A request that does not convert still costs the node work, so it
             // charges the spam policy like any other request.
-            record_tally(self.traffic_controller.as_ref(), ip, Weight::one(), None);
+            record_tally(
+                self.traffic_controller.as_ref(),
+                client_and_access,
+                Weight::one(),
+                None,
+            );
             tonic::Status::internal(format!("request conversion failed: {e}"))
         })?;
-        Ok((domain_req, ip))
+        Ok((domain_req, client_and_access))
     }
 
     /// Tallies traffic and converts a single domain response into a proto
     /// tonic response.
     fn post_handle_unary<DomainResp, ProtoResp>(
         &self,
-        ip: TallyClient,
+        client_and_access: TallyClient,
         result: Result<(DomainResp, Weight), tonic::Status>,
     ) -> Result<tonic::Response<ProtoResp>, tonic::Status>
     where
         DomainResp: TryInto<ProtoResp>,
         DomainResp::Error: std::fmt::Display,
     {
-        let value = self.tally_traffic(ip, result)?;
+        let value = self.tally_traffic(client_and_access, result)?;
         let proto = value
             .try_into()
             .map_err(|e| tonic::Status::internal(format!("response conversion failed: {e}")))?;
@@ -218,7 +228,7 @@ impl ValidatorService {
     /// policy. Top-level errors are tallied once at stream creation.
     fn post_handle_stream<S, DomainItem, ProtoItem>(
         &self,
-        ip: TallyClient,
+        client_and_access: TallyClient,
         result: Result<S, tonic::Status>,
         item_error: fn(&DomainItem) -> Option<IotaError>,
     ) -> Result<tonic::Response<StreamResponse<ProtoItem>>, tonic::Status>
@@ -235,7 +245,7 @@ impl ValidatorService {
             Err(status) => {
                 record_tally(
                     self.traffic_controller.as_ref(),
-                    ip,
+                    client_and_access,
                     Weight::zero(),
                     Some(IotaError::from(status.clone())),
                 );
@@ -257,7 +267,12 @@ impl ValidatorService {
                     Err(status),
                 ),
             };
-            record_tally(traffic_controller.as_ref(), ip, spam_weight, error);
+            record_tally(
+                traffic_controller.as_ref(),
+                client_and_access,
+                spam_weight,
+                error,
+            );
             forward.and_then(|v| {
                 v.try_into().map_err(|e| {
                     tonic::Status::internal(format!("stream item conversion failed: {e}"))
@@ -348,11 +363,11 @@ macro_rules! handle_with_decoration {
         }
 
         // Return early if the client is refused.
-        let client = $self.check_traffic($self.extract_client_ip(&$request)?)?;
+        let client_and_access = $self.check_traffic($self.extract_client_ip(&$request)?)?;
 
         // handle traffic tallying
         let wrapped_response = $self.$func_name($request).await;
-        $self.tally_traffic(client, wrapped_response)
+        $self.tally_traffic(client_and_access, wrapped_response)
     }};
 }
 
