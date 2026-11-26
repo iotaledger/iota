@@ -207,21 +207,26 @@ impl TrafficController {
         config
     }
 
-    /// The client of a request that `client` sent with `headers`: the user
-    /// that a forwarder names in one [`FORWARDED_CLIENT_IP_HEADER`] header,
-    /// and `client` for any other request. Check and tally the request to the
-    /// client this returns.
-    pub fn forwarded_client(
+    /// The client of a request that `client` sent with `headers`, and whether
+    /// to serve the request, with dry run considered. When a forwarder names
+    /// a user in one [`FORWARDED_CLIENT_IP_HEADER`] header, a deny rule or a
+    /// block of the forwarder refuses the request, unless an allow rule serves
+    /// the forwarder. Otherwise the user is checked as [`Self::check`] checks
+    /// a client, and is the client returned. Any other request is `client`'s
+    /// own, checked as [`Self::check`] does. Tally the request to the client
+    /// this returns.
+    pub fn resolve_forwarded_client_and_check(
         &self,
         client: Option<IpAddr>,
         headers: &http::HeaderMap,
-    ) -> Option<IpAddr> {
+    ) -> (Option<IpAddr>, ClientAccess) {
         let forwarded: Vec<&[u8]> = headers
             .get_all(FORWARDED_CLIENT_IP_HEADER)
             .iter()
             .map(http::HeaderValue::as_bytes)
             .collect();
-        self.client_access.forwarded_client(client, &forwarded)
+        self.client_access
+            .resolve_forwarded_client_and_check(client, &forwarded)
     }
 
     /// The access rules in force, each in its canonical form.

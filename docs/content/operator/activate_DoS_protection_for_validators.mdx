@@ -144,7 +144,9 @@ policy-config:
 
 - A forwarder is an IP address or a CIDR network, written like an access rule.
 - GraphQL and the indexer name the user only for these simulations. Their other calls to the fullnode, such as the execution of a transaction, carry no header, so the fullnode counts them for the service itself.
-- For a request from a forwarder that carries the header, the fullnode takes the IP address in the header as the client, for the access rules, the blocklist, the spam and error policies and the simulation gas limit. It does not count the request for the forwarder. `traffic_control_forwarded_requests` counts these requests. With `default: deny`, the fullnode thus refuses a user that no allow rule names, even when an allow rule names the forwarder.
+- For a request from a forwarder that carries the header, the fullnode first checks the forwarder itself: a deny rule or a block of the forwarder refuses the request, as it refuses the forwarder's own requests. An allow rule of the forwarder spares it its deny rules and blocks, as for any client. The default action is not part of this check: with `default: deny` a forwarder needs no allow rule for the requests in which it names a user. Under dry run the fullnode counts the refusal and goes on. Then the fullnode takes the IP address in the header as the client, for the access rules, the blocklist, the spam and error policies and the simulation gas limit. It does not count the request for the forwarder. `traffic_control_forwarded_requests` counts these requests.
+- An allow rule of the forwarder gives its users nothing: each user goes through the rules on its own. With `default: deny`, the fullnode thus refuses a user that no allow rule names, even when an allow rule names the forwarder.
+- To stop a forwarder while the node runs, add a deny rule for it or block it through the admin API. The forwarders themselves change only with the configuration.
 - A request from a forwarder without the header, with the header more than once, or with a value that is not an IP address, is the forwarder's own.
 - The fullnode ignores the header from every other client.
 - The fullnode trusts the header by the IP address of the forwarder alone, so the forwarder must connect to the fullnode directly, or through a proxy that keeps the address of the forwarder. With `client-id-source: x-forwarded-for` the forwarders match the client that that header names, and the node logs a warning at startup.
@@ -320,7 +322,7 @@ When the node blocks a client after a breach of the spam or error policy, or by 
 `block` and `unblock` take an IP address, or an IPv6 prefix as the blocklist names it, such as `2001:db8:1:2::/64`:
 
 - A manual block of an IPv6 address blocks its whole `ipv6-prefix-len` prefix.
-- A manual block refuses the requests whose client is the blocked address or prefix: the address that connects to the node, the one that `client-id-source` names, or a user that a trusted forwarder names. Like the access rules, it does not refuse requests that reach the node through a fullnode.
+- A manual block refuses the requests whose client is the blocked address or prefix: the address that connects to the node, the one that `client-id-source` names, or a user that a trusted forwarder names. A manual block of a forwarder also refuses the requests in which it names a user. Like the access rules, it does not refuse requests that reach the node through a fullnode.
 - A manual block never shortens a block in force. When it outlasts a block whose line the node logged, the node logs the block line again.
 - The node rejects a manual block of a client that an allow rule serves, since a firewall that acts on the block line would ban that client.
 - Under dry run the node keeps the block, but still serves the client.

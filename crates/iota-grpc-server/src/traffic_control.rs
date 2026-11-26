@@ -114,9 +114,10 @@ where
                 None
             }
         };
-        // Before the check, so that the rules and every policy apply to the
-        // user a forwarder names rather than to the forwarder.
-        let client = traffic_controller.forwarded_client(client, req.headers());
+        // The rules and every policy apply to the user a forwarder names, after
+        // the deny rules and blocks of the forwarder itself.
+        let (client, access) =
+            traffic_controller.resolve_forwarded_client_and_check(client, req.headers());
 
         // Tower contract: `self.inner` is the ready one (poll_ready set it up),
         // so call it and leave the clone for the next request.
@@ -124,7 +125,6 @@ where
         let mut inner = std::mem::replace(&mut self.inner, cloned);
 
         Box::pin(async move {
-            let access = traffic_controller.check(&client, &None);
             if !access.is_served() {
                 return Ok(Status::resource_exhausted("Too many requests").into_http());
             }

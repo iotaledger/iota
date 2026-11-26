@@ -43,7 +43,8 @@ use iota_grpc_types::{
 use iota_traffic_controller::TrafficController;
 use iota_types::{
     traffic_control::{
-        AccessRules, ClientIdSource, DefaultAction, PolicyConfig, PolicyType, Weight,
+        AccessRules, ClientIdSource, DefaultAction, FORWARDED_CLIENT_IP_HEADER, PolicyConfig,
+        PolicyType, Weight,
     },
     transaction_executor::TransactionExecutor,
 };
@@ -708,5 +709,61 @@ fn forwarded_for<T>(client: &str, message: T) -> tonic::Request<T> {
     request
         .metadata_mut()
         .insert("x-forwarded-for", client.parse().unwrap());
+    request
+}
+
+/// A deny rule of a forwarder refuses its requests also when they name a
+/// user, and the user that a forwarder names goes through the rules on its
+/// own.
+#[tokio::test]
+async fn a_denied_forwarder_is_refused_for_the_users_it_names() {
+    // The test client connects from loopback.
+    const FORWARDERS: [&str; 2] = ["127.0.0.1", "::1"];
+    let policy_config = |deny: &[&str]| PolicyConfig {
+        access_rules: AccessRules {
+            deny: deny.iter().map(|rule| rule.to_string()).collect(),
+            forwarders: FORWARDERS.map(String::from).to_vec(),
+            ..Default::default()
+        },
+        dry_run: false,
+        ..Default::default()
+    };
+
+    let handle = server_with_policy(policy_config(&["198.51.100.7"]), None).await;
+    let mut client = LedgerServiceClient::new(connect(&handle).await);
+    assert_client_blocked(1, || {
+        let mut client = client.clone();
+        async move {
+            client
+                .get_objects(named_by_forwarder("198.51.100.7", get_objects_batch(1)))
+                .await
+        }
+    })
+    .await;
+    client
+        .get_objects(named_by_forwarder("198.51.100.8", get_objects_batch(1)))
+        .await
+        .expect("another user of the forwarder is served");
+
+    let handle = server_with_policy(policy_config(&FORWARDERS), None).await;
+    let client = LedgerServiceClient::new(connect(&handle).await);
+    assert_client_blocked(1, || {
+        let mut client = client.clone();
+        async move {
+            client
+                .get_objects(named_by_forwarder("198.51.100.8", get_objects_batch(1)))
+                .await
+        }
+    })
+    .await;
+}
+
+/// `message` as a request in which a forwarder names `user` in the client IP
+/// header.
+fn named_by_forwarder<T>(user: &str, message: T) -> tonic::Request<T> {
+    let mut request = tonic::Request::new(message);
+    request
+        .metadata_mut()
+        .insert(FORWARDED_CLIENT_IP_HEADER, user.parse().unwrap());
     request
 }

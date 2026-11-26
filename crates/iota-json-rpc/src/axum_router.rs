@@ -172,22 +172,18 @@ pub async fn json_rpc_handler<L: Logger>(
         Ok(client) => client,
         Err(refused_response) => return ok_response(refused_response.into_result()),
     };
-    // Before the check, so that the rules and every policy apply to the user
-    // a forwarder names rather than to the forwarder.
-    let client = match &service.traffic_controller {
-        Some(traffic_controller) => traffic_controller.forwarded_client(client, &headers),
-        None => client,
-    };
-    let request_client = RequestClientIp(client.unwrap_or(client_addr.ip()));
     // Check whether the client may be served before reading the body, so a
     // refused client's body is neither read nor parsed.
-    let access = match &service.traffic_controller {
-        Some(traffic_controller) => match handle_traffic_req(traffic_controller, &client) {
-            Ok(access) => access,
-            Err(blocked_response) => return ok_response(blocked_response.into_result()),
-        },
-        None => ClientAccess::Limited,
+    let (client, access) = match &service.traffic_controller {
+        Some(traffic_controller) => {
+            match handle_traffic_req(traffic_controller, client, &headers) {
+                Ok(checked) => checked,
+                Err(blocked_response) => return ok_response(blocked_response.into_result()),
+            }
+        }
+        None => (client, ClientAccess::Limited),
     };
+    let request_client = RequestClientIp(client.unwrap_or(client_addr.ip()));
     let raw_request = match Json::<Box<RawValue>>::from_request(request, &()).await {
         Ok(Json(raw_request)) => raw_request,
         Err(rejection) => {
@@ -278,15 +274,18 @@ async fn process_raw_request<L: Logger>(
     response
 }
 
-/// What the traffic controller decided for a request from `client`, or the
-/// response to send when it refuses the request.
+/// The client of a request that `client` sent with `headers`, and what the
+/// traffic controller decided for it, as
+/// [`TrafficController::resolve_forwarded_client_and_check`] gives them, or
+/// the response to send when it refuses the request.
 fn handle_traffic_req(
     traffic_controller: &TrafficController,
-    client: &Option<IpAddr>,
-) -> Result<ClientAccess, MethodResponse> {
-    let access = traffic_controller.check(client, &None);
+    client: Option<IpAddr>,
+    headers: &HeaderMap,
+) -> Result<(Option<IpAddr>, ClientAccess), MethodResponse> {
+    let (client, access) = traffic_controller.resolve_forwarded_client_and_check(client, headers);
     if access.is_served() {
-        Ok(access)
+        Ok((client, access))
     } else {
         let err_obj =
             ErrorObject::borrowed(ErrorCode::ServerIsBusy.code(), TOO_MANY_REQUESTS_MSG, None);
@@ -519,9 +518,9 @@ mod tests {
         module.into()
     }
 
-    /// The `test_client` answer of `router` to a request with one client IP
-    /// header for each of `users`.
-    async fn request_client(router: &axum::Router, users: &[&str]) -> String {
+    /// The JSON-RPC response of `router` to a `test_client` request with one
+    /// client IP header for each of `users`.
+    async fn respond_to_test_client(router: &axum::Router, users: &[&str]) -> serde_json::Value {
         let mut request = Request::post("/")
             .extension(ConnectInfo(CLIENT))
             .header("content-type", "application/json");
@@ -537,7 +536,13 @@ mod tests {
         let body = axum::body::to_bytes(response.into_body(), usize::MAX)
             .await
             .unwrap();
-        let response: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        serde_json::from_slice(&body).unwrap()
+    }
+
+    /// The `test_client` answer of `router` to a request with one client IP
+    /// header for each of `users`.
+    async fn request_client(router: &axum::Router, users: &[&str]) -> String {
+        let response = respond_to_test_client(router, users).await;
         response["result"]
             .as_str()
             .unwrap_or_else(|| panic!("no result in {response}"))
@@ -592,6 +597,45 @@ mod tests {
             request_client(&router, &["198.51.100.7"]).await,
             "127.0.0.1"
         );
+    }
+
+    /// A deny rule of a forwarder refuses its requests also when they name a
+    /// user, and the user that a forwarder names goes through the rules on
+    /// its own.
+    #[tokio::test]
+    async fn a_denied_forwarder_is_refused_for_the_users_it_names() {
+        let forwarder = CLIENT.ip().to_string();
+        let policy_config = |deny: &str| PolicyConfig {
+            access_rules: AccessRules {
+                deny: vec![deny.to_string()],
+                forwarders: vec![forwarder.clone()],
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let assert_refused = |response: serde_json::Value| {
+            assert_eq!(
+                response["error"]["code"],
+                ErrorCode::ServerIsBusy.code(),
+                "{response}"
+            );
+            assert_eq!(
+                response["error"]["message"], TOO_MANY_REQUESTS_MSG,
+                "{response}"
+            );
+        };
+
+        let (router, _) =
+            router_with_policy_config_and_methods(policy_config("198.51.100.7"), client_methods());
+        assert_refused(respond_to_test_client(&router, &["198.51.100.7"]).await);
+        assert_eq!(
+            request_client(&router, &["198.51.100.8"]).await,
+            "198.51.100.8"
+        );
+
+        let (router, _) =
+            router_with_policy_config_and_methods(policy_config(&forwarder), client_methods());
+        assert_refused(respond_to_test_client(&router, &["198.51.100.8"]).await);
     }
 
     /// A gas limit of 100, equal to the computation limit of one transaction
