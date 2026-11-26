@@ -1157,6 +1157,39 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn the_traffic_control_routes_change_what_the_node_serves() {
+        let state = authority(Some(PolicyConfig {
+            dry_run: false,
+            ..Default::default()
+        }))
+        .await;
+        let controller = state.traffic_controller.clone().unwrap();
+        let client = "192.0.2.1".parse().unwrap();
+        let served = || controller.check(&Some(client), &None).is_served();
+        assert!(served());
+
+        add_traffic_control_rule_response(&state, query("/?list=deny&client=192.0.2.0/24"));
+        assert!(!served());
+        remove_traffic_control_rule_response(&state, query("/?list=deny&client=192.0.2.0/24"));
+        assert!(served());
+
+        block_traffic_control_client_response(&state, query("/?client=192.0.2.1&ttl_sec=60"));
+        assert!(!served());
+        // An allow rule wins over the block.
+        add_traffic_control_rule_response(&state, query("/?list=allow&client=192.0.2.1"));
+        assert!(served());
+        remove_traffic_control_rule_response(&state, query("/?list=allow&client=192.0.2.1"));
+        assert!(!served());
+        unblock_traffic_control_client_response(&state, query("/?client=192.0.2.1"));
+        assert!(served());
+
+        reconfigure_traffic_control(&state, query("/?default_action=deny")).await;
+        assert!(!served());
+        reconfigure_traffic_control(&state, query("/?default_action=limit")).await;
+        assert!(served());
+    }
+
+    #[tokio::test]
     async fn a_manual_block_under_dry_run_says_the_node_still_serves_the_client() {
         let state = authority(Some(PolicyConfig {
             dry_run: true,
