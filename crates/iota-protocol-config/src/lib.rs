@@ -2603,6 +2603,13 @@ impl ProtocolConfig {
                 "enable_claim_account_transaction requires claim_account_max_computation_units \
                  and claim_account_storage_bytes_bound to be set"
             );
+            // A claim creates a `SmartAccount`, which aborts while SmartAccounts
+            // are off, and a kept claim that creates no account keeps its
+            // address locked until the epoch ends.
+            assert!(
+                self.enable_smart_accounts(),
+                "enable_claim_account_transaction requires enable_smart_accounts to be set"
+            );
         }
         enable_claim_account_transaction
     }
@@ -5537,5 +5544,20 @@ mod test {
                 }
             }
         }
+    }
+
+    /// A claim creates a `SmartAccount`, so a configuration that accepts claims
+    /// with SmartAccounts off is rejected.
+    #[test]
+    #[should_panic(
+        expected = "enable_claim_account_transaction requires enable_smart_accounts to be set"
+    )]
+    fn claim_account_without_smart_accounts_is_rejected() {
+        let mut config = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        config.set_claim_account_max_computation_units_for_testing(5_000);
+        config.set_claim_account_storage_bytes_bound_for_testing(2_000);
+        config.set_enable_claim_account_transaction_for_testing(true);
+        config.set_enable_smart_accounts_for_testing(false);
+        config.enable_claim_account_transaction();
     }
 }
