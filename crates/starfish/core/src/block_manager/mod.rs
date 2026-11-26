@@ -1714,11 +1714,14 @@ mod tests {
         assert!(block_manager.block_suspender.is_empty());
     }
 
-    /// Round 2 blocks are waiting on round 1 when their round 3 children arrive in the batch
-    /// that sweeps round 1. The manager should store both rounds and the parents' transactions
-    /// in that batch, so receiving the headers again leaves nothing to accept or fetch.
+    /// Round 3 children arrive as headers or full blocks in the batch where GC releases their
+    /// suspended round 2 parents. The batch should store both rounds of headers and all
+    /// received transactions, leaving nothing suspended or missing.
+    #[rstest::rstest]
+    #[case::child_headers(false)]
+    #[case::full_child_blocks(true)]
     #[tokio::test]
-    async fn gc_eviction_accepts_children_in_the_same_batch() {
+    async fn gc_eviction_accepts_children_in_the_same_batch(#[case] receive_full_blocks: bool) {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
@@ -1728,7 +1731,7 @@ mod tests {
         dag.layers(1..=3).build();
 
         let parents = dag.blocks(2..=2);
-        let transaction_refs = parents.iter().map(|b| b.transaction_ref()).collect();
+        let parent_transaction_refs = parents.iter().map(|b| b.transaction_ref()).collect();
         let (accepted, missing) = manager.try_accept_blocks(parents, DataSource::BlockStreaming);
         assert!(accepted.is_empty());
         assert_eq!(missing.len(), 4);
@@ -1738,8 +1741,19 @@ mod tests {
             &dag_state,
             2 * context.protocol_config.gc_depth() + 1,
         );
-        let (accepted, missing) = manager
-            .try_accept_block_headers(dag.block_headers(3..=3), DataSource::BlockBundleStream);
+        let children = dag.blocks(3..=3);
+        assert!(
+            children
+                .iter()
+                .all(|b| b.verified_transactions.has_transactions())
+        );
+        let child_transaction_refs = children.iter().map(|b| b.transaction_ref()).collect();
+        let (accepted, missing) = if receive_full_blocks {
+            manager.try_accept_blocks(children, DataSource::BlockStreaming)
+        } else {
+            manager
+                .try_accept_block_headers(dag.block_headers(3..=3), DataSource::BlockBundleStream)
+        };
 
         let headers = dag.block_headers(2..=3);
         assert_eq!(accepted, headers);
@@ -1752,8 +1766,16 @@ mod tests {
             vec![true; headers.len()]
         );
         assert_eq!(
-            dag_state.read().contains_transactions(transaction_refs),
+            dag_state
+                .read()
+                .contains_transactions(parent_transaction_refs),
             vec![true; 4]
+        );
+        assert_eq!(
+            dag_state
+                .read()
+                .contains_transactions(child_transaction_refs),
+            vec![receive_full_blocks; 4]
         );
 
         let (accepted, missing) =
