@@ -535,6 +535,7 @@ async fn test_traffic_sim_no_blocks() {
             client_threshold: 5_050,
             proxied_client_threshold: 5_050,
             burst_secs: 4,
+            ..Default::default()
         }),
         error_policy_type: PolicyType::NoOp,
         spam_sample_rate: Weight::one(),
@@ -569,6 +570,7 @@ async fn test_traffic_sim_with_blocks() {
             client_threshold: 5_000,
             proxied_client_threshold: 5_000,
             burst_secs: 1,
+            ..Default::default()
         }),
         error_policy_type: PolicyType::NoOp,
         spam_sample_rate: Weight::one(),
@@ -606,6 +608,7 @@ async fn test_traffic_sim_with_sampled_spam() {
             client_threshold: 250,
             proxied_client_threshold: 250,
             burst_secs: 1,
+            ..Default::default()
         }),
         spam_sample_rate: Weight::new(0.5).unwrap(),
         dry_run: false,
