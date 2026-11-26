@@ -125,13 +125,13 @@ impl TrafficControllerMetrics {
             .unwrap(),
             spam_response_items_threshold: register_int_gauge_with_registry!(
                 "spam_response_items_threshold",
-                "Spam response-item threshold being enforced; 0 when the dimension is not enforced",
+                "Spam response-item threshold being enforced; -1 when the dimension is not enforced",
                 registry
             )
             .unwrap(),
             spam_rendered_fields_threshold: register_int_gauge_with_registry!(
                 "spam_rendered_fields_threshold",
-                "Spam rendered-field threshold being enforced; 0 when the dimension is not enforced",
+                "Spam rendered-field threshold being enforced; -1 when the dimension is not enforced",
                 registry
             )
             .unwrap(),

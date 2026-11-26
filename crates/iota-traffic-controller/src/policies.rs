@@ -287,10 +287,11 @@ impl DimensionLimiter {
     /// Sets the value and/or the gate. A changed threshold rebuilds the
     /// limiter, discarding tracked client state; re-asserting the current
     /// threshold keeps it. Setting a threshold enforces it unless the caller
-    /// also gates it off; `enabled` alone toggles an already-configured value,
-    /// and enabling a dimension that has no configured value is rejected. Both
-    /// `None` is a no-op.
-    fn set(&self, threshold: Option<u64>, enabled: Option<bool>) -> Result<(), String> {
+    /// also gates it off; `enabled` alone toggles the gate. Both `None` is a
+    /// no-op. Enabling a dimension that has no configured value is harmless —
+    /// [`Self::breaches`] never blocks without one — so this never fails; the
+    /// admin layer rejects that combination up front for a clear operator error.
+    fn set(&self, threshold: Option<u64>, enabled: Option<bool>) {
         if let Some(threshold) = threshold {
             let threshold = clamp_threshold(threshold, self.name);
             if self.configured.load().as_ref().map(|c| c.threshold) != Some(threshold) {
@@ -302,12 +303,8 @@ impl DimensionLimiter {
         }
         // A supplied threshold enforces on its own; an explicit gate overrides.
         if let Some(enabled) = enabled.or(threshold.map(|_| true)) {
-            if enabled && self.configured.load().is_none() {
-                return Err(format!("set a {} threshold before enabling it", self.name));
-            }
             self.enabled.store(enabled, Ordering::Relaxed);
         }
-        Ok(())
     }
 
     /// The configured threshold (`None` if unset) and whether the gate is on.
@@ -386,19 +383,11 @@ impl RateLimitPolicy {
         }
     }
 
-    fn set_response_items(
-        &self,
-        threshold: Option<u64>,
-        enabled: Option<bool>,
-    ) -> Result<(), String> {
+    fn set_response_items(&self, threshold: Option<u64>, enabled: Option<bool>) {
         self.response_items.set(threshold, enabled)
     }
 
-    fn set_rendered_fields(
-        &self,
-        threshold: Option<u64>,
-        enabled: Option<bool>,
-    ) -> Result<(), String> {
+    fn set_rendered_fields(&self, threshold: Option<u64>, enabled: Option<bool>) {
         self.rendered_fields.set(threshold, enabled)
     }
 
@@ -522,27 +511,17 @@ impl TrafficControlPolicy {
 
     /// Sets the response-item dimension's value and/or gate. A no-op for a
     /// policy that does not rate limit. See [`DimensionLimiter::set`].
-    pub(super) fn set_response_items(
-        &self,
-        threshold: Option<u64>,
-        enabled: Option<bool>,
-    ) -> Result<(), String> {
-        match &self.0 {
-            Policy::Limit(policy) => policy.set_response_items(threshold, enabled),
-            _ => Ok(()),
+    pub(super) fn set_response_items(&self, threshold: Option<u64>, enabled: Option<bool>) {
+        if let Policy::Limit(policy) = &self.0 {
+            policy.set_response_items(threshold, enabled);
         }
     }
 
     /// Sets the rendered-field dimension's value and/or gate. A no-op for a
     /// policy that does not rate limit. See [`DimensionLimiter::set`].
-    pub(super) fn set_rendered_fields(
-        &self,
-        threshold: Option<u64>,
-        enabled: Option<bool>,
-    ) -> Result<(), String> {
-        match &self.0 {
-            Policy::Limit(policy) => policy.set_rendered_fields(threshold, enabled),
-            _ => Ok(()),
+    pub(super) fn set_rendered_fields(&self, threshold: Option<u64>, enabled: Option<bool>) {
+        if let Policy::Limit(policy) = &self.0 {
+            policy.set_rendered_fields(threshold, enabled);
         }
     }
 
@@ -729,7 +708,7 @@ mod tests {
         // Configured then gated off: no enforcement however large the count.
         let policy = freq_threshold_with_dimensions(1_000_000, None, Some(1));
         let client = IpAddr::from([10, 1, 0, 4]);
-        policy.set_rendered_fields(None, Some(false)).unwrap();
+        policy.set_rendered_fields(None, Some(false));
         assert!(
             policy
                 .charge(&tally_with(client, 0, 10_000))
@@ -768,7 +747,7 @@ mod tests {
             Some(client)
         );
 
-        policy.set_response_items(Some(100), None).unwrap();
+        policy.set_response_items(Some(100), None);
         assert_eq!(
             policy.charge(&tally_with(client, 60, 0)).block_client,
             Some(client)
@@ -783,9 +762,7 @@ mod tests {
         let policy = freq_threshold_with_dimensions(1_000, Some(2_000_000_000), None);
         assert_eq!(policy.response_items_state().0, Some(MAX_CLIENT_THRESHOLD));
 
-        policy
-            .set_response_items(Some(2_000_000_000), None)
-            .unwrap();
+        policy.set_response_items(Some(2_000_000_000), None);
         assert_eq!(policy.response_items_state().0, Some(MAX_CLIENT_THRESHOLD));
     }
 
@@ -796,7 +773,7 @@ mod tests {
         // threshold and the config path. Gating off stays explicit.
         let policy = freq_threshold_with_dimensions(1_000_000, None, None);
         let client = IpAddr::from([10, 4, 0, 1]);
-        policy.set_response_items(Some(50), None).unwrap();
+        policy.set_response_items(Some(50), None);
         assert_eq!(policy.response_items_state(), (Some(50), true));
         assert_eq!(
             policy.charge(&tally_with(client, 60, 0)).block_client,

@@ -197,10 +197,10 @@ impl TrafficController {
             }
         }
         if let Some(spam) = spam {
-            spam.set_response_items(response_items_threshold, response_items_enabled)
-                .map_err(IotaError::InvalidAdminRequest)?;
-            spam.set_rendered_fields(rendered_fields_threshold, rendered_fields_enabled)
-                .map_err(IotaError::InvalidAdminRequest)?;
+            // Validated above, so applying these cannot fail: the request is
+            // fully checked before anything here mutates state.
+            spam.set_response_items(response_items_threshold, response_items_enabled);
+            spam.set_rendered_fields(rendered_fields_threshold, rendered_fields_enabled);
             self.metrics
                 .spam_response_items_threshold
                 .set(enforced_threshold(spam.response_items_state()));
@@ -321,14 +321,15 @@ fn validate_dimension(
 }
 
 /// The threshold a dimension is currently enforcing, for its metric gauge: the
-/// configured value when the gate is on, else 0. An operator reads a non-zero
-/// gauge as "this dimension is enforcing at this rate"; the configured value of
-/// a gated-off dimension is in [`TrafficController::get_current_state`].
+/// configured value when the gate is on, else -1. An operator reads a
+/// non-negative gauge as "this dimension is enforcing at this rate" (including a
+/// rate of 0) and -1 as "not enforcing"; the configured value of a gated-off
+/// dimension is in [`TrafficController::get_current_state`].
 fn enforced_threshold((threshold, enabled): (Option<u64>, bool)) -> i64 {
     if enabled {
         threshold.unwrap_or(0) as i64
     } else {
-        0
+        -1
     }
 }
 
@@ -712,8 +713,9 @@ mod tests {
                 ..Default::default()
             })
             .expect("disables the rendered-field dimension");
-        // Configured at 100 but gated off: the gauge reads 0 (not enforcing).
-        assert_eq!(controller.metrics.spam_rendered_fields_threshold.get(), 0);
+        // Configured at 100 but gated off: the gauge reads -1 (not enforcing),
+        // which an operator can tell apart from a dimension enforcing at 0.
+        assert_eq!(controller.metrics.spam_rendered_fields_threshold.get(), -1);
     }
 
     #[tokio::test]
