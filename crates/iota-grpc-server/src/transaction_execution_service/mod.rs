@@ -179,7 +179,7 @@ async fn run_simulation(
     let reservation = tally_handle
         .map(TallyHandle::reserve_simulation_gas)
         .transpose()
-        .map_err(|refusal| RpcError::new(tonic::Code::ResourceExhausted, refusal.to_string()))?
+        .map_err(RpcError::from)?
         .flatten();
     let permit = executor.try_acquire_simulation_permit().ok_or_else(|| {
         RpcError::new(

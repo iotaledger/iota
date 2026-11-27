@@ -20,6 +20,7 @@ use common::{
 use iota_grpc_server::GrpcServerHandle;
 use iota_grpc_types::{
     field::FieldMaskUtil,
+    google::rpc::{RetryInfo, Status as StatusProto},
     v1::{
         bcs::BcsData,
         ledger_service::{GetServiceInfoRequest, ledger_service_client::LedgerServiceClient},
@@ -223,20 +224,26 @@ async fn simulate(
         .collect())
 }
 
-/// The error message of a simulation of one transaction that the server
-/// refuses.
-async fn refusal_message(client: &mut TransactionExecutionServiceClient<Channel>) -> String {
+/// Simulates one transaction that the server refuses, and returns the status
+/// of the refusal.
+async fn simulate_one_and_get_refusal(
+    client: &mut TransactionExecutionServiceClient<Channel>,
+) -> StatusProto {
     let response = client
         .simulate_transactions(simulate_request(1))
         .await
         .unwrap()
         .into_inner();
-    let Some(simulate_transaction_result::Result::Error(error)) =
-        &response.transaction_results[0].result
+    let Some(simulate_transaction_result::Result::Error(error)) = response
+        .transaction_results
+        .into_iter()
+        .next()
+        .unwrap()
+        .result
     else {
         panic!("the simulation is refused");
     };
-    error.message.clone()
+    error
 }
 
 /// On a runtime with a single thread, a simulation that ran on the thread
@@ -326,10 +333,22 @@ async fn simulations_over_the_gas_limit_are_refused() {
             Code::ResourceExhausted
         ]
     );
-    let message = refusal_message(&mut client).await;
-    assert!(
-        message.starts_with("simulation gas limit reached, retry in "),
-        "{message}"
+    let refusal = simulate_one_and_get_refusal(&mut client).await;
+    assert_eq!(Code::from(refusal.code), Code::ResourceExhausted);
+    let retry_secs: i64 = refusal
+        .message
+        .strip_prefix("simulation gas limit reached, retry in ")
+        .and_then(|rest| rest.strip_suffix('s'))
+        .and_then(|secs| secs.parse().ok())
+        .unwrap_or_else(|| panic!("no retry time in {:?}", refusal.message));
+    // The client can read the same retry time without parsing the message.
+    assert_eq!(refusal.details.len(), 1);
+    let retry_info = refusal.details[0]
+        .to_msg::<RetryInfo>()
+        .expect("the detail is a RetryInfo");
+    assert_eq!(
+        retry_info.retry_delay.map(|delay| delay.seconds),
+        Some(retry_secs)
     );
 
     // The error policy blocks the client on its first client error, so the
@@ -392,7 +411,7 @@ async fn a_simulation_refused_for_a_permit_gives_its_gas_back() {
     // simulation below reserves the other half before it is refused, so
     // without a refund the second one would be refused for gas.
     for _ in 0..2 {
-        let message = refusal_message(&mut client).await;
+        let message = simulate_one_and_get_refusal(&mut client).await.message;
         assert!(
             message.contains("running as many simulations as it allows"),
             "{message}"

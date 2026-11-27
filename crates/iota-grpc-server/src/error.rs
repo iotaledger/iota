@@ -129,6 +129,23 @@ impl From<iota_grpc_types::google::rpc::bad_request::FieldViolation> for RpcErro
     }
 }
 
+/// `RESOURCE_EXHAUSTED`, with the retry time in the message and in a
+/// `RetryInfo` detail.
+impl From<iota_traffic_controller::SimulationGasRefusal> for RpcError {
+    fn from(refusal: iota_traffic_controller::SimulationGasRefusal) -> Self {
+        let mut retry_info = RetryInfo::default();
+        retry_info.retry_delay = Some(prost_types::Duration {
+            seconds: i64::try_from(refusal.retry_after().as_secs()).unwrap_or(i64::MAX),
+            nanos: 0,
+        });
+        RpcError {
+            code: Code::ResourceExhausted,
+            message: Some(refusal.to_string()),
+            details: Some(Box::new(ErrorDetails::new().with_retry_info(retry_info))),
+        }
+    }
+}
+
 impl From<BadRequest> for RpcError {
     fn from(value: BadRequest) -> Self {
         let message = value

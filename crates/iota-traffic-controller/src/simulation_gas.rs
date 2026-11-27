@@ -62,7 +62,15 @@ impl GasBalance {
 /// Why a simulation was refused, and when the client may try again.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SimulationGasRefusal {
-    pub retry_after: Duration,
+    retry_after: Duration,
+}
+
+impl SimulationGasRefusal {
+    /// How long the client waits until its balance covers a reservation, in
+    /// whole seconds, rounded up.
+    pub fn retry_after(&self) -> Duration {
+        self.retry_after
+    }
 }
 
 impl std::fmt::Display for SimulationGasRefusal {
