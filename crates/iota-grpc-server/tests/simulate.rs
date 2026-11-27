@@ -3,7 +3,8 @@
 
 //! Tests that the gRPC server runs simulations off the threads that serve
 //! requests, and refuses a simulation while the executor runs as many as it
-//! allows.
+//! allows. Also tests the simulation gas limit: a client over it is refused
+//! with a retry time, and a simulation gets back the gas it did not use.
 
 mod common;
 
