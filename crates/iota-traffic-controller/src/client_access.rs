@@ -763,7 +763,9 @@ mod tests {
         )
     }
 
-    fn blocklist_mode(dry_run: bool, ttl_sec: u64) -> PolicyConfig {
+    /// A policy config with no access rules, with `dry_run`, and with both
+    /// blocklist TTLs set to `ttl_sec`.
+    fn base_policy_config(dry_run: bool, ttl_sec: u64) -> PolicyConfig {
         PolicyConfig {
             connection_blocklist_ttl_sec: ttl_sec,
             proxy_blocklist_ttl_sec: ttl_sec,
@@ -774,7 +776,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_blocked_client_is_refused_without_any_policy() {
-        let manager = manager(blocklist_mode(false, 120));
+        let manager = manager(base_policy_config(false, 120));
         assert!(manager.check(&Some(CLIENT), &None).is_served());
 
         manager.block_client(CLIENT, BlockReason::Spam);
@@ -786,7 +788,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_block_ends_with_its_ttl() {
-        let manager = manager(blocklist_mode(false, 120));
+        let manager = manager(base_policy_config(false, 120));
         manager.block_client(CLIENT, BlockReason::Spam);
         manager.expire_client_blocks();
         assert!(manager.check(&Some(CLIENT), &None).is_served());
@@ -794,7 +796,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_breach_never_shortens_an_active_block() {
-        let manager = manager(blocklist_mode(false, 3600));
+        let manager = manager(base_policy_config(false, 3600));
         manager.block_client(CLIENT, BlockReason::Spam);
         let first_expiration = manager.client_block_expiration(CLIENT).unwrap();
 
@@ -808,7 +810,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_zero_ttl_blocks_nothing() {
-        let manager = manager(blocklist_mode(false, 0));
+        let manager = manager(base_policy_config(false, 0));
         manager.block_client(CLIENT, BlockReason::Spam);
         manager.block_proxied_client(CLIENT, BlockReason::Spam);
         assert!(manager.check(&Some(CLIENT), &Some(CLIENT)).is_served());
@@ -818,7 +820,7 @@ mod tests {
 
     #[tokio::test]
     async fn the_maximum_ttl_blocks() {
-        let manager = manager(blocklist_mode(false, MAX_BLOCKLIST_TTL_SEC));
+        let manager = manager(base_policy_config(false, MAX_BLOCKLIST_TTL_SEC));
         manager.block_client(CLIENT, BlockReason::Spam);
         manager.block_proxied_client(CLIENT, BlockReason::Spam);
         assert!(!manager.check(&Some(CLIENT), &None).is_served());
@@ -830,7 +832,7 @@ mod tests {
     async fn a_connection_blocklist_ttl_above_the_maximum_is_rejected() {
         manager(PolicyConfig {
             connection_blocklist_ttl_sec: MAX_BLOCKLIST_TTL_SEC + 1,
-            ..blocklist_mode(false, 120)
+            ..base_policy_config(false, 120)
         });
     }
 
@@ -839,13 +841,13 @@ mod tests {
     async fn a_proxy_blocklist_ttl_above_the_maximum_is_rejected() {
         manager(PolicyConfig {
             proxy_blocklist_ttl_sec: MAX_BLOCKLIST_TTL_SEC + 1,
-            ..blocklist_mode(false, 120)
+            ..base_policy_config(false, 120)
         });
     }
 
     #[tokio::test]
     async fn dry_run_serves_a_blocked_client_and_counts_it() {
-        let manager = manager(blocklist_mode(true, 120));
+        let manager = manager(base_policy_config(true, 120));
         manager.block_client(CLIENT, BlockReason::Spam);
         assert!(manager.check(&Some(CLIENT), &None).is_served());
         assert_eq!(manager.metrics.num_dry_run_blocked_requests.get(), 1);
@@ -856,7 +858,7 @@ mod tests {
 
     #[tokio::test]
     async fn dropping_the_blocklist_stops_its_cleanup_task() {
-        let manager = manager(blocklist_mode(false, 120));
+        let manager = manager(base_policy_config(false, 120));
         let shutdown = manager.blocklist.shutdown.clone();
         assert!(!shutdown.is_cancelled());
         drop(manager);
@@ -875,7 +877,7 @@ mod tests {
                 deny: rules(deny),
                 default,
             },
-            ..blocklist_mode(false, 120)
+            ..base_policy_config(false, 120)
         }
     }
 
@@ -996,7 +998,7 @@ mod tests {
 
     #[tokio::test]
     async fn without_rules_an_unresolved_client_is_served_and_counted() {
-        let manager = manager(blocklist_mode(false, 120));
+        let manager = manager(base_policy_config(false, 120));
         assert_eq!(manager.check(&None, &None), ClientAccess::Limited);
         assert_eq!(manager.metrics.unresolved_client_requests.get(), 1);
     }
@@ -1080,7 +1082,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_rule_changed_at_runtime_applies_to_the_next_check() {
-        let manager = manager(blocklist_mode(false, 120));
+        let manager = manager(base_policy_config(false, 120));
         let rule = parse_access_rule("10.0.0.0/24").unwrap();
         assert!(manager.add_rule(AccessRuleList::Deny, rule));
         assert!(!manager.add_rule(AccessRuleList::Deny, rule));
@@ -1193,7 +1195,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_block_covers_the_ipv6_prefix_of_the_client() {
-        let manager = manager(blocklist_mode(false, 120));
+        let manager = manager(base_policy_config(false, 120));
         manager.block_client(
             client_prefix(v6([0x2001, 0xdb8, 1, 2, 0, 0, 0, 1]), 64),
             BlockReason::Spam,
@@ -1214,7 +1216,7 @@ mod tests {
     async fn a_prefix_length_of_128_blocks_only_the_address() {
         let manager = manager(PolicyConfig {
             ipv6_prefix_len: 128,
-            ..blocklist_mode(false, 120)
+            ..base_policy_config(false, 120)
         });
         let client = v6([0x2001, 0xdb8, 1, 2, 0, 0, 0, 1]);
         manager.block_client(client, BlockReason::Spam);
@@ -1231,7 +1233,7 @@ mod tests {
     async fn a_prefix_length_below_32_is_rejected() {
         manager(PolicyConfig {
             ipv6_prefix_len: 31,
-            ..blocklist_mode(false, 120)
+            ..base_policy_config(false, 120)
         });
     }
 
@@ -1240,7 +1242,7 @@ mod tests {
     async fn a_prefix_length_above_128_is_rejected() {
         manager(PolicyConfig {
             ipv6_prefix_len: 129,
-            ..blocklist_mode(false, 120)
+            ..base_policy_config(false, 120)
         });
     }
 }
