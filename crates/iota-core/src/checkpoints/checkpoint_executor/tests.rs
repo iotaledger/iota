@@ -839,6 +839,20 @@ fn attestation_record_differs_ignores_a_valid_local_record() {
     assert!(attestation_record_differs(undecided, None));
 }
 
+/// Only the members whose totals reach the threshold are cut off.
+#[test]
+fn cut_off_attestors_are_the_members_taking_the_whole_score() {
+    let (committee, _) = Committee::new_simple_test_committee();
+    let totals = AttestationTotals {
+        refuted_units_squared: [(0, 100), (1, 99)].into(),
+    };
+    let first = *committee.authority_by_index(0).unwrap();
+    assert_eq!(
+        cut_off_attestors(&totals, 100, &committee),
+        BTreeSet::from([first])
+    );
+}
+
 /// Builds the executor for a committee validator when `in_committee`, or for a
 /// node outside the committee, which executes synced checkpoints the way a
 /// fullnode does.

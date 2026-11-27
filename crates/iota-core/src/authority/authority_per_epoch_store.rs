@@ -811,6 +811,13 @@ pub struct AuthorityPerEpochStore {
     /// `Rejected` response instead of waiting for the gRPC deadline.
     dropped_tx_status_cache: super::dropped_tx_status_cache::DroppedTxStatusCache,
 
+    /// The attestors cut off for the rest of the epoch, as of the last
+    /// checkpoint this node executed: the squared units of their refuted
+    /// attestations reached `attestation_max_refuted_units_squared`, so every
+    /// validator drops the transactions they attest. A fullnode reads the set
+    /// to submit through other validators. Kept by the checkpoint executor.
+    cut_off_attestors: RwLock<BTreeSet<AuthorityName>>,
+
     /// The active deny rule set: the union of the mirrored on-chain state
     /// and the stake-weighted aggregate of the recorded deny rule proposals.
     /// Recomputed via `store_active_transaction_deny_rules` in
@@ -1538,6 +1545,7 @@ impl AuthorityPerEpochStore {
             executed_digests_notify_read: NotifyRead::new(),
             signed_effects_digests_cache,
             dropped_tx_status_cache: super::dropped_tx_status_cache::DroppedTxStatusCache::new(),
+            cut_off_attestors: Default::default(),
             active_transaction_deny_rules,
             mirrored_transaction_deny_rules,
             soft_locks: OnceCell::new(),
@@ -2324,6 +2332,26 @@ impl AuthorityPerEpochStore {
         state
             .is_cut_off_as_of_highest_horizon(index, max_refuted_units_squared)
             .then_some(index)
+    }
+
+    /// The attestors cut off for the rest of the epoch, as of the last
+    /// checkpoint this node executed; empty when the cutoff is off.
+    pub fn cut_off_attestors(&self) -> BTreeSet<AuthorityName> {
+        self.cut_off_attestors.read().clone()
+    }
+
+    /// Replaces the cut-off attestors with `attestors` and logs each one
+    /// that was not among them before.
+    pub(crate) fn set_cut_off_attestors(&self, attestors: BTreeSet<AuthorityName>) {
+        let mut cut_off_attestors = self.cut_off_attestors.write();
+        for attestor in attestors.difference(&cut_off_attestors) {
+            info!(
+                epoch = self.epoch(),
+                attestor = ?attestor.concise(),
+                "attestor cut off for the rest of the epoch, as of the last executed checkpoint"
+            );
+        }
+        *cut_off_attestors = attestors;
     }
 
     /// `attestation_max_refuted_units_squared`, when set and this node keeps

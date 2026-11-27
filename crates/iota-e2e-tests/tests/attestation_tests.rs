@@ -1394,6 +1394,10 @@ mod faulty_attestor {
     /// count a verdict mismatch. The dropped transaction must not execute in
     /// the next epoch either, when the cutoff no longer applies.
     ///
+    /// The fullnode's set of cut-off attestors must stay empty while the sum
+    /// is below the cutoff, and hold exactly the attestor once the fullnode
+    /// has executed the checkpoint whose totals reach it.
+    ///
     /// The faulty attestor joins after genesis with an authority key that
     /// sorts first. Move appends it to the end of the committee, while its
     /// authority index follows its key, so the two differ: the cutoff must
@@ -1468,6 +1472,11 @@ mod faulty_attestor {
             if sum >= CUTOFF_UNITS_SQUARED {
                 break (certified, totals);
             }
+            assert_eq!(
+                fullnode.with(|node| node.state().epoch_store_for_testing().cut_off_attestors()),
+                BTreeSet::new(),
+                "the fullnode does not cut the attestor off below the cutoff, the sum is {sum}"
+            );
             assert!(
                 scenarios.len() < MAX_REFUTATIONS_TO_CUT_OFF,
                 "{MAX_REFUTATIONS_TO_CUT_OFF} refutations must reach the cutoff, the sum is {sum}"
@@ -1480,6 +1489,11 @@ mod faulty_attestor {
                 .map(|scenario| scenario.digest)
                 .collect::<BTreeSet<_>>(),
             "exactly the refuted attestations are certified"
+        );
+        assert_eq!(
+            fullnode.with(|node| node.state().epoch_store_for_testing().cut_off_attestors()),
+            BTreeSet::from([attestor]),
+            "the fullnode stops submitting through the cut-off attestor"
         );
 
         // The attestor rejects submissions once a commit's horizon shows its
