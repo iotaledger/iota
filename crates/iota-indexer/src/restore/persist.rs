@@ -283,7 +283,8 @@ async fn restore_partitions(
 /// epoch.
 ///
 /// We also move the initial partition of `transactions`, and `events` to the
-/// epoch that follows the snapshot.
+/// epoch that follows the snapshot, and fill `smart_account_keys` from the
+/// restored `objects`.
 ///
 /// Finally we populate `protocol_configs`, `feature_flags` up to the
 /// protocol version that the snapshot epoch corresponds to, and the
@@ -310,6 +311,7 @@ pub(crate) async fn populate_remaining_tables(
         populate_chain_id(store, snapshot_chain_id),
         store.persist_checkpoints(vec![sync_watermark]),
         restore_partitions(store, next_epoch, next_epoch_start_tx),
+        store.fill_smart_account_keys_from_objects(),
     )?;
     tokio::try_join!(
         populate_protocol_and_feature_flags(store, snapshot_chain_id),

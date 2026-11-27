@@ -8,12 +8,15 @@
 //! which Simulacrum does not support, so the key rotation and removal cases
 //! run on a test cluster.
 
-use diesel::{QueryDsl, RunQueryDsl};
+use std::time::Duration;
+
+use diesel::{QueryDsl, RunQueryDsl, connection::BoxableConnection};
 use iota_indexer::{
     errors::{Context, IndexerError},
     models::smart_account_keys::StoredSmartAccountKey,
     schema::smart_account_keys,
-    store::PgIndexerStore,
+    store::{PgIndexerStore, diesel_macro::spawn_blocking_task},
+    transactional_blocking_with_retry,
 };
 use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::{Identifier, ObjectId, ObjectReference, Owner, Transaction};
@@ -67,6 +70,47 @@ pub async fn key_of_a_new_smart_account_is_indexed() -> Result<(), IndexerError>
 #[tokio::test]
 pub async fn key_under_another_object_is_not_indexed() -> Result<(), IndexerError> {
     let sim = TestSim::new("ingestion_smart_account_keys_other_parent");
+    create_holder_with_key(&sim, &ed25519_key(2));
+    sim.inner.create_checkpoint();
+
+    let pg_store = sim.start_indexer(None).await;
+    indexer_wait_for_checkpoint(&pg_store, 1).await;
+    assert_eq!(stored_keys(&pg_store).await?, vec![]);
+    Ok(())
+}
+
+/// Filling the table from `objects`, as the snapshot restore does, gives the
+/// same rows as ingestion.
+#[tokio::test]
+pub async fn keys_filled_from_objects_match_ingestion() -> Result<(), IndexerError> {
+    let sim = TestSim::new("ingestion_smart_account_keys_fill_from_objects");
+    let key = ed25519_key(5);
+    let effects = sim.execute_signed(create_account_tx(
+        &sim.chain_identifier(),
+        sim.sender(),
+        sim.pick_gas(),
+        sim.inner.reference_gas_price(),
+        &key,
+    ));
+    let account = created_account(&effects);
+    let field = created_key_field(&effects, account.object_id);
+    create_holder_with_key(&sim, &ed25519_key(6));
+    sim.inner.create_checkpoint();
+
+    let pg_store = sim.start_indexer(None).await;
+    indexer_wait_for_checkpoint(&pg_store, 1).await;
+    let ingested = stored_keys(&pg_store).await?;
+    assert_eq!(ingested, vec![expected_row(field, account.object_id, &key)]);
+
+    delete_all_keys(&pg_store).await?;
+    pg_store.fill_smart_account_keys_from_objects().await?;
+    assert_eq!(stored_keys(&pg_store).await?, ingested);
+    Ok(())
+}
+
+/// Publishes the test package and creates an object of it that holds `key`
+/// in a public key dynamic field.
+fn create_holder_with_key(sim: &TestSim, key: &SimpleKeypair) {
     let sender = sim.sender();
     let rgp = sim.inner.reference_gas_price();
     let publish = sim.execute_signed(
@@ -91,7 +135,7 @@ pub async fn key_under_another_object_is_not_indexed() -> Result<(), IndexerErro
         .expect("the transaction publishes a package");
 
     let mut builder = ProgrammableTransactionBuilder::new();
-    let public_key = public_key_argument(&mut builder, &ed25519_key(2));
+    let public_key = public_key_argument(&mut builder, key);
     builder.programmable_move_call(
         package_id,
         Identifier::from_static(CUSTOM_AUTHENTICATOR_MODULE),
@@ -113,12 +157,6 @@ pub async fn key_under_another_object_is_not_indexed() -> Result<(), IndexerErro
             .any(|created| matches!(created.owner(), Owner::Object(_))),
         "the holder gets a key field"
     );
-    sim.inner.create_checkpoint();
-
-    let pg_store = sim.start_indexer(None).await;
-    indexer_wait_for_checkpoint(&pg_store, 1).await;
-    assert_eq!(stored_keys(&pg_store).await?, vec![]);
-    Ok(())
 }
 
 /// A transaction the account sends leaves the row of its key field as it is,
@@ -196,6 +234,23 @@ async fn stored_keys(
             .load::<StoredSmartAccountKey>(conn)
     })
     .context("Failed reading smart account keys from PostgresDB")
+}
+
+/// Removes all rows of `smart_account_keys`.
+async fn delete_all_keys(pg_store: &PgIndexerStore) -> Result<(), IndexerError> {
+    let pool = pg_store.blocking_cp();
+    spawn_blocking_task(move || {
+        transactional_blocking_with_retry!(
+            &pool,
+            |conn| {
+                diesel::delete(smart_account_keys::table).execute(conn)?;
+                Ok::<(), IndexerError>(())
+            },
+            Duration::from_secs(60)
+        )
+    })
+    .await
+    .expect("failed to join Tokio blocking task")
 }
 
 /// The row for the key field `field` of `account`, holding `key`.
