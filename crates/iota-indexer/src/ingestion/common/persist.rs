@@ -77,6 +77,7 @@ pub enum CommitterTables {
     ObjectsVersion,
     Packages,
     ProtocolConfigs,
+    SmartAccountKeys,
     // Prunable tables
     ObjectsBackwardHistory,
     Transactions,

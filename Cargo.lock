@@ -14493,6 +14493,7 @@ name = "test-cluster"
 version = "1.38.0-alpha"
 dependencies = [
  "anyhow",
+ "bcs 0.2.1",
  "fastcrypto-zkp",
  "futures",
  "iota-common",

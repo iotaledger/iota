@@ -48,6 +48,7 @@ use crate::{
             StoredObject, StoredObjects,
         },
         packages::StoredPackage,
+        smart_account_keys::StoredSmartAccountKey,
         transactions::{OptimisticTransaction, StoredTransaction, TxGlobalOrder},
         tx_indices::TxIndexSplit,
         watermarks::StoredWatermark,
@@ -61,9 +62,9 @@ use crate::{
         event_emit_package, event_senders, event_struct_instantiation, event_struct_module,
         event_struct_name, event_struct_package, events, feature_flags, objects,
         objects_backward_history, objects_version, optimistic_transactions, packages,
-        protocol_configs, pruner_cp_watermark, transactions, tx_calls_fun, tx_calls_mod,
-        tx_calls_pkg, tx_changed_objects, tx_global_order, tx_input_objects, tx_kinds,
-        tx_recipients, tx_senders, tx_wrapped_or_deleted_objects, watermarks,
+        protocol_configs, pruner_cp_watermark, smart_account_keys, transactions, tx_calls_fun,
+        tx_calls_mod, tx_calls_pkg, tx_changed_objects, tx_global_order, tx_input_objects,
+        tx_kinds, tx_recipients, tx_senders, tx_wrapped_or_deleted_objects, watermarks,
     },
     store::{IndexerStore, diesel_macro},
     transactional_blocking_with_retry,
@@ -539,6 +540,99 @@ impl PgIndexerStore {
             .map_err(IndexerError::from)
             .context("Failed to write object deletion to PostgresDB")?;
         Ok::<(), IndexerError>(())
+    }
+
+    /// Writes `keys` to `smart_account_keys`. Like the `objects` upsert, a row
+    /// is replaced only by a higher version.
+    ///
+    /// To protect from race conditions only the checkpoint path writes `smart_account_keys` and
+    /// writing to it is skipped in optimistic indexing.
+    fn persist_smart_account_keys_in_existing_transaction(
+        &self,
+        conn: &mut PgConnection,
+        keys: &[StoredSmartAccountKey],
+    ) -> Result<(), IndexerError> {
+        for chunk in keys.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
+            on_conflict_do_update_with_condition!(
+                smart_account_keys::table,
+                chunk,
+                smart_account_keys::object_id,
+                (
+                    smart_account_keys::object_version
+                        .eq(excluded(smart_account_keys::object_version)),
+                    smart_account_keys::account_id.eq(excluded(smart_account_keys::account_id)),
+                    smart_account_keys::key_id.eq(excluded(smart_account_keys::key_id)),
+                ),
+                excluded(smart_account_keys::object_version).gt(smart_account_keys::object_version),
+                conn
+            );
+        }
+        Ok(())
+    }
+
+    /// Removes from `smart_account_keys` the rows specified in `deletions`.
+    ///
+    /// Rows with version newer than the one in `deletions` are silently ignored.
+    /// Nonexistent rows (e.g. of a field attached to an object other than a `SmartAccount`) are
+    /// silently ignored.
+    /// Returns how many rows were removed.
+    fn delete_smart_account_keys_in_existing_transaction(
+        &self,
+        conn: &mut PgConnection,
+        deletions: &[StoredDeletedObject],
+    ) -> Result<usize, IndexerError> {
+        let (object_ids, object_versions): (Vec<_>, Vec<_>) = deletions
+            .iter()
+            .map(|o| (o.object_id.clone(), o.object_version))
+            .unzip();
+        let raw_query = r#"
+            DELETE FROM smart_account_keys
+            USING UNNEST($1::BYTEA[], $2::BIGINT[]) AS to_delete(object_id, object_version)
+            WHERE smart_account_keys.object_id = to_delete.object_id
+            AND smart_account_keys.object_version < to_delete.object_version
+        "#;
+        diesel::sql_query(raw_query)
+            .bind::<Array<Bytea>, _>(object_ids)
+            .bind::<Array<BigInt>, _>(object_versions)
+            .execute(conn)
+            .map_err(IndexerError::from)
+            .context("Failed to delete smart account keys from PostgresDB")
+    }
+
+    fn persist_smart_account_keys_chunk(
+        &self,
+        keys: Vec<StoredSmartAccountKey>,
+    ) -> Result<(), IndexerError> {
+        let len = keys.len();
+        transactional_blocking_with_retry!(
+            &self.blocking_cp,
+            |conn| self.persist_smart_account_keys_in_existing_transaction(conn, &keys),
+            PG_DB_COMMIT_SLEEP_DURATION
+        )
+        .tap_ok(|_| {
+            info!("Persisted {len} smart account keys");
+        })
+        .tap_err(|e| {
+            tracing::error!("failed to persist smart account keys with error: {e}");
+        })
+    }
+
+    fn delete_smart_account_keys_chunk(
+        &self,
+        deletions: Vec<StoredDeletedObject>,
+    ) -> Result<(), IndexerError> {
+        transactional_blocking_with_retry!(
+            &self.blocking_cp,
+            |conn| self.delete_smart_account_keys_in_existing_transaction(conn, &deletions),
+            PG_DB_COMMIT_SLEEP_DURATION
+        )
+        .tap_ok(|deleted| {
+            info!("Deleted {deleted} smart account keys");
+        })
+        .tap_err(|e| {
+            tracing::error!("failed to delete smart account keys with error: {e}");
+        })
+        .map(|_| ())
     }
 
     fn persist_objects_backward_history_chunk(
@@ -2199,27 +2293,47 @@ impl IndexerStore for PgIndexerStore {
         } = retain_latest_objects_from_checkpoint_batch(objects);
         let mutation_len = mutations.len();
         let deletion_len = deletions.len();
+        let smart_account_keys =
+            StoredSmartAccountKey::from_objects(mutations.iter().map(LiveObject::object))?;
+        let smart_account_key_deletions = StoredSmartAccountKey::deletions(&deletions);
 
         let mutation_chunks = chunk!(mutations, self.config.parallel_objects_chunk_size);
         let deletion_chunks = chunk!(deletions, self.config.parallel_objects_chunk_size);
+        let smart_account_key_chunks =
+            chunk!(smart_account_keys, self.config.parallel_objects_chunk_size);
+        let smart_account_key_deletion_chunks = chunk!(
+            smart_account_key_deletions,
+            self.config.parallel_objects_chunk_size
+        );
         let mutation_futures = mutation_chunks
             .into_iter()
             .map(|c| self.spawn_blocking_task(move |this| this.persist_live_objects(c)));
         let deletion_futures = deletion_chunks
             .into_iter()
             .map(|c| self.spawn_blocking_task(move |this| this.persist_removed_objects(c)));
-        futures::future::try_join_all(mutation_futures.chain(deletion_futures))
-            .await
-            .map_err(|e| {
-                tracing::error!("failed to join futures for persisting objects: {e}");
-                IndexerError::from(e)
-            })?
+        let smart_account_key_futures = smart_account_key_chunks.into_iter().map(|c| {
+            self.spawn_blocking_task(move |this| this.persist_smart_account_keys_chunk(c))
+        });
+        let smart_account_key_deletion_futures = smart_account_key_deletion_chunks
             .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| {
-                tracing::error!("failed to persist all object chunks: {e:?}");
-                IndexerError::PostgresWrite
-            })?;
+            .map(|c| self.spawn_blocking_task(move |this| this.delete_smart_account_keys_chunk(c)));
+        futures::future::try_join_all(
+            mutation_futures
+                .chain(deletion_futures)
+                .chain(smart_account_key_futures)
+                .chain(smart_account_key_deletion_futures),
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!("failed to join futures for persisting objects: {e}");
+            IndexerError::from(e)
+        })?
+        .into_iter()
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| {
+            tracing::error!("failed to persist all object chunks: {e:?}");
+            IndexerError::PostgresWrite
+        })?;
 
         let elapsed = guard.stop_and_record();
         info!(

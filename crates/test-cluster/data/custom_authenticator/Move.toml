@@ -1,0 +1,9 @@
+[package]
+name = "custom_authenticator"
+edition = "2024"
+
+[dependencies]
+Iota = { local = "../../../iota-framework/packages/iota-framework" }
+
+[addresses]
+custom_authenticator = "0x0"

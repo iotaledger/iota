@@ -7,8 +7,8 @@
 use std::collections::BTreeMap;
 
 use iota_sdk_types::{
-    CheckpointSequenceNumber, CheckpointTimestamp, ObjectId, ObjectReference, TransactionDigest,
-    TypeTag,
+    CheckpointSequenceNumber, CheckpointTimestamp, ObjectId, ObjectReference, StructTag,
+    TransactionDigest, TypeTag,
 };
 use iota_types::{
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
@@ -197,6 +197,9 @@ pub(crate) struct RemovedObject {
     pub(crate) indexed_object: IndexedDeletedObject,
     /// The transaction that mutated the object.
     pub(crate) transaction_digest: TransactionDigest,
+    /// The type the object had before the transaction. `None` for an object
+    /// that was unwrapped and deleted in the same transaction, and for a package.
+    pub(crate) struct_tag: Option<StructTag>,
 }
 
 impl RemovedObject {
@@ -204,6 +207,7 @@ impl RemovedObject {
         checkpoint_sequence_number: CheckpointSequenceNumber,
         transaction_digest: TransactionDigest,
         object_ref: ObjectReference,
+        struct_tag: Option<StructTag>,
     ) -> Self {
         let indexed_object = IndexedDeletedObject {
             checkpoint_sequence_number,
@@ -213,6 +217,7 @@ impl RemovedObject {
         Self {
             indexed_object,
             transaction_digest,
+            struct_tag,
         }
     }
 
@@ -224,11 +229,16 @@ impl RemovedObject {
         self.indexed_object.object_id
     }
 
+    pub(crate) fn struct_tag(&self) -> Option<&StructTag> {
+        self.struct_tag.as_ref()
+    }
+
     #[cfg(any(test, feature = "pg_integration", feature = "shared_test_runtime"))]
     fn random() -> Self {
         Self {
             indexed_object: IndexedDeletedObject::random(),
             transaction_digest: TransactionDigest::random(),
+            struct_tag: None,
         }
     }
 }
@@ -258,8 +268,19 @@ impl<'chk> From<ValidatedCheckpoint<'chk>> for CheckpointObjectChanges {
         for tx in validated_checkpoint.iter_transactions() {
             let digest = tx.transaction.digest();
             let removed_object_refs = tx.removed_object_refs_post_version().collect::<Vec<_>>();
+            let removed_struct_tags: BTreeMap<ObjectId, StructTag> = tx
+                .removed_objects_pre_version()
+                .filter_map(|object| {
+                    Some((
+                        object.id(),
+                        object.data.as_opt_struct()?.struct_tag().clone(),
+                    ))
+                })
+                .collect();
             for obj_ref in &removed_object_refs {
-                eventually_removed_object_refs.insert(obj_ref.object_id, (*obj_ref, *digest));
+                let struct_tag = removed_struct_tags.get(&obj_ref.object_id).cloned();
+                eventually_removed_object_refs
+                    .insert(obj_ref.object_id, (*obj_ref, *digest, struct_tag));
             }
             for obj in &tx.output_objects {
                 latest_live_objects.insert(obj.id(), obj);
@@ -272,7 +293,9 @@ impl<'chk> From<ValidatedCheckpoint<'chk>> for CheckpointObjectChanges {
 
         let deleted_objects = eventually_removed_object_refs
             .into_values()
-            .map(|(obj_ref, digest)| RemovedObject::new(checkpoint_seq, digest, obj_ref))
+            .map(|(obj_ref, digest, struct_tag)| {
+                RemovedObject::new(checkpoint_seq, digest, obj_ref, struct_tag)
+            })
             .collect();
 
         let changed_objects = latest_live_objects

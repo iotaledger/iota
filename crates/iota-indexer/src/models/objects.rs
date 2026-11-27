@@ -18,6 +18,7 @@ use serde::de::DeserializeOwned;
 
 use crate::{
     errors::IndexerError,
+    ingestion::common::prepare::RemovedObject,
     schema::{checkpointed_objects, objects, objects_backward_history},
     types::{IndexedDeletedObject, IndexedObject, ObjectStatus, owner_to_owner_info},
 };
@@ -311,6 +312,15 @@ impl From<IndexedDeletedObject> for StoredDeletedObject {
         Self {
             object_id: o.object_id.as_bytes().to_vec(),
             object_version: o.object_version as i64,
+        }
+    }
+}
+
+impl From<&RemovedObject> for StoredDeletedObject {
+    fn from(o: &RemovedObject) -> Self {
+        Self {
+            object_id: o.object_id().as_bytes().to_vec(),
+            object_version: o.version() as i64,
         }
     }
 }
