@@ -491,6 +491,10 @@ pub(crate) fn parse_access_rule(rule: &str) -> Result<IpNet, String> {
 
 /// Warns about rules that do not do what they appear to.
 fn warn_about_rules(rules: &RuleSet, policy_config: &PolicyConfig) {
+    let client_from_x_forwarded_for = matches!(
+        policy_config.client_id_source,
+        ClientIdSource::XForwardedFor(_)
+    );
     if policy_config.dry_run && (!rules.deny.is_empty() || rules.default == DefaultAction::Deny) {
         warn!(
             "Traffic control runs in dry run mode, thus the node serves the clients that the \
@@ -509,24 +513,14 @@ fn warn_about_rules(rules: &RuleSet, policy_config: &PolicyConfig) {
             }
         }
     }
-    if !rules.allow.is_empty()
-        && matches!(
-            policy_config.client_id_source,
-            ClientIdSource::XForwardedFor(_)
-        )
-    {
+    if !rules.allow.is_empty() && client_from_x_forwarded_for {
         warn!(
             "The allow rules match the client that the x-forwarded-for header names. They hold \
              only if clients reach the node through its proxy alone, since a client that \
              reaches the node directly writes the whole header"
         );
     }
-    if rules.default == DefaultAction::Deny
-        && matches!(
-            policy_config.client_id_source,
-            ClientIdSource::XForwardedFor(_)
-        )
-    {
+    if rules.default == DefaultAction::Deny && client_from_x_forwarded_for {
         warn!(
             "The default action `deny` refuses every request that carries no x-forwarded-for \
              header, since the node resolves no client for it and no allow rule can match it. \
