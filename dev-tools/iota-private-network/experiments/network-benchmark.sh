@@ -26,9 +26,10 @@ GEODISTRIBUTED=false  # Large geodistributed latencies or small ones
 LOG_FILE="logs/fuzz_script.log" # Output file for script
 LATENCY_FILE=""  # Optional TSV overriding the built-in role-based model
 DUMP_FILE=""     # Write the effective latency matrix as TSV and exit
+PROTECT_VALIDATORS=""  # Space-separated 1-based validator numbers to exclude from restarts
 
 # --- Command-line arguments ---
-while getopts "g:n:s:b:l:r:d:w:M:o:L:D:" opt; do
+while getopts "g:n:s:b:l:r:d:w:M:o:L:D:X:" opt; do
   case "$opt" in
     g) GEODISTRIBUTED="$OPTARG" ;;
     n) NUMBER_VALIDATORS="$OPTARG" ;;
@@ -42,7 +43,8 @@ while getopts "g:n:s:b:l:r:d:w:M:o:L:D:" opt; do
     o) LOG_FILE="$OPTARG" ;;
     L) LATENCY_FILE="$OPTARG" ;;
     D) DUMP_FILE="$OPTARG" ;;
-    *) echo "Usage: $0 [-n num_validators] [-s seed] [-b percent_block] [-l percent_packet_loss] [-r percent_restart] [-d restart_duration] [-w restart_timeout] [-M restart_mode(preserve-consensus|full-reset|simple-restart)] [-g geodistributed_bool] [-o logfile] [-L latency_matrix.tsv] [-D dump_matrix.tsv]"; exit 1 ;;
+    X) PROTECT_VALIDATORS="$OPTARG" ;;
+    *) echo "Usage: $0 [-n num_validators] [-s seed] [-b percent_block] [-l percent_packet_loss] [-r percent_restart] [-d restart_duration] [-w restart_timeout] [-M restart_mode(preserve-consensus|full-reset|simple-restart)] [-g geodistributed_bool] [-o logfile] [-L latency_matrix.tsv] [-D dump_matrix.tsv] [-X protected_validators]"; exit 1 ;;
   esac
 done
 shift $((OPTIND-1))
@@ -573,13 +575,40 @@ restart_loop() {
     return
   fi
 
+  # Build the pool of candidate (0-based) indices, excluding any 1-based
+  # validator numbers listed in PROTECT_VALIDATORS (via -X).
+  # The script sets IFS=$'\n\t' at the top, so unquoted `$PROTECT_VALIDATORS`
+  # would not split on spaces — read explicitly into an array with space IFS.
+  local protect_arr=()
+  IFS=' ' read -ra protect_arr <<< "$PROTECT_VALIDATORS"
+  is_protected() {
+    local idx=$1
+    local p
+    for p in "${protect_arr[@]}"; do
+      [ "$(( p - 1 ))" = "$idx" ] && return 0
+    done
+    return 1
+  }
+  pool=()
+  for ((k=0; k<NUMBER_VALIDATORS; k++)); do
+    is_protected "$k" || pool+=("$k")
+  done
+  pool_size=${#pool[@]}
+  if [ "$pool_size" -eq 0 ]; then
+    log "PROTECT_VALIDATORS covers every validator; nothing to restart"
+    return
+  fi
+
   while true; do
     num_to_restart=$(( (NUMBER_VALIDATORS * PERCENT_RESTART + 50) / 100 ))
-    log "Restart round: $num_to_restart validators (duration=$RESTART_DURATION)"
+    # Cap at the pool size — if user protects most of the fleet, don't try
+    # to restart more than the eligible remainder.
+    [ "$num_to_restart" -gt "$pool_size" ] && num_to_restart="$pool_size"
+    log "Restart round: $num_to_restart validators (duration=$RESTART_DURATION, pool=$pool_size)"
 
-    indices=($(seq 0 $((NUMBER_VALIDATORS - 1))))
+    indices=("${pool[@]}")
     # Shuffle indices
-    for ((i=NUMBER_VALIDATORS-1; i>0; i--)); do
+    for ((i=pool_size-1; i>0; i--)); do
       j=$(( RANDOM % (i+1) ))
       tmp=${indices[i]}
       indices[i]=${indices[j]}

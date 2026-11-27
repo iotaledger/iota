@@ -598,6 +598,14 @@ def generate_compose_file(
     include_fullnode: bool = False,
     fullnode_image: str | None = None,
     include_faucet: bool = False,
+    # Everything the current analyses read from validator logs is at info or
+    # error (score vectors, epoch-start config, canary markers); metrics come
+    # from Prometheus. The old debug profile
+    # ("info,iota_core=debug,iota_network=debug,iota_node=debug,jsonrpsee=error")
+    # produced ~2 GB/validator per 3 h arm and contributed to the 2026-07-28
+    # disk-saturation incident — pass it here only for a run that needs
+    # per-commit debug lines.
+    rust_log: str = "info,jsonrpsee=error",
     faucet_image: str = "iota-tools",
     header: str = "Auto-generated; do not edit manually.",
 ) -> None:
@@ -626,10 +634,7 @@ def generate_compose_file(
         lines.append(f"    hostname: validator-{i}")
         lines.append("    environment:")
         lines.append("      - RUST_BACKTRACE=1")
-        lines.append(
-            "      - RUST_LOG=info,iota_core=debug,iota_network=debug,"
-            "iota_node=debug,jsonrpsee=error"
-        )
+        lines.append(f"      - RUST_LOG={rust_log}")
         lines.append("      - RPC_WORKER_THREAD=12")
         lines.append("      - NEW_CHECKPOINT_WARNING_TIMEOUT_MS=30000")
         lines.append("      - NEW_CHECKPOINT_PANIC_TIMEOUT_MS=60000")
@@ -674,10 +679,7 @@ def generate_compose_file(
         lines.append("    hostname: fullnode-1")
         lines.append("    environment:")
         lines.append("      - RUST_BACKTRACE=1")
-        lines.append(
-            "      - RUST_LOG=info,iota_core=debug,iota_network=debug,"
-            "iota_node=debug,jsonrpsee=error"
-        )
+        lines.append(f"      - RUST_LOG={rust_log}")
         lines.append("      - METRICS_FILTER=trace")
         lines.append(f"      - IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE={chain_override}")
         lines.append("    command:")
@@ -853,24 +855,31 @@ def apply_latency(
     *, percent_block: int = 0, percent_loss: int = 0, percent_restart: int = 0,
     restart_duration: int = 120, restart_timeout: int = 60,
     restart_mode: str = "preserve-consensus",
+    latency_file: Path | None = None,
 ) -> subprocess.Popen[str]:
     """Launch network-benchmark.sh under sudo to inject the role-based matrix
-    (plus optional block/loss/restart fuzz). Returns the running process."""
+    (plus optional block/loss/restart fuzz). *latency_file* passes a full
+    per-edge matrix override (`-L`); the injector applies and re-applies it,
+    so file-level overrides survive its once-per-second reapply loop where
+    post-hoc tc changes would not. Returns the running process."""
     out = log_file.open("a")
+    cmd = [
+        "sudo", "./network-benchmark.sh",
+        "-n", str(num_validators),
+        "-s", str(seed),
+        "-b", str(percent_block),
+        "-l", str(percent_loss),
+        "-r", str(percent_restart),
+        "-d", str(restart_duration),
+        "-w", str(restart_timeout),
+        "-M", restart_mode,
+        "-g", str(geodistributed).lower(),
+        "-o", str(log_file.resolve()),
+    ]
+    if latency_file is not None:
+        cmd += ["-L", str(latency_file.resolve())]
     proc = subprocess.Popen(
-        [
-            "sudo", "./network-benchmark.sh",
-            "-n", str(num_validators),
-            "-s", str(seed),
-            "-b", str(percent_block),
-            "-l", str(percent_loss),
-            "-r", str(percent_restart),
-            "-d", str(restart_duration),
-            "-w", str(restart_timeout),
-            "-M", restart_mode,
-            "-g", str(geodistributed).lower(),
-            "-o", str(log_file.resolve()),
-        ],
+        cmd,
         cwd=script_dir, stdout=out, stderr=subprocess.STDOUT,
     )
     out.close()
@@ -1375,17 +1384,37 @@ def network_stats(num_validators: int) -> None:
             log(f"  {v}: stats unavailable")
 
 
+# Last periodic-save instant per (prefix, validator), for incremental saves.
+# Process-local: a fresh orchestrator invocation starts with a full dump.
+_LAST_LOG_SAVE: dict[str, str] = {}
+
+
 def save_validator_logs(
     log_dir: Path, num: int, prefix: str = "exp", *, latest: bool = True
 ) -> None:
+    """Snapshot validator logs. Final saves (``latest=False``, the timestamped
+    archives) always dump the full log. Periodic ``-latest`` saves append only
+    the lines since the previous save for the same *prefix* — a full re-dump
+    of every validator each minute saturates the disk on long runs (the
+    2026-07-28 loaded-run checkpoint-watchdog incident)."""
     for i in range(1, num + 1):
         suffix = "-latest" if latest else ""
         dest = log_dir / f"{prefix}-validator-{i}{suffix}.log"
-        with dest.open("w") as fh:
-            subprocess.run(
-                ["docker", "logs", f"validator-{i}"],
-                stdout=fh, stderr=subprocess.STDOUT, check=False,
+        cmd = ["docker", "logs", f"validator-{i}"]
+        mode = "w"
+        if latest:
+            key = f"{prefix}-{i}"
+            since = _LAST_LOG_SAVE.get(key)
+            # Capture before reading: lines that race the read are re-fetched
+            # next time (an overlapping line is better than a lost one).
+            _LAST_LOG_SAVE[key] = datetime.now(timezone.utc).strftime(
+                "%Y-%m-%dT%H:%M:%S.%fZ"
             )
+            if since is not None:
+                cmd = ["docker", "logs", "--since", since, f"validator-{i}"]
+                mode = "a"
+        with dest.open(mode) as fh:
+            subprocess.run(cmd, stdout=fh, stderr=subprocess.STDOUT, check=False)
 
 
 def compose_down(compose_file: str, env_file: str | None, network_dir: Path) -> None:
