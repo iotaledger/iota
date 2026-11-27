@@ -262,13 +262,6 @@ struct RuleSet {
 }
 
 impl RuleSet {
-    fn list(&self, list: AccessRuleList) -> &Vec<IpNet> {
-        match list {
-            AccessRuleList::Allow => &self.allow,
-            AccessRuleList::Deny => &self.deny,
-        }
-    }
-
     fn list_mut(&mut self, list: AccessRuleList) -> &mut Vec<IpNet> {
         match list {
             AccessRuleList::Allow => &mut self.allow,
@@ -545,12 +538,8 @@ fn warn_about_rules(rules: &RuleSet, policy_config: &PolicyConfig) {
 }
 
 fn set_rule_metrics(rules: &RuleSet, metrics: &TrafficControllerMetrics) {
-    metrics
-        .allow_rules
-        .set(rules.list(AccessRuleList::Allow).len() as i64);
-    metrics
-        .deny_rules
-        .set(rules.list(AccessRuleList::Deny).len() as i64);
+    metrics.allow_rules.set(rules.allow.len() as i64);
+    metrics.deny_rules.set(rules.deny.len() as i64);
     metrics
         .default_deny
         .set((rules.default == DefaultAction::Deny) as i64);
