@@ -1,0 +1,19 @@
+# SmartAccounts by the hash of their public key
+{
+  smartAccounts(
+    first: 10
+    filter: { keyId: "q4DbzrN52YIrK/J3VNfR1MkuYzoRY3YUUmv4nVoQ5I0=" }
+  ) {
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+    nodes {
+      address
+      version
+      contents {
+        json
+      }
+    }
+  }
+}

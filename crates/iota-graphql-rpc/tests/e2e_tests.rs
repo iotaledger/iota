@@ -7,7 +7,7 @@ mod tests {
     use std::{sync::Arc, time::Duration};
 
     use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
-    use fastcrypto::encoding::{Base58, Encoding};
+    use fastcrypto::encoding::{Base58, Base64, Encoding};
     use iota_graphql_rpc::{
         client::{ClientError, simple_client::GraphqlQueryVariable},
         config::{ConnectionConfig, Limits, ServiceConfig},
@@ -18,7 +18,10 @@ mod tests {
     use iota_indexer::{
         run_query_async, schema::optimistic_transactions, spawn_read_only_blocking,
     };
-    use iota_sdk_types::{Address, ObjectId, StructTag, TransactionDigest, TypeTag};
+    use iota_sdk_types::{
+        Address, ObjectId, ObjectReference, PublicKey, StructTag, TransactionDigest, TypeTag,
+    };
+    use iota_test_transaction_builder::publish_package;
     use iota_types::{
         digests::ChainIdentifier,
         transaction::{CallArg, TransactionAPI, TransactionEnvelope},
@@ -27,6 +30,11 @@ mod tests {
     use serde_json::json;
     use serial_test::serial;
     use simulacrum::Simulacrum;
+    use test_cluster::smart_account::{
+        CUSTOM_AUTHENTICATOR_FUNCTION, CUSTOM_AUTHENTICATOR_MODULE, chain_identifier,
+        create_account_tx, created_account, custom_authenticator_package_path, ed25519_key, key_id,
+        rotate_public_key, rotate_to_custom_authenticator,
+    };
     use tokio::time::sleep;
 
     async fn mutation_execute_transaction(
@@ -1398,5 +1406,195 @@ mod tests {
             .as_array()
             .unwrap();
         assert_eq!(edges.len(), 1, "{body}");
+    }
+
+    /// The type of a `SmartAccount`, as GraphQL shows it.
+    const SMART_ACCOUNT_TYPE: &str = "0x0000000000000000000000000000000000000000000000000000000000000002::smart_account::SmartAccount";
+
+    /// Returns the `smartAccounts` connection for `filter` and the connection
+    /// `arguments`, as JSON.
+    async fn query_smart_accounts(
+        client: &SimpleClient,
+        filter: &str,
+        arguments: &str,
+    ) -> serde_json::Value {
+        let query = format!(
+            "{{ smartAccounts(filter: {{ {filter} }} {arguments}) {{ \
+                pageInfo {{ hasNextPage hasPreviousPage startCursor endCursor }} \
+                nodes {{ address contents {{ type {{ repr }} }} }} \
+            }} }}"
+        );
+        client.execute(query, vec![]).await.unwrap()
+    }
+
+    /// Returns the addresses of the accounts in `connection`, as the query
+    /// returned them.
+    fn account_addresses(connection: &serde_json::Value) -> Vec<String> {
+        let nodes = connection["data"]["smartAccounts"]["nodes"]
+            .as_array()
+            .unwrap_or_else(|| panic!("no accounts in {connection}"));
+        nodes
+            .iter()
+            .map(|node| {
+                assert_eq!(node["contents"]["type"]["repr"], SMART_ACCOUNT_TYPE);
+                node["address"].as_str().unwrap().to_string()
+            })
+            .collect()
+    }
+
+    /// Waits until the accounts found for `filter` are `expected`, in that
+    /// order.
+    async fn wait_for_smart_accounts(client: &SimpleClient, filter: &str, expected: &[String]) {
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
+        loop {
+            let connection = query_smart_accounts(client, filter, "").await;
+            if account_addresses(&connection) == expected {
+                return;
+            }
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "timed out waiting for {expected:?}, got {connection}"
+            );
+            sleep(Duration::from_millis(500)).await;
+        }
+    }
+
+    /// The filter that names `public_key` by its hash.
+    fn key_id_filter(public_key: &PublicKey) -> String {
+        format!("keyId: \"{}\"", Base64::encode(key_id(public_key)))
+    }
+
+    /// `smartAccounts` finds the accounts that hold a key by the hash of the
+    /// key, pages through them, and follows a key rotation and a key removal.
+    #[tokio::test]
+    #[serial]
+    async fn test_smart_accounts_by_key() {
+        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
+            ConnectionConfig::default(),
+            None,
+            ServiceConfig::test_defaults(),
+        )
+        .await;
+        let test_cluster = &cluster.validator_fullnode_handle;
+        let client = &cluster.graphql_client;
+        let chain_identifier = chain_identifier(test_cluster);
+        let sender = test_cluster.get_address_0();
+        let rgp = test_cluster.get_reference_gas_price().await;
+
+        let key = ed25519_key(1);
+        let other_key = ed25519_key(2);
+        let mut accounts = vec![];
+        for account_key in [&key, &key, &other_key] {
+            let gas = test_cluster
+                .fund_address_and_return_gas(rgp, Some(20_000_000_000), sender)
+                .await;
+            let tx = create_account_tx(&chain_identifier, sender, gas, rgp, account_key);
+            let effects = test_cluster
+                .execute_transaction(test_cluster.sign_transaction(&tx))
+                .await;
+            accounts.push(created_account(&effects));
+        }
+        let address = |account: &ObjectReference| account.object_id.to_string();
+        let mut with_key = vec![address(&accounts[0]), address(&accounts[1])];
+        with_key.sort();
+        let with_other_key = vec![address(&accounts[2])];
+
+        wait_for_smart_accounts(client, &key_id_filter(&key.public_key()), &with_key).await;
+        wait_for_smart_accounts(
+            client,
+            &key_id_filter(&other_key.public_key()),
+            &with_other_key,
+        )
+        .await;
+        wait_for_smart_accounts(client, &key_id_filter(&ed25519_key(3).public_key()), &[]).await;
+
+        // One account per page, forwards and backwards.
+        let first_page =
+            query_smart_accounts(client, &key_id_filter(&key.public_key()), "first: 1").await;
+        assert_eq!(account_addresses(&first_page), with_key[..1]);
+        let page_info = &first_page["data"]["smartAccounts"]["pageInfo"];
+        assert_eq!(page_info["hasNextPage"], true, "{first_page}");
+        assert_eq!(page_info["hasPreviousPage"], false, "{first_page}");
+        let after = page_info["endCursor"].as_str().unwrap();
+        let second_page = query_smart_accounts(
+            client,
+            &key_id_filter(&key.public_key()),
+            &format!("first: 1, after: \"{after}\""),
+        )
+        .await;
+        assert_eq!(account_addresses(&second_page), with_key[1..]);
+        let page_info = &second_page["data"]["smartAccounts"]["pageInfo"];
+        assert_eq!(page_info["hasNextPage"], false, "{second_page}");
+        assert_eq!(page_info["hasPreviousPage"], true, "{second_page}");
+        let last_page =
+            query_smart_accounts(client, &key_id_filter(&key.public_key()), "last: 1").await;
+        assert_eq!(account_addresses(&last_page), with_key[1..]);
+
+        // The hash must have the right length.
+        let response = query_smart_accounts(client, "keyId: \"AQID\"", "").await;
+        assert!(
+            response["errors"][0]["message"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("keyId must be 32 bytes"),
+            "{response}"
+        );
+
+        // Rotating the key of the account on the first page moves it to the
+        // new key, and the cursor of that page still leads to the next
+        // account.
+        let account_of = |address: &str| {
+            *accounts
+                .iter()
+                .find(|account| account.object_id.to_string() == address)
+                .unwrap()
+        };
+        let (first_account, second_account) = (account_of(&with_key[0]), account_of(&with_key[1]));
+        let new_key = ed25519_key(4);
+        rotate_public_key(
+            test_cluster,
+            &chain_identifier,
+            first_account,
+            &key,
+            &new_key,
+        )
+        .await;
+        wait_for_smart_accounts(
+            client,
+            &key_id_filter(&new_key.public_key()),
+            &with_key[..1],
+        )
+        .await;
+        wait_for_smart_accounts(client, &key_id_filter(&key.public_key()), &with_key[1..]).await;
+        let page_after_rotation = query_smart_accounts(
+            client,
+            &key_id_filter(&key.public_key()),
+            &format!("first: 1, after: \"{after}\""),
+        )
+        .await;
+        assert_eq!(account_addresses(&page_after_rotation), with_key[1..]);
+        let page_info = &page_after_rotation["data"]["smartAccounts"]["pageInfo"];
+        assert_eq!(page_info["hasNextPage"], false, "{page_after_rotation}");
+
+        // Detaching the key of the second account removes it from the lookup.
+        let package_id = publish_package(&test_cluster.wallet, custom_authenticator_package_path())
+            .await
+            .object_id;
+        rotate_to_custom_authenticator(
+            test_cluster,
+            second_account,
+            &key,
+            package_id,
+            CUSTOM_AUTHENTICATOR_MODULE,
+            CUSTOM_AUTHENTICATOR_FUNCTION,
+        )
+        .await;
+        wait_for_smart_accounts(client, &key_id_filter(&key.public_key()), &[]).await;
+        wait_for_smart_accounts(
+            client,
+            &key_id_filter(&new_key.public_key()),
+            &with_key[..1],
+        )
+        .await;
     }
 }

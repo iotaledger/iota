@@ -45,6 +45,7 @@ pub(crate) mod owner;
 pub(crate) mod protocol_config;
 pub(crate) mod query;
 pub(crate) mod safe_mode;
+pub(crate) mod smart_account;
 pub(crate) mod stake;
 pub(crate) mod storage_fund;
 pub(crate) mod string_input;

@@ -36,12 +36,14 @@ use crate::{
         event::{self, Event, EventConnection, EventFilter},
         iota_address::IotaAddress,
         iota_names_registration::{IotaNames, Name},
+        move_object::MoveObject,
         move_package::{self, MovePackage, MovePackageCheckpointFilter, MovePackageVersionFilter},
         move_type::MoveType,
         move_view_result::MoveViewResult,
         object::{self, Object, ObjectFilter},
         owner::Owner,
         protocol_config::ProtocolConfigs,
+        smart_account::{self, SmartAccountFilter},
         subscription::Subscription,
         transaction_block::{
             self, TransactionBlock, TransactionBlockConnection, TransactionBlockFilter,
@@ -519,6 +521,26 @@ impl Query {
         )
         .await
         .extend()
+    }
+
+    /// The live `SmartAccount` objects that can be controlled by the public key
+    /// whose hash is given in `filter`. Pages are not a snapshot, every page
+    /// serves the current live data.
+    async fn smart_accounts(
+        &self,
+        ctx: &Context<'_>,
+        first: Option<u64>,
+        after: Option<smart_account::Cursor>,
+        last: Option<u64>,
+        before: Option<smart_account::Cursor>,
+        filter: SmartAccountFilter,
+    ) -> Result<Connection<String, MoveObject>> {
+        let Watermark { checkpoint, .. } = *ctx.data()?;
+
+        let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
+        smart_account::paginate(ctx, page, filter, checkpoint)
+            .await
+            .extend()
     }
 
     /// The Move packages that exist in the network, optionally filtered to be
