@@ -2,14 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use diesel::prelude::*;
-use fastcrypto::hash::HashFunction;
 use iota_sdk_move_types::iota_framework::dynamic_field::Field;
 use iota_sdk_types::Owner;
 use iota_types::{
-    account_abstraction::builtin_authenticator_functions::PublicKeyFieldName, crypto::DefaultHash,
-    move_signature_scheme::MoveSignatureScheme, object::Object,
+    account_abstraction::builtin_authenticator_functions::PublicKeyFieldName,
+    move_public_key::MovePublicKey, object::Object,
 };
-use serde::Deserialize;
 
 use crate::{errors::IndexerError, schema::smart_account_keys};
 
@@ -35,6 +33,7 @@ impl StoredSmartAccountKey {
     /// `Field<PublicKeyFieldName, PublicKey>` that is known to be attached to a
     /// `SmartAccount` object.
     ///
+    /// # Errors
     /// Fails if the field is not attached to an object or its contents do not
     /// decode as a public key.
     pub fn from_key_field(field: &Object) -> Result<Self, IndexerError> {
@@ -45,7 +44,7 @@ impl StoredSmartAccountKey {
                 field.owner()
             )));
         };
-        let field_contents: Field<PublicKeyFieldName, PublicKeyContents> =
+        let field_contents: Field<PublicKeyFieldName, MovePublicKey> =
             bcs::from_bytes(field.data.as_struct().contents()).map_err(|e| {
                 IndexerError::DynamicField(format!(
                     "public key dynamic field {} does not decode: {e}",
@@ -58,24 +57,5 @@ impl StoredSmartAccountKey {
             account_id: account_id.as_bytes().to_vec(),
             key_id: field_contents.value.key_id().to_vec(),
         })
-    }
-}
-
-/// The Move `public_key::PublicKey` struct stored in a public key dynamic
-/// field. Contains the scheme flag and the raw bytes of a public key.
-#[derive(Deserialize)]
-pub struct PublicKeyContents {
-    scheme: MoveSignatureScheme,
-    raw_bytes: Vec<u8>,
-}
-
-impl PublicKeyContents {
-    /// Returns the hash of the public key which is stored as `key_id` column of
-    /// `smart_account_keys`. Computed as blake2b256(scheme flag || raw public key bytes).
-    pub fn key_id(&self) -> [u8; 32] {
-        let mut hasher = DefaultHash::default();
-        hasher.update([self.scheme.flag()]);
-        hasher.update(&self.raw_bytes);
-        hasher.finalize().digest
     }
 }
