@@ -93,9 +93,9 @@ impl SimulationGasHandle {
 /// limit: traffic control is off, no simulation gas limit is set, an allow
 /// rule serves the client, or the extensions carry no handle.
 pub(crate) fn reserve_simulation_gas(
-    ext: &Extensions,
+    extensions: &Extensions,
 ) -> Result<Option<SimulationGasReservation>, Error> {
-    let Some(handle) = ext.get::<SimulationGasHandle>() else {
+    let Some(handle) = extensions.get::<SimulationGasHandle>() else {
         return Ok(None);
     };
     handle
@@ -464,8 +464,8 @@ mod tests {
     fn simulating_methods() -> Methods {
         let mut module = jsonrpsee::RpcModule::new(());
         module
-            .register_method("test_simulate", |_, _, ext| {
-                reserve_simulation_gas(ext)
+            .register_method("test_simulate", |_, _, extensions| {
+                reserve_simulation_gas(extensions)
                     .map(|reservation| reservation.is_some())
                     .map_err(jsonrpsee::core::ClientError::from)
                     .map_err(iota_json_rpc_api::error_object_from_rpc)

@@ -425,7 +425,7 @@ impl TransactionExecutionApi {
 
     async fn dry_run_transaction_block(
         &self,
-        ext: &Extensions,
+        extensions: &Extensions,
         tx_bytes: Base64,
     ) -> Result<DryRunTransactionBlockResponse, Error> {
         let (txn_data, input_objs) = self.prepare_dry_run_transaction_block(tx_bytes)?;
@@ -434,7 +434,7 @@ impl TransactionExecutionApi {
         // Use spawn_blocking since simulating a transaction and resolving types
         // over its output are long-running synchronous operations
         let (simulation, input, events) = {
-            let gas_reservation = reserve_simulation_gas(ext)?;
+            let gas_reservation = reserve_simulation_gas(extensions)?;
             let permit = self.try_acquire_simulation_permit()?;
             let this = self.clone();
             tokio::task::spawn_blocking(move || {
@@ -581,13 +581,13 @@ impl TransactionExecutionApi {
 
     async fn dev_inspect_transaction(
         &self,
-        ext: &Extensions,
+        extensions: &Extensions,
         sender: Address,
         transaction_kind: TransactionKind,
         gas_price: Option<u64>,
         args: DevInspectArgs,
     ) -> Result<DevInspectResults, Error> {
-        let gas_reservation = reserve_simulation_gas(ext)?;
+        let gas_reservation = reserve_simulation_gas(extensions)?;
         let permit = self.try_acquire_simulation_permit()?;
         let this = self.clone();
         // Use spawn_blocking since simulating a transaction is a long-running
