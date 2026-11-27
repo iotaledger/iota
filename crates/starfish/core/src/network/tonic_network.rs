@@ -1394,7 +1394,7 @@ const REQUEST_MESSAGE_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Time a response has to be fully written after its handler returned it. A
 /// peer that stops reading leaves the stream parked with the rest of the
-/// response, the encoder buffer and the admission permits in it; past this the
+/// response, the encoder buffer and the admission slots in it; past this the
 /// body gives them up, keeping only the peer's own slot until the stream ends.
 /// The block-subscription stream is exempt. It equals the longest any
 /// requester waits for one fetch attempt, so a read the peer still waits for
@@ -1484,8 +1484,8 @@ impl<S: NetworkService> TonicManager<S> {
                 }
             })
             // Innermost, so a rejected request is still counted and traced by
-            // the layers above, and a request stalled in decode has its permit
-            // released when the timeout above fires.
+            // the layers above, and a request stalled in decode has its slots
+            // given back when the timeout above fires.
             .layer(AdmissionLayer::new(self.context.clone(), self.send_timeout));
 
         let consensus_service_server = ConsensusServiceServer::new(service)
@@ -2989,7 +2989,7 @@ mod tests {
 
     /// A header fetch whose request message never arrives is charged to its
     /// peer's budget from the moment its headers land, so a peer cannot stack
-    /// pending decodes across connections. The permit is returned when the
+    /// pending decodes across connections. The slot is given back when the
     /// server-side request timeout cuts the stalled request.
     #[cfg(not(msim))]
     #[tokio::test]
@@ -3229,53 +3229,58 @@ mod tests {
             panic!("{what}");
         };
 
-        let unread = fetch().await.expect("the first fetch is admitted");
-        settles("the unread fetch is not counted in use", &|| {
-            in_use.get() == 1
+        // The peer's first fetch is outside the shared budget; its second takes
+        // the whole budget.
+        let first = fetch().await.expect("the first fetch is admitted");
+        let second = fetch().await.expect("the second fetch is admitted");
+        settles("the unread fetches are not counted in use", &|| {
+            in_use.get() == 2
         })
         .await;
-        // The peer's second fetch needs the shared budget, which the unread
-        // response holds.
-        assert_eq!(
-            fetch().await.unwrap_err().code(),
-            tonic::Code::ResourceExhausted
-        );
+        // The peer's third fetch needs the shared budget, which the second
+        // unread response holds.
+        let refused = fetch().await.unwrap_err();
+        assert_eq!(refused.code(), tonic::Code::ResourceExhausted);
+        assert_eq!(refused.message(), "all-peers commit_fetch limit reached");
 
-        // At the deadline the shared budget is free again; the peer's own slot
-        // is not.
-        settles("the unread response was not reclaimed", &|| {
-            reclaimed.get() == 1
+        // At the deadline the shared budget is free again; the peer's own slots
+        // are not.
+        settles("the unread responses were not reclaimed", &|| {
+            reclaimed.get() == 2
         })
         .await;
-        assert_eq!(in_use.get(), 1);
-        let admitted = fetch().await.expect("the shared budget is free again");
         assert_eq!(in_use.get(), 2);
+        let admitted = fetch().await.expect("the shared budget is free again");
+        assert_eq!(in_use.get(), 3);
+        // Dropped before its own deadline, so it is not reclaimed.
+        drop(admitted);
 
-        // Reading the abandoned response fails with the deadline before its
+        // Reading an abandoned response fails with the deadline before its
         // payload arrives, and only that ends the stream and releases the
         // peer's slot.
-        let mut unread = unread.into_inner();
-        let read_to_the_end = async {
-            while let Some(response) = unread.message().await? {
-                assert!(
-                    response.transactions.is_empty(),
-                    "the reclaimed payload must not arrive"
-                );
+        for unread in [first, second] {
+            let mut unread = unread.into_inner();
+            let read_to_the_end = async {
+                while let Some(response) = unread.message().await? {
+                    assert!(
+                        response.transactions.is_empty(),
+                        "the reclaimed payload must not arrive"
+                    );
+                }
+                Ok::<(), tonic::Status>(())
             }
-            Ok::<(), tonic::Status>(())
+            .await;
+            assert_eq!(
+                read_to_the_end
+                    .expect_err("reading a reclaimed response must fail")
+                    .code(),
+                tonic::Code::DeadlineExceeded
+            );
         }
-        .await;
-        assert_eq!(
-            read_to_the_end
-                .expect_err("reading a reclaimed response must fail")
-                .code(),
-            tonic::Code::DeadlineExceeded
-        );
-        drop((unread, admitted));
         settles("the ended streams keep their slots", &|| in_use.get() == 0).await;
-        // The deadline fired once, for the response that was never read.
+        // The deadline fired once for each response that was never read.
         tokio::time::sleep(SEND_TIMEOUT).await;
-        assert_eq!(reclaimed.get(), 1);
+        assert_eq!(reclaimed.get(), 2);
     }
 
     /// Sent through the tonic server and client, a fast commit-sync response

@@ -814,9 +814,10 @@ impl Default for TonicParameters {
 
 /// Per-peer, per-RPC concurrency caps for the inbound consensus gRPC server.
 ///
-/// Each cap bounds how many concurrent requests of one RPC group a single
-/// committee peer (keyed on its authenticated authority index) may have in
-/// flight; a peer cannot consume another peer's budget. These are local,
+/// Each per-peer cap bounds how many concurrent requests of one RPC group a
+/// single committee peer (keyed on its authenticated authority index) may have
+/// in flight; a peer cannot consume another peer's budget. Commit fetches also
+/// have a node-wide cap, `max_commit_fetches_total`. These are local,
 /// non-protocol parameters — heterogeneous values across authorities are safe,
 /// so they can be rolled out and tuned per node.
 ///
@@ -851,11 +852,12 @@ pub struct AdmissionParameters {
     #[serde(default = "AdmissionParameters::default_max_commit_fetches_per_peer")]
     pub max_commit_fetches_per_peer: u32,
 
-    /// Max concurrent commit fetches across all peers, beyond which a peer is
-    /// still granted its first. A fast commit-sync response holds its commits
-    /// and certifier headers until it has been sent, and reads its transactions
-    /// from the store while it is being sent, so this caps what serving them
-    /// can cost the node at once, short of one response per peer.
+    /// Max concurrent commit fetches across all peers, not counting each
+    /// peer's first one, which is always granted. A fast commit-sync response
+    /// holds its commits and certifier headers until it has been sent, and
+    /// reads its transactions from the store while it is being sent, so this
+    /// caps what serving them can cost the node at once, beyond one response
+    /// per peer.
     ///
     /// If unspecified, this will default to 16.
     #[serde(default = "AdmissionParameters::default_max_commit_fetches_total")]
