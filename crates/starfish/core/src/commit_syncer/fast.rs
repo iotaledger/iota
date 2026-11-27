@@ -2860,29 +2860,12 @@ mod tests {
             total_hits, total_fallbacks
         );
 
-        // In tests, peer selection is deterministic (not shuffled), so B will
-        // request from A first. A has voting storage for commits it fast-synced,
-        // so we should get voting hits.
+        // Peers are asked in committee order, so B asks A first. A is still
+        // fast syncing when B restarts, so the commits B fetches above A's
+        // restart point are certified by headers from A's voting storage.
         assert!(
             total_hits > 0,
             "Expected voting block headers hits > 0, got {total_hits}"
-        );
-
-        let commit_sync_fetch_commits_handler_uncertified_skipped: u64 = authorities
-            .iter()
-            .map(|a| {
-                a.context()
-                    .metrics
-                    .node_metrics
-                    .commit_sync_fetch_commits_handler_uncertified_skipped
-                    .with_label_values(&["fast_commit_sync"])
-                    .get()
-            })
-            .sum();
-
-        assert!(
-            commit_sync_fetch_commits_handler_uncertified_skipped > 0,
-            "Expected uncertified commits skipped > 0 for fast sync, got {commit_sync_fetch_commits_handler_uncertified_skipped}"
         );
 
         // Stop all authorities

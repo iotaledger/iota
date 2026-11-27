@@ -5598,6 +5598,105 @@ mod tests {
         }
     }
 
+    /// A fast-sync fetch served from commit votes stored only at some indices,
+    /// as fast sync stores them, ends at the lowest commit at or above the
+    /// requested end that a quorum certifies, counts the commits passed over,
+    /// and reads the certifier headers from voting block headers storage.
+    #[rstest]
+    #[case::ends_below_the_certified_commit(10, 5)]
+    #[case::ends_at_the_certified_commit(15, 0)]
+    #[tokio::test]
+    async fn fast_commit_fetch_ends_at_the_lowest_certified_commit(
+        #[case] range_end: CommitIndex,
+        #[case] expected_skipped: u64,
+    ) {
+        const CERTIFIED_INDEX: CommitIndex = 15;
+        let (mut context, _keys) = Context::new_for_test(4);
+        context.parameters.fast_commit_sync_batch_size = 20;
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let fixture = stream_fixture_with_store(context.clone(), store.clone());
+
+        let commits: Vec<TrustedCommit> = (1..=20)
+            .map(|index| {
+                TrustedCommit::new_for_test(
+                    index,
+                    CommitDigest::MIN,
+                    0,
+                    BlockRef::new(
+                        index,
+                        AuthorityIndex::new_for_test(0),
+                        BlockHeaderDigest::MIN,
+                    ),
+                    vec![],
+                    vec![],
+                )
+            })
+            .collect();
+        // Authorities 0 to 2 certify CERTIFIED_INDEX; authority 3 alone votes
+        // for commit 12, which stays below quorum.
+        let voting_headers: Vec<VerifiedBlockHeader> = [
+            (0, CERTIFIED_INDEX),
+            (1, CERTIFIED_INDEX),
+            (2, CERTIFIED_INDEX),
+            (3, 12),
+        ]
+        .into_iter()
+        .map(|(author, index)| {
+            VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(CERTIFIED_INDEX + 1, author)
+                    .set_commit_votes(vec![commits[index as usize - 1].reference()])
+                    .build(),
+            )
+        })
+        .collect();
+        store
+            .write(
+                WriteBatch::default()
+                    .commits(commits)
+                    .voting_block_headers(voting_headers.clone()),
+            )
+            .unwrap();
+
+        let (served_commits, certifiers) = fixture
+            .authority_service
+            .handle_fetch_commits(
+                AuthorityIndex::new_for_test(1),
+                CommitRange::new(1..=range_end),
+                CommitSyncType::Fast,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            served_commits
+                .iter()
+                .map(|commit| commit.reference().index)
+                .collect::<Vec<_>>(),
+            (1..=CERTIFIED_INDEX).collect::<Vec<_>>()
+        );
+        assert_eq!(
+            certifiers
+                .iter()
+                .map(|header| header.reference())
+                .collect::<Vec<_>>(),
+            voting_headers[..3]
+                .iter()
+                .map(|header| header.reference())
+                .collect::<Vec<_>>()
+        );
+        let metrics = &context.metrics.node_metrics;
+        assert_eq!(
+            metrics
+                .commit_sync_fetch_commits_handler_uncertified_skipped
+                .with_label_values(&[CommitSyncType::Fast.as_str()])
+                .get(),
+            expected_skipped
+        );
+        assert_eq!(metrics.commit_sync_voting_block_headers_hits.get(), 3);
+        assert_eq!(metrics.commit_sync_voting_block_headers_fallbacks.get(), 0);
+    }
+
     #[tokio::test]
     async fn test_handle_fetch_transactions() {
         // GIVEN
