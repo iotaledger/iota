@@ -419,6 +419,19 @@ pub enum UserInputError {
         "A transaction with a transaction dependency input must set an epoch expiration equal to the current epoch"
     )]
     TransactionDependencyRequiresExpiration,
+    #[error(
+        "Account {address} is already explicit: the address has been claimed, or another claim of it was accepted earlier in this epoch"
+    )]
+    AccountAlreadyExplicit { address: Address },
+    #[error(
+        "Account {address} is explicit, so it must sign with a MoveAuthenticator, not a plain signature"
+    )]
+    PlainSignatureForExplicitAccount { address: Address },
+    #[error("Account {address} has another claim pending on this validator: {pending_transaction}")]
+    AccountClaimPending {
+        address: Address,
+        pending_transaction: TransactionDigest,
+    },
 }
 
 /// Formats `version` as " at version {version}", or as nothing when it is
@@ -992,6 +1005,8 @@ impl IotaError {
                     UserInputError::InputObjectNotAvailableAtCommit { .. } => false,
                     // The dependency may still be submitted or executed.
                     UserInputError::TransactionDependencyNotFound { .. } => true,
+                    // As a lock conflict on an owned object.
+                    UserInputError::AccountClaimPending { .. } => false,
                     _ => false,
                 }
             }
@@ -1105,6 +1120,7 @@ pub fn categorize(error: &IotaError) -> ErrorCategory {
                 ErrorCategory::InvalidTransaction
             }
             UserInputError::TransactionDependencyNotFound { .. } => ErrorCategory::Aborted,
+            UserInputError::AccountClaimPending { .. } => ErrorCategory::LockConflict,
             _ => ErrorCategory::InvalidTransaction,
         },
         IotaError::InvalidSignature { .. }

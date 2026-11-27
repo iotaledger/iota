@@ -80,3 +80,6 @@
 78: TransactionDependencyNotInCurrentEpoch
 79: TransactionDependencyInputUsed
 80: TransactionDependencyRequiresExpiration
+81: AccountAlreadyExplicit
+82: PlainSignatureForExplicitAccount
+83: AccountClaimPending
