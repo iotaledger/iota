@@ -41,7 +41,11 @@ impl StoredSmartAccountKey {
     /// is attached to, so the parent `SmartAccount` objects are expected to be present in the same
     /// `objects` batch. Public keys attached to objects other than `SmartAccount` are
     /// filtered out.
-    pub fn from_objects<'a>(
+    ///
+    /// # Errors
+    /// Fails if a key field does not decode as a public key, see
+    /// [`Self::from_key_field`].
+    pub(crate) fn from_objects<'a>(
         objects: impl IntoIterator<Item = &'a Object>,
     ) -> Result<Vec<Self>, IndexerError> {
         let key_field_tag = public_key_field_tag();
@@ -90,7 +94,7 @@ impl StoredSmartAccountKey {
     /// # Errors
     /// Fails if the field is not attached to an object or its contents do not
     /// decode as a public key.
-    pub fn from_key_field(field: &Object) -> Result<Self, IndexerError> {
+    pub(crate) fn from_key_field(field: &Object) -> Result<Self, IndexerError> {
         let Owner::Object(account_id) = field.owner() else {
             return Err(IndexerError::DynamicField(format!(
                 "public key dynamic field {} is not attached to an object, its owner is {:?}",
@@ -120,12 +124,12 @@ fn struct_tag(object: &Object) -> Option<&StructTag> {
 
 /// Returns the struct tag of `Field<PublicKeyFieldName, PublicKey>`, the
 /// public key dynamic field of a `SmartAccount`.
-pub fn public_key_field_tag() -> StructTag {
+pub(crate) fn public_key_field_tag() -> StructTag {
     StructTag::new_dynamic_field(PublicKeyFieldName::tag(), MovePublicKey::tag())
 }
 
 /// Returns the struct tag of `0x2::smart_account::SmartAccount`.
-pub fn smart_account_tag() -> StructTag {
+pub(crate) fn smart_account_tag() -> StructTag {
     StructTag::new(
         Address::FRAMEWORK,
         Identifier::from_static("smart_account"),
