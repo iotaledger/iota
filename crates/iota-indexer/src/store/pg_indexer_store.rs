@@ -7,7 +7,7 @@ use std::{any::Any as StdAny, collections::HashMap, time::Duration};
 
 use async_trait::async_trait;
 use diesel::{
-    ExpressionMethods, OptionalExtension, PgConnection, QueryDsl, QueryableByName, RunQueryDsl,
+    ExpressionMethods, OptionalExtension, PgConnection, QueryDsl, RunQueryDsl,
     dsl::{max, min, sql},
     sql_types::{Array, BigInt, Bytea, Nullable, SmallInt, Text},
     upsert::excluded,
@@ -15,7 +15,7 @@ use diesel::{
 use downcast::Any;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{CheckpointDigest, ObjectId};
-use iota_types::{digests::ChainIdentifier, object::Object};
+use iota_types::digests::ChainIdentifier;
 use itertools::Itertools;
 use strum::IntoEnumIterator;
 use tap::TapFallible;
@@ -48,7 +48,7 @@ use crate::{
             StoredObject, StoredObjects,
         },
         packages::StoredPackage,
-        smart_account_keys::{StoredSmartAccountKey, public_key_field_tag, smart_account_tag},
+        smart_account_keys::StoredSmartAccountKey,
         transactions::{OptimisticTransaction, StoredTransaction, TxGlobalOrder},
         tx_indices::TxIndexSplit,
         watermarks::StoredWatermark,
@@ -70,16 +70,9 @@ use crate::{
     transactional_blocking_with_retry,
     types::{
         EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEvent, IndexedObject,
-        IndexedTransaction, OwnerType, TxIndex,
+        IndexedTransaction, TxIndex,
     },
 };
-
-/// The serialized object stored in a row of `objects`.
-#[derive(QueryableByName)]
-struct SerializedObject {
-    #[diesel(sql_type = Bytea)]
-    serialized_object: Vec<u8>,
-}
 
 /// Lower bounds of one epoch
 struct EpochLowerBounds {
@@ -606,7 +599,7 @@ impl PgIndexerStore {
             .context("Failed to delete smart account keys from PostgresDB")
     }
 
-    fn persist_smart_account_keys_chunk(
+    pub(crate) fn persist_smart_account_keys_chunk(
         &self,
         keys: Vec<StoredSmartAccountKey>,
     ) -> Result<(), IndexerError> {
@@ -640,54 +633,6 @@ impl PgIndexerStore {
             tracing::error!("failed to delete smart account keys with error: {e}");
         })
         .map(|_| ())
-    }
-
-    /// Fills `smart_account_keys` from the public key dynamic fields in
-    /// `objects` whose parent is a `SmartAccount`. A row is replaced only by a
-    /// higher version, so running it again changes nothing.
-    pub async fn fill_smart_account_keys_from_objects(&self) -> Result<(), IndexerError> {
-        let with_prefix = true;
-        let key_field_tag = public_key_field_tag();
-        let key_field_package = key_field_tag.address().as_bytes().to_vec();
-        let key_field_module = key_field_tag.module().to_string();
-        let key_field_name = key_field_tag.name().to_string();
-        let key_field_type = key_field_tag.to_canonical_string(with_prefix);
-        let smart_account_type = smart_account_tag().to_canonical_string(with_prefix);
-        self.execute_in_blocking_worker(move |this| {
-            let fields = run_query_with_retry!(
-                &this.blocking_cp,
-                |conn| {
-                    diesel::sql_query(
-                        "SELECT f.serialized_object FROM objects f
-                        JOIN objects a ON a.object_id = f.owner_id
-                        WHERE f.object_type_package = $1
-                        AND f.object_type_module = $2
-                        AND f.object_type_name = $3
-                        AND f.object_type = $4
-                        AND f.owner_type = $5
-                        AND a.object_type = $6",
-                    )
-                    .bind::<Bytea, _>(&key_field_package)
-                    .bind::<Text, _>(&key_field_module)
-                    .bind::<Text, _>(&key_field_name)
-                    .bind::<Text, _>(&key_field_type)
-                    .bind::<SmallInt, _>(OwnerType::Object as i16)
-                    .bind::<Text, _>(&smart_account_type)
-                    .load::<SerializedObject>(conn)
-                },
-                PG_DB_COMMIT_SLEEP_DURATION
-            )?;
-            let keys = fields
-                .iter()
-                .map(|row| {
-                    StoredSmartAccountKey::from_key_field(&bcs::from_bytes::<Object>(
-                        &row.serialized_object,
-                    )?)
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            this.persist_smart_account_keys_chunk(keys)
-        })
-        .await
     }
 
     fn persist_objects_backward_history_chunk(

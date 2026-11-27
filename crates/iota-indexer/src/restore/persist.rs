@@ -1,13 +1,17 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, time::Duration};
+use std::{
+    collections::{BTreeMap, HashSet},
+    time::Duration,
+};
 
 use bytes::Bytes;
 use diesel::connection::SimpleConnection;
 use downcast::Any;
 use fastcrypto::hash::{HashFunction, Sha3_256};
 use iota_core::authority::authority_store_tables::LiveObject as SnapshotObject;
+use iota_sdk_types::{MoveStruct, ObjectId};
 use iota_snapshot::{FileMetadata, VerifiedEpochInfo, reader::LiveObjectIter, restore::Restore};
 use iota_storage::SHA3_BYTES;
 use iota_types::{
@@ -15,6 +19,7 @@ use iota_types::{
 };
 use itertools::Itertools;
 use strum::IntoEnumIterator;
+use tokio::sync::Mutex;
 
 use crate::{
     chunk,
@@ -30,6 +35,7 @@ use crate::{
         obj_indices::StoredObjectVersion,
         objects::StoredCheckpointedObject,
         packages::StoredPackage,
+        smart_account_keys::{StoredSmartAccountKey, public_key_field_tag, smart_account_tag},
     },
     pruning::pruner::PrunableTable,
     store::{IndexerStore, PgIndexerStore, diesel_macro::*},
@@ -63,13 +69,108 @@ impl ObjectDerivedData {
     }
 }
 
-impl Restore for PgIndexerStore {
+/// Key rows and `SmartAccount` ids collected from the snapshot partitions.
+/// A key and its account can be in different partitions, so the rows are
+/// only filtered after the last partition is inserted.
+#[derive(Default)]
+struct SmartAccountKeys {
+    /// One row for every public key field, whatever its parent is.
+    keys: Vec<StoredSmartAccountKey>,
+    /// The id of every `SmartAccount`, used to keep only the rows whose
+    /// parent is one.
+    smart_accounts: HashSet<ObjectId>,
+}
+
+impl SmartAccountKeys {
+    /// Adds a row for every public key field in `objects` and the id of every
+    /// `SmartAccount`.
+    fn add_objects<'a>(
+        &mut self,
+        objects: impl IntoIterator<Item = &'a Object>,
+    ) -> Result<(), IndexerError> {
+        let key_field_tag = public_key_field_tag();
+        let smart_account_tag = smart_account_tag();
+        for object in objects {
+            let Some(tag) = object.data.as_opt_struct().map(MoveStruct::struct_tag) else {
+                continue;
+            };
+            if *tag == smart_account_tag {
+                self.smart_accounts.insert(object.id());
+            } else if *tag == key_field_tag {
+                self.keys
+                    .push(StoredSmartAccountKey::from_key_field(object)?);
+            }
+        }
+        Ok(())
+    }
+
+    /// Moves the rows and ids of `other` into `self`.
+    fn append(&mut self, other: Self) {
+        self.keys.extend(other.keys);
+        self.smart_accounts.extend(other.smart_accounts);
+    }
+
+    /// Returns the rows whose parent is a `SmartAccount`.
+    fn into_rows(self) -> Vec<StoredSmartAccountKey> {
+        let Self {
+            keys,
+            smart_accounts,
+        } = self;
+        keys.into_iter()
+            .filter(|key| {
+                ObjectId::from_bytes(&key.account_id).is_ok_and(|id| smart_accounts.contains(&id))
+            })
+            .collect()
+    }
+}
+
+/// Inserts the snapshot partitions through `store` and collects the
+/// `smart_account_keys` rows across them.
+pub(crate) struct RestoreStore<'a> {
+    store: &'a PgIndexerStore,
+    smart_account_keys: Mutex<SmartAccountKeys>,
+}
+
+impl<'a> RestoreStore<'a> {
+    pub(crate) fn new(store: &'a PgIndexerStore) -> Self {
+        Self {
+            store,
+            smart_account_keys: Mutex::new(SmartAccountKeys::default()),
+        }
+    }
+
+    /// Returns the rows of the key fields whose parent is a `SmartAccount`.
+    /// Shall be called after every partition was inserted.
+    pub(crate) fn into_smart_account_keys(self) -> Vec<StoredSmartAccountKey> {
+        self.smart_account_keys.into_inner().into_rows()
+    }
+}
+
+impl Restore for RestoreStore<'_> {
     async fn insert_partition(
         &self,
         file_metadata: FileMetadata,
         bytes: Bytes,
         expected_checksum: &[u8; SHA3_BYTES],
     ) -> anyhow::Result<()> {
+        let partition_keys = self
+            .store
+            .insert_partition(file_metadata, bytes, expected_checksum)
+            .await?;
+        self.smart_account_keys.lock().await.append(partition_keys);
+        Ok(())
+    }
+}
+
+impl PgIndexerStore {
+    /// Inserts one snapshot partition and returns its `smart_account_keys`
+    /// rows and `SmartAccount` ids.
+    async fn insert_partition(
+        &self,
+        file_metadata: FileMetadata,
+        bytes: Bytes,
+        expected_checksum: &[u8; SHA3_BYTES],
+    ) -> anyhow::Result<SmartAccountKeys> {
         let mut derived_data = ObjectDerivedData::default();
         let partition = LiveObjectIter::new(&file_metadata, bytes)?.scan(
             &mut derived_data,
@@ -96,6 +197,8 @@ impl Restore for PgIndexerStore {
                 file_metadata.part_num
             );
         }
+        let mut smart_account_keys = SmartAccountKeys::default();
+        smart_account_keys.add_objects(chunks.iter().flatten().map(LiveObject::object))?;
 
         let (live_chunks, checkpointed_chunks): (Vec<_>, Vec<_>) = chunks
             .into_iter()
@@ -150,7 +253,7 @@ impl Restore for PgIndexerStore {
         self.persist_packages(derived_data.packages).await?;
         self.persist_object_versions(derived_data.object_versions)
             .await?;
-        Ok(())
+        Ok(smart_account_keys)
     }
 }
 
@@ -206,6 +309,15 @@ async fn populate_chain_id(store: &PgIndexerStore, chain_id: ChainIdentifier) ->
         .execute_in_blocking_worker(|this| {
             this.persist_chain_identifier(StoredChainIdentifier { checkpoint_digest })
         })
+        .await
+}
+
+async fn persist_smart_account_keys(
+    store: &PgIndexerStore,
+    keys: Vec<StoredSmartAccountKey>,
+) -> IndexerResult<()> {
+    store
+        .execute_in_blocking_worker(move |this| this.persist_smart_account_keys_chunk(keys))
         .await
 }
 
@@ -283,8 +395,8 @@ async fn restore_partitions(
 /// epoch.
 ///
 /// We also move the initial partition of `transactions`, and `events` to the
-/// epoch that follows the snapshot, and fill `smart_account_keys` from the
-/// restored `objects`.
+/// epoch that follows the snapshot, and write the `smart_account_keys` rows
+/// collected from the snapshot partitions.
 ///
 /// Finally we populate `protocol_configs`, `feature_flags` up to the
 /// protocol version that the snapshot epoch corresponds to, and the
@@ -294,6 +406,7 @@ pub(crate) async fn populate_remaining_tables(
     store: &PgIndexerStore,
     verified_epoch_info: VerifiedEpochInfo,
     snapshot_chain_id: ChainIdentifier,
+    smart_account_keys: Vec<StoredSmartAccountKey>,
 ) -> IndexerResult<()> {
     let snapshot_epoch_boundary = verified_epoch_info.snapshot_entry();
     let sync_watermark = IndexedCheckpoint::from_iota_checkpoint(
@@ -311,7 +424,7 @@ pub(crate) async fn populate_remaining_tables(
         populate_chain_id(store, snapshot_chain_id),
         store.persist_checkpoints(vec![sync_watermark]),
         restore_partitions(store, next_epoch, next_epoch_start_tx),
-        store.fill_smart_account_keys_from_objects(),
+        persist_smart_account_keys(store, smart_account_keys),
     )?;
     tokio::try_join!(
         populate_protocol_and_feature_flags(store, snapshot_chain_id),
@@ -344,4 +457,89 @@ pub(crate) async fn populate_remaining_tables(
         )]),
     )?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_sdk_move_types::iota_framework::{dynamic_field::Field, object::UID};
+    use iota_sdk_types::{Address, Identifier, ObjectData, Owner, StructTag, TransactionDigest};
+    use iota_types::{
+        account_abstraction::builtin_authenticator_functions::PublicKeyFieldName,
+        move_public_key::MovePublicKey,
+        object::{MoveStructExt, ObjectInner},
+    };
+    use test_cluster::smart_account::ed25519_key;
+
+    use super::*;
+
+    fn id(hex: &str) -> ObjectId {
+        ObjectId::from_short_hex(hex).unwrap()
+    }
+
+    fn object(object_type: StructTag, owner: Owner, contents: Vec<u8>) -> Object {
+        let data = ObjectData::Struct(
+            MoveStruct::new_from_execution_with_limit(object_type, 1.into(), contents, 256)
+                .unwrap(),
+        );
+        ObjectInner {
+            owner,
+            data,
+            previous_transaction: TransactionDigest::GENESIS_MARKER,
+            storage_rebate: 0,
+        }
+        .into()
+    }
+
+    fn parent(object_type: StructTag, object_id: ObjectId) -> Object {
+        object(
+            object_type,
+            Owner::Shared(1.into()),
+            bcs::to_bytes(&UID::new(object_id)).unwrap(),
+        )
+    }
+
+    fn key_field(object_id: ObjectId, parent_id: ObjectId) -> Object {
+        let field = Field {
+            id: UID::new(object_id),
+            name: PublicKeyFieldName::default(),
+            value: MovePublicKey::from(&ed25519_key(1)),
+        };
+        object(
+            public_key_field_tag(),
+            Owner::Object(parent_id),
+            bcs::to_bytes(&field).unwrap(),
+        )
+    }
+
+    /// The key fields arrive in one partition and their parents in a later
+    /// one. Only the field whose parent is a `SmartAccount` gets a row.
+    #[test]
+    fn keys_are_matched_with_parents_from_a_later_partition() {
+        let holder_type = StructTag::new(
+            Address::from_short_hex("0xe7").unwrap(),
+            Identifier::from_static("holder"),
+            Identifier::from_static("Holder"),
+            vec![],
+        );
+        let account_key = key_field(id("0x1a"), id("0xf3"));
+        let holder_key = key_field(id("0x2c"), id("0xe0"));
+        let account = parent(smart_account_tag(), id("0xf3"));
+        let holder = parent(holder_type, id("0xe0"));
+
+        let mut first_partition = SmartAccountKeys::default();
+        first_partition
+            .add_objects([&account_key, &holder_key])
+            .unwrap();
+        let mut second_partition = SmartAccountKeys::default();
+        second_partition.add_objects([&holder, &account]).unwrap();
+
+        let mut collected = SmartAccountKeys::default();
+        collected.append(first_partition);
+        collected.append(second_partition);
+
+        assert_eq!(
+            collected.into_rows(),
+            vec![StoredSmartAccountKey::from_key_field(&account_key).unwrap()]
+        );
+    }
 }
