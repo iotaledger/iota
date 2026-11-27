@@ -52,6 +52,11 @@ pub(crate) struct Page<C> {
     /// `(after, before)`, this field states whether the entries up to limit
     /// are taken from the `Front` or `Back` of that range.
     end: End,
+
+    /// Whether the rows the cursors point at are guaranteed to be in the
+    /// results. True for data read at the checkpoint the cursors were made
+    /// at. False for data read live.
+    consistent: bool,
 }
 
 /// Whether the page is extracted from the beginning or the end of the range
@@ -153,6 +158,7 @@ impl<C> Page<C> {
                 before,
                 limit: limit.unwrap_or(limits.default_page_size as u64),
                 end: End::Front,
+                consistent: true,
             },
 
             (None, after, Some(limit), before) => Page {
@@ -160,6 +166,7 @@ impl<C> Page<C> {
                 before,
                 limit,
                 end: End::Back,
+                consistent: true,
             },
         };
 
@@ -170,6 +177,15 @@ impl<C> Page<C> {
         Ok(page)
     }
 
+    /// Marks the page as read from live data: a cursor whose row is gone
+    /// still bounds the page, instead of making it empty.
+    // The first query over a live table, the SmartAccount lookup, removes this.
+    #[cfg_attr(not(test), expect(dead_code))]
+    pub(crate) fn live(mut self) -> Self {
+        self.consistent = false;
+        self
+    }
+
     /// A page that just limits the number of results, without applying any
     /// other bounds.
     pub(crate) fn bounded(limit: u64) -> Self {
@@ -178,6 +194,7 @@ impl<C> Page<C> {
             before: None,
             limit,
             end: End::Front,
+            consistent: true,
         }
     }
 
@@ -521,7 +538,9 @@ impl<C: CursorType + Eq + Clone + Send + Sync + 'static> Page<C> {
     ///
     /// `results` must be sorted in ascending cursor order and fetched with
     /// inclusive cursor bounds, so that the rows at the `after`/`before`
-    /// cursors are part of the result set (see [`Page::apply`]).
+    /// cursors are part of the result set (see [`Page::apply`]). For a live
+    /// page (see [`Page::live`]) those rows may be missing, and the results
+    /// then start after the cursor.
     pub(crate) fn paginate_results<T>(
         &self,
         f_cursor: Option<C>,
@@ -542,15 +561,16 @@ impl<C: CursorType + Eq + Clone + Send + Sync + 'static> Page<C> {
                 }
 
                 // Page drawn from the front, and the cursor for the first element does not match
-                // `after`. That cursor must have appeared in the previous page, and should also be
-                // at the tip of the current page. This absence implies the bound was invalid, so
-                // we return an empty result.
-                (Some(a), Some(f), _, _, End::Front) if f != *a => {
+                // `after`. For a consistent page that cursor must have appeared in the previous
+                // page, and should also be at the tip of the current page. This absence implies
+                // the bound was invalid, so we return an empty result. For a live page the row of
+                // the cursor can be gone, and the results simply start after it.
+                (Some(a), Some(f), _, _, End::Front) if f != *a && self.consistent => {
                     return (false, false, vec![].into_iter());
                 }
 
                 // Similar to above case, but for back of results.
-                (_, _, Some(l), Some(b), End::Back) if l != *b => {
+                (_, _, Some(l), Some(b), End::Back) if l != *b && self.consistent => {
                     return (false, false, vec![].into_iter());
                 }
 
@@ -882,6 +902,7 @@ mod tests {
                 before: None,
                 limit: 20,
                 end: Front,
+                consistent: true,
             }"#]];
         expect.assert_eq(&format!("{page:#?}"));
     }
@@ -900,6 +921,7 @@ mod tests {
                 before: None,
                 limit: 20,
                 end: Front,
+                consistent: true,
             }"#]];
         expect.assert_eq(&format!("{page:#?}"));
     }
@@ -918,6 +940,7 @@ mod tests {
                 before: None,
                 limit: 10,
                 end: Front,
+                consistent: true,
             }"#]];
         expect.assert_eq(&format!("{page:#?}"));
     }
@@ -936,6 +959,7 @@ mod tests {
                 ),
                 limit: 20,
                 end: Front,
+                consistent: true,
             }"#]];
         expect.assert_eq(&format!("{page:#?}"));
     }
@@ -954,6 +978,7 @@ mod tests {
                 ),
                 limit: 10,
                 end: Back,
+                consistent: true,
             }"#]];
         expect.assert_eq(&format!("{page:#?}"));
     }
@@ -980,6 +1005,7 @@ mod tests {
                 ),
                 limit: 10,
                 end: Front,
+                consistent: true,
             }"#]];
         expect.assert_eq(&format!("{page:#?}"));
     }
@@ -1006,6 +1032,7 @@ mod tests {
                 ),
                 limit: 10,
                 end: Back,
+                consistent: true,
             }"#]];
         expect.assert_eq(&format!("{page:#?}"));
     }
@@ -1032,6 +1059,7 @@ mod tests {
                 ),
                 limit: 20,
                 end: Front,
+                consistent: true,
             }"#]];
         expect.assert_eq(&format!("{page:#?}"));
     }
@@ -1079,5 +1107,94 @@ mod tests {
                 ),
             }"#]];
         expect.assert_eq(&format!("{err:#?}"));
+    }
+
+    /// A row of a table, identified by a number that is also its cursor.
+    struct Row(u64);
+
+    impl Target<JsonCursor<u64>> for Row {
+        fn cursor(&self, _checkpoint_viewed_at: u64) -> JsonCursor<u64> {
+            JsonCursor::new(self.0)
+        }
+    }
+
+    /// Runs `paginate_results` for `page` over `rows`, which are the rows
+    /// its query returned, in ascending order.
+    fn paginate(page: &Page<JsonCursor<u64>>, rows: Vec<u64>) -> (bool, bool, Vec<u64>) {
+        let rows: Vec<Row> = rows.into_iter().map(Row).collect();
+        let first = rows.first().map(|row| row.cursor(0));
+        let last = rows.last().map(|row| row.cursor(0));
+        let (prev, next, results) = page.paginate_results(first, last, rows);
+        (prev, next, results.map(|row| row.0).collect())
+    }
+
+    fn page_after(first: u64, after: u64) -> Page<JsonCursor<u64>> {
+        let config = ServiceConfig::default();
+        Page::from_params(
+            &config,
+            Some(first),
+            Some(JsonCursor::new(after)),
+            None,
+            None,
+        )
+        .unwrap()
+    }
+
+    fn page_before(last: u64, before: u64) -> Page<JsonCursor<u64>> {
+        let config = ServiceConfig::default();
+        Page::from_params(
+            &config,
+            None,
+            None,
+            Some(last),
+            Some(JsonCursor::new(before)),
+        )
+        .unwrap()
+    }
+
+    /// A consistent page expects the row of its `after` cursor to be the
+    /// first result, and is empty when it is not.
+    #[test]
+    fn test_consistent_page_is_empty_without_the_after_row() {
+        assert_eq!(
+            paginate(&page_after(2, 5), vec![6, 7, 8]),
+            (false, false, vec![])
+        );
+    }
+
+    /// A live page starts right after a gone `after` row.
+    #[test]
+    fn test_live_page_starts_after_a_gone_after_row() {
+        assert_eq!(
+            paginate(&page_after(2, 5).live(), vec![6, 7, 8]),
+            (false, true, vec![6, 7])
+        );
+    }
+
+    /// A live page whose `after` row is present pages like a consistent one.
+    #[test]
+    fn test_live_page_with_the_after_row_present() {
+        let rows = vec![5, 6, 7, 8];
+        let expected = (true, true, vec![6, 7]);
+        assert_eq!(paginate(&page_after(2, 5), rows.clone()), expected);
+        assert_eq!(paginate(&page_after(2, 5).live(), rows), expected);
+    }
+
+    /// The same for the `before` cursor of a page drawn from the back.
+    #[test]
+    fn test_consistent_page_is_empty_without_the_before_row() {
+        assert_eq!(
+            paginate(&page_before(2, 5), vec![2, 3, 4]),
+            (false, false, vec![])
+        );
+    }
+
+    /// A live page drawn from the back ends right before a gone `before` row.
+    #[test]
+    fn test_live_page_ends_before_a_gone_before_row() {
+        assert_eq!(
+            paginate(&page_before(2, 5).live(), vec![2, 3, 4]),
+            (true, false, vec![3, 4])
+        );
     }
 }
