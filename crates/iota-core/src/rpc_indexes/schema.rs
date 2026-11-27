@@ -13,9 +13,13 @@ use std::{
     sync::Arc,
 };
 
+use iota_sdk_move_types::iota_framework::{
+    display::{Display, VersionUpdated},
+    vec_map::VecMap,
+};
 use iota_sdk_types::{
-    Address, ObjectId, ObjectReference, Owner, StructTag, TransactionDigest, TransactionEffects,
-    TransactionEvents, TransactionEventsDigest, TypeTag, Version,
+    Address, Event, ObjectId, ObjectReference, Owner, StructTag, TransactionDigest,
+    TransactionEffects, TransactionEvents, TransactionEventsDigest, TypeTag, Version,
 };
 use iota_types::{
     base_types::TxSequenceNumber,
@@ -348,6 +352,115 @@ pub(super) fn merge_coin_into(
 ) {
     match index.entry(key) {
         Entry::Occupied(mut occupied) => occupied.get_mut().merge(info),
+        Entry::Vacant(vacant) => {
+            vacant.insert(info);
+        }
+    }
+}
+
+/// Key of the `display` table: one entry per type that has a published
+/// Display template.
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub(crate) struct DisplayIndexKey {
+    pub(super) object_type: StructTag,
+}
+
+/// Display index value: a type's published template, as `(field, template)`
+/// pairs in publication order, and the template version.
+#[derive(Clone, Default, Serialize, Deserialize, PartialEq, Eq, Debug)]
+pub(crate) struct DisplayIndexInfo {
+    pub(super) version: u16,
+    pub(super) fields: Vec<(String, String)>,
+}
+
+/// The display row `event` contributes, when it is a
+/// `DisplayVersionUpdatedEvent<T>`; keyed by the displayed type `T`.
+pub(super) fn try_create_display_index_info(
+    event: &Event,
+) -> Option<(DisplayIndexKey, DisplayIndexInfo)> {
+    if !event.struct_tag.is_display_version_updated() {
+        return None;
+    }
+    let [TypeTag::Struct(object_type)] = event.struct_tag.type_params() else {
+        return None;
+    };
+    let display_event: VersionUpdated<()> = bcs::from_bytes(&event.contents).ok()?;
+    let fields: VecMap<String, String> = display_event.fields.try_into().ok()?;
+    let fields = fields
+        .contents
+        .into_iter()
+        .map(|entry| (entry.key, entry.value))
+        .collect();
+
+    Some((
+        DisplayIndexKey {
+            object_type: (**object_type).clone(),
+        },
+        DisplayIndexInfo {
+            version: display_event.version,
+            fields,
+        },
+    ))
+}
+
+/// The display row a live `0x2::display::Display<T>` object contributes, keyed
+/// by the displayed type `T`.
+///
+/// Lets a rebuild or a formal-snapshot restore seed the display table from the
+/// live object set, which a node keeps even after pruning the checkpoints that
+/// carried the `DisplayVersionUpdatedEvent`s.
+pub(super) fn try_create_display_index_info_from_object(
+    object: &Object,
+) -> Option<(DisplayIndexKey, DisplayIndexInfo)> {
+    let move_object = object.data.as_opt_struct()?;
+    let struct_tag = move_object.struct_tag();
+    if !is_display(struct_tag) {
+        return None;
+    }
+    let [TypeTag::Struct(object_type)] = struct_tag.type_params() else {
+        return None;
+    };
+    let display: Display<()> = bcs::from_bytes(move_object.contents()).ok()?;
+    let fields: VecMap<String, String> = display.fields.try_into().ok()?;
+    let fields = fields
+        .contents
+        .into_iter()
+        .map(|entry| (entry.key, entry.value))
+        .collect();
+
+    Some((
+        DisplayIndexKey {
+            object_type: (**object_type).clone(),
+        },
+        DisplayIndexInfo {
+            version: display.version,
+            fields,
+        },
+    ))
+}
+
+/// Whether `struct_tag` is `0x2::display::Display<T>`.
+fn is_display(struct_tag: &StructTag) -> bool {
+    use iota_sdk_types::Identifier;
+    const DISPLAY_STRUCT_NAME: Identifier = Identifier::from_static("Display");
+    struct_tag.address() == Address::FRAMEWORK
+        && struct_tag.module() == &Identifier::DISPLAY_MODULE
+        && struct_tag.name() == &DISPLAY_STRUCT_NAME
+}
+
+/// Keeps the higher-versioned of the display rows gathered for a type so far,
+/// mirroring the latest-version-wins merge the event path does per checkpoint.
+pub(super) fn merge_display_into(
+    index: &mut HashMap<DisplayIndexKey, DisplayIndexInfo>,
+    key: DisplayIndexKey,
+    info: DisplayIndexInfo,
+) {
+    match index.entry(key) {
+        Entry::Occupied(mut occupied) => {
+            if info.version >= occupied.get().version {
+                occupied.insert(info);
+            }
+        }
         Entry::Vacant(vacant) => {
             vacant.insert(info);
         }
@@ -764,4 +877,23 @@ pub struct IndexStoreTables {
     /// version, allowing efficient listing of all versions of a package.
     /// gRPC-only.
     pub package_version: DBMap<PackageVersionKey, PackageVersionInfo>,
+
+    /// The latest published Display template of each type, keyed by the
+    /// displayed type. gRPC-only.
+    ///
+    /// Kept current from the `DisplayVersionUpdatedEvent`s of each indexed
+    /// checkpoint, and seeded for the checkpoints a node no longer holds from
+    /// the live `Display<T>` objects: by the live object scan of a rebuild or
+    /// restore, and, on a store that predates this table, by the one-time scan
+    /// `display_backfilled` guards.
+    pub(super) display: DBMap<DisplayIndexKey, DisplayIndexInfo>,
+
+    /// The checkpoint whose live object set seeded the `display` table.
+    ///
+    /// Absent until `display` has been populated from the live `Display<T>`
+    /// objects, so a gRPC store that predates the table runs that scan once at
+    /// startup and never again. Unlike `history_watermark` it is not lowered
+    /// or resumed: the scan is idempotent, so an interrupted run re-runs in
+    /// full on the next open.
+    pub(super) display_backfilled: DBMap<(), CheckpointSequenceNumber>,
 }

@@ -139,6 +139,26 @@ async fn get_objects_readmask_scenarios() {
             Some(FieldMask::from_paths(["bcs"])),
             vec!["bcs"],
         ),
+        (
+            "json requires explicit mask",
+            Some(FieldMask::from_paths(["reference.object_id", "json"])),
+            vec!["reference.object_id", "json"],
+        ),
+        (
+            // The system state object's type has no published Display, so the
+            // field is absent even when requested.
+            "display absent when the type has none",
+            Some(FieldMask::from_paths(["reference.object_id", "display"])),
+            vec!["reference.object_id"],
+        ),
+        (
+            // `*` wildcard plus an explicit `json`: the wildcard still selects
+            // reference/bcs, and `json` is additionally rendered (it is not
+            // collapsed into the wildcard).
+            "wildcard plus explicit json",
+            Some(FieldMask::from_paths(["*", "json"])),
+            vec!["reference", "bcs", "json"],
+        ),
     ];
 
     for (scenario, mask, expected_paths) in test_cases {

@@ -128,4 +128,8 @@ pub trait GrpcIndexes: Send + Sync {
         original_package_id: ObjectId,
         cursor: Option<u64>,
     ) -> Result<Box<dyn Iterator<Item = PackageVersionIteratorItem> + '_>>;
+
+    /// The published Display template of `object_type` as `(field, template)`
+    /// pairs in publication order, `None` if the type has no Display.
+    fn get_display_fields(&self, object_type: &StructTag) -> Result<Option<Vec<(String, String)>>>;
 }

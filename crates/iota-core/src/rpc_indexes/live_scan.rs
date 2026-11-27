@@ -37,9 +37,10 @@ use typed_store::{
 use super::{
     RpcIndexesStore,
     schema::{
-        CURRENT_DB_VERSION, CoinIndexInfo, CoinIndexKey, IndexGroup, IndexStoreTables,
-        MetadataInfo, OwnerIndexInfo, OwnerIndexKey, is_dynamic_field, merge_coin_into,
-        try_create_coin_index_info, try_create_package_version_info,
+        CURRENT_DB_VERSION, CoinIndexInfo, CoinIndexKey, DisplayIndexInfo, DisplayIndexKey,
+        IndexGroup, IndexStoreTables, MetadataInfo, OwnerIndexInfo, OwnerIndexKey,
+        is_dynamic_field, merge_coin_into, merge_display_into, try_create_coin_index_info,
+        try_create_display_index_info_from_object, try_create_package_version_info,
         try_create_regulated_coin_info,
     },
 };
@@ -49,6 +50,11 @@ use super::{
 /// so the rows are written once every partition has been indexed.
 type CoinMetadata = Mutex<HashMap<CoinIndexKey, CoinIndexInfo>>;
 
+/// The display templates of the `Display<T>` objects seen so far. Rare and
+/// spread across partitions, so they are merged latest-version-wins and
+/// written once every partition has been indexed.
+type DisplayMetadata = Mutex<HashMap<DisplayIndexKey, DisplayIndexInfo>>;
+
 /// Indexes the live object set into the tables of `groups`, one indexer per
 /// scan partition. [`Self::finish`] ingests the rows once every partition is
 /// done.
@@ -56,6 +62,7 @@ pub(super) struct LiveObjectSetIndexer<'a> {
     tables: &'a IndexStoreTables,
     groups: &'a BTreeSet<IndexGroup>,
     coin_metadata: CoinMetadata,
+    display_metadata: DisplayMetadata,
     sst_files: SstFiles,
 }
 
@@ -69,15 +76,17 @@ impl<'a> LiveObjectSetIndexer<'a> {
             tables,
             groups,
             coin_metadata: Mutex::new(HashMap::new()),
+            display_metadata: Mutex::new(HashMap::new()),
             sst_files,
         }
     }
 
-    /// Ingests the partitions' SST files and writes the coin metadata
-    /// gathered across them.
+    /// Ingests the partitions' SST files and writes the coin and display
+    /// metadata gathered across them.
     pub(super) fn finish(self) -> Result<(), StorageError> {
         self.sst_files.ingest(self.tables)?;
         write_coin_metadata(self.tables, self.coin_metadata)?;
+        write_display_metadata(self.tables, self.display_metadata)?;
         Ok(())
     }
 }
@@ -89,7 +98,12 @@ impl crate::par_index_live_object_set::ParMakeLiveObjectIndexer for LiveObjectSe
         Self: 'a;
 
     fn make_live_object_indexer(&self) -> Self::ObjectIndexer<'_> {
-        RpcIndexesPartitionIndexer::new(self.groups, &self.coin_metadata, &self.sst_files)
+        RpcIndexesPartitionIndexer::new(
+            self.groups,
+            &self.coin_metadata,
+            &self.display_metadata,
+            &self.sst_files,
+        )
     }
 }
 
@@ -256,6 +270,7 @@ impl SstBuffers {
 pub struct RpcIndexesPartitionIndexer<'a> {
     groups: &'a BTreeSet<IndexGroup>,
     coin_metadata: &'a CoinMetadata,
+    display_metadata: &'a DisplayMetadata,
     files: &'a SstFiles,
     buffers: SstBuffers,
 }
@@ -264,11 +279,13 @@ impl<'a> RpcIndexesPartitionIndexer<'a> {
     fn new(
         groups: &'a BTreeSet<IndexGroup>,
         coin_metadata: &'a CoinMetadata,
+        display_metadata: &'a DisplayMetadata,
         files: &'a SstFiles,
     ) -> Self {
         Self {
             groups,
             coin_metadata,
+            display_metadata,
             files,
             buffers: files.take_buffers(),
         }
@@ -310,6 +327,9 @@ impl<'a> RpcIndexesPartitionIndexer<'a> {
             if let Some((key, info)) = try_create_package_version_info(object) {
                 self.buffers.package_version.insert(&key, &info)?;
             }
+            if let Some((key, info)) = try_create_display_index_info_from_object(object) {
+                merge_display_into(&mut self.display_metadata.lock(), key, info);
+            }
         }
 
         if self.buffers.size_in_bytes() >= self.files.buffer_limit {
@@ -343,6 +363,61 @@ impl crate::par_index_live_object_set::LiveObjectIndexer for RpcIndexesPartition
     }
 }
 
+/// Seeds the `display` table from the live `Display<T>` objects, for a gRPC
+/// store that predates the table and so cannot replay the events that fill it.
+///
+/// Unlike [`LiveObjectSetIndexer`] it touches no other table and does not
+/// bulk-ingest: the display rows are few, so [`Self::finish`] writes them
+/// straight to the table.
+pub(super) struct DisplayBackfill {
+    display_metadata: DisplayMetadata,
+}
+
+impl DisplayBackfill {
+    pub(super) fn new() -> Self {
+        Self {
+            display_metadata: Mutex::new(HashMap::new()),
+        }
+    }
+
+    /// Writes the gathered display templates to the table.
+    pub(super) fn finish(self, tables: &IndexStoreTables) -> Result<(), StorageError> {
+        write_display_metadata(tables, self.display_metadata)?;
+        Ok(())
+    }
+}
+
+impl crate::par_index_live_object_set::ParMakeLiveObjectIndexer for DisplayBackfill {
+    type ObjectIndexer<'a>
+        = DisplayBackfillPartition<'a>
+    where
+        Self: 'a;
+
+    fn make_live_object_indexer(&self) -> Self::ObjectIndexer<'_> {
+        DisplayBackfillPartition {
+            display_metadata: &self.display_metadata,
+        }
+    }
+}
+
+/// Collects the display templates of one partition of the live object set.
+pub(super) struct DisplayBackfillPartition<'a> {
+    display_metadata: &'a DisplayMetadata,
+}
+
+impl crate::par_index_live_object_set::LiveObjectIndexer for DisplayBackfillPartition<'_> {
+    fn index_object(&mut self, object: &Object) -> Result<(), StorageError> {
+        if let Some((key, info)) = try_create_display_index_info_from_object(object) {
+            merge_display_into(&mut self.display_metadata.lock(), key, info);
+        }
+        Ok(())
+    }
+
+    fn finish(self) -> Result<(), StorageError> {
+        Ok(())
+    }
+}
+
 /// Writes the coin metadata gathered across a stream's partitions. Must run
 /// before the markers are written, so the flush that makes the build durable
 /// covers these rows.
@@ -351,6 +426,16 @@ fn write_coin_metadata(
     coin_metadata: CoinMetadata,
 ) -> Result<(), TypedStoreError> {
     tables.coin.multi_insert(coin_metadata.into_inner())
+}
+
+/// Writes the display templates gathered across a stream's partitions. Must
+/// run before the markers are written, so the flush that makes the build
+/// durable covers these rows.
+fn write_display_metadata(
+    tables: &IndexStoreTables,
+    display_metadata: DisplayMetadata,
+) -> Result<(), TypedStoreError> {
+    tables.display.multi_insert(display_metadata.into_inner())
 }
 
 /// The RPC index tables opened for a formal-snapshot restore.
@@ -362,6 +447,7 @@ pub struct RpcIndexesRestorer {
     tables: IndexStoreTables,
     groups: BTreeSet<IndexGroup>,
     coin_metadata: CoinMetadata,
+    display_metadata: DisplayMetadata,
     sst_files: SstFiles,
     partitions_at_once: NonZeroUsize,
 }
@@ -392,6 +478,7 @@ impl RpcIndexesRestorer {
             tables,
             groups,
             coin_metadata: Mutex::new(HashMap::new()),
+            display_metadata: Mutex::new(HashMap::new()),
             sst_files,
             partitions_at_once,
         })
@@ -409,7 +496,12 @@ impl RpcIndexesRestorer {
 
     /// Returns an indexer for one partition of the snapshot's live objects.
     pub fn partition_indexer(&self) -> RpcIndexesPartitionIndexer<'_> {
-        RpcIndexesPartitionIndexer::new(&self.groups, &self.coin_metadata, &self.sst_files)
+        RpcIndexesPartitionIndexer::new(
+            &self.groups,
+            &self.coin_metadata,
+            &self.display_metadata,
+            &self.sst_files,
+        )
     }
 
     /// Ingests the restored rows, writes the markers at `restore_checkpoint`,
@@ -426,11 +518,13 @@ impl RpcIndexesRestorer {
         let Self {
             tables,
             coin_metadata,
+            display_metadata,
             sst_files,
             ..
         } = self;
         sst_files.ingest(&tables)?;
         write_coin_metadata(&tables, coin_metadata)?;
+        write_display_metadata(&tables, display_metadata)?;
         tables.adopt_bulk_ingestion(Some(restore_checkpoint))?;
 
         let weak_db = tables.meta.db.close_handle();

@@ -929,6 +929,13 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Sim
     > {
         Ok(Box::new(std::iter::empty()))
     }
+
+    fn get_display_fields(
+        &self,
+        _object_type: &StructTag,
+    ) -> iota_types::storage::error::Result<Option<Vec<(String, String)>>> {
+        Ok(None)
+    }
 }
 
 impl Simulacrum {

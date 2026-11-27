@@ -431,6 +431,9 @@ pub struct MockGrpcStateReader {
         iota_types::storage::PackageVersionInfo,
     )>,
 
+    // -- Display templates, keyed by displayed type (for Display tests) --
+    pub displays: HashMap<StructTag, Vec<(String, String)>>,
+
     // -- Transactions --
     pub transactions: HashMap<TransactionDigest, Arc<VerifiedTransaction>>,
     pub effects: HashMap<TransactionDigest, TransactionEffects>,
@@ -789,6 +792,13 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
             })
             .map(|(key, info)| Ok((key.clone(), info.clone())));
         Ok(Box::new(iter))
+    }
+
+    fn get_display_fields(
+        &self,
+        object_type: &StructTag,
+    ) -> StorageResult<Option<Vec<(String, String)>>> {
+        Ok(self.displays.get(object_type).cloned())
     }
 }
 
