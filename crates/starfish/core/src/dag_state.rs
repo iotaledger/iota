@@ -240,13 +240,15 @@ pub(crate) struct DagState {
     /// Highest round evicted from `recent_block_headers`, per authority.
     /// Accepted headers above it are all held in `recent_block_headers`, so
     /// reads above it skip the store. Those at or below it are in the store.
+    /// This can be violated while `new` or `reinitialize` runs.
     evicted_header_rounds: Vec<Round>,
 
     /// Highest round evicted from `recent_transactions_by_authority`, per
     /// authority. Payloads this node has above it are all held in
     /// `recent_transactions_by_authority`, so reads above it skip the store.
     /// Those at or below it are in the store, except one added after its round
-    /// was evicted, until the next flush writes it.
+    /// was evicted, until the next flush writes it. This can be violated while
+    /// `new` or `reinitialize` runs.
     evicted_transaction_rounds: Vec<Round>,
 
     /// Highest round of blocks accepted.
@@ -419,7 +421,7 @@ impl DagState {
             highest_accepted_round: 0,
             last_commit,
             last_commit_round_advancement_time: None,
-            last_committed_rounds: last_committed_rounds.clone(),
+            last_committed_rounds,
             last_solid_subdag_base: None, /* Later the commit observer might update
                                            * this value during recovery process. */
             pending_commit_votes: BTreeSet::new(),
@@ -443,10 +445,7 @@ impl DagState {
         };
 
         // Load cached data for each authority from storage
-        for (i, round) in last_committed_rounds.into_iter().enumerate() {
-            let authority_index = state.context.committee.to_authority_index(i).unwrap();
-            state.load_cached_data_for_authority(authority_index, round, DataSource::Recover);
-        }
+        state.load_cached_data(DataSource::Recover);
 
         // Restore persisted counts from storage and compute in-memory counts
         // from the block refs already loaded into the cache.
@@ -522,48 +521,49 @@ impl DagState {
         self.emit_dag_visualizer_event(DagVisualizerEvent::LeaderCommitted(*leader));
     }
 
-    /// Loads cached data (block headers and transactions) for a single
-    /// authority from storage. Updates eviction round and populates
-    /// in-memory caches.
-    fn load_cached_data_for_authority(
-        &mut self,
-        authority_index: AuthorityIndex,
-        committed_round: Round,
-        data_source: DataSource,
-    ) {
-        // Load everything above `cached_rounds` below the authority's last
-        // committed round. As in live eviction, never evict above the GC round
-        // of the last commit: headers there can still be sequenced, and
-        // misbehavior counts above it are recomputed from them.
-        let eviction_round = Self::eviction_round(committed_round, self.cached_rounds)
-            .min(self.gc_round_for_last_commit());
-        self.evicted_header_rounds[authority_index] = eviction_round;
-        self.evicted_transaction_rounds[authority_index] = eviction_round;
+    /// Sets each authority's evicted rounds and loads the block headers and
+    /// transactions above them from storage into the in-memory caches.
+    fn load_cached_data(&mut self, data_source: DataSource) {
+        let mut block_headers = Vec::new();
+        let mut transactions = Vec::new();
+        for (i, committed_round) in self.last_committed_rounds.clone().into_iter().enumerate() {
+            let authority_index = self.context.committee.to_authority_index(i).unwrap();
+            // Load everything above `cached_rounds` below the authority's last
+            // committed round. As in live eviction, never evict above the GC
+            // round of the last commit: headers there can still be sequenced,
+            // and misbehavior counts above it are recomputed from them.
+            let eviction_round = Self::eviction_round(committed_round, self.cached_rounds)
+                .min(self.gc_round_for_last_commit());
+            self.evicted_header_rounds[authority_index] = eviction_round;
+            self.evicted_transaction_rounds[authority_index] = eviction_round;
 
-        // Reload block headers from storage
-        let block_headers = self
-            .store
-            .scan_block_headers_by_author(authority_index, eviction_round + 1)
-            .expect("Database error");
+            let authority_block_headers = self
+                .store
+                .scan_block_headers_by_author(authority_index, eviction_round + 1)
+                .expect("Database error");
+            let authority_transactions = self
+                .store
+                .scan_transactions_by_author(authority_index, eviction_round + 1)
+                .expect("Database error");
+            info!(
+                "Loaded cached data for authority {}: {} block headers, {} transactions",
+                authority_index,
+                authority_block_headers.len(),
+                authority_transactions.len()
+            );
+            block_headers.extend(authority_block_headers);
+            transactions.extend(authority_transactions);
+        }
+
+        // Ancestors and acknowledgments are in earlier rounds, so in round order
+        // each header is processed after the headers it references.
+        block_headers.sort_unstable_by_key(VerifiedBlockHeader::reference);
         for block_header in &block_headers {
             self.update_block_header_metadata(block_header, data_source);
         }
-
-        // Reload transactions from storage
-        let transactions = self
-            .store
-            .scan_transactions_by_author(authority_index, eviction_round + 1)
-            .expect("Database error");
         for txn in &transactions {
             self.update_transaction_metadata(txn, data_source);
         }
-
-        info!(
-            "Loaded cached data for authority {}: {} block headers, {} transactions",
-            authority_index,
-            block_headers.len(),
-            transactions.len()
-        );
     }
 
     /// Reinitialize DagState after fast sync completes.
@@ -592,14 +592,7 @@ impl DagState {
         self.threshold_clock = ThresholdClock::new(current_round, self.context.clone());
 
         // 3. Reload cached data for each authority
-        for (i, &committed_round) in self.last_committed_rounds.clone().iter().enumerate() {
-            let authority_index = self.context.committee.to_authority_index(i).unwrap();
-            self.load_cached_data_for_authority(
-                authority_index,
-                committed_round,
-                DataSource::FastCommitSyncer,
-            );
-        }
+        self.load_cached_data(DataSource::FastCommitSyncer);
 
         info!("DagState reinitialized successfully");
     }
@@ -2712,6 +2705,7 @@ impl DagState {
 mod test {
     use std::vec;
 
+    use iota_metrics::monitored_mpsc;
     use parking_lot::RwLock;
 
     use super::*;
@@ -4762,5 +4756,57 @@ mod test {
             .dag_state_store_read_count
             .with_label_values(&[method])
             .get()
+    }
+
+    /// After fast sync, the reload sends a `NewHeader` message for each
+    /// reloaded header in round order, with the commitment of every header it
+    /// acknowledges.
+    #[tokio::test]
+    async fn reinitialize_reports_commitments_of_acknowledged_headers() {
+        // GIVEN a flushed DAG state where each header above round 1
+        // acknowledges every header of the round before.
+        let (mut dag_state, dag_builder) = flushed_dag_state(Arc::new(MemStore::new()));
+        let commitments: BTreeMap<BlockRef, TransactionsCommitment> = dag_builder
+            .block_headers(1..=FLUSHED_ROUNDS)
+            .iter()
+            .map(|header| (header.reference(), header.transactions_commitment()))
+            .collect();
+        let (sender, mut receiver) = monitored_mpsc::channel("cordial_knowledge", 1000);
+        let (eviction_sender, _eviction_receiver) = watch::channel(EvictionRounds::default());
+        dag_state.set_cordial_knowledge_senders(sender, eviction_sender);
+
+        // WHEN the DAG state is reinitialized.
+        dag_state.reinitialize();
+
+        // THEN every reloaded header is reported once, in round order, with
+        // every acknowledged commitment.
+        let mut reported = Vec::new();
+        let mut checked_acknowledgments = 0;
+        while let Ok(message) = receiver.try_recv() {
+            let CordialKnowledgeMessage::NewHeader {
+                header,
+                ack_transactions_commitments,
+            } = message
+            else {
+                continue;
+            };
+            reported.push(header.reference());
+            for (acknowledgment, commitment) in header
+                .acknowledgments()
+                .iter()
+                .zip(&ack_transactions_commitments)
+            {
+                assert_eq!(
+                    *commitment,
+                    commitments.get(acknowledgment).copied(),
+                    "{} acknowledges {acknowledgment}",
+                    header.reference()
+                );
+                checked_acknowledgments += 1;
+            }
+        }
+        assert!(reported.is_sorted());
+        assert_eq!(reported.len(), dag_state.recent_block_headers.len());
+        assert!(checked_acknowledgments > 0);
     }
 }
