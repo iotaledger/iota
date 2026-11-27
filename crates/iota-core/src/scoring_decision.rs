@@ -15,11 +15,9 @@ use crate::{authority::AuthorityMetrics, consensus_types::AuthorityIndex};
 /// consensus these may be lagging behind the network, byzantine, or not
 /// reliably participating for any reason. The algorithm is flagging as low
 /// scoring authorities all the validators that have the lowest scores up to the
-/// defined protocol_config.consensus_bad_nodes_stake_threshold. This is done to
-/// align the submission side with the consensus leader election schedule.
-/// Practically we don't want to submit transactions for sequencing to
-/// validators that have low scores and are not part of the leader
-/// schedule since the chances of getting them sequenced are lower.
+/// defined protocol_config.consensus_bad_nodes_stake_threshold. Practically we
+/// don't want to submit transactions for sequencing to validators that have
+/// low scores since the chances of getting them sequenced are lower.
 #[instrument(level = "trace", skip_all)]
 pub(crate) fn update_low_scoring_authorities(
     low_scoring_authorities: Arc<ArcSwap<HashMap<AuthorityName, u64>>>,

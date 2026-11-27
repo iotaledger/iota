@@ -1880,7 +1880,11 @@ mod tests {
         for commit in synced_commits {
             dag_state.add_commit(commit);
         }
-        dag_state.add_commit_info(ReputationScores::default());
+        let last_synced_index = dag_state.last_commit_index();
+        dag_state.add_commit_info(ReputationScores::new(
+            (last_synced_index..=last_synced_index).into(),
+            vec![],
+        ));
         dag_state.flush();
         let gc_round_after_sync = dag_state.gc_round_for_last_commit();
 

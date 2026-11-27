@@ -659,10 +659,9 @@ impl Core {
                 let reputation_scores = commit.reputation_scores();
                 if !reputation_scores.is_empty() {
                     // update_from_commit_scores will:
-                    // 1. Clear scoring_subdag
-                    // 2. Add commit_info for previous commit index to DagState
-                    // 3. Update leader swap table
-                    // 4. Update metrics
+                    // 1. Add commit_info for previous commit index to DagState
+                    // 2. Update leader swap table
+                    // 3. Update metrics
                     self.leader_schedule.update_from_commit_scores(
                         &mut dag_state,
                         commit.index(),
@@ -1325,6 +1324,12 @@ impl Core {
                 .commits_until_leader_schedule_update(self.dag_state.clone());
 
             if commits_until_update == 0 {
+                // While fast sync is ongoing the schedule is updated only from the
+                // scores carried in fetched commits; scoring locally would use a
+                // scorer that is not rebuilt until fast sync completes.
+                if self.dag_state.read().fast_sync_ongoing() {
+                    break;
+                }
                 let last_commit_index = self.dag_state.read().last_commit_index();
 
                 tracing::info!(
@@ -1423,14 +1428,9 @@ impl Core {
 
             // After a positive commit advance, refresh the quorum commit index
             // on `DagState` so the eviction of `pending_commit_votes` is bounded.
-            // Both pending and solid sub DAGs should be added to scoring subdags.
-            {
-                let mut dag_state = self.dag_state.write();
-                dag_state.set_last_known_quorum_commit_index(
-                    self.commit_vote_monitor.quorum_commit_index(),
-                );
-                dag_state.add_scoring_subdags(subdags.iter().map(|s| s.base.clone()).collect());
-            }
+            self.dag_state
+                .write()
+                .set_last_known_quorum_commit_index(self.commit_vote_monitor.quorum_commit_index());
             self.leader_schedule
                 .feed_committed_subdags(subdags.iter().map(|s| s.base.clone()));
 
@@ -2060,7 +2060,7 @@ mod test {
             BlockHeaderDigest, TestBlockHeader, TestBlockHeaderVersion, TransactionsCommitment,
             genesis_block_headers, genesis_blocks,
         },
-        commit::{CommitAPI, CommitDigest, CommitRange, CommitRef},
+        commit::{CommitAPI, CommitDigest, CommitInfo, CommitRange, CommitRef},
         leader_scoring::ReputationScores,
         storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
@@ -3088,8 +3088,9 @@ mod test {
     }
 
     /// Drives the gossip network until `cores[0]` has performed at least one
-    /// leader-schedule rotation and then sits mid-interval: its scoring-subdag
-    /// count is strictly between 0 and `num_commits_per_schedule` (10 here,
+    /// leader-schedule rotation and then sits mid-interval: its count of
+    /// commits since the last schedule update is strictly between 0 and
+    /// `num_commits_per_schedule` (10 here,
     /// matching `CoreTestFixture`'s `with_num_commits_per_schedule(10)`). It
     /// loops until that state holds rather than running a fixed number of
     /// gossip rounds, because the number of commits per round is not fixed.
@@ -3132,7 +3133,11 @@ mod test {
                 rotated = true;
             }
 
-            let count = cores[0].core.dag_state.read().scoring_subdags_count() as u64;
+            let count = cores[0]
+                .core
+                .dag_state
+                .read()
+                .commits_since_schedule_update() as u64;
             if rotated && count > 0 && count < NUM_COMMITS_PER_SCHEDULE {
                 break;
             }
@@ -3147,9 +3152,8 @@ mod test {
     /// commits-until-next-rotation as one that never restarted.
     ///
     /// The scorer's scored frontier lags the rotation boundary by
-    /// `MAX_PENDING_COMMITS = 3`, while recovery rebuilds the
-    /// rotation-counting scoring subdag from the persisted
-    /// `commit_range.end() + 1`. The count stays invariant because the
+    /// `MAX_PENDING_COMMITS = 3`, while recovery counts commits from the
+    /// persisted `commit_range.end() + 1`. The count stays invariant because the
     /// persisted end is the rotation boundary (the last committed index), not
     /// the lagging frontier. The assertions compare live vs. restarted directly
     /// (no hard-coded count).
@@ -3188,9 +3192,17 @@ mod test {
 
         // Root cause: the rotation count is restart-invariant.
         assert_eq!(
-            restarted.core.dag_state.read().scoring_subdags_count(),
-            cores[0].core.dag_state.read().scoring_subdags_count(),
-            "scoring_subdags_count must be restart-invariant"
+            restarted
+                .core
+                .dag_state
+                .read()
+                .commits_since_schedule_update(),
+            cores[0]
+                .core
+                .dag_state
+                .read()
+                .commits_since_schedule_update(),
+            "commits_since_schedule_update must be restart-invariant"
         );
         // The same fact, as commits-until-next-rotation.
         assert_eq!(
@@ -3218,6 +3230,131 @@ mod test {
         assert_eq!(
             restarted_table.bad_nodes, live_table.bad_nodes,
             "recovered bad_nodes must match the live node"
+        );
+    }
+
+    /// Schedule interval of `CoreTestFixture`.
+    const COMMITS_PER_SCHEDULE: CommitIndex = 10;
+
+    /// Restarts a node in the middle of fast sync: commits
+    /// `1..=2 * COMMITS_PER_SCHEDULE` are stored without their headers,
+    /// together with the `CommitInfo` of the schedule update at
+    /// `COMMITS_PER_SCHEDULE`. The last commit is a schedule boundary, and the
+    /// scores of that update come with the next commit, which is not fetched
+    /// yet. Returns the restarted node and the builder of the DAG the commits
+    /// come from.
+    async fn restart_during_fast_sync_at_schedule_boundary() -> (CoreTestFixture, DagBuilder) {
+        let (context, _) = Context::new_for_test(4);
+        let mut dag_builder = DagBuilder::new(Arc::new(context.clone()));
+        dag_builder.layers(1..=2 * COMMITS_PER_SCHEDULE + 1).build();
+        let commits = dag_builder
+            .get_sub_dag_and_commits(1..=2 * COMMITS_PER_SCHEDULE)
+            .into_iter()
+            .map(|(_, commit)| commit)
+            .collect::<Vec<_>>();
+        let commit_info = CommitInfo {
+            committed_rounds: vec![0; 4],
+            reputation_scores: ReputationScores::new((1..=COMMITS_PER_SCHEDULE).into(), vec![1; 4]),
+        };
+        let update_commit_ref = commits[COMMITS_PER_SCHEDULE as usize - 1].reference();
+        let store: Arc<dyn Store> = Arc::new(MemStore::new());
+        store
+            .write(
+                WriteBatch {
+                    fast_commit_sync_flag: Some(true),
+                    ..Default::default()
+                }
+                .commits(commits)
+                .commit_info(vec![(update_commit_ref, commit_info)]),
+            )
+            .unwrap();
+
+        let fixture = CoreTestFixture::new(
+            context,
+            vec![1; 4],
+            AuthorityIndex::new_for_test(0),
+            false,
+            false,
+            Some(store),
+        )
+        .await;
+        (fixture, dag_builder)
+    }
+
+    /// A node restarting during fast sync with a full schedule interval of
+    /// commits past the last stored `CommitInfo` does not update the leader
+    /// schedule itself, so the scores the next fetched commit carries are
+    /// applied.
+    #[tokio::test]
+    async fn test_restart_during_fast_sync_at_schedule_boundary_applies_fetched_scores() {
+        telemetry_subscribers::init_for_testing();
+        let (fixture, _) = restart_during_fast_sync_at_schedule_boundary().await;
+        assert_eq!(
+            fixture.core.dag_state.read().last_schedule_update_index(),
+            COMMITS_PER_SCHEDULE
+        );
+
+        // Fast sync fetches commit 21 and applies the scores it carries.
+        let scores_desc = [(3, 8), (2, 6), (1, 4), (0, 2)]
+            .map(|(index, score)| (AuthorityIndex::new_for_test(index), score));
+        fixture
+            .core
+            .leader_schedule
+            .update_from_commit_scores(
+                &mut fixture.core.dag_state.write(),
+                2 * COMMITS_PER_SCHEDULE + 1,
+                &scores_desc,
+            )
+            .unwrap();
+        assert_eq!(
+            fixture
+                .core
+                .leader_schedule
+                .leader_swap_table
+                .read()
+                .reputation_scores,
+            ReputationScores::new(
+                (COMMITS_PER_SCHEDULE + 1..=2 * COMMITS_PER_SCHEDULE).into(),
+                vec![2, 4, 6, 8]
+            )
+        );
+    }
+
+    /// When fast sync ends exactly at a schedule boundary, the node updates the
+    /// leader schedule itself, from the scorer rebuilt from the fetched headers.
+    #[tokio::test]
+    async fn test_fast_sync_ending_at_schedule_boundary_updates_schedule_from_replayed_scorer() {
+        telemetry_subscribers::init_for_testing();
+        let (mut fixture, dag_builder) = restart_during_fast_sync_at_schedule_boundary().await;
+
+        fixture
+            .core
+            .reinitialize_components(dag_builder.block_headers(1..=2 * COMMITS_PER_SCHEDULE + 1))
+            .await
+            .unwrap();
+        fixture
+            .core
+            .try_commit(CommittedSubDagSource::Consensus)
+            .unwrap();
+
+        assert_eq!(
+            fixture.core.dag_state.read().last_schedule_update_index(),
+            2 * COMMITS_PER_SCHEDULE
+        );
+        // The scorer replays commits 1..=20 and scores 1..=17 (it lags the last
+        // commit by 3). In a fully connected DAG each scored commit credits every
+        // authority the full committee stake (4), doubled for strong votes.
+        assert_eq!(
+            fixture
+                .core
+                .leader_schedule
+                .leader_swap_table
+                .read()
+                .reputation_scores,
+            ReputationScores::new(
+                (COMMITS_PER_SCHEDULE + 1..=2 * COMMITS_PER_SCHEDULE).into(),
+                vec![136; 4]
+            )
         );
     }
 
