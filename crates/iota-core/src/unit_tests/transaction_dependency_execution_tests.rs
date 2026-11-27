@@ -243,6 +243,48 @@ async fn dependent_cancelled_at_sequencing_does_not_read_its_dependency() {
     assert!(!effects.dependencies().contains(&dependency));
 }
 
+/// A dependent cancelled at sequencing because its dependency was still
+/// pending reports that, with or without a shared input, and does not read
+/// the dependency, which this node does not have.
+#[tokio::test]
+async fn dependent_cancelled_for_its_pending_dependency_reports_it() {
+    let setup = setup().await;
+    let dependency = TransactionDigest::random();
+    for (gas_index, with_shared) in [(0, false), (1, true)] {
+        let dependent = setup.transfer(gas_index, 1_000, Some(dependency), with_shared);
+        let certificate = init_certified_transaction(dependent, &setup.authority);
+        let mut cancelled = vec![];
+        if with_shared {
+            cancelled.push(VersionAssignment::new(
+                setup.shared.id(),
+                Version::CANCELED_READ,
+            ));
+        }
+        cancelled.push(VersionAssignment::new(
+            setup.gas[gas_index].id(),
+            Version::TRANSACTION_DEPENDENCY_PENDING,
+        ));
+
+        let (effects, _) = setup
+            .authority
+            .try_execute_for_test(
+                &certificate,
+                ExecutionEnv::new().with_assigned_versions(cancelled),
+            )
+            .unwrap();
+        let effects = effects.inner().data();
+
+        assert_eq!(
+            effects.status(),
+            &ExecutionStatus::Failure {
+                error: ExecutionError::ExecutionCanceledDueToPendingTransactionDependency,
+                command: None,
+            }
+        );
+        assert!(!effects.dependencies().contains(&dependency));
+    }
+}
+
 #[tokio::test]
 async fn only_a_dependency_of_an_earlier_epoch_is_rejected() {
     let mut setup = setup().await;

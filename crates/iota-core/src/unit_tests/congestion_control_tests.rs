@@ -2300,6 +2300,17 @@ struct SharedObjectSequencing {
 
 impl SharedObjectSequencing {
     async fn new(limit: u64, gas_objects: usize, workers: Option<u16>) -> Self {
+        Self::new_with_pending_dependency_error(limit, gas_objects, workers, false).await
+    }
+
+    /// Like [`Self::new`], with `report_pending_transaction_dependency_error`
+    /// set to `report_pending_dependency`.
+    async fn new_with_pending_dependency_error(
+        limit: u64,
+        gas_objects: usize,
+        workers: Option<u16>,
+        report_pending_dependency: bool,
+    ) -> Self {
         let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
         let mut protocol_config =
             ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
@@ -2312,6 +2323,8 @@ impl SharedObjectSequencing {
         protocol_config.set_congestion_control_min_free_execution_slot_for_testing(true);
         protocol_config.set_max_deferral_rounds_for_congestion_control_for_testing(10);
         protocol_config.set_enable_transaction_dependencies_for_testing(true);
+        protocol_config
+            .set_report_pending_transaction_dependency_error_for_testing(report_pending_dependency);
         if let Some(workers) = workers {
             protocol_config.set_max_concurrent_execution_workers_for_testing(workers);
             protocol_config
@@ -2872,8 +2885,69 @@ async fn test_dependency_chain_waits_no_longer_than_the_deferral_limit() {
 /// deferred.
 #[tokio::test]
 async fn test_dependent_of_a_deferred_dependency_is_cancelled_past_the_deferral_limit() {
+    let rgp = TEST_ONLY_GAS_PRICE;
+    let (sequencing, assigned, shared_dependent, owned_dependent, other) =
+        sequence_dependents_of_a_deferred_dependency_past_the_deferral_limit(false).await;
+
+    for (transaction, cancelled_object) in [
+        (&shared_dependent, other),
+        (&owned_dependent, sequencing.gas_ids[2]),
+    ] {
+        let version = assigned_version(&assigned, transaction, cancelled_object).unwrap();
+        assert!(version.is_congested(), "{version:?}");
+        assert_eq!(
+            version.get_congested_version_suggested_gas_price().unwrap(),
+            rgp
+        );
+    }
+    assert_eq!(
+        assigned_version(&assigned, &shared_dependent, sequencing.gas_ids[1]),
+        None
+    );
+}
+
+/// With `report_pending_transaction_dependency_error`, no object caused the
+/// same cancellation, so it is carried on the gas object of either dependent,
+/// and a shared input is a cancelled read.
+#[tokio::test]
+async fn test_dependent_of_a_deferred_dependency_is_cancelled_for_its_pending_dependency() {
+    let (sequencing, assigned, shared_dependent, owned_dependent, other) =
+        sequence_dependents_of_a_deferred_dependency_past_the_deferral_limit(true).await;
+
+    for (transaction, gas_index) in [(&shared_dependent, 1), (&owned_dependent, 2)] {
+        assert_eq!(
+            assigned_version(&assigned, transaction, sequencing.gas_ids[gas_index]),
+            Some(Version::TRANSACTION_DEPENDENCY_PENDING)
+        );
+    }
+    assert_eq!(
+        assigned_version(&assigned, &shared_dependent, other),
+        Some(Version::CANCELED_READ)
+    );
+}
+
+/// Sequences, at the first round past the deferral limit, a dependent with a
+/// shared input and one without, both waiting for a dependency that stays
+/// deferred until randomness is available. Returns the versions assigned to
+/// the two dependents, the dependents, and the id of the first one's shared
+/// input.
+async fn sequence_dependents_of_a_deferred_dependency_past_the_deferral_limit(
+    report_pending_dependency: bool,
+) -> (
+    SharedObjectSequencing,
+    AssignedTxAndVersions,
+    VerifiedTransaction,
+    VerifiedTransaction,
+    ObjectId,
+) {
     telemetry_subscribers::init_for_testing();
-    let sequencing = SharedObjectSequencing::new(2, 3, None).await;
+    let sequencing = SharedObjectSequencing::new_with_pending_dependency_error(
+        2,
+        3,
+        None,
+        report_pending_dependency,
+    )
+    .await;
     let max_deferral_rounds = sequencing
         .authority
         .epoch_store_for_testing()
@@ -2920,17 +2994,13 @@ async fn test_dependent_of_a_deferred_dependency_is_cancelled_past_the_deferral_
         BTreeSet::from([*shared_dependent.digest(), *owned_dependent.digest()])
     );
     assert_eq!(sequencing.dependency_deferrals(), 0);
-    for (transaction, cancelled_object) in [
-        (&shared_dependent, other.id()),
-        (&owned_dependent, sequencing.gas_ids[2]),
-    ] {
-        let version = assigned_version(&assigned, transaction, cancelled_object).unwrap();
-        assert!(version.is_congested(), "{version:?}");
-        assert_eq!(
-            version.get_congested_version_suggested_gas_price().unwrap(),
-            rgp
-        );
-    }
+    (
+        sequencing,
+        assigned,
+        shared_dependent,
+        owned_dependent,
+        other.id(),
+    )
 }
 
 /// A transaction without shared inputs, cancelled through its gas object once
@@ -2939,8 +3009,46 @@ async fn test_dependent_of_a_deferred_dependency_is_cancelled_past_the_deferral_
 /// dependency and does not list it in its effects.
 #[tokio::test]
 async fn test_owned_object_only_dependent_cancelled_past_the_deferral_limit_executes() {
+    let effects =
+        execute_owned_object_only_dependent_cancelled_past_the_deferral_limit(false).await;
+    assert_eq!(
+        effects.status(),
+        &ExecutionStatus::Failure {
+            error: ExecutionError::ExecutionCanceledDueToExecutionWorkerCongestion {
+                suggested_gas_price: TEST_ONLY_GAS_PRICE
+            },
+            command: None,
+        }
+    );
+}
+
+/// With `report_pending_transaction_dependency_error`, the effects report the
+/// pending dependency.
+#[tokio::test]
+async fn test_owned_object_only_dependent_cancelled_for_its_pending_dependency_executes() {
+    let effects = execute_owned_object_only_dependent_cancelled_past_the_deferral_limit(true).await;
+    assert_eq!(
+        effects.status(),
+        &ExecutionStatus::Failure {
+            error: ExecutionError::ExecutionCanceledDueToPendingTransactionDependency,
+            command: None,
+        }
+    );
+}
+
+/// Sequences and executes a transfer whose deferral for a still deferred
+/// dependency passes the limit, and returns its effects.
+async fn execute_owned_object_only_dependent_cancelled_past_the_deferral_limit(
+    report_pending_dependency: bool,
+) -> TransactionEffects {
     telemetry_subscribers::init_for_testing();
-    let sequencing = SharedObjectSequencing::new(2, 2, None).await;
+    let sequencing = SharedObjectSequencing::new_with_pending_dependency_error(
+        2,
+        2,
+        None,
+        report_pending_dependency,
+    )
+    .await;
     let max_deferral_rounds = sequencing
         .authority
         .epoch_store_for_testing()
@@ -2976,23 +3084,17 @@ async fn test_owned_object_only_dependent_cancelled_past_the_deferral_limit_exec
         )
         .await;
     let version = assigned_version(&assigned, &dependent, dependent_gas.object_id).unwrap();
-    assert!(version.is_congested(), "{version:?}");
+    assert!(version.is_canceled(), "{version:?}");
 
-    let effects = sequencing.execute(scheduled, assigned).await;
+    let mut effects = sequencing.execute(scheduled, assigned).await;
 
-    let [effects] = effects.as_slice() else {
-        panic!("expected only the dependent to be scheduled: {effects:?}");
-    };
-    assert_eq!(effects.transaction_digest(), dependent.digest());
     assert_eq!(
-        effects.status(),
-        &ExecutionStatus::Failure {
-            error: ExecutionError::ExecutionCanceledDueToExecutionWorkerCongestion {
-                suggested_gas_price: rgp
-            },
-            command: None,
-        }
+        effects.len(),
+        1,
+        "expected only the dependent to be scheduled: {effects:?}"
     );
+    let effects = effects.remove(0);
+    assert_eq!(effects.transaction_digest(), dependent.digest());
     assert!(!effects.dependencies().contains(dependency.digest()));
     assert!(effects.gas_object().reference().version > dependent_gas.version);
     assert!(
@@ -3000,6 +3102,7 @@ async fn test_owned_object_only_dependent_cancelled_past_the_deferral_limit_exec
             .authority
             .is_tx_already_executed(dependency.digest())
     );
+    effects
 }
 
 /// With the combined tracker, a dependent outside the randomness phase is

@@ -357,9 +357,10 @@ impl SharedObjVerManager {
                             Version::CANCELED_READ
                         }
                     }
-                    Some(CancelConsensusTransactionReason::ExecutionWorkerCongestion {
-                        ..
-                    }) => Version::CANCELED_READ,
+                    Some(
+                        CancelConsensusTransactionReason::ExecutionWorkerCongestion { .. }
+                        | CancelConsensusTransactionReason::PendingTransactionDependency,
+                    ) => Version::CANCELED_READ,
                     None => unreachable!("cancelled transaction should have cancellation info"),
                 };
                 assigned_versions.push(VersionAssignment::new(*id, assigned_version));
@@ -380,6 +381,9 @@ impl SharedObjVerManager {
                     ))
                     .unwrap(),
                 ),
+                Some(CancelConsensusTransactionReason::PendingTransactionDependency) => {
+                    Some(Version::TRANSACTION_DEPENDENCY_PENDING)
+                }
                 Some(
                     CancelConsensusTransactionReason::SharedObjectCongestion { .. }
                     | CancelConsensusTransactionReason::DkgFailed,
@@ -461,9 +465,9 @@ impl SharedObjVerManager {
 
 /// Returns the cancellation version that a transaction cancelled through its
 /// gas object carries there, reconstructed from the effects' execution
-/// status. Returns `None` when the effects are not an execution-worker
-/// congestion cancellation, which is the only cancellation carried on the gas
-/// object.
+/// status. Returns `None` when the effects are no cancellation carried on the
+/// gas object: one for execution-worker congestion or for a pending
+/// transaction dependency.
 pub(crate) fn gas_object_cancellation_version_from_effects(
     effects: &TransactionEffects,
 ) -> Option<Version> {
@@ -477,6 +481,9 @@ pub(crate) fn gas_object_cancellation_version_from_effects(
             Version::new_congested_with_suggested_gas_price(*suggested_gas_price)
                 .expect("suggested gas price came from an assigned congestion version"),
         ),
+        ExecutionError::ExecutionCanceledDueToPendingTransactionDependency => {
+            Some(Version::TRANSACTION_DEPENDENCY_PENDING)
+        }
         _ => None,
     }
 }
@@ -1346,6 +1353,95 @@ mod tests {
             replay_assignment.0,
             vec![(transaction.key(), gas_object_assignment)]
         );
+    }
+
+    // A transaction cancelled because its transaction dependency was still
+    // pending carries `Version::TRANSACTION_DEPENDENCY_PENDING` on the gas
+    // object, with or without a shared input, on the same three assignment
+    // paths.
+    #[tokio::test]
+    async fn test_assign_versions_for_tx_cancelled_for_pending_transaction_dependency() {
+        let shared_object = Object::shared_for_testing();
+        let id = shared_object.id();
+        let init_shared_version = shared_object
+            .owner
+            .into_opt_shared()
+            .expect("expected shared object");
+        let authority = TestAuthorityBuilder::new()
+            .with_starting_objects(std::slice::from_ref(&shared_object))
+            .build()
+            .await;
+        let epoch_store = authority.epoch_store_for_testing();
+
+        for shared_inputs in [vec![], vec![(id, init_shared_version, false)]] {
+            let transaction = generate_shared_objs_tx_with_gas_version(&shared_inputs, 3);
+            let gas_object_id = transaction.transaction().gas()[0].object_id;
+            let cancelled_txns: BTreeMap<TransactionDigest, CancelConsensusTransactionReason> = [(
+                *transaction.digest(),
+                CancelConsensusTransactionReason::PendingTransactionDependency,
+            )]
+            .into_iter()
+            .collect();
+
+            let gas_object_assignment = vec![VersionAssignment::new(
+                gas_object_id,
+                Version::TRANSACTION_DEPENDENCY_PENDING,
+            )];
+            let expected_assignment = [
+                shared_inputs
+                    .iter()
+                    .map(|(id, _, _)| VersionAssignment::new(*id, Version::CANCELED_READ))
+                    .collect(),
+                gas_object_assignment.clone(),
+            ]
+            .concat();
+
+            // Consensus processing.
+            let ConsensusSharedObjVerAssignment {
+                assigned_versions, ..
+            } = SharedObjVerManager::assign_versions_from_consensus(
+                &epoch_store,
+                authority.get_object_cache_reader().as_ref(),
+                [Schedulable::Transaction(&transaction)].iter(),
+                &cancelled_txns,
+            )
+            .unwrap();
+            assert_eq!(
+                assigned_versions.0,
+                vec![(transaction.key(), expected_assignment.clone())]
+            );
+
+            // The per-transaction assignment recorded in the consensus commit
+            // prologue.
+            let prologue_assignment = SharedObjVerManager::assign_versions_for_transaction(
+                &epoch_store,
+                &Schedulable::Transaction(&transaction),
+                &mut HashMap::new(),
+                &cancelled_txns,
+                true,
+            );
+            assert_eq!(prologue_assignment, expected_assignment);
+
+            // Reconstruction from the effects' execution status (checkpoint
+            // replay). The test effects have no entry for a shared input that
+            // is only read, so only the gas object's assignment comes back.
+            let effects = TestEffectsBuilder::new(transaction.data())
+                .with_status(ExecutionStatus::Failure {
+                    error: ExecutionError::ExecutionCanceledDueToPendingTransactionDependency,
+                    command: None,
+                })
+                .build();
+            let replay_assignment = SharedObjVerManager::assign_versions_from_effects(
+                &[(&transaction, &effects)],
+                &epoch_store,
+                authority.get_object_cache_reader().as_ref(),
+            )
+            .unwrap();
+            assert_eq!(
+                replay_assignment.0,
+                vec![(transaction.key(), gas_object_assignment)]
+            );
+        }
     }
 
     /// Shared objects read by a transaction's `MoveAuthenticator`s are shared

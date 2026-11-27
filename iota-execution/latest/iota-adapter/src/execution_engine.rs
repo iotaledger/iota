@@ -1601,10 +1601,10 @@ mod checked {
     /// Runs checks on the input objects of a transaction to ensure that they
     /// meet the necessary conditions for execution.
     ///
-    /// It checks for denied certificates, deleted input objects, and cancelled
-    /// objects due to congestion or randomness unavailability. If any of
-    /// these conditions are met, it returns an appropriate
-    /// `ExecutionError`.
+    /// It checks for denied certificates, deleted input objects, and a
+    /// cancellation at sequencing: for congestion, for unavailable randomness
+    /// or for a pending transaction dependency. If any of these conditions
+    /// are met, it returns an appropriate `ExecutionError`.
     ///
     /// If all checks pass, it returns `Ok(())`, indicating that the transaction
     /// can proceed with execution.
@@ -1666,6 +1666,10 @@ mod checked {
                 )),
                 Version::RANDOMNESS_UNAVAILABLE => Err(ExecutionError::new(
                     ExecutionErrorKind::ExecutionCanceledDueToRandomnessUnavailable,
+                    None,
+                )),
+                Version::TRANSACTION_DEPENDENCY_PENDING => Err(ExecutionError::new(
+                    ExecutionErrorKind::ExecutionCanceledDueToPendingTransactionDependency,
                     None,
                 )),
                 _ => panic!("invalid cancellation reason Version: {reason}"),

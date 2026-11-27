@@ -548,6 +548,11 @@ pub enum CancelConsensusTransactionReason {
         suggested_gas_price: Option<u64>,
     },
 
+    /// Transaction was cancelled because the transaction named by its
+    /// transaction dependency input was still pending. No object is the
+    /// cause, and no gas price would have changed it.
+    PendingTransactionDependency,
+
     /// Transaction was cancelled due to randomness unavailable.
     DkgFailed,
 }
@@ -7226,7 +7231,16 @@ impl AuthorityPerEpochStore {
                             self.protocol_config()
                                 .max_deferral_rounds_for_congestion_control(),
                         );
-                        let suggested_gas_price = if for_dependency && within_limit {
+                        // A cancellation reported as a wait for the transaction
+                        // dependency carries no suggested gas price.
+                        let cancelled_for_dependency = for_dependency
+                            && !within_limit
+                            && self
+                                .protocol_config
+                                .report_pending_transaction_dependency_error();
+                        let suggested_gas_price = if for_dependency
+                            && (within_limit || cancelled_for_dependency)
+                        {
                             // The transaction waits for its dependency, not for its own
                             // objects, so this deferral records no price of its own. It
                             // keeps the one an earlier deferral recorded, if any.
@@ -7289,7 +7303,13 @@ impl AuthorityPerEpochStore {
                                         suggested_gas_price,
                                     }
                                 }
-                                // A wait for the transaction dependency is reported as
+                                DeferralReason::PendingTransactionDependency
+                                    if cancelled_for_dependency =>
+                                {
+                                    CancelConsensusTransactionReason::PendingTransactionDependency
+                                }
+                                // Without `report_pending_transaction_dependency_error`, a
+                                // wait for the transaction dependency is reported as
                                 // congestion: of all the shared inputs, or of the execution
                                 // workers for a transaction without shared inputs.
                                 DeferralReason::PendingTransactionDependency => {
@@ -7313,7 +7333,15 @@ impl AuthorityPerEpochStore {
                                     unreachable!("a wait for randomness is always deferred")
                                 }
                             };
-                            if let Some(suggested_gas_price) = suggested_gas_price {
+                            // A suggested gas price is reported with congestion only.
+                            if let CancelConsensusTransactionReason::SharedObjectCongestion {
+                                suggested_gas_price: Some(suggested_gas_price),
+                                ..
+                            }
+                            | CancelConsensusTransactionReason::ExecutionWorkerCongestion {
+                                suggested_gas_price: Some(suggested_gas_price),
+                            } = &cancellation
+                            {
                                 authority_metrics
                                     .consensus_handler_suggested_gas_price_increase
                                     .with_label_values(&[congestion_reason])
