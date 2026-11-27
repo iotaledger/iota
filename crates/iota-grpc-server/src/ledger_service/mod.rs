@@ -79,6 +79,7 @@ fn tally_read_stream<T>(
     stream: impl Stream<Item = Result<T, Status>> + Send,
     tally_handle: Option<TallyHandle>,
     request_item_count: usize,
+    rendered_fields_per_item: u32,
     response_item_count: impl Fn(&T) -> usize + Send,
 ) -> impl Stream<Item = Result<T, Status>> + Send {
     if let Some(tally_handle) = &tally_handle {
@@ -92,7 +93,7 @@ fn tally_read_stream<T>(
         if let Some(tally_handle) = &tally_handle {
             match &result {
                 Ok(response) => tally_handle
-                    .tally_items(std::iter::repeat_n(Code::Ok, response_item_count(response))),
+                    .tally_response_items(response_item_count(response), rendered_fields_per_item),
                 Err(status) => tally_handle.tally_item(status.code()),
             }
         }
@@ -144,6 +145,8 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
             .as_ref()
             .map_or(0, |batch| batch.requests.len());
         validate_read_batch_size(item_count, self.config.max_get_objects_batch_size)?;
+        let rendered_fields =
+            crate::utils::object_rendered_field_weight(request.read_mask.as_ref()) as u32;
         let stream = get_objects::get_objects(
             self.reader.clone(),
             self.config.max_json_move_value_size,
@@ -151,9 +154,13 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
             request,
         )
         .map_err(tonic::Status::from)?;
-        let stream = tally_read_stream(stream, tally_handle, item_count, |response| {
-            response.objects.len()
-        });
+        let stream = tally_read_stream(
+            stream,
+            tally_handle,
+            item_count,
+            rendered_fields,
+            |response| response.objects.len(),
+        );
         let response = Response::new(Box::pin(stream) as Self::GetObjectsStream);
         Ok(append_info_headers!(response, self.reader.clone()))
     }
@@ -170,6 +177,8 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
             .as_ref()
             .map_or(0, |batch| batch.requests.len());
         validate_read_batch_size(item_count, self.config.max_get_transactions_batch_size)?;
+        let rendered_fields =
+            crate::utils::transaction_rendered_field_weight(request.read_mask.as_ref()) as u32;
         let stream = get_transactions::get_transactions(
             self.reader.clone(),
             self.config.clone(),
@@ -177,9 +186,13 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
             request,
         )
         .map_err(tonic::Status::from)?;
-        let stream = tally_read_stream(stream, tally_handle, item_count, |response| {
-            response.transaction_results.len()
-        });
+        let stream = tally_read_stream(
+            stream,
+            tally_handle,
+            item_count,
+            rendered_fields,
+            |response| response.transaction_results.len(),
+        );
         let response = Response::new(Box::pin(stream) as Self::GetTransactionsStream);
         Ok(append_info_headers!(response, self.reader.clone()))
     }
@@ -253,6 +266,7 @@ mod tests {
                 stream::iter(responses.clone()),
                 Some(tally_handle),
                 request_item_count,
+                0,
                 |item_count| *item_count,
             );
             drop(read_stream.take(read).collect::<Vec<_>>().await);
