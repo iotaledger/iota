@@ -21,6 +21,13 @@ fun test_id_generation() {
 }
 
 #[test]
+#[expected_failure(abort_code = tx_context::ENoIdsCreated)]
+fun last_created_object_id_aborts_without_a_created_object() {
+    let ctx = tx_context::dummy();
+    ctx.last_created_object_id();
+}
+
+#[test]
 #[expected_failure(abort_code = tx_context::EBadTxHashLength)]
 fun test_derive_id_bad_tx_hash_length() {
     tx_context::derive_id_for_testing(b"A", 0);
@@ -77,7 +84,7 @@ fun test_set_chain_identifier_bad_length() {
 const NONCE: vector<u8> = x"39d2ed96b7a160ff74b50a57de17a67b61053a9cead0ec25191d7231bcf08cbd";
 
 #[test]
-#[expected_failure(abort_code = 3, location = iota::tx_context)]
+#[expected_failure(abort_code = tx_context::ENoTxNonce)]
 fun tx_nonce_aborts_without_a_nonce() {
     let ctx = tx_context::dummy();
     ctx.tx_nonce();
@@ -95,7 +102,7 @@ fun tx_nonce_returns_the_same_nonce_on_every_call() {
 }
 
 #[test]
-#[expected_failure(abort_code = 3, location = iota::tx_context)]
+#[expected_failure(abort_code = tx_context::ENoTxNonce)]
 fun a_new_context_has_no_nonce() {
     let mut ctx = tx_context::dummy();
     ctx.set_tx_nonce_for_testing(NONCE);
@@ -105,7 +112,7 @@ fun a_new_context_has_no_nonce() {
 }
 
 #[test]
-#[expected_failure(abort_code = 3, location = iota::tx_context)]
+#[expected_failure(abort_code = tx_context::ENoTxNonce)]
 fun an_empty_nonce_removes_the_nonce() {
     let mut ctx = tx_context::dummy();
     ctx.set_tx_nonce_for_testing(NONCE);

@@ -281,7 +281,7 @@ fun key_proof_message_matches_the_example_of_the_design() {
 }
 
 #[test]
-#[expected_failure(abort_code = 5, location = iota::smart_account_builtin_authenticator)]
+#[expected_failure(abort_code = smart_account_builtin_authenticator::EInvalidKeyProofMessageValue)]
 fun key_proof_message_aborts_for_a_short_chain_identifier() {
     smart_account_builtin_authenticator::key_proof_message_for_testing(
         x"2304aa97",
@@ -293,7 +293,7 @@ fun key_proof_message_aborts_for_a_short_chain_identifier() {
 }
 
 #[test]
-#[expected_failure(abort_code = 5, location = iota::smart_account_builtin_authenticator)]
+#[expected_failure(abort_code = smart_account_builtin_authenticator::EInvalidKeyProofMessageValue)]
 fun key_proof_message_aborts_for_a_short_nonce() {
     smart_account_builtin_authenticator::key_proof_message_for_testing(
         EXAMPLE_CHAIN_IDENTIFIER,

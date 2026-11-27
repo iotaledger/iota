@@ -8,6 +8,21 @@
 
 module iota::protocol_config;
 
+#[test_only]
+/// The natives of this module abort with this code when a flag or parameter name is not valid
+/// UTF-8.
+const EInvalidUtf8ParamName: u64 = 0;
+
+#[test_only]
+/// The natives of this module abort with this code when a flag or parameter does not exist in the
+/// current protocol version.
+const EParamNotFound: u64 = 1;
+
+#[test_only]
+/// The natives of this module abort with this code when `T` does not match the type of the
+/// parameter.
+const ETypeMismatch: u64 = 2;
+
 /// Checks if a specific protocol feature flag is enabled.
 ///
 /// Restricted to internal use within the iota-framework package only.
@@ -35,9 +50,10 @@ public(package) native fun is_feature_enabled(feature_flag_name: vector<u8>): bo
 
 /// Returns the value of a protocol config parameter.
 ///
-/// Aborts if the parameter is not defined in the current protocol version,
-/// if `T` does not match the parameter's actual type, or if `param_name` is
-/// not valid UTF-8 — all three are programming errors.
+/// Aborts with `EParamNotFound` if the parameter is not defined in the current
+/// protocol version, with `ETypeMismatch` if `T` does not match the parameter's
+/// actual type, or with `EInvalidUtf8ParamName` if `param_name` is not valid
+/// UTF-8 — all three are programming errors.
 ///
 /// Restricted to internal use within the iota-framework package.
 ///
@@ -57,8 +73,9 @@ public(package) native fun get_attr<T: copy + drop + store>(param_name: vector<u
 /// can exercise both the enabled and disabled paths of feature-flagged code. The
 /// override is read back by `is_feature_enabled` and reset between tests.
 ///
-/// Aborts if `feature_flag_name` is not valid UTF-8 or does not name a flag in
-/// the current protocol config.
+/// Aborts with `EInvalidUtf8ParamName` if `feature_flag_name` is not valid UTF-8,
+/// or with `EParamNotFound` if it does not name a flag in the current protocol
+/// config.
 #[test_only]
 public(package) native fun set_feature_enabled_for_testing(
     feature_flag_name: vector<u8>,
@@ -69,8 +86,9 @@ public(package) native fun set_feature_enabled_for_testing(
 /// tests can exercise differently-valued paths. The override is read back by
 /// `get_attr` and reset between tests.
 ///
-/// Aborts if `param_name` is not valid UTF-8, is absent in the current protocol
-/// version, or `T` does not match the parameter's type.
+/// Aborts with `EInvalidUtf8ParamName` if `param_name` is not valid UTF-8, with
+/// `EParamNotFound` if it is absent in the current protocol version, or with
+/// `ETypeMismatch` if `T` does not match the parameter's type.
 #[test_only]
 public(package) native fun set_attr_for_testing<T: copy + drop + store>(
     param_name: vector<u8>,

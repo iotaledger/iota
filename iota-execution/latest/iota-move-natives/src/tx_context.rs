@@ -427,7 +427,7 @@ pub fn gas_budget(
 }
 
 /// Abort code of `iota::tx_context::native_tx_nonce` when the transaction has
-/// no nonce.
+/// no nonce: `iota::tx_context::ENoTxNonce`.
 const E_NO_TX_NONCE: u64 = 3;
 
 #[derive(Clone)]
@@ -652,8 +652,8 @@ pub fn replace_tx_nonce(
     Ok(NativeResult::ok(context.gas_used(), smallvec![]))
 }
 
-// Attempt to get the most recent created object ID when none has been created.
-// Lifted out of Move into this native function.
+/// Abort code of `iota::tx_context::last_created_id` when the transaction has
+/// created no object: `iota::tx_context::ENoIdsCreated`.
 const E_NO_IDS_CREATED: u64 = 1;
 
 // use same protocol config and cost value as derive_id

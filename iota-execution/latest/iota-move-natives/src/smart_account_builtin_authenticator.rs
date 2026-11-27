@@ -16,7 +16,8 @@ use smallvec::smallvec;
 
 use crate::NativesCostTable;
 
-/// Raised when the chain identifier or the nonce is not 32 bytes.
+/// Raised when the chain identifier or the nonce is not 32 bytes:
+/// `iota::smart_account_builtin_authenticator::EInvalidKeyProofMessageValue`.
 const E_INVALID_KEY_PROOF_MESSAGE_VALUE: u64 = 5;
 
 #[derive(Clone)]

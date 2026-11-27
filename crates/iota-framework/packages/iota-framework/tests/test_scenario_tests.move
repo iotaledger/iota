@@ -1402,7 +1402,7 @@ fun tx_nonce_set_through_the_builder() {
 }
 
 #[test]
-#[expected_failure(abort_code = 3, location = iota::tx_context)]
+#[expected_failure(abort_code = tx_context::ENoTxNonce)]
 fun tx_nonce_is_not_kept_for_the_next_transaction() {
     let nonce = x"39d2ed96b7a160ff74b50a57de17a67b61053a9cead0ec25191d7231bcf08cbd";
     let ctx_builder = test_scenario::ctx_builder_from_sender(@0xB).set_tx_nonce(nonce);
