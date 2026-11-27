@@ -511,10 +511,10 @@ mod tests {
         )
     }
 
-    /// The key fields arrive in one partition and their parents in a later
-    /// one. Only the field whose parent is a `SmartAccount` gets a row.
-    #[test]
-    fn keys_are_matched_with_parents_from_a_later_partition() {
+    /// Collects the key fields 0x1a and 0x2c in a first partition and their
+    /// parents, the `SmartAccount` 0xf3 and a `Holder` 0xe0, in a later one.
+    /// Returns what was collected and the only row it must keep.
+    fn keys_and_parents_in_two_partitions() -> (SmartAccountKeys, StoredSmartAccountKey) {
         let holder_type = StructTag::new(
             Address::from_short_hex("0xe7").unwrap(),
             Identifier::from_static("holder"),
@@ -536,10 +536,49 @@ mod tests {
         let mut collected = SmartAccountKeys::default();
         collected.append(first_partition);
         collected.append(second_partition);
+        let expected = StoredSmartAccountKey::from_key_field(&account_key).unwrap();
+        (collected, expected)
+    }
 
-        assert_eq!(
-            collected.into_rows(),
-            vec![StoredSmartAccountKey::from_key_field(&account_key).unwrap()]
-        );
+    /// The key fields arrive in one partition and their parents in a later
+    /// one. Only the field whose parent is a `SmartAccount` gets a row.
+    #[test]
+    fn keys_are_matched_with_parents_from_a_later_partition() {
+        let (collected, expected) = keys_and_parents_in_two_partitions();
+        assert_eq!(collected.into_rows(), vec![expected]);
+    }
+
+    /// The rows kept after the last partition are written to
+    /// `smart_account_keys`.
+    #[cfg(feature = "pg_integration")]
+    #[tokio::test]
+    async fn kept_keys_are_written_to_smart_account_keys() {
+        use diesel::{QueryDsl, RunQueryDsl};
+
+        use crate::{
+            schema::smart_account_keys,
+            test_utils::{TestDatabase, create_pg_store, db_url},
+        };
+
+        let url = db_url("restore_smart_account_keys");
+        let store = create_pg_store(&url, true);
+        TestDatabase::new(url).reset_db();
+        let (collected, expected) = keys_and_parents_in_two_partitions();
+
+        persist_smart_account_keys(&store, collected.into_rows())
+            .await
+            .unwrap();
+
+        let stored = store
+            .execute_in_blocking_worker(|this| {
+                read_only_blocking!(&this.blocking_cp(), |conn| {
+                    smart_account_keys::table
+                        .order(smart_account_keys::object_id)
+                        .load::<StoredSmartAccountKey>(conn)
+                })
+            })
+            .await
+            .unwrap();
+        assert_eq!(stored, vec![expected]);
     }
 }
