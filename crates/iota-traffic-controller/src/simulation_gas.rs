@@ -5,9 +5,7 @@
 //! `gas-per-sec` up to `burst-gas`. A simulation reserves the computation cap
 //! of one transaction, or `burst-gas` if that is lower, when it starts and
 //! gives back what it did not use when it ends, so simulations a client runs
-//! at the same time cannot pass the limit together. `governor` cannot do
-//! this: a GCRA cell can neither give back what it charged, nor tell whether a
-//! client is over its limit without charging it.
+//! at the same time cannot pass the limit together.
 
 use std::{
     net::IpAddr,
@@ -112,8 +110,7 @@ impl SimulationGasReservation {
 
     /// Charges the client for a simulation that ran with `gas_price` and cost
     /// `computation_cost`, as `charged_gas` computes it, and gives back the
-    /// rest of the reservation. Storage is not charged, since a simulation
-    /// writes nothing.
+    /// rest of the reservation. Storage is not charged.
     pub fn settle(mut self, computation_cost: u64, gas_price: u64) {
         self.settled = true;
         let charged = charged_gas(computation_cost, gas_price, self.limiter.max_computation());
@@ -187,8 +184,8 @@ impl SimulationGasLimiter {
 
     /// Reserves gas for one simulation of `client`, and returns how much, or
     /// `None` when simulations have no gas limit. The reservation is the
-    /// computation cap of one transaction, or `burst-gas` if that is lower,
-    /// so that a full balance always passes.
+    /// computation cap of one transaction, or `burst-gas` if that is lower. A
+    /// full balance always passes.
     pub(crate) fn reserve(
         &self,
         client: Option<IpAddr>,
