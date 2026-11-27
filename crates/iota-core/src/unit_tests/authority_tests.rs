@@ -1246,7 +1246,7 @@ async fn simulations_over_the_configured_cap_are_refused_until_one_ends() {
 
 /// An authority whose simulation gas limit has room for four reservations of
 /// the computation limit of one transaction in the protocol in force.
-async fn authority_with_a_simulation_gas_limit() -> Arc<AuthorityState> {
+async fn build_authority_with_a_simulation_gas_limit() -> Arc<AuthorityState> {
     use iota_types::traffic_control::{PolicyConfig, SimulationGasLimitConfig};
 
     let computation_limit =
@@ -1290,7 +1290,7 @@ fn count_held_simulation_gas_reservations(state: &AuthorityState, last_octet: u8
 
 #[tokio::test]
 async fn a_test_epoch_change_gives_the_simulation_gas_limit_the_new_computation_limit() {
-    let state = authority_with_a_simulation_gas_limit().await;
+    let state = build_authority_with_a_simulation_gas_limit().await;
     assert_eq!(count_held_simulation_gas_reservations(&state, 1), 4);
 
     let mut next_protocol_config = state.epoch_store_for_testing().protocol_config().clone();
@@ -1310,7 +1310,7 @@ async fn an_epoch_change_gives_the_simulation_gas_limit_the_new_computation_limi
 
     use crate::global_state_hasher::GlobalStateHasher;
 
-    let state = authority_with_a_simulation_gas_limit().await;
+    let state = build_authority_with_a_simulation_gas_limit().await;
     assert_eq!(count_held_simulation_gas_reservations(&state, 1), 4);
 
     let epoch_store = state.epoch_store_for_testing().clone();
