@@ -158,12 +158,12 @@ impl TransactionExecutor for SimulationExecutor {
 async fn connect(
     executor: Arc<SimulationExecutor>,
 ) -> (GrpcServerHandle, TransactionExecutionServiceClient<Channel>) {
-    connect_with(executor, None).await
+    start_server_with_gas_limit_and_connect(executor, None).await
 }
 
 /// Like [`connect`], with the given simulation gas limit and a computation
 /// limit of [`MAX_COMPUTATION`] for one transaction.
-async fn connect_with(
+async fn start_server_with_gas_limit_and_connect(
     executor: Arc<SimulationExecutor>,
     simulation_gas_limit: Option<SimulationGasLimitConfig>,
 ) -> (GrpcServerHandle, TransactionExecutionServiceClient<Channel>) {
@@ -315,7 +315,7 @@ async fn simulations_over_the_gas_limit_are_refused() {
     // Each simulation reserves 1_000 and is charged 4_000 / 10 = 400 of it,
     // so after three of them 800 of the 2_000 are left.
     let executor = Arc::new(SimulationExecutor::costing(4_000, 10));
-    let (handle, mut client) = connect_with(
+    let (handle, mut client) = start_server_with_gas_limit_and_connect(
         executor,
         Some(SimulationGasLimitConfig {
             gas_per_sec: 1,
@@ -373,7 +373,7 @@ async fn simulations_over_the_gas_limit_are_refused() {
 #[tokio::test]
 async fn a_failed_simulation_gives_its_gas_back() {
     let executor = Arc::new(SimulationExecutor::new(1));
-    let (_handle, mut client) = connect_with(
+    let (_handle, mut client) = start_server_with_gas_limit_and_connect(
         executor,
         Some(SimulationGasLimitConfig {
             gas_per_sec: 1,
@@ -394,7 +394,7 @@ async fn a_simulation_refused_for_a_permit_gives_its_gas_back() {
     let executor = Arc::new(SimulationExecutor::new(1));
     let (open_gate, gate) = mpsc::channel();
     *executor.gate.lock().unwrap() = Some(gate);
-    let (_handle, mut client) = connect_with(
+    let (_handle, mut client) = start_server_with_gas_limit_and_connect(
         executor.clone(),
         Some(SimulationGasLimitConfig {
             gas_per_sec: 1,
