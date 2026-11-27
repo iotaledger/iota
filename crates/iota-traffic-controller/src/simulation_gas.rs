@@ -76,6 +76,64 @@ impl std::fmt::Display for SimulationGasRefusal {
     }
 }
 
+impl std::error::Error for SimulationGasRefusal {}
+
+/// Gas that a simulation holds from the balance of its client until it is
+/// settled. Dropping it unsettled gives all of it back.
+pub struct SimulationGasReservation {
+    limiter: Arc<SimulationGasLimiter>,
+    client: Option<IpAddr>,
+    reserved: u64,
+    settled: bool,
+}
+
+impl SimulationGasReservation {
+    /// Holds `reserved` gas, which [`SimulationGasLimiter::reserve`] took
+    /// from the balance of `client`.
+    pub(crate) fn new(
+        limiter: Arc<SimulationGasLimiter>,
+        client: Option<IpAddr>,
+        reserved: u64,
+    ) -> Self {
+        Self {
+            limiter,
+            client,
+            reserved,
+            settled: false,
+        }
+    }
+
+    /// Charges the client for a simulation that ran with `gas_price` and cost
+    /// `computation_cost`, as `charged_gas` computes it, and gives back the
+    /// rest of the reservation. Storage is not charged, since a simulation
+    /// writes nothing.
+    pub fn settle(mut self, computation_cost: u64, gas_price: u64) {
+        self.settled = true;
+        let charged = charged_gas(computation_cost, gas_price, self.limiter.max_computation());
+        self.limiter
+            .settle(self.client, self.reserved, charged, Instant::now());
+    }
+}
+
+impl Drop for SimulationGasReservation {
+    fn drop(&mut self) {
+        if !self.settled {
+            self.limiter
+                .settle(self.client, self.reserved, 0, Instant::now());
+        }
+    }
+}
+
+impl std::fmt::Debug for SimulationGasReservation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SimulationGasReservation")
+            .field("client", &self.client)
+            .field("reserved", &self.reserved)
+            .field("settled", &self.settled)
+            .finish_non_exhaustive()
+    }
+}
+
 /// The gas balances of the clients. Only a simulation adds an entry: its
 /// reservation, or its settle when it charges more than it reserved. So a
 /// client that never simulates takes none. A settle that brings the balance
@@ -159,7 +217,7 @@ impl SimulationGasLimiter {
 
     /// Charges `client` for a simulation that reserved `reserved` gas and
     /// used `charged`, and gives back the difference.
-    pub(crate) fn settle(&self, client: Option<IpAddr>, reserved: u64, charged: u64, now: Instant) {
+    fn settle(&self, client: Option<IpAddr>, reserved: u64, charged: u64, now: Instant) {
         self.metrics.simulation_gas_charged.inc_by(charged);
         let Some(settings) = self.settings.load_full() else {
             return;
@@ -196,7 +254,7 @@ impl SimulationGasLimiter {
         }
     }
 
-    pub(crate) fn max_computation(&self) -> u64 {
+    fn max_computation(&self) -> u64 {
         self.max_computation.load(Ordering::Relaxed)
     }
 
@@ -274,7 +332,7 @@ fn set_metrics(settings: Option<&SimulationGasLimitConfig>, metrics: &TrafficCon
 /// `computation_cost`: rounded up, and at most `max_computation`. Out of gas,
 /// `computation_cost` is the whole budget, which can be well above the
 /// computation the simulation did. A price of 0 charges `max_computation`.
-pub(crate) fn charged_gas(computation_cost: u64, gas_price: u64, max_computation: u64) -> u64 {
+fn charged_gas(computation_cost: u64, gas_price: u64, max_computation: u64) -> u64 {
     if gas_price == 0 {
         return max_computation;
     }

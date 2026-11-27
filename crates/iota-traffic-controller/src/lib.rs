@@ -33,10 +33,10 @@ use self::{
     block_log::BlockReason,
     client_access::{ClientAccessManager, client_prefix, parse_access_rule},
     metrics::TrafficControllerMetrics,
-    simulation_gas::{SimulationGasLimiter, charged_gas},
+    simulation_gas::SimulationGasLimiter,
 };
 use crate::policies::{MAX_CLIENT_THRESHOLD, TrafficControlPolicy, TrafficTally};
-pub use crate::simulation_gas::SimulationGasRefusal;
+pub use crate::simulation_gas::{SimulationGasRefusal, SimulationGasReservation};
 
 /// The spam and error policies.
 struct Policies {
@@ -62,37 +62,6 @@ impl ClientAccess {
     /// tally the request.
     pub fn is_served(self) -> bool {
         self != Self::Refused
-    }
-}
-
-/// Gas that a simulation holds from the balance of its client until it is
-/// settled. Dropping it unsettled gives all of it back.
-pub struct SimulationGasReservation {
-    limiter: Arc<SimulationGasLimiter>,
-    client: Option<IpAddr>,
-    reserved: u64,
-    settled: bool,
-}
-
-impl SimulationGasReservation {
-    /// Charges the client for a simulation that ran with `gas_price` and cost
-    /// `computation_cost`, as `charged_gas` computes it, and gives back the
-    /// rest of the reservation. Storage is not charged, since a simulation
-    /// writes nothing.
-    pub fn settle(mut self, computation_cost: u64, gas_price: u64) {
-        self.settled = true;
-        let charged = charged_gas(computation_cost, gas_price, self.limiter.max_computation());
-        self.limiter
-            .settle(self.client, self.reserved, charged, Instant::now());
-    }
-}
-
-impl Drop for SimulationGasReservation {
-    fn drop(&mut self) {
-        if !self.settled {
-            self.limiter
-                .settle(self.client, self.reserved, 0, Instant::now());
-        }
     }
 }
 
@@ -218,12 +187,11 @@ impl TrafficController {
         else {
             return Ok(None);
         };
-        Ok(Some(SimulationGasReservation {
-            limiter: self.simulation_gas.clone(),
+        Ok(Some(SimulationGasReservation::new(
+            self.simulation_gas.clone(),
             client,
-            reserved: reserved?,
-            settled: false,
-        }))
+            reserved?,
+        )))
     }
 
     /// Adds an access rule, an IP address or a CIDR network, to `list`, and
