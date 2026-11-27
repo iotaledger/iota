@@ -303,9 +303,12 @@ impl ClientAccessManager {
     /// Takes the access rules, the dry-run flag, the blocklist TTLs and the
     /// IPv6 prefix length from `policy_config`, and spawns the task that drops
     /// expired blocks, so it must be called from within a tokio runtime.
-    /// Panics if an access rule is neither an IP address nor a CIDR network,
-    /// if a blocklist TTL exceeds [`MAX_BLOCKLIST_TTL_SEC`], or if the IPv6
-    /// prefix length is not between [`MIN_IPV6_PREFIX_LEN`] and 128.
+    ///
+    /// # Panics
+    ///
+    /// If an access rule is neither an IP address nor a CIDR network, if a
+    /// blocklist TTL exceeds [`MAX_BLOCKLIST_TTL_SEC`], or if the IPv6 prefix
+    /// length is not between [`MIN_IPV6_PREFIX_LEN`] and 128.
     pub(crate) fn new(
         policy_config: &PolicyConfig,
         metrics: Arc<TrafficControllerMetrics>,

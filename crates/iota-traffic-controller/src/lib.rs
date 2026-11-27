@@ -48,12 +48,14 @@ pub enum ClientAccess {
     Allowed,
     /// Serve the request, and tally it.
     Limited,
-    /// Refuse the request.
+    /// Refuse the request without handling it, and do not tally it.
     Refused,
 }
 
 impl ClientAccess {
-    /// Whether the node serves the request.
+    /// Whether to handle the request. It is false only for
+    /// [`Self::Refused`]: the caller then sends the refusal and does not
+    /// tally the request.
     pub fn is_served(self) -> bool {
         self != Self::Refused
     }
@@ -94,8 +96,8 @@ impl TrafficController {
     /// # Panics
     ///
     /// If an access rule is neither an IP address nor a CIDR network, if a
-    /// blocklist TTL exceeds the maximum, or if `ipv6-prefix-len` is out of
-    /// range.
+    /// blocklist TTL exceeds the maximum, if `ipv6-prefix-len` is out of
+    /// range, or if a `freq-threshold` policy has a `burst-secs` of 0.
     pub fn init(policy_config: PolicyConfig, metrics: Arc<TrafficControllerMetrics>) -> Self {
         let client_access = Arc::new(ClientAccessManager::new(&policy_config, metrics.clone()));
         let policies = Policies {
@@ -144,6 +146,11 @@ impl TrafficController {
     /// Adds an access rule, an IP address or a CIDR network, to `list`, and
     /// returns whether the list did not hold it already. The next check
     /// applies it. The rule lasts until the node restarts.
+    ///
+    /// # Errors
+    ///
+    /// [`IotaError::InvalidAdminRequest`] if `rule` is neither an IP address
+    /// nor a CIDR network.
     pub fn add_access_rule(&self, list: AccessRuleList, rule: &str) -> Result<bool, IotaError> {
         let rule = parse_access_rule(rule)
             .map_err(|err| IotaError::InvalidAdminRequest(format!("{rule:?}: {err}")))?;
@@ -153,6 +160,11 @@ impl TrafficController {
     /// Removes an access rule from `list`, and returns whether the list held
     /// it. The rule is compared in its canonical form, so `198.51.100.7/24`
     /// removes `198.51.100.0/24`.
+    ///
+    /// # Errors
+    ///
+    /// [`IotaError::InvalidAdminRequest`] if `rule` is neither an IP address
+    /// nor a CIDR network.
     pub fn remove_access_rule(&self, list: AccessRuleList, rule: &str) -> Result<bool, IotaError> {
         let rule = parse_access_rule(rule)
             .map_err(|err| IotaError::InvalidAdminRequest(format!("{rule:?}: {err}")))?;
