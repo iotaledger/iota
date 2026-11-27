@@ -409,7 +409,7 @@ impl AuthorityState {
     /// checkpoint this node executed; empty when the cutoff is off.
     pub(crate) fn cut_off_validators(&self) -> BTreeSet<AuthorityName> {
         self.load_epoch_store_one_call_per_task()
-            .cut_off_validators()
+            .cut_off_attestors()
     }
 }
 

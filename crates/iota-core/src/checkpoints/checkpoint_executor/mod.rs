@@ -310,7 +310,7 @@ impl CheckpointExecutor {
         let Some(next_to_schedule) = self.get_next_to_schedule() else {
             return StopReason::EpochComplete;
         };
-        self.seed_cut_off_validators();
+        self.seed_cut_off_attestors();
 
         let this = Arc::new(self);
 
@@ -602,9 +602,9 @@ impl CheckpointExecutor {
         fail_point!("crash");
 
         // Before the watermark, so whoever sees the checkpoint executed also sees
-        // the validators it cuts off.
+        // the attestors it cuts off.
         if ckpt_state.data.certifies_refuted_record() {
-            self.store_cut_off_validators(ckpt_state.data.version_specific_data.as_ref());
+            self.store_cut_off_attestors(ckpt_state.data.version_specific_data.as_ref());
         }
 
         // Keep this after the index commit: `wait_for_checkpoint_inclusion`
@@ -1534,9 +1534,9 @@ impl CheckpointExecutor {
             .expect("unable to get version_specific_data")
     }
 
-    /// Stores on the epoch store the validators that the epoch's totals in
+    /// Stores on the epoch store the attestors that the epoch's totals in
     /// `data` cut off. Does nothing when the cutoff is off.
-    fn store_cut_off_validators(&self, data: Option<&CheckpointVersionSpecificData>) {
+    fn store_cut_off_attestors(&self, data: Option<&CheckpointVersionSpecificData>) {
         let Some(max_refuted_units_squared) = self
             .epoch_store
             .protocol_config()
@@ -1547,14 +1547,14 @@ impl CheckpointExecutor {
         let Some(totals) = data.and_then(|data| data.attestation_totals()) else {
             return;
         };
-        self.epoch_store.set_cut_off_validators(cut_off_attestors(
+        self.epoch_store.set_cut_off_attestors(cut_off_attestors(
             totals,
             max_refuted_units_squared,
             self.epoch_store.committee(),
         ));
     }
 
-    /// Stores the cut-off validators as of the highest executed checkpoint, so
+    /// Stores the cut-off attestors as of the highest executed checkpoint, so
     /// a node restarted during the epoch does not start without them. Does
     /// nothing when no checkpoint of this epoch has executed yet.
     ///
@@ -1562,7 +1562,7 @@ impl CheckpointExecutor {
     ///
     /// If the checkpoint store cannot be read, or the checkpoint's
     /// `version_specific_data` does not decode.
-    fn seed_cut_off_validators(&self) {
+    fn seed_cut_off_attestors(&self) {
         let highest_executed = self
             .checkpoint_store
             .get_highest_executed_checkpoint()
@@ -1572,7 +1572,7 @@ impl CheckpointExecutor {
         if let Some(checkpoint) =
             highest_executed.filter(|checkpoint| checkpoint.epoch() == self.epoch_store.epoch())
         {
-            self.store_cut_off_validators(self.parse_version_specific_data(&checkpoint).as_ref());
+            self.store_cut_off_attestors(self.parse_version_specific_data(&checkpoint).as_ref());
         }
     }
 
