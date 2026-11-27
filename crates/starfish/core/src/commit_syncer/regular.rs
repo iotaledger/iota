@@ -528,7 +528,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
             .inspect_err(|e| {
                 inner
                     .misbehavior_store
-                    .record_fetch_fault(target_authority, e);
+                    .record_fault(e, None, [target_authority]);
             })?;
 
         // 2. Verify the response contains block headers that can certify the last returned commit,
@@ -591,7 +591,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                         .inspect_err(|e| {
                             inner
                                 .misbehavior_store
-                                .record_fetch_fault(target_authority, e);
+                                .record_fault(e, None, [target_authority]);
                         })?;
                     // 5. Verify the returned headers are the requested ones.
                     verify_fetched_headers(
@@ -602,7 +602,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                     .inspect_err(|e| {
                         inner
                             .misbehavior_store
-                            .record_faulty_block(target_authority, None, e);
+                            .record_fault(e, None, [target_authority]);
                     })
                 }
             })
@@ -639,7 +639,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                             .inspect_err(|e| {
                                 inner
                                     .misbehavior_store
-                                    .record_fetch_fault(target_authority, e);
+                                    .record_fault(e, None, [target_authority]);
                             })?;
 
                         // 10. Verify that the number of returned transactions is not greater than
@@ -649,12 +649,13 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                         //     TransactionSynchronizer will take care of fetching missing
                         //     transactions later.
                         if request_tx_refs.len() < serialized_transactions.len() {
+                            let err = ConsensusError::TooManyFetchedTransactionsReturned(
+                                target_authority,
+                            );
                             inner
                                 .misbehavior_store
-                                .record_faulty_transactions(None, [target_authority]);
-                            return Err(ConsensusError::TooManyFetchedTransactionsReturned(
-                                target_authority,
-                            ));
+                                .record_fault(&err, None, [target_authority]);
+                            return Err(err);
                         }
                         let requested_tx_refs_set: BTreeSet<_> =
                             request_tx_refs.iter().cloned().collect();
@@ -667,24 +668,29 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                             // entry is the peer's fault.
                             let serialized_tx: SerializedTransactionsV2 =
                                 bcs::from_bytes(&serialized_bytes)
-                                    .inspect_err(|_| {
-                                        inner
-                                            .misbehavior_store
-                                            .record_faulty_transactions(None, [target_authority])
-                                    })
-                                    .map_err(ConsensusError::MalformedTransactions)?;
+                                    .map_err(ConsensusError::MalformedTransactions)
+                                    .inspect_err(|e| {
+                                        inner.misbehavior_store.record_fault(
+                                            e,
+                                            None,
+                                            [target_authority],
+                                        )
+                                    })?;
 
                             // 11. Verify the returned transactions match the requested transaction
                             //     refs.
                             let committed_transaction_ref = serialized_tx.transaction_ref;
                             if !requested_tx_refs_set.contains(&committed_transaction_ref) {
-                                inner
-                                    .misbehavior_store
-                                    .record_faulty_transactions(None, [target_authority]);
-                                return Err(ConsensusError::UnexpectedTransactionForCommit {
+                                let err = ConsensusError::UnexpectedTransactionForCommit {
                                     peer: target_authority,
                                     received: committed_transaction_ref,
-                                });
+                                };
+                                inner.misbehavior_store.record_fault(
+                                    &err,
+                                    None,
+                                    [target_authority],
+                                );
+                                return Err(err);
                             }
 
                             result.insert(

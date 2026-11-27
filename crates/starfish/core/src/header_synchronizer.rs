@@ -737,7 +737,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                             }
                         },
                         Err(err) => {
-                            misbehavior_store.record_fetch_fault(peer_index, &err);
+                            misbehavior_store.record_fault(&err, None, [peer_index]);
                             context.metrics.node_metrics.synchronizer_fetch_failures_by_peer.with_label_values(&[peer_hostname.as_str(), "live"]).inc();
                             if retries <= MAX_RETRIES {
                                 requests.push(Self::fetch_block_headers_request(context.clone(), network_client.clone(), peer_index, blocks_guard, highest_rounds, FETCH_REQUEST_TIMEOUT, true, retries).boxed())
@@ -909,7 +909,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 author: block_ref.author,
                 round: block_ref.round,
             };
-            misbehavior_store.record_faulty_block(peer_index, None, &e);
+            misbehavior_store.record_fault(&e, None, [peer_index]);
             metrics
                 .synchronizer_fetch_window_violations
                 .with_label_values(&[peer_hostname.as_str(), sync_method])
@@ -1065,7 +1065,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 .map_err(ConsensusError::MalformedHeader)
                 .inspect_err(|e| {
                     // Author is unknown when deserialization fails — blame the peer.
-                    misbehavior_store.record_faulty_block(peer_index, None, e);
+                    misbehavior_store.record_fault(e, None, [peer_index]);
                 })?;
 
             if already_verified {
@@ -1082,10 +1082,10 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                         .synchronizer_invalid_block_headers
                         .with_label_values(&[hostname.as_str(), "synchronizer", e.name()])
                         .inc();
-                    misbehavior_store.record_faulty_block(
-                        peer_index,
-                        Some(signed_block_header.slot()),
+                    misbehavior_store.record_fault(
                         &e,
+                        Some(signed_block_header.slot()),
+                        [peer_index],
                     );
                     warn!("Invalid block received from {}: {}", peer_index, e);
                     return Err(e);
@@ -1262,10 +1262,10 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                             .map_err(ConsensusError::MalformedHeader)
                                             .inspect_err(|e| {
                                                 // Author unknown when deserialization fails — blame the peer.
-                                                misbehavior_store.record_faulty_block(
-                                                    authority_index,
-                                                    None,
+                                                misbehavior_store.record_fault(
                                                     e,
+                                                    None,
+                                                    [authority_index],
                                                 );
                                             })?;
                                         block_verifier.verify(&signed_block_header).tap_err(|err|{
@@ -1276,10 +1276,10 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                                 .synchronizer_invalid_block_headers
                                                 .with_label_values(&[hostname.as_str(), "synchronizer_own_block_header", err.clone().name()])
                                                 .inc();
-                                            misbehavior_store.record_faulty_block(
-                                                authority_index,
-                                                Some(signed_block_header.slot()),
+                                            misbehavior_store.record_fault(
                                                 err,
+                                                Some(signed_block_header.slot()),
+                                                [authority_index],
                                             );
                                             warn!("Invalid block header received from {}: {}", authority_index, err);
                                         })?;
@@ -1287,7 +1287,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                         let verified_block_header = VerifiedBlockHeader::new_verified(signed_block_header, serialized_block_header);
                                         if verified_block_header.author() != context.own_index {
                                             let e = ConsensusError::UnexpectedLastOwnHeader { index: authority_index, block_ref: verified_block_header.reference()};
-                                            misbehavior_store.record_faulty_block(authority_index, None, &e);
+                                            misbehavior_store.record_fault(&e, None, [authority_index]);
                                             return Err(e);
                                         }
                                         result.push(verified_block_header);
@@ -1366,7 +1366,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                         }
                                     },
                                     Err(err) => {
-                                        misbehavior_store.record_fetch_fault(authority_index, &err);
+                                        misbehavior_store.record_fault(&err, None, [authority_index]);
                                         record_probe(false);
                                         warn!("Error {err} while fetching our own block header from peer {authority_index}. Will retry.");
                                         results.push(fetch_own_block_header(authority_index, FETCH_OWN_BLOCK_HEADER_RETRY_DELAY));
@@ -1824,7 +1824,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                             results.push((blocks_guard, fetched, peer_index, highest_rounds));
                         },
                         Err(err) => {
-                            misbehavior_store.record_fetch_fault(peer_index, &err);
+                            misbehavior_store.record_fault(&err, None, [peer_index]);
                             context.metrics.node_metrics.synchronizer_fetch_failures_by_peer.with_label_values(&[peer_hostname.as_str(), "periodic"]).inc();
                             // try again if there is any peer left
                             if let Some(next_peer) = remaining_peers.next() {
