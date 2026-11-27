@@ -240,6 +240,9 @@ impl ObjectStoreConfig {
             self.object_store_connection_limit,
         )))
     }
+    /// The function sets `ring` as the default crypto provider for `rustls`, if it has not been
+    /// already set. Users that want to install another provider are thus advised to do so before
+    /// calling this function.
     pub fn make(&self) -> Result<Arc<DynObjectStore>, anyhow::Error> {
         // The cloud stores build a reqwest client, which panics if no rustls
         // crypto provider is installed.
