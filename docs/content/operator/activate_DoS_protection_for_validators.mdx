@@ -85,7 +85,7 @@ The node decides each request by the first of these steps that matches its clien
 3. **The blocklist**: the node refuses a client that the spam or error policy blocked, until its block expires.
 4. **`default`**: with `limit` the node serves the request and the policies count it; with `deny` the node refuses it.
 
-A rule is an IP address or a network in CIDR notation, and matches the full address of the client. The node clears the host bits of a network, so `198.51.100.7/24` is the rule `198.51.100.0/24`. A `/128` rule matches one IPv6 address. An IPv4 client that reaches the node as an IPv4-mapped IPv6 address matches the IPv4 rule, and an IPv6 rule does not match an IPv4 client, other than an IPv4-mapped rule of `/96` or longer, which the node reads as the IPv4 rule. Write IPv4 rules for IPv4 clients. A request whose client IP the node cannot resolve matches no rule, so the default action decides it.
+A rule is an IP address or a network in CIDR notation, and matches the full address of the client. The node clears the host bits of a network, so `198.51.100.7/24` is the rule `198.51.100.0/24`. A `/128` rule matches one IPv6 address. An IPv4 client can reach the node as an IPv4-mapped IPv6 address. The node matches such a client by its IPv4 address, so IPv4 rules match it. IPv6 rules do not match an IPv4 client. The one exception is an IPv4-mapped rule of `/96` or longer, which the node reads as the IPv4 rule. Write IPv4 rules for IPv4 clients. A request whose client IP the node cannot resolve matches no rule, so the default action decides it.
 
 | Setup | Rules |
 | --- | --- |
@@ -97,9 +97,9 @@ An allow rule wins over a deny rule, so a deny rule cannot refuse one address in
 
 In dry run mode the node serves the requests that steps 2 to 4 refuse, and only counts them. The node logs a warning at startup when it has deny rules or `default: deny` in dry run mode.
 
-The policies count an IPv6 client by the first `ipv6-prefix-len` bits of its address, but the rules match its full address. A client can thus avoid a deny rule longer than `ipv6-prefix-len` by moving to another address in its own prefix, and the node logs a warning at startup for such a rule.
+The policies count an IPv6 client by the first `ipv6-prefix-len` bits of its address, but the rules match its full address. A client can thus avoid a deny rule longer than `ipv6-prefix-len`: it moves to another address in its own prefix. The node logs a warning at startup for such a rule.
 
-With `client-id-source: x-forwarded-for` the rules match the client that the header names. An allow rule then holds only if clients can reach the node through your proxy alone: a client that reaches the node port directly writes the whole header, and can name an allowed address. The node logs a warning at startup for allow rules with `x-forwarded-for`. It also logs a warning for `default: deny` with `x-forwarded-for`: a request without the header matches no allow rule and is refused, and on a validator that is every request of the other nodes.
+With `client-id-source: x-forwarded-for` the rules match the client that the header names. An allow rule then holds only if clients can reach the node through your proxy alone. A client that reaches the node port directly writes the whole header, and can name an allowed address. The node logs a warning at startup for allow rules with `x-forwarded-for`. It also logs a warning for `default: deny` with `x-forwarded-for`. Under that setting the node refuses every request without the header, because no allow rule can match it. On a validator these are all the requests of the other nodes.
 
 The `allow-list` field is no longer accepted. A node whose configuration sets it to a list refuses to start. Use `allow` rules with `default: deny` instead:
 
