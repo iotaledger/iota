@@ -1555,7 +1555,13 @@ impl CheckpointExecutor {
     }
 
     /// Stores the cut-off validators as of the highest executed checkpoint, so
-    /// a node restarted during the epoch does not start without them.
+    /// a node restarted during the epoch does not start without them. Does
+    /// nothing when no checkpoint of this epoch has executed yet.
+    ///
+    /// # Panics
+    ///
+    /// If the checkpoint store cannot be read, or the checkpoint's
+    /// `version_specific_data` does not decode.
     fn seed_cut_off_validators(&self) {
         let highest_executed = self
             .checkpoint_store
