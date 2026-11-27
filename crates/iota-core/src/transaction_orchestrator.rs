@@ -1904,6 +1904,12 @@ where
             .simulate_transaction(transaction, checks)
     }
 
+    fn try_acquire_simulation_permit(&self) -> Option<Box<dyn Send + Sync>> {
+        self.validator_state
+            .try_acquire_simulation_permit()
+            .map(|permit| Box::new(permit) as Box<dyn Send + Sync>)
+    }
+
     /// Wait for the given transactions to be included in a checkpoint.
     ///
     /// Returns a mapping from transaction digest to

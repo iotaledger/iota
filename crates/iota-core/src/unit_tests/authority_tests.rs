@@ -1207,6 +1207,49 @@ async fn test_dry_run_on_validator() {
     assert!(response.is_err());
 }
 
+#[tokio::test]
+async fn simulations_over_the_default_cap_are_refused() {
+    let state = TestAuthorityBuilder::new().build().await;
+    // With `max-concurrent-simulations` unset the cap is the number of CPUs
+    // the node can use.
+    let cap = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
+    let permits = (0..cap)
+        .map(|_| {
+            state
+                .try_acquire_simulation_permit()
+                .expect("below the cap")
+        })
+        .collect::<Vec<_>>();
+    assert!(state.try_acquire_simulation_permit().is_none());
+
+    drop(permits);
+    assert!(state.try_acquire_simulation_permit().is_some());
+}
+
+#[tokio::test]
+async fn simulations_over_the_configured_cap_are_refused_until_one_ends() {
+    let state = TestAuthorityBuilder::new()
+        .with_max_concurrent_simulations(std::num::NonZeroUsize::new(2).unwrap())
+        .build()
+        .await;
+    let mut permits = (0..2)
+        .map(|_| {
+            state
+                .try_acquire_simulation_permit()
+                .expect("below the cap")
+        })
+        .collect::<Vec<_>>();
+    assert!(state.try_acquire_simulation_permit().is_none());
+
+    permits.pop();
+    permits.push(
+        state
+            .try_acquire_simulation_permit()
+            .expect("one simulation ended"),
+    );
+    assert!(state.try_acquire_simulation_permit().is_none());
+}
+
 // Tests using a dynamic field that is newer than the parent in dev inspect/dry
 // run results in not being able to access the dynamic field object
 #[tokio::test]

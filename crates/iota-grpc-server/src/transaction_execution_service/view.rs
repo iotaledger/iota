@@ -29,7 +29,6 @@ use iota_sdk_types::{
     Address, GasPayment, Identifier, ObjectId, TransactionExpiration, TransactionV1, TypeTag,
 };
 use iota_types::{
-    error::IotaError,
     move_package::MovePackageExt,
     parse_iota_fq_name,
     transaction_executor::{TransactionExecutor, VmChecks},
@@ -138,18 +137,8 @@ async fn view_function_call(
     };
 
     // Dev-inspect the transaction
-    let simulation = executor
-        .simulate_transaction(transaction.into(), VmChecks::Disabled)
-        .map_err(|e| {
-            RpcError::new(
-                if matches!(e, IotaError::UserInput { .. }) {
-                    Code::InvalidArgument
-                } else {
-                    Code::Internal
-                },
-                format!("transaction simulation failed: {e}"),
-            )
-        })?;
+    let simulation =
+        super::run_simulation(executor, transaction.into(), VmChecks::Disabled).await?;
 
     // Build the response
     let mut response = ViewFunctionCallResult::default();

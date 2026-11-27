@@ -222,6 +222,14 @@ pub struct NodeConfig {
     )]
     pub policy_config: Option<PolicyConfig>,
 
+    /// The maximum number of transaction simulations the node runs at once,
+    /// over the gRPC API (simulations and view function calls) and JSON-RPC
+    /// (dry runs, dev inspects and view function calls) together. A simulation
+    /// requested while that many run is refused, and the client can retry it.
+    /// Defaults to the number of CPUs the node can use.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_concurrent_simulations: Option<NonZeroUsize>,
+
     #[serde(default)]
     pub execution_cache_config: ExecutionCacheConfig,
 

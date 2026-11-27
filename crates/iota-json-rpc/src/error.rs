@@ -82,6 +82,11 @@ pub enum Error {
 
     #[error(transparent)]
     IotaNames(#[from] IotaNamesError),
+
+    /// The node refuses the request for now, and the client can retry it
+    /// later.
+    #[error("{0}")]
+    ServerIsBusy(String),
 }
 
 impl From<IotaError> for Error {
@@ -121,6 +126,11 @@ impl From<Error> for RpcError {
                     None,
                 )),
             },
+            Error::ServerIsBusy(message) => RpcError::Call(ErrorObject::owned::<()>(
+                ErrorCode::ServerIsBusy.code(),
+                message,
+                None,
+            )),
             Error::IotaRpcInput(err) => RpcError::Call(ErrorObject::owned::<()>(
                 ErrorCode::InvalidParams.code(),
                 err.to_string(),
@@ -319,6 +329,15 @@ mod tests {
         let error_object = error_object_from_rpc(rpc_error);
 
         assert_eq!(error_object.code(), TRANSACTION_NOT_FOUND_ERROR_CODE);
+    }
+
+    #[test]
+    fn server_is_busy_uses_the_server_is_busy_code() {
+        let rpc_error: RpcError = Error::ServerIsBusy("retry later".to_string()).into();
+        let error_object = error_object_from_rpc(rpc_error);
+
+        assert_eq!(error_object.code(), ErrorCode::ServerIsBusy.code());
+        assert_eq!(error_object.message(), "retry later");
     }
 
     mod match_quorum_driver_error_tests {

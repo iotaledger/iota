@@ -237,6 +237,7 @@ impl ValidatorConfigBuilder {
             ),
             run_with_range: None,
             policy_config: self.policy_config,
+            max_concurrent_simulations: None,
             enable_validator_tx_finalizer: true,
             enable_soft_locking: true,
             verifier_signing_config: VerifierSigningConfig::default(),
@@ -661,6 +662,7 @@ impl FullnodeConfigBuilder {
             authority_overload_config: Default::default(),
             run_with_range: self.run_with_range,
             policy_config: self.policy_config,
+            max_concurrent_simulations: None,
             execution_cache_config: ExecutionCacheConfig::default(),
             full_checkpoint_contents_cache_size_mb: default_full_checkpoint_contents_cache_size_mb(
             ),

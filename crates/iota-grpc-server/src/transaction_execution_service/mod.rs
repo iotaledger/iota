@@ -29,8 +29,9 @@ use iota_node_transaction_builder::NodeTransactionBuilderLedgerClient;
 use iota_sdk_types::TransactionDigest;
 use iota_types::{
     effects::TransactionEffectsAPI,
+    error::IotaError,
     quorum_driver_types::{ExecuteTransactionRequestV1, ExecuteTransactionResponseV1},
-    transaction_executor::TransactionExecutor,
+    transaction_executor::{SimulateTransactionResult, TransactionExecutor, VmChecks},
 };
 use tonic::{Request, Response};
 pub(crate) use transaction::CommandOutputsReadSource;
@@ -161,6 +162,47 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
 }
 
 // === Shared helpers for execute and simulate ===
+
+/// Simulates `transaction` on the blocking thread pool, as a simulation can
+/// run long enough to stall the requests that share a serving thread with it.
+/// Refused with `RESOURCE_EXHAUSTED` while the executor runs as many
+/// simulations as it allows.
+async fn run_simulation(
+    executor: &Arc<dyn TransactionExecutor>,
+    transaction: iota_sdk_types::Transaction,
+    checks: VmChecks,
+) -> Result<SimulateTransactionResult, RpcError> {
+    let permit = executor.try_acquire_simulation_permit().ok_or_else(|| {
+        RpcError::new(
+            tonic::Code::ResourceExhausted,
+            "the node is running as many simulations as it allows, retry later",
+        )
+    })?;
+    let executor = executor.clone();
+    tokio::task::spawn_blocking(move || {
+        // Held until the simulation ends, even if the request is dropped
+        // before.
+        let _permit = permit;
+        executor.simulate_transaction(transaction, checks)
+    })
+    .await
+    .map_err(|e| {
+        RpcError::new(
+            tonic::Code::Internal,
+            format!("transaction simulation task failed: {e}"),
+        )
+    })?
+    .map_err(|e| {
+        RpcError::new(
+            if matches!(e, IotaError::UserInput { .. }) {
+                tonic::Code::InvalidArgument
+            } else {
+                tonic::Code::Internal
+            },
+            format!("transaction simulation failed: {e}"),
+        )
+    })
+}
 
 /// Validate that a batch is non-empty and within the size limit.
 fn validate_batch_size(items_len: usize, max_batch: usize) -> Result<(), RpcError> {
@@ -776,4 +818,130 @@ async fn execute_single_transaction(
         .map_err(|e| e.with_context("failed to merge executed transaction"))?;
 
     Ok((digest, executed, rebuild_ctx))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        collections::BTreeMap,
+        sync::{Mutex, mpsc},
+    };
+
+    use iota_sdk_types::{
+        Address, GasPayment, ProgrammableTransaction, Transaction, TransactionExpiration,
+        TransactionKind, TransactionV1,
+    };
+    use iota_types::{
+        messages_checkpoint::CheckpointSequenceNumber, quorum_driver_types::QuorumDriverError,
+    };
+    use tokio::sync::{Notify, Semaphore};
+
+    use super::*;
+
+    /// A `TransactionExecutor` whose simulations each take one of `permits`.
+    /// The first simulation waits until the sender of `gate` sends or is
+    /// dropped, and every simulation fails.
+    struct GatedExecutor {
+        permits: Arc<Semaphore>,
+        started: Notify,
+        gate: Mutex<Option<mpsc::Receiver<()>>>,
+    }
+
+    #[async_trait::async_trait]
+    impl TransactionExecutor for GatedExecutor {
+        async fn execute_transaction(
+            &self,
+            _request: ExecuteTransactionRequestV1,
+            _skip_certification: bool,
+            _client_addr: Option<std::net::SocketAddr>,
+        ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
+            unreachable!("the test only simulates transactions")
+        }
+
+        fn simulate_transaction(
+            &self,
+            _transaction: Transaction,
+            _checks: VmChecks,
+        ) -> Result<SimulateTransactionResult, IotaError> {
+            self.started.notify_one();
+            let gate = self.gate.lock().unwrap().take();
+            if let Some(gate) = gate {
+                // Either a send or a dropped sender opens the gate.
+                let _ = gate.recv();
+            }
+            Err(IotaError::Unknown("test simulations fail".to_string()))
+        }
+
+        fn try_acquire_simulation_permit(&self) -> Option<Box<dyn Send + Sync>> {
+            self.permits
+                .clone()
+                .try_acquire_owned()
+                .ok()
+                .map(|permit| Box::new(permit) as Box<dyn Send + Sync>)
+        }
+
+        async fn wait_for_checkpoint_inclusion(
+            &self,
+            _digests: &[TransactionDigest],
+            _timeout: Duration,
+        ) -> Result<BTreeMap<TransactionDigest, (CheckpointSequenceNumber, u64)>, IotaError>
+        {
+            unreachable!("the test only simulates transactions")
+        }
+    }
+
+    fn transaction() -> Transaction {
+        Transaction::V1(TransactionV1 {
+            kind: TransactionKind::new_programmable(ProgrammableTransaction {
+                inputs: vec![],
+                commands: vec![],
+            }),
+            sender: Address::ZERO,
+            gas_payment: GasPayment {
+                objects: vec![],
+                owner: Address::ZERO,
+                price: 0,
+                budget: 0,
+            },
+            expiration: TransactionExpiration::None,
+        })
+    }
+
+    #[tokio::test]
+    async fn a_dropped_simulation_keeps_its_permit_until_it_ends() {
+        let (open_gate, gate) = mpsc::channel();
+        let gated = Arc::new(GatedExecutor {
+            permits: Arc::new(Semaphore::new(1)),
+            started: Notify::new(),
+            gate: Mutex::new(Some(gate)),
+        });
+        let executor: Arc<dyn TransactionExecutor> = gated.clone();
+
+        let simulation = tokio::spawn({
+            let executor = executor.clone();
+            async move { run_simulation(&executor, transaction(), VmChecks::Enabled).await }
+        });
+        gated.started.notified().await;
+        simulation.abort();
+        assert!(matches!(simulation.await, Err(e) if e.is_cancelled()));
+
+        let refused = run_simulation(&executor, transaction(), VmChecks::Enabled)
+            .await
+            .err()
+            .map(|e| tonic::Status::from(e).code());
+        assert_eq!(
+            refused,
+            Some(tonic::Code::ResourceExhausted),
+            "the dropped simulation gave up its permit before it ended"
+        );
+
+        open_gate.send(()).unwrap();
+        tokio::time::timeout(Duration::from_secs(10), async {
+            while gated.permits.available_permits() == 0 {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("the simulation should end once the gate opens");
+    }
 }
