@@ -27,8 +27,6 @@ use parking_lot::Mutex;
 
 use crate::{metrics::TrafficControllerMetrics, policies::MAX_TRACKED_CLIENTS};
 
-const NANOS_PER_SEC: u128 = 1_000_000_000;
-
 /// The gas balance of a client that has not got all of its `burst-gas`.
 struct Balance {
     gas: u64,
@@ -39,6 +37,7 @@ struct Balance {
 
 impl Balance {
     fn refill(&mut self, now: Instant, settings: &SimulationGasLimitConfig) {
+        const NANOS_PER_SEC: u128 = 1_000_000_000;
         let elapsed = now.saturating_duration_since(self.refilled_at).as_nanos();
         let gas_per_sec = u128::from(settings.gas_per_sec);
         let added = elapsed.saturating_mul(gas_per_sec) / NANOS_PER_SEC;
