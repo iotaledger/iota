@@ -392,8 +392,8 @@ async fn test_fullnode_simulation_gas_limit() -> Result<(), anyhow::Error> {
         .await;
     let client = test_cluster.grpc_client();
     let (sender, gas) = test_cluster.wallet.get_one_gas_object().await?.unwrap();
-    let rgp = test_cluster.get_reference_gas_price().await;
-    let transaction = TestTransactionBuilder::new(sender, gas, rgp)
+    let reference_gas_price = test_cluster.get_reference_gas_price().await;
+    let transaction = TestTransactionBuilder::new(sender, gas, reference_gas_price)
         .transfer_iota(None, sender)
         .build();
 
