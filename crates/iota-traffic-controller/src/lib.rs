@@ -183,14 +183,14 @@ impl TrafficController {
         let client = client.map(|client| client_prefix(client, self.policy_config.ipv6_prefix_len));
         let Some(reserved) =
             self.simulation_gas
-                .reserve(client, self.client_access.dry_run(), Instant::now())
+                .reserve(client, self.client_access.dry_run(), Instant::now())?
         else {
             return Ok(None);
         };
         Ok(Some(SimulationGasReservation::new(
             self.simulation_gas.clone(),
             client,
-            reserved?,
+            reserved,
         )))
     }
 

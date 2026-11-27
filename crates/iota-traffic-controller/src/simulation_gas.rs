@@ -187,8 +187,10 @@ impl SimulationGasLimiter {
         client: Option<IpAddr>,
         dry_run: bool,
         now: Instant,
-    ) -> Option<Result<u64, SimulationGasRefusal>> {
-        let settings = self.settings.load_full()?;
+    ) -> Result<Option<u64>, SimulationGasRefusal> {
+        let Some(settings) = self.settings.load_full() else {
+            return Ok(None);
+        };
         let reservation = self
             .max_computation
             .load(Ordering::Relaxed)
@@ -201,18 +203,18 @@ impl SimulationGasLimiter {
         balance.refill(now, &settings);
         if let Some(gas) = balance.gas.checked_sub(reservation) {
             balance.gas = gas;
-            return Some(Ok(reservation));
+            return Ok(Some(reservation));
         }
         if dry_run {
             self.metrics.num_dry_run_simulation_gas_refusals.inc();
-            return Some(Ok(0));
+            return Ok(Some(0));
         }
         self.metrics.simulation_gas_refusals.inc();
         let missing = reservation - balance.gas;
         let retry_after_secs = missing.div_ceil(settings.gas_per_sec).max(1);
-        Some(Err(SimulationGasRefusal {
+        Err(SimulationGasRefusal {
             retry_after: Duration::from_secs(retry_after_secs),
-        }))
+        })
     }
 
     /// Charges `client` for a simulation that reserved `reserved` gas and
@@ -364,20 +366,20 @@ mod tests {
     fn a_client_is_refused_once_its_burst_is_used() {
         let limiter = limiter(10, 250);
         let now = Instant::now();
-        assert_eq!(limiter.reserve(CLIENT, false, now), Some(Ok(100)));
-        assert_eq!(limiter.reserve(CLIENT, false, now), Some(Ok(100)));
+        assert_eq!(limiter.reserve(CLIENT, false, now), Ok(Some(100)));
+        assert_eq!(limiter.reserve(CLIENT, false, now), Ok(Some(100)));
         // 50 left, 50 missing at 10 per second.
         assert_eq!(
             limiter.reserve(CLIENT, false, now),
-            Some(Err(SimulationGasRefusal {
+            Err(SimulationGasRefusal {
                 retry_after: Duration::from_secs(5)
-            }))
+            })
         );
         assert_eq!(limiter.metrics.simulation_gas_refusals.get(), 1);
         // Another client has a balance of its own.
         assert_eq!(
             limiter.reserve(Some(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 2))), false, now),
-            Some(Ok(100))
+            Ok(Some(100))
         );
     }
 
@@ -385,14 +387,14 @@ mod tests {
     fn the_balance_refills_over_time() {
         let limiter = limiter(10, 100);
         let now = Instant::now();
-        assert_eq!(limiter.reserve(CLIENT, false, now), Some(Ok(100)));
+        assert_eq!(limiter.reserve(CLIENT, false, now), Ok(Some(100)));
         assert!(matches!(
             limiter.reserve(CLIENT, false, now + Duration::from_secs(9)),
-            Some(Err(_))
+            Err(_)
         ));
         assert_eq!(
             limiter.reserve(CLIENT, false, now + Duration::from_secs(10)),
-            Some(Ok(100))
+            Ok(Some(100))
         );
     }
 
@@ -400,14 +402,14 @@ mod tests {
     fn frequent_refills_lose_no_gas() {
         let limiter = limiter(1, 100);
         let now = Instant::now();
-        assert_eq!(limiter.reserve(CLIENT, false, now), Some(Ok(100)));
+        assert_eq!(limiter.reserve(CLIENT, false, now), Ok(Some(100)));
         // A check every 0.7 s leaves a part of a second after most refills.
         for step in 1..=142 {
             let _ = limiter.reserve(CLIENT, false, now + Duration::from_millis(700 * step));
         }
         assert_eq!(
             limiter.reserve(CLIENT, false, now + Duration::from_secs(100)),
-            Some(Ok(100))
+            Ok(Some(100))
         );
     }
 
@@ -418,10 +420,10 @@ mod tests {
         let reserved = limiter.reserve(CLIENT, false, now).unwrap().unwrap();
         limiter.settle(CLIENT, reserved, 10, now);
         assert_eq!(limiter.metrics.simulation_gas_charged.get(), 10);
-        assert!(matches!(limiter.reserve(CLIENT, false, now), Some(Err(_))));
+        assert!(matches!(limiter.reserve(CLIENT, false, now), Err(_)));
         assert_eq!(
             limiter.reserve(CLIENT, false, now + Duration::from_secs(10)),
-            Some(Ok(100))
+            Ok(Some(100))
         );
     }
 
@@ -430,7 +432,7 @@ mod tests {
         let limiter = limiter(1, 300);
         let now = Instant::now();
         let passed = (0..10)
-            .filter(|_| matches!(limiter.reserve(CLIENT, false, now), Some(Ok(_))))
+            .filter(|_| matches!(limiter.reserve(CLIENT, false, now), Ok(Some(_))))
             .count();
         assert_eq!(passed, 3);
     }
@@ -449,16 +451,16 @@ mod tests {
     fn unresolved_clients_share_one_balance() {
         let limiter = limiter(1, 100);
         let now = Instant::now();
-        assert_eq!(limiter.reserve(None, false, now), Some(Ok(100)));
-        assert!(matches!(limiter.reserve(None, false, now), Some(Err(_))));
+        assert_eq!(limiter.reserve(None, false, now), Ok(Some(100)));
+        assert!(matches!(limiter.reserve(None, false, now), Err(_)));
     }
 
     #[test]
     fn dry_run_serves_a_client_over_the_limit_and_counts_it() {
         let limiter = limiter(1, 100);
         let now = Instant::now();
-        assert_eq!(limiter.reserve(CLIENT, true, now), Some(Ok(100)));
-        assert_eq!(limiter.reserve(CLIENT, true, now), Some(Ok(0)));
+        assert_eq!(limiter.reserve(CLIENT, true, now), Ok(Some(100)));
+        assert_eq!(limiter.reserve(CLIENT, true, now), Ok(Some(0)));
         assert_eq!(limiter.metrics.num_dry_run_simulation_gas_refusals.get(), 1);
         assert_eq!(limiter.metrics.simulation_gas_refusals.get(), 0);
     }
@@ -469,8 +471,8 @@ mod tests {
     fn a_charge_the_reservation_did_not_cover_is_taken() {
         let limiter = limiter(1, 100);
         let now = Instant::now();
-        assert_eq!(limiter.reserve(CLIENT, true, now), Some(Ok(100)));
-        assert_eq!(limiter.reserve(CLIENT, true, now), Some(Ok(0)));
+        assert_eq!(limiter.reserve(CLIENT, true, now), Ok(Some(100)));
+        assert_eq!(limiter.reserve(CLIENT, true, now), Ok(Some(0)));
         limiter.settle(CLIENT, 100, 0, now);
         assert_eq!(limiter.balances.lock().len(), 0);
 
@@ -484,24 +486,24 @@ mod tests {
     #[test]
     fn a_burst_below_the_computation_cap_still_serves_a_full_balance() {
         let limiter = limiter(1, 40);
-        assert_eq!(limiter.reserve(CLIENT, false, Instant::now()), Some(Ok(40)));
+        assert_eq!(limiter.reserve(CLIENT, false, Instant::now()), Ok(Some(40)));
     }
 
     #[test]
     fn no_limit_reserves_nothing() {
         let limiter =
             SimulationGasLimiter::new(None, Arc::new(TrafficControllerMetrics::new_for_tests()));
-        assert_eq!(limiter.reserve(CLIENT, false, Instant::now()), None);
+        assert_eq!(limiter.reserve(CLIENT, false, Instant::now()), Ok(None));
     }
 
     #[test]
     fn a_lower_burst_cuts_the_balances() {
         let limiter = limiter(1, 1000);
         let now = Instant::now();
-        assert_eq!(limiter.reserve(CLIENT, false, now), Some(Ok(100)));
+        assert_eq!(limiter.reserve(CLIENT, false, now), Ok(Some(100)));
         limiter.reconfigure(None, Some(150));
-        assert_eq!(limiter.reserve(CLIENT, false, now), Some(Ok(100)));
-        assert!(matches!(limiter.reserve(CLIENT, false, now), Some(Err(_))));
+        assert_eq!(limiter.reserve(CLIENT, false, now), Ok(Some(100)));
+        assert!(matches!(limiter.reserve(CLIENT, false, now), Err(_)));
     }
 
     #[test]
