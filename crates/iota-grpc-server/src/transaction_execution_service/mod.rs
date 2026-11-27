@@ -963,7 +963,7 @@ mod tests {
     /// The gas that a simulation reserved is held until the simulation ends,
     /// also when its request is dropped before.
     #[tokio::test]
-    async fn a_dropped_simulation_keeps_its_gas_until_it_ends() {
+    async fn a_simulation_whose_request_is_dropped_keeps_its_gas_until_it_ends() {
         let (open_gate, gate) = mpsc::channel();
         let gated = Arc::new(GatedExecutor {
             permits: Arc::new(Semaphore::new(1)),

@@ -390,7 +390,7 @@ async fn a_failed_simulation_gives_its_gas_back() {
 /// A simulation that the executor refuses for want of a permit gives back the
 /// gas it reserved.
 #[tokio::test]
-async fn a_simulation_refused_for_a_permit_gives_its_gas_back() {
+async fn a_simulation_refused_for_lack_of_a_permit_gives_its_gas_back() {
     let executor = Arc::new(SimulationExecutor::new(1));
     let (open_gate, gate) = mpsc::channel();
     *executor.gate.lock().unwrap() = Some(gate);
