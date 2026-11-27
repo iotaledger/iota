@@ -229,6 +229,10 @@ impl TallyHandle {
 
     /// Reserves gas for one simulation of this request's client, as
     /// [`TrafficController::reserve_simulation_gas`] does.
+    ///
+    /// # Errors
+    ///
+    /// [`SimulationGasRefusal`] while the client's balance is too low.
     pub fn reserve_simulation_gas(
         &self,
     ) -> Result<Option<SimulationGasReservation>, SimulationGasRefusal> {

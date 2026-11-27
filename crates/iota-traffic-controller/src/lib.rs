@@ -169,9 +169,12 @@ impl TrafficController {
     /// Reserves gas for one simulation of `client`, which [`Self::check`]
     /// decided as `access`. Returns `None` when there is nothing to reserve:
     /// simulations have no gas limit, or an allow rule serves the client.
-    /// Refused while the client's balance is below the reservation: the
-    /// computation cap, or `burst-gas` if that is lower. In dry run a client
-    /// over the limit is served, and counted.
+    /// In dry run a client over the limit is served, and counted.
+    ///
+    /// # Errors
+    ///
+    /// [`SimulationGasRefusal`] while the client's balance is below the
+    /// reservation: the computation cap, or `burst-gas` if that is lower.
     pub fn reserve_simulation_gas(
         &self,
         client: Option<IpAddr>,
