@@ -23,7 +23,6 @@ use crate::{
     block_header::{
         BlockRef, CommitmentVerifiedTransactions, Round, VerifiedBlock, VerifiedOwnShard,
     },
-    commit::CertifiedCommits,
     commit_syncer::fast::FastSyncOutput,
     context::Context,
     core::{Core, ReasonToCreateBlock},
@@ -56,7 +55,8 @@ enum CoreThreadCommand {
     ),
     /// Add committed sub dag blocks for processing and acceptance.
     AddCertifiedCommits(
-        CertifiedCommits,
+        Vec<VerifiedBlockHeader>,
+        Vec<CommitmentVerifiedTransactions>,
         oneshot::Sender<(
             BTreeSet<BlockRef>,
             BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
@@ -148,7 +148,8 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
 
     async fn add_certified_commits(
         &self,
-        commits: CertifiedCommits,
+        block_headers: Vec<VerifiedBlockHeader>,
+        transactions: Vec<CommitmentVerifiedTransactions>,
     ) -> Result<
         (
             BTreeSet<BlockRef>,
@@ -240,7 +241,7 @@ impl CoreThread {
                         match command {
                             CoreThreadCommand::AddBlocks(_, _, sender) |
                             CoreThreadCommand::AddBlockHeaders(_, _, sender) |
-                            CoreThreadCommand::AddCertifiedCommits(_, sender) => {
+                            CoreThreadCommand::AddCertifiedCommits(_, _, sender) => {
                                 sender.send((Default::default(), Default::default())).ok();
                             }
                             CoreThreadCommand::NewBlock(_, sender, _) => {
@@ -281,9 +282,9 @@ impl CoreThread {
                                 self.core.add_block_headers(block_headers, source)?;
                             sender.send((missing_block_refs, missing_committed_txns)).ok();
                         }
-                        CoreThreadCommand::AddCertifiedCommits(commits, sender) => {
+                        CoreThreadCommand::AddCertifiedCommits(block_headers, transactions, sender) => {
                             let _scope = monitored_scope("CoreThread::loop::add_certified_commits");
-                            let (missing_block_refs, missing_committed_txns) = self.core.add_certified_commits(commits)?;
+                            let (missing_block_refs, missing_committed_txns) = self.core.add_certified_commits(block_headers, transactions)?;
                             sender.send((missing_block_refs, missing_committed_txns)).ok();
                         }
                         CoreThreadCommand::NewBlock(round, sender, reason) => {
@@ -505,7 +506,8 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
 
     async fn add_certified_commits(
         &self,
-        commits: CertifiedCommits,
+        block_headers: Vec<VerifiedBlockHeader>,
+        transactions: Vec<CommitmentVerifiedTransactions>,
     ) -> Result<
         (
             BTreeSet<BlockRef>,
@@ -514,8 +516,12 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
         CoreError,
     > {
         let (sender, receiver) = oneshot::channel();
-        self.send(CoreThreadCommand::AddCertifiedCommits(commits, sender))
-            .await;
+        self.send(CoreThreadCommand::AddCertifiedCommits(
+            block_headers,
+            transactions,
+            sender,
+        ))
+        .await;
         Ok(receiver.await.map_err(|e| Shutdown(e.to_string()))?)
     }
 
@@ -765,7 +771,8 @@ pub(crate) mod tests {
 
         async fn add_certified_commits(
             &self,
-            _commits: CertifiedCommits,
+            _block_headers: Vec<VerifiedBlockHeader>,
+            _transactions: Vec<CommitmentVerifiedTransactions>,
         ) -> Result<
             (
                 BTreeSet<BlockRef>,

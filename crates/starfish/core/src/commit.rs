@@ -429,63 +429,6 @@ impl Deref for TrustedCommit {
     }
 }
 
-/// `CertifiedCommits` keeps the synchronized certified commits along with the
-/// corresponding votes received from the peer that provided these commits.
-/// The `votes` contain the blocks as those provided by the peer, and certify
-/// the tip of the synced commits.
-#[derive(Clone, Debug)]
-pub(crate) struct CertifiedCommits {
-    commits: Vec<CertifiedCommit>,
-}
-
-impl CertifiedCommits {
-    pub(crate) fn new(commits: Vec<CertifiedCommit>) -> Self {
-        Self { commits }
-    }
-
-    pub(crate) fn commits(&self) -> &[CertifiedCommit] {
-        &self.commits
-    }
-}
-
-/// A commit that has been synced and certified by a quorum of authorities.
-#[derive(Clone, Debug)]
-pub(crate) struct CertifiedCommit {
-    commit: Arc<TrustedCommit>,
-    verified_block_headers: Vec<VerifiedBlockHeader>,
-    verified_transactions: Vec<CommitmentVerifiedTransactions>,
-}
-
-impl CertifiedCommit {
-    pub(crate) fn new_certified(
-        commit: TrustedCommit,
-        verified_block_headers: Vec<VerifiedBlockHeader>,
-        verified_transactions: Vec<CommitmentVerifiedTransactions>,
-    ) -> Self {
-        Self {
-            commit: Arc::new(commit),
-            verified_block_headers,
-            verified_transactions,
-        }
-    }
-
-    pub fn block_headers(&self) -> &[VerifiedBlockHeader] {
-        &self.verified_block_headers
-    }
-
-    pub fn transactions(&self) -> &[CommitmentVerifiedTransactions] {
-        &self.verified_transactions
-    }
-}
-
-impl Deref for CertifiedCommit {
-    type Target = TrustedCommit;
-
-    fn deref(&self) -> &Self::Target {
-        &self.commit
-    }
-}
-
 /// Digest of a consensus commit.
 #[derive(Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CommitDigest([u8; DIGEST_LENGTH]);

@@ -1912,7 +1912,7 @@ mod tests {
             VerifiedOwnShard,
         },
         block_verifier::NoopBlockVerifier,
-        commit::{CertifiedCommits, CommitRange, CommitRef, CommitVote, SubDagBase, TrustedCommit},
+        commit::{CommitRange, CommitRef, CommitVote, SubDagBase, TrustedCommit},
         commit_vote_monitor::CommitVoteMonitor,
         context::Context,
         core::ReasonToCreateBlock,
@@ -3487,7 +3487,8 @@ mod tests {
         // Stub out the remaining CoreThreadDispatcher methods with defaults:
         async fn add_certified_commits(
             &self,
-            _commits: CertifiedCommits,
+            _block_headers: Vec<VerifiedBlockHeader>,
+            _transactions: Vec<CommitmentVerifiedTransactions>,
         ) -> Result<
             (
                 BTreeSet<BlockRef>,

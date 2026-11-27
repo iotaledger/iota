@@ -1001,7 +1001,6 @@ mod tests {
         block_verifier::{
             BlockVerifier, NoopBlockVerifier, SignedBlockVerifier, test::TxnSizeVerifier,
         },
-        commit::CertifiedCommits,
         context::Context,
         core::ReasonToCreateBlock,
         core_thread::{CoreError, CoreThreadDispatcher},
@@ -1125,7 +1124,8 @@ mod tests {
 
         async fn add_certified_commits(
             &self,
-            _commits: CertifiedCommits,
+            _block_headers: Vec<VerifiedBlockHeader>,
+            _transactions: Vec<CommitmentVerifiedTransactions>,
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
