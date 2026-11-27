@@ -406,10 +406,11 @@ mod tests {
         let limiter = limiter(10, 100);
         let now = Instant::now();
         assert_eq!(limiter.reserve(CLIENT, ENFORCED, now), Ok(Some(100)));
-        assert!(matches!(
-            limiter.reserve(CLIENT, ENFORCED, now + Duration::from_secs(9)),
-            Err(_)
-        ));
+        assert!(
+            limiter
+                .reserve(CLIENT, ENFORCED, now + Duration::from_secs(9))
+                .is_err()
+        );
         assert_eq!(
             limiter.reserve(CLIENT, ENFORCED, now + Duration::from_secs(10)),
             Ok(Some(100))
@@ -438,7 +439,7 @@ mod tests {
         let reserved = limiter.reserve(CLIENT, ENFORCED, now).unwrap().unwrap();
         limiter.settle(CLIENT, reserved, 10, now);
         assert_eq!(limiter.metrics.simulation_gas_charged.get(), 10);
-        assert!(matches!(limiter.reserve(CLIENT, ENFORCED, now), Err(_)));
+        assert!(limiter.reserve(CLIENT, ENFORCED, now).is_err());
         assert_eq!(
             limiter.reserve(CLIENT, ENFORCED, now + Duration::from_secs(10)),
             Ok(Some(100))
@@ -470,7 +471,7 @@ mod tests {
         let limiter = limiter(1, 100);
         let now = Instant::now();
         assert_eq!(limiter.reserve(None, ENFORCED, now), Ok(Some(100)));
-        assert!(matches!(limiter.reserve(None, ENFORCED, now), Err(_)));
+        assert!(limiter.reserve(None, ENFORCED, now).is_err());
     }
 
     #[test]
@@ -524,7 +525,7 @@ mod tests {
         assert_eq!(limiter.reserve(CLIENT, ENFORCED, now), Ok(Some(100)));
         limiter.reconfigure(None, Some(150));
         assert_eq!(limiter.reserve(CLIENT, ENFORCED, now), Ok(Some(100)));
-        assert!(matches!(limiter.reserve(CLIENT, ENFORCED, now), Err(_)));
+        assert!(limiter.reserve(CLIENT, ENFORCED, now).is_err());
     }
 
     #[test]

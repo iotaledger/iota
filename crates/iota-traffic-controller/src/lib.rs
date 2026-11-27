@@ -1048,8 +1048,7 @@ mod tests {
         reservation.settle(100_000, 1000);
         let refusal = controller
             .reserve_simulation_gas(Some(CLIENT), ClientAccess::Limited)
-            .err()
-            .expect("the balance is used");
+            .expect_err("the balance is used");
         // 100 gas is missing. The balance refills by 1 gas per second, so a
         // stall between the two reservations shortens the wait by as many
         // seconds.
