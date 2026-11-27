@@ -344,6 +344,21 @@ pub(crate) fn merge_object(
     max_json_move_value_size: usize,
     mask: &FieldMaskTree,
 ) -> Result<Object, RpcError> {
+    let wants_json = mask_names_field(mask, Object::JSON_FIELD.name);
+    let wants_display = mask_names_field(mask, Object::DISPLAY_FIELD.name);
+
+    // None of the object fields can be produced without the SDK conversion, so
+    // skip it (and its possible failure) when the mask asks for nothing we would
+    // populate. Mirrors the short-circuit in `Merge<iota_types::object::Object>`
+    // and keeps empty-mask reads cheap on the streaming path.
+    if !mask.contains(Object::REFERENCE_FIELD.name)
+        && !mask.contains(Object::BCS_FIELD.name)
+        && !wants_json
+        && !wants_display
+    {
+        return Ok(Object::default());
+    }
+
     let sdk_object: iota_sdk_types::Object =
         source.try_into().map_err(|e: SdkTypeConversionError| {
             RpcError::from(e).with_context("failed to convert object")
@@ -351,9 +366,6 @@ pub(crate) fn merge_object(
 
     let mut object = Object::default();
     object.merge(&sdk_object, mask)?;
-
-    let wants_json = mask_names_field(mask, Object::JSON_FIELD.name);
-    let wants_display = mask_names_field(mask, Object::DISPLAY_FIELD.name);
 
     // `json` and `display` both render from the object's Move type layout;
     // resolve it once (best-effort, as `json` is) and share it between them so a
