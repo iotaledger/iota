@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use eyre::eyre;
+use fastcrypto::hash::HashFunction;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::{
@@ -13,7 +14,7 @@ use move_core_types::runtime_value::{MoveStructLayout, MoveTypeLayout};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    crypto::PublicKey,
+    crypto::{DefaultHash, PublicKey},
     error::{IotaError, IotaResult},
     move_signature_scheme::MoveSignatureScheme,
     signature::{AuthenticatorTrait, VerifyParams},
@@ -116,6 +117,17 @@ impl MovePublicKey {
     /// Returns the `SignatureScheme` for this public key.
     pub fn scheme(&self) -> SignatureScheme {
         self.scheme.into()
+    }
+
+    /// Returns the hash of this public key:
+    /// blake2b256(scheme flag || raw public key bytes).
+    ///
+    /// Unlike [`Self::address`], the flag is hashed for every scheme.
+    pub fn key_id(&self) -> [u8; 32] {
+        let mut hasher = DefaultHash::default();
+        hasher.update([self.scheme.flag()]);
+        hasher.update(&self.raw_bytes);
+        hasher.finalize().digest
     }
 
     /// Derives the `Address` for this public key.

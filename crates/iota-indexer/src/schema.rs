@@ -330,6 +330,15 @@ diesel::table! {
 }
 
 diesel::table! {
+    smart_account_keys (object_id) {
+        object_id -> Bytea,
+        object_version -> Int8,
+        account_id -> Bytea,
+        key_id -> Bytea,
+    }
+}
+
+diesel::table! {
     transactions (tx_sequence_number) {
         tx_sequence_number -> Int8,
         transaction_digest -> Bytea,
@@ -482,6 +491,7 @@ macro_rules! for_all_tables {
             packages,
             protocol_configs,
             pruner_cp_watermark,
+            smart_account_keys,
             transactions,
             tx_calls_fun,
             tx_calls_mod,
