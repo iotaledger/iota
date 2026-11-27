@@ -28,14 +28,14 @@ use parking_lot::Mutex;
 use crate::{metrics::TrafficControllerMetrics, policies::MAX_TRACKED_CLIENTS};
 
 /// The gas balance of a client that has not got all of its `burst-gas`.
-struct Balance {
+struct GasBalance {
     gas: u64,
     /// When `gas` was last refilled. The time a refill did not turn into
     /// whole gas units is kept, so that frequent refills do not lose it.
     refilled_at: Instant,
 }
 
-impl Balance {
+impl GasBalance {
     fn refill(&mut self, now: Instant, settings: &SimulationGasLimitConfig) {
         const NANOS_PER_SEC: u128 = 1_000_000_000;
         let elapsed = now.saturating_duration_since(self.refilled_at).as_nanos();
@@ -142,7 +142,7 @@ pub(crate) struct SimulationGasLimiter {
     max_computation: AtomicU64,
     /// Keyed by the client as `client_prefix` gives it. The clients whose IP
     /// the node could not resolve share the `None` entry.
-    balances: Mutex<LruCache<Option<IpAddr>, Balance>>,
+    balances: Mutex<LruCache<Option<IpAddr>, GasBalance>>,
     metrics: Arc<TrafficControllerMetrics>,
 }
 
@@ -195,7 +195,7 @@ impl SimulationGasLimiter {
             .load(Ordering::Relaxed)
             .min(settings.burst_gas);
         let mut balances = self.balances.lock();
-        let balance = balances.get_or_insert_mut(client, || Balance {
+        let balance = balances.get_or_insert_mut(client, || GasBalance {
             gas: settings.burst_gas,
             refilled_at: now,
         });
@@ -236,7 +236,7 @@ impl SimulationGasLimiter {
             {
                 balances.put(
                     client,
-                    Balance {
+                    GasBalance {
                         gas,
                         refilled_at: now,
                     },
