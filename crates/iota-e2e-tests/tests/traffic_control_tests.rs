@@ -492,11 +492,11 @@ async fn test_fullnode_json_rpc_simulation_gas_limit() -> Result<(), anyhow::Err
         vec![counter_id.to_string()]
     ];
     let (sender, gas) = test_cluster.wallet.get_one_gas_object().await?.unwrap();
-    let rgp = test_cluster.get_reference_gas_price().await;
-    let transaction = TestTransactionBuilder::new(sender, gas, rgp)
+    let reference_gas_price = test_cluster.get_reference_gas_price().await;
+    let transaction = TestTransactionBuilder::new(sender, gas, reference_gas_price)
         .transfer_iota(None, sender)
         .build();
-    let tx_bytes = Base64::from_bytes(&bcs::to_bytes(&transaction)?);
+    let transaction_bytes = Base64::from_bytes(&bcs::to_bytes(&transaction)?);
     let iota_sdk_types::Transaction::V1(transaction_v1) = &transaction else {
         unreachable!("the test transaction is V1")
     };
@@ -520,7 +520,10 @@ async fn test_fullnode_json_rpc_simulation_gas_limit() -> Result<(), anyhow::Err
         .expect("a dev inspect is within the limit");
     assert!(results.error.is_none(), "{results:?}");
     let _: DryRunTransactionBlockResponse = jsonrpc_client
-        .request("iota_dryRunTransactionBlock", rpc_params![tx_bytes.clone()])
+        .request(
+            "iota_dryRunTransactionBlock",
+            rpc_params![transaction_bytes.clone()],
+        )
         .await
         .expect("a dry run is within the limit");
     // The balance is cut to the new burst at its next refill.
@@ -534,7 +537,10 @@ async fn test_fullnode_json_rpc_simulation_gas_limit() -> Result<(), anyhow::Err
         })
         .await?;
     let _: DryRunTransactionBlockResponse = jsonrpc_client
-        .request("iota_dryRunTransactionBlock", rpc_params![tx_bytes.clone()])
+        .request(
+            "iota_dryRunTransactionBlock",
+            rpc_params![transaction_bytes.clone()],
+        )
         .await
         .expect("a full balance is within the limit");
 
@@ -554,7 +560,7 @@ async fn test_fullnode_json_rpc_simulation_gas_limit() -> Result<(), anyhow::Err
     let error = jsonrpc_client
         .request::<DryRunTransactionBlockResponse, _>(
             "iota_dryRunTransactionBlock",
-            rpc_params![tx_bytes],
+            rpc_params![transaction_bytes],
         )
         .await
         .expect_err("the dry run left the balance below the cap");
