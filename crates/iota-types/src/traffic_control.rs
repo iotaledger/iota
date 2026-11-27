@@ -448,6 +448,13 @@ mod tests {
     }
 
     #[test]
+    fn deny_rules_load_by_their_config_name() {
+        let config: super::PolicyConfig =
+            serde_json::from_str(r#"{"access-rules": {"deny": ["192.0.2.0/24"]}}"#).unwrap();
+        assert_eq!(config.access_rules.deny, ["192.0.2.0/24"]);
+    }
+
+    #[test]
     fn the_former_burst_key_still_parses() {
         let config: super::FreqThresholdConfig =
             serde_json::from_str(r#"{"window-size-secs": 7}"#).unwrap();
