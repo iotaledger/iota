@@ -478,13 +478,12 @@ pub(crate) fn parse_access_rule(rule: &str) -> Result<IpNet, String> {
         )
     };
     let network = match network {
-        IpNet::V6(network) => match network.addr().to_ipv4_mapped() {
-            Some(address) if network.prefix_len() >= 96 => IpNet::V4(
-                Ipv4Net::new(address, network.prefix_len() - 96)
-                    .expect("a prefix length of at most 128 - 96 is valid for IPv4"),
-            ),
-            _ => IpNet::V6(network),
-        },
+        IpNet::V6(network) => network
+            .addr()
+            .to_ipv4_mapped()
+            .zip(network.prefix_len().checked_sub(96))
+            .and_then(|(address, prefix_len)| Ipv4Net::new(address, prefix_len).ok())
+            .map_or(IpNet::V6(network), IpNet::V4),
         network => network,
     };
     Ok(network.trunc())
