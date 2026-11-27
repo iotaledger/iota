@@ -628,6 +628,7 @@ pub trait ConsensusStatsAPI {
 #[enum_dispatch(ConsensusStatsAPI)]
 pub enum ConsensusStats {
     V1(ConsensusStatsV1),
+    V2(ConsensusStatsV2),
 }
 
 impl ConsensusStats {
@@ -652,6 +653,79 @@ pub struct ConsensusStatsV1 {
 }
 
 impl ConsensusStatsAPI for ConsensusStatsV1 {
+    fn is_initialized(&self) -> bool {
+        !self.num_messages.is_empty()
+    }
+
+    fn get_num_messages(&self, authority: usize) -> u64 {
+        self.num_messages[authority]
+    }
+
+    fn inc_num_messages(&mut self, authority: usize, num_of_new_messages: u64) -> u64 {
+        self.num_messages[authority] += num_of_new_messages;
+        self.num_messages[authority]
+    }
+
+    fn get_num_user_transactions(&self, authority: usize) -> u64 {
+        self.num_user_transactions[authority]
+    }
+
+    fn inc_num_user_transactions(&mut self, authority: usize) -> u64 {
+        self.num_user_transactions[authority] += 1;
+        self.num_user_transactions[authority]
+    }
+}
+
+/// Per-authority consensus stats that also count absences.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct ConsensusStatsV2 {
+    pub num_messages: Vec<u64>,
+    pub num_user_transactions: Vec<u64>,
+    /// Gaps of at least this many rounds without a committed header of an
+    /// authority count as its absence.
+    pub absent_rounds_min_gap: u64,
+    /// Per authority, the highest round of its committed headers so far, or 0
+    /// before its first one.
+    pub last_committed_header_round: Vec<u64>,
+    /// Per authority, the distinct rounds with a committed header so far.
+    pub num_committed_header_rounds: Vec<u64>,
+    /// Per authority, the rounds counted as absences so far.
+    pub absent_rounds: Vec<u64>,
+}
+
+impl ConsensusStatsV2 {
+    /// Empty stats for `size` authorities that count gaps of at least
+    /// `absent_rounds_min_gap` rounds as absences.
+    pub fn new(size: usize, absent_rounds_min_gap: u64) -> Self {
+        Self {
+            num_messages: vec![0; size],
+            num_user_transactions: vec![0; size],
+            absent_rounds_min_gap,
+            last_committed_header_round: vec![0; size],
+            num_committed_header_rounds: vec![0; size],
+            absent_rounds: vec![0; size],
+        }
+    }
+
+    /// Records a committed header of `authority` at `round`. A round not above
+    /// the authority's last recorded one is ignored. Otherwise the rounds
+    /// since that one (since round 0 for its first header) count in full as
+    /// an absence if there are at least `absent_rounds_min_gap` of them.
+    pub fn record_committed_header_round(&mut self, authority: usize, round: u64) {
+        let last = self.last_committed_header_round[authority];
+        if round <= last {
+            return;
+        }
+        let gap = round - last - 1;
+        if gap >= self.absent_rounds_min_gap {
+            self.absent_rounds[authority] += gap;
+        }
+        self.num_committed_header_rounds[authority] += 1;
+        self.last_committed_header_round[authority] = round;
+    }
+}
+
+impl ConsensusStatsAPI for ConsensusStatsV2 {
     fn is_initialized(&self) -> bool {
         !self.num_messages.is_empty()
     }
@@ -1164,6 +1238,12 @@ pub struct AuthorityEpochTables {
     /// construction.
     pub(crate) received_reports_state:
         DBMap<u8, report_aggregator::DBReceivedReportsStatePerAuthority>,
+
+    /// The scores computed in the commit that completes the EndOfPublish
+    /// quorum, by a scorer version that scores there (singleton, keyed by
+    /// `SINGLETON_KEY`). Written in that commit's batch; read when the store
+    /// opens.
+    pub(crate) final_validator_scores: DBMap<u64, Vec<u64>>,
 }
 
 fn signed_transactions_table_default_config() -> DBOptions {
@@ -1506,6 +1586,13 @@ impl AuthorityPerEpochStore {
         // correct for the fresh-epoch path.
         if protocol_config.calculate_validator_scores() {
             scoreboard.update_scores(&report_aggregator);
+            if let Some(scores) = tables
+                .final_validator_scores
+                .get(&SINGLETON_KEY)
+                .expect("AuthorityEpochTables should be readable")
+            {
+                scoreboard.restore_final_scores(scores);
+            }
         }
 
         let s = Arc::new(Self {
@@ -1729,9 +1816,11 @@ impl AuthorityPerEpochStore {
     }
 
     /// Feeds `report` into this epoch's report aggregator as if `reporter`
-    /// had sent it through consensus, then republishes the score vector. The
-    /// aggregator row is not persisted, so the report does not survive a
-    /// restart of the node.
+    /// had sent it through consensus, then recomputes the scores of scorer
+    /// versions 1 and 2. Scorer version 3 scores only in the commit that
+    /// completes the EndOfPublish quorum, so this call leaves its scores
+    /// unchanged. The aggregator row is not persisted, so the report does not
+    /// survive a restart of the node.
     #[cfg(any(test, feature = "test-utils"))]
     pub fn process_misbehavior_report_for_testing(
         &self,
@@ -1745,8 +1834,9 @@ impl AuthorityPerEpochStore {
         self.scoreboard.update_scores(&self.report_aggregator);
     }
 
-    /// The score vector the checkpoint builder passes to the change-epoch
-    /// transaction, one entry per consensus authority index.
+    /// The latest published scores, one entry per consensus authority index.
+    /// Under scorer version 3 they stay at `MAX_SCORE` until the commit that
+    /// completes the EndOfPublish quorum.
     #[cfg(any(test, feature = "test-utils"))]
     pub fn current_scores_for_testing(&self) -> Vec<u64> {
         self.scoreboard.current_scores()
@@ -4608,6 +4698,15 @@ impl AuthorityPerEpochStore {
         self.consensus_notify_read.notify(&key, &());
     }
 
+    /// The final validator scores of each commit still in the consensus
+    /// quarantine, oldest first.
+    #[cfg(test)]
+    pub(crate) fn queued_final_validator_scores_for_tests(&self) -> Vec<Option<Vec<u64>>> {
+        self.consensus_quarantine
+            .read()
+            .queued_final_validator_scores_for_test()
+    }
+
     #[cfg(test)]
     pub(crate) fn push_consensus_output_for_tests(&self, output: ConsensusCommitOutput) {
         self.consensus_quarantine
@@ -5602,6 +5701,11 @@ impl AuthorityPerEpochStore {
         system_transactions.extend(sequenced_transactions);
         let sequenced_non_randomness_transactions = system_transactions;
 
+        // Only `process_consensus_transactions` below stops accepting consensus
+        // certificates, in the commit where EndOfPublish reaches a quorum.
+        let accepted_consensus_certs = self
+            .get_reconfig_state_read_lock_guard()
+            .should_accept_consensus_certs();
         let (
             verified_non_randomness_transactions,
             verified_randomness_transactions,
@@ -5642,9 +5746,24 @@ impl AuthorityPerEpochStore {
         // All validators see the same `report_state_snapshots` emptiness, so
         // they all skip / run in lock-step — `current_scores` stays consistent
         // across the network.
-        if self.protocol_config().calculate_validator_scores() && output.has_report_state_changes()
-        {
-            self.scoreboard.update_scores(&self.report_aggregator);
+        if self.protocol_config().calculate_validator_scores() {
+            if output.has_report_state_changes() {
+                self.scoreboard.update_scores(&self.report_aggregator);
+            }
+            let completes_end_of_publish_quorum = accepted_consensus_certs
+                && lock
+                    .as_ref()
+                    .is_some_and(|lock| !lock.should_accept_consensus_certs());
+            if completes_end_of_publish_quorum {
+                if let Some(scores) = self.scoreboard.finalize_scores(
+                    &self.report_aggregator,
+                    self.committee.quorum_threshold(),
+                    &consensus_stats.stats,
+                    consensus_commit_info.round,
+                ) {
+                    output.record_final_validator_scores(scores);
+                }
+            }
         }
         self.process_user_signatures(
             verified_non_randomness_transactions

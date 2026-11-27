@@ -99,6 +99,9 @@ pub(crate) struct ConsensusCommitOutput {
     // within one commit.
     report_state_snapshots: BTreeMap<u8, DBReceivedReportsStatePerAuthority>,
 
+    // Scores computed in this commit, which completes the EndOfPublish quorum.
+    final_validator_scores: Option<Vec<u64>>,
+
     // P-COOL owned object locks acquired in this commit
     owned_object_locks: HashMap<ObjectReference, LockDetails>,
 
@@ -208,6 +211,10 @@ impl ConsensusCommitOutput {
     /// commits that can't change the score vector.
     pub(crate) fn has_report_state_changes(&self) -> bool {
         !self.report_state_snapshots.is_empty()
+    }
+
+    pub(crate) fn record_final_validator_scores(&mut self, scores: Vec<u64>) {
+        self.final_validator_scores = Some(scores);
     }
 
     pub fn set_next_shared_object_versions(&mut self, next_versions: HashMap<ObjectId, Version>) {
@@ -465,6 +472,10 @@ impl ConsensusCommitOutput {
                 &tables.received_reports_state,
                 self.report_state_snapshots.iter(),
             )?;
+        }
+
+        if let Some(scores) = self.final_validator_scores {
+            batch.insert_batch(&tables.final_validator_scores, [(SINGLETON_KEY, scores)])?;
         }
 
         if !self.owned_object_locks.is_empty() {
@@ -1161,6 +1172,15 @@ impl ConsensusOutputQuarantine {
             }
         }
         notifications
+    }
+
+    /// The final validator scores of each queued commit, oldest first.
+    #[cfg(test)]
+    pub(super) fn queued_final_validator_scores_for_test(&self) -> Vec<Option<Vec<u64>>> {
+        self.output_queue
+            .iter()
+            .map(|output| output.final_validator_scores.clone())
+            .collect()
     }
 
     #[cfg(test)]

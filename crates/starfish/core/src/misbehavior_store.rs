@@ -233,7 +233,7 @@ impl MisbehaviorStore {
         if persisted_changed {
             let counts = self.persisted.snapshot(idx);
             let persisted = match context.protocol_config.scorer_version_as_option() {
-                Some(2) => MisbehaviorCounts::V2(counts),
+                Some(2) | Some(3) => MisbehaviorCounts::V2(counts),
                 _ => MisbehaviorCounts::V1(counts.fold_into_v1()),
             };
             Some(persisted)
@@ -1094,6 +1094,32 @@ mod tests {
 
         // V1 row: the one bundle part folds into unprovable (1 + 1).
         assert_eq!(result, Some(MisbehaviorCounts::new_v1_for_test(0, 2, 0, 0)));
+
+        // Scorer version 3 reads version 2 counts, so rows keep the bundle
+        // parts apart.
+        for version in [2, 3] {
+            let mut context = Context::new_for_test(4).0;
+            context
+                .protocol_config
+                .set_scorer_version_for_testing(version);
+            let context = Arc::new(context);
+            let store = MisbehaviorStore::new(&context);
+            store.record_faulty_block(
+                authority,
+                None,
+                &ConsensusError::MalformedShard(bcs::Error::Custom("bad".to_string())),
+            );
+            let result =
+                store.update_misbehavior_counts(authority, &BTreeSet::new(), 0, 1, &context);
+            let Some(MisbehaviorCounts::V2(counts)) = result else {
+                panic!("scorer version {version} must persist V2 rows, got {result:?}");
+            };
+            assert_eq!(
+                (counts.faulty_blocks_unprovable, counts.invalid_bundle_parts),
+                (0, 1),
+                "scorer version {version}"
+            );
+        }
     }
 
     #[tokio::test]

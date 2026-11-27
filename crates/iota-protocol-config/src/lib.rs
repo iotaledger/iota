@@ -1834,9 +1834,18 @@ pub struct ProtocolConfig {
     /// formulas and metrics to be used. Even if set to None, the Scorer
     /// component is created, having access to metrics and being able to expose
     /// validator scores. Also gates the wire format of the
-    /// `MisbehaviorReport` consensus transaction — scorer and report bump
-    /// together.
+    /// `MisbehaviorReport` consensus transaction: scorers 1 and 2 use reports
+    /// of the same version, and scorer 3 uses version 2 reports. Scorer 3
+    /// needs `consensus_absent_rounds_min_gap`.
     scorer_version: Option<u16>,
+
+    /// Minimum number of rounds without a committed header of an authority for
+    /// the gap to count in full as its absence when its next header is
+    /// committed. The gap can include rounds in which the authority produced
+    /// headers that were never committed. The value when an epoch's consensus
+    /// stats are created holds for the whole epoch; with `None`, that epoch
+    /// counts no absences.
+    consensus_absent_rounds_min_gap: Option<u64>,
 
     // `auth_context` module
     // Cost params for the Move native function `native_digest(): vector<u8>`
@@ -2740,6 +2749,13 @@ impl ProtocolConfig {
             "deny_rule_update_max_entries_per_tx must be positive, at most {DENY_RULE_UPDATE_MAX_ENTRIES_PER_TX_CEILING}, and within the system transaction object limits"
         );
 
+        // Scorer version 3 reads the absences that this setting turns on.
+        assert!(
+            ret.scorer_version.is_none_or(|version| version < 3)
+                || ret.consensus_absent_rounds_min_gap.is_some(),
+            "scorer_version 3 and above require consensus_absent_rounds_min_gap"
+        );
+
         if ret.enable_validator_attestation() {
             assert!(
                 ret.enable_pcool_flow(),
@@ -3337,6 +3353,7 @@ impl ProtocolConfig {
             pcool_deterministic_validation_horizon_distance: None,
 
             scorer_version: None,
+            consensus_absent_rounds_min_gap: None,
 
             // `auth_context` module
             auth_context_digest_cost_base: None,
@@ -5096,6 +5113,16 @@ mod test {
             config.enable_validator_attestation(),
             "the latest devnet configuration should run attestation"
         );
+    }
+
+    #[test]
+    #[should_panic(expected = "scorer_version 3 and above require consensus_absent_rounds_min_gap")]
+    fn scorer_version_3_without_absences_is_rejected() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_scorer_version_for_testing(3);
+            config
+        });
+        let _ = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
     }
 
     /// A zero chunk limit would make every delta unsplittable; the pure
