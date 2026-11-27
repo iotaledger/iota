@@ -784,6 +784,7 @@ mod tests {
 
         manager.block_proxied_client(CLIENT, BlockReason::Spam);
         assert!(!manager.check(&None, &Some(CLIENT)).is_served());
+        assert_eq!(manager.metrics.requests_blocked_at_protocol.get(), 2);
     }
 
     #[tokio::test]
@@ -899,6 +900,7 @@ mod tests {
         assert_eq!(manager.check(&Some(CLIENT), &None), ClientAccess::Refused);
         assert_eq!(manager.metrics.deny_rule_requests.get(), 1);
         assert_eq!(manager.check(&ip("10.0.0.2"), &None), ClientAccess::Limited);
+        assert_eq!(manager.metrics.requests_blocked_at_protocol.get(), 1);
     }
 
     #[tokio::test]
@@ -981,6 +983,9 @@ mod tests {
         assert_eq!(denying.check(&ip("10.0.0.2"), &None), ClientAccess::Refused);
         assert_eq!(denying.check(&None, &None), ClientAccess::Refused);
         assert_eq!(denying.metrics.unresolved_client_requests.get(), 1);
+        assert_eq!(denying.metrics.requests_blocked_at_protocol.get(), 2);
+        assert_eq!(denying.metrics.allow_rules.get(), 1);
+        assert_eq!(denying.metrics.default_deny.get(), 1);
 
         let dry_run_manager = manager(PolicyConfig {
             dry_run: true,
@@ -1040,7 +1045,7 @@ mod tests {
     async fn an_ipv6_deny_rule_longer_than_the_client_prefix_is_warned_about() {
         let warnings = startup_warnings(with_rules(
             &[],
-            &["2001:db8::/48", "2001:db8:1::1/128"],
+            &["2001:db8::/48", "2001:db8:2::/64", "2001:db8:1::1/128"],
             DefaultAction::Limit,
         ));
         assert_eq!(warnings.len(), 1, "{warnings:?}");
@@ -1083,6 +1088,7 @@ mod tests {
     #[tokio::test]
     async fn a_rule_changed_at_runtime_applies_to_the_next_check() {
         let manager = manager(base_policy_config(false, 120));
+        assert_eq!(manager.metrics.default_deny.get(), 0);
         let rule = parse_access_rule("10.0.0.0/24").unwrap();
         assert!(manager.add_rule(AccessRuleList::Deny, rule));
         assert!(!manager.add_rule(AccessRuleList::Deny, rule));
@@ -1094,6 +1100,7 @@ mod tests {
             parse_access_rule("10.0.0.1").unwrap()
         ));
         assert_eq!(manager.check(&Some(CLIENT), &None), ClientAccess::Allowed);
+        assert_eq!(manager.metrics.allow_rules.get(), 1);
 
         assert!(manager.remove_rule(AccessRuleList::Deny, rule));
         assert!(!manager.remove_rule(AccessRuleList::Deny, rule));
