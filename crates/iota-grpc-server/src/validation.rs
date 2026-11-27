@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_grpc_types::{
-    field::{FieldMaskTree, FieldMaskUtil, MessageFields},
+    field::{FieldMaskTree, FieldMaskUtil, MessageFields, SERVER_RENDERED_FIELD_NAMES},
     google::rpc::bad_request::FieldViolation,
     v1::{
         error_reason::ErrorReason,
@@ -25,7 +25,13 @@ pub(crate) fn validate_read_mask<M: MessageFields>(
             .with_description(format!("invalid read_mask path: {path}"))
             .with_reason(ErrorReason::FieldInvalid)
     })?;
-    Ok(FieldMaskTree::from(read_mask))
+    // Keep explicit-only leaves (`json`/`display`/`json_name`/`json_contents`)
+    // alongside their parent path, so a request for a parent *and* one of these
+    // fields renders the field rather than collapsing to the bare parent.
+    Ok(FieldMaskTree::from_field_mask_with_exceptions(
+        &read_mask,
+        SERVER_RENDERED_FIELD_NAMES,
+    ))
 }
 
 /// Validate and extract a required `ObjectId` proto field as an internal

@@ -119,3 +119,16 @@ pub(crate) fn render_json(
         .map_err(|e| tracing::debug!("unable to convert move value to JSON: {e}"))
         .ok()
 }
+
+/// Returns `true` only when `field` is named explicitly in `mask`, rather than
+/// merely covered by a `*` wildcard or a bare parent.
+///
+/// Fields rendered from Move type layouts (an event's `json_contents`, a command
+/// output's `json`) are gated on this, so the heavy layout resolution runs only
+/// when the client asks for the field by name.
+pub(crate) fn mask_names_field(mask: &iota_grpc_types::field::FieldMaskTree, field: &str) -> bool {
+    // `explicit_children`, not `map_keys`: a node may be a wildcard for its
+    // ordinary fields yet still carry an explicit-only leaf (a `json` requested
+    // alongside a bare parent), which `map_keys` reports as "no filter".
+    mask.explicit_children().any(|name| name == field)
+}

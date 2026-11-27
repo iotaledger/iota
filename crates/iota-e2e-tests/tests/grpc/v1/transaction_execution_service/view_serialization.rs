@@ -148,7 +148,17 @@ async fn call(
         .with_fq_function_name(fq_function_name)
         .with_type_args(vec![])
         .with_inputs(inputs);
-    let request = ViewFunctionCallsRequest::default().with_view_function_calls(vec![item]);
+    // Keep the default response fields and additionally name the server-rendered
+    // `json`, which a bare parent no longer renders on its own — these tests
+    // assert the rendered json values.
+    let request = ViewFunctionCallsRequest::default()
+        .with_view_function_calls(vec![item])
+        .with_read_mask(FieldMask {
+            paths: vec![
+                "execution_result".to_string(),
+                "execution_result.return_values.json".to_string(),
+            ],
+        });
     exec_client
         .view_function_calls(request)
         .await
@@ -354,7 +364,14 @@ async fn per_call_failures_are_independent() {
             .with_type_args(vec![])
             .with_inputs(vec![]),
     ];
-    let request = ViewFunctionCallsRequest::default().with_view_function_calls(items);
+    let request = ViewFunctionCallsRequest::default()
+        .with_view_function_calls(items)
+        .with_read_mask(FieldMask {
+            paths: vec![
+                "execution_result".to_string(),
+                "execution_result.return_values.json".to_string(),
+            ],
+        });
 
     let response = exec_client
         .view_function_calls(request)
@@ -521,7 +538,14 @@ async fn calls_are_batched_across_requests() {
             .collect();
         let response = exec_client
             .view_function_calls(
-                ViewFunctionCallsRequest::default().with_view_function_calls(items),
+                ViewFunctionCallsRequest::default()
+                    .with_view_function_calls(items)
+                    .with_read_mask(FieldMask {
+                        paths: vec![
+                            "execution_result".to_string(),
+                            "execution_result.return_values.json".to_string(),
+                        ],
+                    }),
             )
             .await
             .expect("each batch request should succeed")
@@ -590,7 +614,8 @@ async fn read_mask_selects_output_fields() {
     assert!(output.json.is_some(), "json should be present");
     assert!(output.bcs.is_none(), "bcs should be excluded");
 
-    // Selecting the whole `return_values` yields every command-output field.
+    // Selecting the whole `return_values` yields every command-output field
+    // except the server-rendered `json`, which a bare parent does not pull in.
     let response = call_with_mask(
         &mut exec_client,
         &fq,
@@ -601,8 +626,9 @@ async fn read_mask_selects_output_fields() {
     .expect("a valid read mask should be accepted");
     let output = single_command_output(&response);
     assert!(
-        output.bcs.is_some() && output.json.is_some() && output.type_tag.is_some(),
-        "the whole return_values subtree should include every field: {output:?}"
+        output.bcs.is_some() && output.type_tag.is_some() && output.json.is_none(),
+        "a bare return_values subtree should include every field but the \
+         explicitly-requested json: {output:?}"
     );
 
     // Paths that are not valid fields of `ViewFunctionCallOutputs` are rejected
