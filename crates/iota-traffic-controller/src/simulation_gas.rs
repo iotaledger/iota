@@ -211,7 +211,7 @@ impl SimulationGasLimiter {
         }
         self.metrics.simulation_gas_refusals.inc();
         let missing = reservation - balance.gas;
-        let retry_after_secs = missing.div_ceil(settings.gas_per_sec).max(1);
+        let retry_after_secs = missing.div_ceil(settings.gas_per_sec);
         Err(SimulationGasRefusal {
             retry_after: Duration::from_secs(retry_after_secs),
         })
@@ -380,6 +380,20 @@ mod tests {
         assert_eq!(
             limiter.reserve(Some(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 2))), false, now),
             Ok(Some(100))
+        );
+    }
+
+    #[test]
+    fn the_retry_time_is_rounded_up_to_a_whole_second() {
+        let limiter = limiter(40, 150);
+        let now = Instant::now();
+        assert_eq!(limiter.reserve(CLIENT, false, now), Ok(Some(100)));
+        // 50 missing at 40 per second take 1.25 s.
+        assert_eq!(
+            limiter.reserve(CLIENT, false, now),
+            Err(SimulationGasRefusal {
+                retry_after: Duration::from_secs(2)
+            })
         );
     }
 
