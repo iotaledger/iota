@@ -529,16 +529,22 @@ pub(crate) enum SchedulingResult {
 /// certificates. The renaming is safe and backward-compatible since this is a
 /// fully internal type.
 pub enum CancelConsensusTransactionReason {
-    /// Transaction was cancelled due to congestion: either on objects it
-    /// touches, or on the execution-worker pool.
-    Congested {
-        /// IDs of the congested objects the transaction touches. Empty when
-        /// the execution-worker pool, rather than any object, was congested
-        /// and the transaction has no shared inputs.
+    /// Transaction was cancelled due to congestion on shared objects it
+    /// touches.
+    SharedObjectCongestion {
+        /// IDs of the congested objects, never empty.
         congested_objects: Vec<ObjectId>,
 
         /// Optional suggested gas price from the gas price feedback
         /// mechanism.
+        suggested_gas_price: Option<u64>,
+    },
+
+    /// Transaction was cancelled due to congestion on the execution-worker
+    /// pool. No object is the cause.
+    ExecutionWorkerCongestion {
+        /// Suggested gas price from the gas price feedback mechanism, which
+        /// execution-worker congestion control requires.
         suggested_gas_price: Option<u64>,
     },
 
@@ -3524,10 +3530,7 @@ impl AuthorityPerEpochStore {
                 self.count_dependency_deferral(&deferral_key, authority_metrics);
                 let result = SchedulingResult::Defer(
                     deferral_key,
-                    DeferralReason::Congestion {
-                        congested_objects: Vec::new(),
-                        for_dependency: true,
-                    },
+                    DeferralReason::PendingTransactionDependency,
                 );
                 tracing::Span::current()
                     .record("scheduling_result", tracing::field::debug(&result));
@@ -3551,13 +3554,15 @@ impl AuthorityPerEpochStore {
                 commit_round,
             ) {
                 SequencingResult::Defer(deferral_key, congested_objects) => {
-                    SchedulingResult::Defer(
-                        deferral_key,
-                        DeferralReason::Congestion {
-                            congested_objects,
-                            for_dependency: false,
-                        },
-                    )
+                    // The tracker names no object when the transaction fits
+                    // its shared objects and only the execution workers are
+                    // full.
+                    let reason = if congested_objects.is_empty() {
+                        DeferralReason::ExecutionWorkerCongestion
+                    } else {
+                        DeferralReason::SharedObjectCongestion { congested_objects }
+                    };
+                    SchedulingResult::Defer(deferral_key, reason)
                 }
                 SequencingResult::DeferForDependency(deferral_key, dependency) => {
                     debug!(
@@ -3568,10 +3573,7 @@ impl AuthorityPerEpochStore {
                     self.count_dependency_deferral(&deferral_key, authority_metrics);
                     SchedulingResult::Defer(
                         deferral_key,
-                        DeferralReason::Congestion {
-                            congested_objects: Vec::new(),
-                            for_dependency: true,
-                        },
+                        DeferralReason::PendingTransactionDependency,
                     )
                 }
                 SequencingResult::Schedule(start_time) => SchedulingResult::Schedule(start_time),
@@ -5987,23 +5989,22 @@ impl AuthorityPerEpochStore {
         let mut shared_input_next_version = HashMap::new();
         for txn in transactions.iter() {
             let key = txn.key();
-            match key.as_digest().and_then(|d| cancelled_txns.get(d)) {
-                Some(CancelConsensusTransactionReason::Congested { .. })
-                | Some(CancelConsensusTransactionReason::DkgFailed) => {
-                    let version_assignments = SharedObjVerManager::assign_versions_for_transaction(
-                        self,
-                        txn,
-                        &mut shared_input_next_version,
-                        cancelled_txns,
-                        self.protocol_config
-                            .congestion_control_gas_price_feedback_mechanism(),
-                    );
-                    cancelled_transactions.push(CanceledTransaction {
-                        digest: *key.unwrap_digest(),
-                        version_assignments,
-                    });
-                }
-                None => {}
+            if key
+                .as_digest()
+                .is_some_and(|digest| cancelled_txns.contains_key(digest))
+            {
+                let version_assignments = SharedObjVerManager::assign_versions_for_transaction(
+                    self,
+                    txn,
+                    &mut shared_input_next_version,
+                    cancelled_txns,
+                    self.protocol_config
+                        .congestion_control_gas_price_feedback_mechanism(),
+                );
+                cancelled_transactions.push(CanceledTransaction {
+                    digest: *key.unwrap_digest(),
+                    version_assignments,
+                });
             }
         }
 
@@ -7209,25 +7210,17 @@ impl AuthorityPerEpochStore {
                             suggested_gas_price: None,
                         }
                     }
-                    DeferralReason::Congestion {
-                        congested_objects,
-                        for_dependency,
-                    } => {
-                        // A deferral caused by execution-worker congestion
-                        // reports no congested objects, and neither does a
-                        // wait for the transaction dependency.
-                        let congestion_reason = if for_dependency {
-                            "transaction_dependency"
-                        } else if congested_objects.is_empty() {
-                            "execution_worker_congestion"
-                        } else {
-                            "shared_object_congestion"
-                        };
+                    reason => {
+                        let congestion_reason = reason
+                            .metric_label()
+                            .expect("every deferral but one for randomness has a label");
                         authority_metrics
                             .consensus_handler_congested_transactions
                             .with_label_values(&[congestion_reason])
                             .inc();
 
+                        let for_dependency =
+                            matches!(reason, DeferralReason::PendingTransactionDependency);
                         let within_limit = transaction_deferral_within_limit(
                             &deferral_key,
                             self.protocol_config()
@@ -7283,6 +7276,43 @@ impl AuthorityPerEpochStore {
                                 .consensus_handler_cancelled_transactions
                                 .with_label_values(&[congestion_reason])
                                 .inc();
+
+                            let cancellation = match reason {
+                                DeferralReason::SharedObjectCongestion { congested_objects } => {
+                                    CancelConsensusTransactionReason::SharedObjectCongestion {
+                                        congested_objects,
+                                        suggested_gas_price,
+                                    }
+                                }
+                                DeferralReason::ExecutionWorkerCongestion => {
+                                    CancelConsensusTransactionReason::ExecutionWorkerCongestion {
+                                        suggested_gas_price,
+                                    }
+                                }
+                                // A wait for the transaction dependency is reported as
+                                // congestion: of all the shared inputs, or of the execution
+                                // workers for a transaction without shared inputs.
+                                DeferralReason::PendingTransactionDependency => {
+                                    let shared_inputs: Vec<_> = verified_executable_tx
+                                        .shared_input_objects()
+                                        .iter()
+                                        .map(|obj| obj.object_id)
+                                        .collect();
+                                    if shared_inputs.is_empty() {
+                                        CancelConsensusTransactionReason::ExecutionWorkerCongestion {
+                                            suggested_gas_price,
+                                        }
+                                    } else {
+                                        CancelConsensusTransactionReason::SharedObjectCongestion {
+                                            congested_objects: shared_inputs,
+                                            suggested_gas_price,
+                                        }
+                                    }
+                                }
+                                DeferralReason::RandomnessNotReady => {
+                                    unreachable!("a wait for randomness is always deferred")
+                                }
+                            };
                             if let Some(suggested_gas_price) = suggested_gas_price {
                                 authority_metrics
                                     .consensus_handler_suggested_gas_price_increase
@@ -7291,38 +7321,17 @@ impl AuthorityPerEpochStore {
                                         verified_executable_tx.transaction().gas_price(),
                                     ) as f64);
                             }
-
-                            // A deferral caused by execution-worker congestion, or by a wait
-                            // for the transaction dependency, reports no congested objects.
-                            // Cancellation is signalled through assigned versions on the
-                            // transaction's shared inputs, so treat all of them as congested;
-                            // the suggested gas price is what matters to the client either
-                            // way. A transaction without shared inputs is handled in version
-                            // assignment via its gas object instead.
-                            let congested_objects = if congested_objects.is_empty() {
-                                verified_executable_tx
-                                    .shared_input_objects()
-                                    .iter()
-                                    .map(|obj| obj.object_id)
-                                    .collect()
-                            } else {
-                                congested_objects
-                            };
                             debug!(
                                 "Cancelling verified executable transaction {:?} with deferral \
-                                    key {deferral_key:?} due to congestion on objects \
-                                    {congested_objects:?}: actual gas price: {}, suggested gas \
-                                    price: {suggested_gas_price:?}",
+                                    key {deferral_key:?} for {congestion_reason}: actual gas \
+                                    price: {}, suggested gas price: {suggested_gas_price:?}",
                                 verified_executable_tx.digest(),
                                 verified_executable_tx.transaction().gas_price(),
                             );
 
                             ConsensusTransactionResult::Cancelled((
                                 verified_executable_tx,
-                                CancelConsensusTransactionReason::Congested {
-                                    congested_objects,
-                                    suggested_gas_price,
-                                },
+                                cancellation,
                             ))
                         }
                     }

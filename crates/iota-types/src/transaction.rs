@@ -3530,22 +3530,21 @@ impl ObjectReadResult {
 pub enum CancelledObjects {
     /// The transaction's shared inputs, reported as the congested objects.
     SharedObjects(Vec<ObjectId>),
-    /// The gas object of a transaction without shared inputs. Consensus only
-    /// assigns a cancellation version there when the execution workers are
-    /// congested, so no individual object is responsible and none is
-    /// reported.
+    /// The gas object. It carries the cancellation version when a
+    /// transaction is cancelled at sequencing for congestion of the execution
+    /// workers, which no object causes. No object is reported.
     GasObject,
 }
 
 #[derive(Clone)]
 pub struct InputObjects {
     objects: Vec<ObjectReadResult>,
-    /// Cancellation version assigned to the gas object when a transaction
-    /// without shared inputs is cancelled by consensus (execution-worker
-    /// congestion). Transactions with shared inputs carry cancellation
-    /// versions on their shared object read results instead. Unlike those,
-    /// the gas object itself is still read normally, because the cancelled
-    /// execution must charge gas to it.
+    /// Cancellation version assigned to the gas object when a transaction is
+    /// cancelled at sequencing for congestion of the execution workers, which
+    /// no object causes. Its shared inputs, if any, are cancelled read
+    /// results that name no cause. Unlike those, the gas object itself is
+    /// still read normally, because the cancelled execution must charge gas
+    /// to it.
     gas_object_cancellation: Option<(ObjectId, Version)>,
     /// The transaction named by the transaction dependency input, with
     /// whether it executed successfully. Set when the input objects are read
@@ -3626,17 +3625,26 @@ impl InputObjects {
     }
 
     /// Marks this transaction as cancelled via the version assigned to its
-    /// gas object. Only valid for transactions without shared inputs; a
-    /// transaction with shared inputs carries cancellation versions on its
-    /// shared object read results.
+    /// gas object.
+    ///
+    /// # Panics
+    ///
+    /// If `version` is no cancellation version, or if a shared input was
+    /// read: a cancelled transaction reads none of its shared inputs.
     pub fn set_gas_object_cancellation(&mut self, gas_object_id: ObjectId, version: Version) {
         assert!(
             version.is_canceled(),
             "gas object cancellation must use a cancellation version, got {version:?}"
         );
         assert!(
-            !self.objects.iter().any(|obj| obj.is_shared_object()),
-            "transactions with shared inputs carry cancellation on their shared objects"
+            self.objects.iter().all(|obj| {
+                !obj.is_shared_object()
+                    || matches!(
+                        obj.object,
+                        ObjectReadResultKind::CancelledTransactionObject(_)
+                    )
+            }),
+            "a transaction cancelled through its gas object reads none of its shared inputs"
         );
         self.gas_object_cancellation = Some((gas_object_id, version));
     }

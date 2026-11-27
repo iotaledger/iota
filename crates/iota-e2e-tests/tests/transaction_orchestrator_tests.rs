@@ -21,7 +21,7 @@ use iota_storage::{
 };
 use iota_test_transaction_builder::{
     TestTransactionBuilder, batch_make_transfer_transactions, make_staking_transaction,
-    make_transfer_iota_transaction,
+    make_transfer_iota_transaction, publish_basics_package,
 };
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
@@ -1679,6 +1679,196 @@ async fn test_execution_worker_congestion_cancellation_validator_restart()
         let submissions = batch
             .iter()
             .map(|(address, obj)| submit_transfer(*address, *obj, rgp));
+        let results = futures::future::join_all(submissions).await;
+        for result in &results {
+            let Ok((response, _)) = result else {
+                continue;
+            };
+            if cancelled_congestion_suggested_gas_price(&response.effects.effects).is_some() {
+                cancelled_after_restart = true;
+                break 'bursts;
+            }
+        }
+    }
+    assert!(
+        cancelled_after_restart,
+        "the cluster must keep cancelling under congestion after the restart"
+    );
+
+    Ok(())
+}
+
+/// As `test_execution_worker_congestion_cancellation_validator_restart`, for
+/// transactions with a shared input. Each transaction of a burst increments
+/// its own shared counter, so every counter stays within its budget and only
+/// the single execution worker is congested: the cancelled transactions
+/// report execution-worker congestion, not congestion of their counter. A
+/// validator restarted after such a commit must re-derive the cancellation,
+/// or it would fork.
+#[sim_test]
+async fn test_execution_worker_congestion_cancellation_with_shared_inputs_validator_restart()
+-> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_per_object_congestion_control_mode_for_testing(
+            iota_protocol_config::PerObjectCongestionControlMode::TotalTxCount,
+        );
+        config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(1);
+        config.set_max_congestion_limit_overshoot_per_commit_for_testing(0);
+        config.set_separate_gas_price_feedback_mechanism_for_randomness_for_testing(false);
+        config.set_max_concurrent_execution_workers_for_testing(1);
+        config.set_max_deferral_rounds_for_congestion_control_for_testing(0);
+        config
+    });
+
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let context = &test_cluster.wallet;
+    let handle = &test_cluster.fullnode_handle.iota_node;
+    let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
+    let rgp = context.get_reference_gas_price().await?;
+
+    let submit = |data: iota_sdk_types::Transaction| {
+        let txn = context.sign_transaction(&data);
+        orchestrator.execute_transaction_block(
+            ExecuteTransactionRequestV1 {
+                transaction: txn,
+                include_events: false,
+                include_input_objects: false,
+                include_output_objects: false,
+                include_auxiliary_data: false,
+            },
+            ExecuteTransactionRequestType::WaitForEffectsCert,
+            Some(make_socket_addr()),
+        )
+    };
+
+    // One shared counter per transaction of a burst. They are created one
+    // after the other, so each creation is alone in its commit and fits the
+    // single execution worker.
+    const COUNTERS: usize = 5;
+    let package_id = publish_basics_package(context).await.object_id;
+    let accounts_and_objs = context.get_all_accounts_and_gas_objects().await?;
+    let mut counters = Vec::with_capacity(COUNTERS);
+    for (address, gas_object) in accounts_and_objs
+        .iter()
+        .flat_map(|(address, objs)| objs.iter().map(|obj| (*address, *obj)))
+        .take(COUNTERS)
+    {
+        let (response, _) = submit(
+            TestTransactionBuilder::new(address, gas_object, rgp)
+                .call_counter_create(package_id)
+                .build(),
+        )
+        .await
+        .expect("a transaction alone in its commit is not cancelled");
+        let effects = &response.effects.effects;
+        assert!(effects.status().is_success());
+        counters.push(
+            *effects
+                .created()
+                .iter()
+                .find(|created| created.owner().is_shared())
+                .expect("the transaction creates a shared counter")
+                .reference(),
+        );
+    }
+
+    let submit_increment =
+        |address, gas_object: ObjectReference, counter: ObjectReference, gas_price: u64| {
+            submit(
+                TestTransactionBuilder::new(address, gas_object, gas_price)
+                    .call_counter_increment(package_id, counter.object_id, counter.version)
+                    .build(),
+            )
+        };
+
+    // Burst increments until one is cancelled. The gas objects are not the
+    // ones that paid for the counters, since the wallet's fullnode may not
+    // have caught up with those yet. A submission the validators reject for a
+    // stale gas object is skipped for the same reason.
+    let mut congested: Option<(
+        iota_sdk_types::Address,
+        ObjectReference,
+        ObjectReference,
+        u64,
+    )> = None;
+    'bursts: for _ in 0..5 {
+        let accounts_and_objs = context.get_all_accounts_and_gas_objects().await?;
+        let batch: Vec<_> = accounts_and_objs
+            .iter()
+            .flat_map(|(address, objs)| objs.iter().map(|obj| (*address, *obj)))
+            .skip(COUNTERS)
+            .zip(&counters)
+            .map(|((address, gas_object), counter)| (address, gas_object, *counter))
+            .collect();
+        let submissions = batch.iter().map(|(address, gas_object, counter)| {
+            submit_increment(*address, *gas_object, *counter, rgp)
+        });
+        let results = futures::future::join_all(submissions).await;
+        for ((address, gas_object, counter), result) in batch.iter().zip(&results) {
+            let Ok((response, _)) = result else {
+                continue;
+            };
+            let effects = &response.effects.effects;
+            if effects.status().is_success() {
+                continue;
+            }
+            // Every counter is within its budget, so the execution worker is
+            // the only cause of a cancellation.
+            let suggested_gas_price = cancelled_congestion_suggested_gas_price(effects)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "expected execution-worker congestion, got {:?}",
+                        effects.status()
+                    )
+                });
+            // The cancelled execution charged gas, so the gas object's
+            // version moved: take the current reference from the certified
+            // effects.
+            let charged_gas_object = *effects
+                .mutated()
+                .iter()
+                .find(|mutated| mutated.reference().object_id == gas_object.object_id)
+                .expect("the cancelled execution charges the gas object")
+                .reference();
+            congested = Some((*address, charged_gas_object, *counter, suggested_gas_price));
+            break 'bursts;
+        }
+    }
+    let (address, gas_object, counter, suggested_gas_price) =
+        congested.expect("a burst of concurrent transactions should overload a 1-tx commit");
+
+    // Restart a validator: its recovery replays the commit that cancelled the
+    // transaction (or executes the synced checkpoint), and must reproduce the
+    // cancellation exactly. The sleep between stop and start lets the stopped
+    // node release its database before the restart reopens it.
+    let validator = test_cluster.get_validator_pubkeys()[0];
+    test_cluster.stop_node(&validator);
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    test_cluster.start_node(&validator).await;
+    tokio::time::sleep(Duration::from_secs(5)).await;
+
+    // The resubmission at the suggested gas price must finalize.
+    let (response, _) = submit_increment(address, gas_object, counter, suggested_gas_price)
+        .await
+        .expect("resubmission at the suggested gas price should be accepted");
+    assert!(response.effects.effects.status().is_success());
+
+    // Under continued congestion the cluster, including the restarted
+    // validator, must still agree on cancellations.
+    let mut cancelled_after_restart = false;
+    'bursts: for _ in 0..5 {
+        let accounts_and_objs = context.get_all_accounts_and_gas_objects().await?;
+        let batch: Vec<_> = accounts_and_objs
+            .iter()
+            .flat_map(|(address, objs)| objs.iter().map(|obj| (*address, *obj)))
+            .skip(COUNTERS)
+            .zip(&counters)
+            .map(|((address, gas_object), counter)| (address, gas_object, *counter))
+            .collect();
+        let submissions = batch.iter().map(|(address, gas_object, counter)| {
+            submit_increment(*address, *gas_object, *counter, rgp)
+        });
         let results = futures::future::join_all(submissions).await;
         for result in &results {
             let Ok((response, _)) = result else {
