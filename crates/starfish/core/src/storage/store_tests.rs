@@ -9,9 +9,10 @@ use tempfile::TempDir;
 
 use super::{Store, WriteBatch, mem_store::MemStore, rocksdb_store::RocksDBStore};
 use crate::{
+    Transaction,
     block_header::{
-        BlockHeaderAPI, BlockHeaderDigest, BlockRef, Slot, TestBlockHeader, TransactionsCommitment,
-        VerifiedBlock,
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, CommitmentVerifiedTransactions, Slot,
+        TestBlockHeader, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
     },
     commit::{CommitDigest, CommitRef, TrustedCommit},
     transaction_ref::TransactionRef,
@@ -274,93 +275,66 @@ async fn read_and_contain_transactions(
 ) {
     let store = test_store.store();
 
-    let written_blocks = [
-        VerifiedBlock::new_for_test(TestBlockHeader::new(9, 0).build()),
-        VerifiedBlock::new_for_test(TestBlockHeader::new(10, 0).build()),
-        VerifiedBlock::new_for_test(TestBlockHeader::new(10, 1).build()),
-        VerifiedBlock::new_for_test(TestBlockHeader::new(11, 1).build()),
-        VerifiedBlock::new_for_test(TestBlockHeader::new(11, 3).build()),
-        VerifiedBlock::new_for_test(TestBlockHeader::new(12, 1).build()),
-    ];
-    // Write transactions to store
-    let written_transactions: Vec<_> = written_blocks
-        .iter()
-        .map(|b| b.verified_transactions.clone())
+    // Each block gets distinct payload bytes: payload equality compares only
+    // the commitment, which every test header shares.
+    let written_transactions: Vec<_> = [(9, 0), (10, 0), (10, 1), (11, 1), (11, 3), (12, 1)]
+        .into_iter()
+        .enumerate()
+        .map(|(i, (round, author))| {
+            let header =
+                VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, author).build());
+            CommitmentVerifiedTransactions::new_for_test(
+                &header,
+                vec![Transaction::new(vec![i as u8; 16])],
+            )
+        })
         .collect();
     store
-        .write(WriteBatch::default().transactions(written_transactions))
+        .write(WriteBatch::default().transactions(written_transactions.clone()))
         .unwrap();
-    // Also write headers since we read transaction commitment from headers now
-    let written_headers = written_blocks
+    let read_serialized = |refs: &[TransactionRef]| -> Vec<Option<Bytes>> {
+        store
+            .read_verified_transactions(refs)
+            .unwrap()
+            .into_iter()
+            .map(|transactions| transactions.map(|t| t.serialized().clone()))
+            .collect()
+    };
+
+    let refs: Vec<_> = written_transactions
         .iter()
-        .map(|b| b.verified_block_header.clone())
+        .map(|t| t.transaction_ref())
         .collect();
-    store
-        .write(WriteBatch::default().block_headers(written_headers))
-        .unwrap();
-
-    // Test reading all transactions
-    let refs: Vec<_> = written_blocks
+    let expected: Vec<_> = written_transactions
         .iter()
-        .map(|b| b.verified_block_header.transaction_ref())
+        .map(|t| Some(t.serialized().clone()))
         .collect();
-    let read_txs = store
-        .read_verified_transactions(&refs)
-        .expect("Read txs should not fail");
-
-    assert_eq!(read_txs.len(), written_blocks.len());
-    for (i, tx_opt) in read_txs.iter().enumerate() {
-        let expected = &written_blocks[i].verified_transactions;
-        let actual = tx_opt.as_ref().unwrap();
-        assert_eq!(actual, expected);
-
-        assert_eq!(
-            tx_opt.as_ref().unwrap().transaction_ref(),
-            written_blocks[i].verified_block_header.transaction_ref()
-        );
-    }
-
-    // Test reading subset of transactions
-    let subset_refs = vec![refs[1], refs[3], refs[5]];
-    let read_subset = store
-        .read_verified_transactions(&subset_refs)
-        .expect("Read subset should not fail");
-    assert_eq!(read_subset.len(), 3);
+    assert_eq!(read_serialized(&refs), expected);
     assert_eq!(
-        read_subset[0].as_ref().unwrap(),
-        &written_blocks[1].verified_transactions
-    );
-    assert_eq!(
-        read_subset[1].as_ref().unwrap(),
-        &written_blocks[3].verified_transactions
-    );
-    assert_eq!(
-        read_subset[2].as_ref().unwrap(),
-        &written_blocks[5].verified_transactions
+        store.contains_transactions(&refs).unwrap(),
+        vec![true; refs.len()]
     );
 
-    // Test existence checks
-    let contains = store
-        .contains_transactions(&refs)
-        .expect("Contains txs should not fail");
-    assert_eq!(contains, vec![true; refs.len()]);
-
-    // Test with missing reference
+    // Stored refs out of write order, with a missing ref among them.
     let missing_ref = TransactionRef {
         round: 99,
         author: AuthorityIndex::new_for_test(99),
         transactions_commitment: TransactionsCommitment::default(),
     };
-    let read_missing = store
-        .read_verified_transactions(&[missing_ref])
-        .expect("Read missing should not fail");
-    assert_eq!(read_missing.len(), 1);
-    assert!(read_missing[0].is_none());
-
-    let contains_missing = store
-        .contains_transactions(&[missing_ref])
-        .expect("Contains missing should not fail");
-    assert_eq!(contains_missing, vec![false]);
+    let mixed_refs = [refs[3], missing_ref, refs[1], refs[5]];
+    assert_eq!(
+        read_serialized(&mixed_refs),
+        vec![
+            expected[3].clone(),
+            None,
+            expected[1].clone(),
+            expected[5].clone()
+        ]
+    );
+    assert_eq!(
+        store.contains_transactions(&mixed_refs).unwrap(),
+        vec![true, false, true, true]
+    );
 }
 
 #[rstest]
@@ -728,12 +702,6 @@ async fn scan_serialized_transactions(
 ) {
     use std::collections::BTreeSet;
 
-    use crate::{
-        Transaction,
-        block_header::{CommitmentVerifiedTransactions, VerifiedBlockHeader},
-        transaction_ref::TransactionRef,
-    };
-
     let store = test_store.store();
 
     let written_blocks: Vec<VerifiedBlock> = [(9, 0), (10, 0), (10, 1), (11, 1)]
@@ -797,13 +765,11 @@ async fn scan_serialized_transactions(
     // A requested ref the store does not hold is passed over without
     // disturbing the refs around it.
     let mut with_absent = all_refs.clone();
-    with_absent.insert(TransactionRef {
+    assert!(with_absent.insert(TransactionRef {
         round: 10,
-        author: written_blocks[0].verified_block_header.author(),
-        transactions_commitment: written_blocks[0]
-            .verified_block_header
-            .transactions_commitment(),
-    });
+        author: AuthorityIndex::new_for_test(2),
+        transactions_commitment: TransactionsCommitment::DEFAULT_FOR_TEST,
+    }));
     let scanned = store
         .scan_serialized_transactions(&with_absent, usize::MAX)
         .expect("scan should not fail");

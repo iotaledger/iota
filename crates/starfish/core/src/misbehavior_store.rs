@@ -859,7 +859,6 @@ mod tests {
     use std::sync::Arc;
 
     use fastcrypto::error::FastCryptoError;
-    use starfish_config::Parameters;
 
     use super::*;
     use crate::{
@@ -1145,160 +1144,6 @@ mod tests {
         assert_eq!(result, Some(MisbehaviorCounts::new_v1_for_test(0, 2, 0, 0)));
     }
 
-    #[tokio::test]
-    async fn test_metrics_flush_and_recovery() {
-        let committee_size = 4;
-        let (context, _) = Context::new_for_test(committee_size);
-        let context = context.with_parameters(Parameters {
-            dag_state_cached_rounds: 5,
-            ..Default::default()
-        });
-        let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context.clone(), store.clone());
-
-        // Build a 20-round DAG:
-        // - Rounds 6-8: authority 0 skips proposals
-        // - Round 11: authority 1 equivocates (1 extra block)
-        // - Round 13: authority 2 equivocates (2 extra blocks)
-        let mut dag_builder = DagBuilder::new(context.clone());
-        dag_builder.layers(1..=5).build();
-        dag_builder
-            .layers(6..=8)
-            .authorities(vec![AuthorityIndex::new_for_test(0)])
-            .skip_block()
-            .build();
-        dag_builder.layers(9..=10).build();
-        dag_builder
-            .layers(11..=11)
-            .authorities(vec![AuthorityIndex::new_for_test(1)])
-            .equivocate(1)
-            .build();
-        dag_builder.layers(12..=12).build();
-        dag_builder
-            .layers(13..=13)
-            .authorities(vec![AuthorityIndex::new_for_test(2)])
-            .equivocate(2)
-            .build();
-        dag_builder.layers(14..=20).build();
-
-        let mut commits = dag_builder
-            .get_sub_dag_and_commits(1..=20)
-            .into_iter()
-            .map(|(_subdag, commit)| commit)
-            .collect::<Vec<_>>();
-
-        // Accept blocks+commits for first 10 rounds
-        let temp_commits = commits.split_off(9);
-        dag_state.accept_block_headers(dag_builder.block_headers(1..=10), DataSource::Test);
-        for commit in commits {
-            dag_state.add_commit(commit);
-        }
-
-        // Metrics should be zero before flush
-        let scoring = dag_state.misbehavior_store();
-        assert_eq!(scoring.persisted_equivocations(), vec![0; committee_size]);
-        assert_eq!(
-            scoring.persisted_missing_proposals(),
-            vec![0; committee_size]
-        );
-
-        // Flush — this triggers misbehavior_counts_to_write
-        dag_state.flush();
-
-        // After flush: authority 0 should have missing proposals in the in-memory
-        // window (cached rounds 6-8 where it didn't propose).
-        // No equivocations yet (those are in rounds 11+, not accepted yet).
-        let scoring = dag_state.misbehavior_store();
-        assert_eq!(scoring.persisted_equivocations(), vec![0; committee_size]);
-        assert!(scoring.in_memory_missing_proposals()[0] > 0);
-
-        // Drop and recover from storage
-        let persisted_missing_before = scoring.persisted_missing_proposals();
-        let in_memory_missing_before_drop = scoring.in_memory_missing_proposals();
-        drop(dag_state);
-        let mut dag_state = DagState::new(context, store);
-
-        // Persisted metrics should be restored, and in-memory recomputed from
-        // the cached block refs loaded during recovery.
-        let scoring = dag_state.misbehavior_store();
-        assert_eq!(
-            scoring.persisted_missing_proposals(),
-            persisted_missing_before
-        );
-        // In-memory is recomputed from cached refs on init (not zero).
-        let in_memory_after_recovery = scoring.in_memory_missing_proposals();
-        assert_eq!(
-            in_memory_after_recovery[0], in_memory_missing_before_drop[0],
-            "In-memory should be recomputed from cached refs on startup"
-        );
-
-        // Accept rounds 11-20 and flush
-        dag_state.accept_block_headers(dag_builder.block_headers(11..=20), DataSource::Test);
-        for commit in temp_commits {
-            dag_state.add_commit(commit);
-        }
-        dag_state.flush();
-
-        // Now equivocations should be tracked
-        let scoring = dag_state.misbehavior_store();
-        let total_eq: u64 = scoring.persisted_equivocations().iter().sum::<u64>()
-            + scoring.in_memory_equivocations().iter().sum::<u64>();
-        assert!(total_eq > 0, "Should have detected equivocations");
-    }
-
-    #[tokio::test]
-    async fn test_no_double_counting_on_restart() {
-        let committee_size = 4;
-        let (context, _) = Context::new_for_test(committee_size);
-        let context = context.with_parameters(Parameters {
-            dag_state_cached_rounds: 5,
-            ..Default::default()
-        });
-        let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context.clone(), store.clone());
-
-        // Build a DAG where authority 0 skips rounds 3-4
-        let mut dag_builder = DagBuilder::new(context.clone());
-        dag_builder.layers(1..=2).build();
-        dag_builder
-            .layers(3..=4)
-            .authorities(vec![AuthorityIndex::new_for_test(0)])
-            .skip_block()
-            .build();
-        dag_builder.layers(5..=10).build();
-
-        let commits = dag_builder
-            .get_sub_dag_and_commits(1..=10)
-            .into_iter()
-            .map(|(_subdag, commit)| commit)
-            .collect::<Vec<_>>();
-
-        dag_state.accept_block_headers(dag_builder.block_headers(1..=10), DataSource::Test);
-        for commit in commits {
-            dag_state.add_commit(commit);
-        }
-        dag_state.flush();
-
-        // Record persisted counts after first flush
-        let persisted_after_first_flush =
-            dag_state.misbehavior_store().persisted_missing_proposals();
-        drop(dag_state);
-
-        // Recover from storage and flush again without new blocks
-        let mut dag_state = DagState::new(context, store);
-        dag_state.flush();
-
-        // Persisted counts must NOT have doubled
-        let persisted_after_restart_flush =
-            dag_state.misbehavior_store().persisted_missing_proposals();
-        assert_eq!(
-            persisted_after_first_flush, persisted_after_restart_flush,
-            "Persisted counts should not double on restart + flush"
-        );
-    }
-
     /// Repeated restarts give the totals of an uninterrupted run, also when
     /// the cache holds fewer rounds than the GC round trails the last commit
     /// by, and for an authority with no header before the restart.
@@ -1374,6 +1219,11 @@ mod tests {
                 for _ in 0..2 {
                     drop(dag_state);
                     dag_state = DagState::new(context.clone(), store.clone());
+                    assert_eq!(
+                        dag_state.misbehavior_store().snapshot_totals(),
+                        before,
+                        "config {cached_rounds}/{gc_depth}, before the first flush"
+                    );
                     dag_state.flush();
                     assert_eq!(
                         dag_state.misbehavior_store().snapshot_totals(),

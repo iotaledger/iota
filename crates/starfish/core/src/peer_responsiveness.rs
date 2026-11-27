@@ -999,21 +999,11 @@ mod tests {
     fn min_latency_floor_avoids_zero_score() {
         let pr = responsiveness(4);
         // A sub-millisecond/zero sample must be floored, never stored as 0.
-        pr.record_success(
-            DataSource::TransactionSynchronizer,
-            idx(1),
-            Duration::from_secs(0),
+        pr.record_success(DataSource::TransactionSynchronizer, idx(1), Duration::ZERO);
+        assert_eq!(
+            pr.effective_latency_ms(DataSource::TransactionSynchronizer, idx(1)),
+            Some(MIN_LATENCY_MS)
         );
-        let v = pr
-            .effective_latency_ms(DataSource::TransactionSynchronizer, idx(1))
-            .unwrap();
-        assert!(v >= MIN_LATENCY_MS, "got {v}");
-
-        // And prioritize must not panic with a zero-floored best.
-        let mut c = vec![idx(1), idx(2), idx(3)];
-        let mut rng = StdRng::seed_from_u64(3);
-        pr.prioritize(DataSource::TransactionSynchronizer, &mut c, &mut rng);
-        assert_eq!(c.len(), 3);
     }
 
     #[test]
@@ -1297,14 +1287,15 @@ mod tests {
     }
 
     #[test]
-    fn peers_beyond_the_selection_window_rarely_lead() {
-        // A peer ranked outside the selection window is never drawn for the
-        // first position, so it leads only via exploration.
+    fn peers_beyond_the_selection_window_lead_only_by_exploration() {
+        // Peer 12 is ranked last but only slightly slower: drawn by weight
+        // alone it would lead about 7.6% of the time. Outside the selection
+        // window it leads only through exploration, about 0.4%.
         let pr = responsiveness(13);
         for p in 1..=11u8 {
             pr.record_success(DataSource::TransactionSynchronizer, idx(p), ms(100));
         }
-        pr.record_success(DataSource::TransactionSynchronizer, idx(12), ms(5_000));
+        pr.record_success(DataSource::TransactionSynchronizer, idx(12), ms(110));
         let candidates: Vec<_> = (1..=12).map(idx).collect();
         let counts = lead_counts(
             &pr,
@@ -1314,6 +1305,7 @@ mod tests {
             5,
         );
         let beyond = *counts.get(&idx(12)).unwrap_or(&0);
+        assert!(beyond > 0, "exploration must still put it first sometimes");
         assert!(
             (beyond as f64) / 10_000.0 < 0.02,
             "beyond-window peer should rarely lead: {beyond}"

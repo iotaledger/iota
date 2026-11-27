@@ -646,11 +646,6 @@ pub(crate) mod tests {
             self.missing_transactions_query_entered.notified().await;
         }
 
-        pub(crate) async fn get_and_drain_blocks(&self) -> Vec<VerifiedBlock> {
-            let mut blocks = self.blocks.lock();
-            blocks.drain(0..).collect()
-        }
-
         pub(crate) async fn get_and_drain_block_headers(&self) -> Vec<VerifiedBlockHeader> {
             let mut block_headers = self.block_headers.lock();
             block_headers.drain(0..).collect()

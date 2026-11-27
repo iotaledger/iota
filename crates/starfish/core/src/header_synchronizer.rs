@@ -2853,8 +2853,10 @@ mod tests {
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn synchronizer_periodic_task_when_commit_lagging_with_missing_blocks_in_acceptable_thresholds()
      {
-        // GIVEN
-        let (context, _) = Context::new_for_test(4);
+        // GIVEN a round threshold below the per-request cap, so the threshold
+        // alone decides which missing headers are requested.
+        let (mut context, _) = Context::new_for_test(4);
+        context.parameters.commit_sync_batch_size = 10;
 
         let context = Arc::new(context);
         let block_verifier = Arc::new(NoopBlockVerifier {});
@@ -2870,70 +2872,24 @@ mod tests {
             dag_state.clone(),
             block_verifier.clone(),
         );
-        // AND stub some missing blocks. The highest accepted round is 0.
-        // Create some blocks that are below and above the threshold sync.
+        // AND missing headers below and above the threshold. The highest
+        // accepted round is 0.
         let sync_missing_block_round_threshold = context.parameters.commit_sync_batch_size;
-        let expected_block_headers = (1..=sync_missing_block_round_threshold * 2)
+        let missing_blocks_refs = (1..=sync_missing_block_round_threshold * 2)
             .flat_map(|round| {
-                vec![
-                    VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 1).build()),
-                    VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 2).build()),
-                    VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 3).build()),
-                ]
-                .into_iter()
+                (1..=3).map(move |author| {
+                    VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, author).build())
+                        .reference()
+                })
             })
-            .collect::<Vec<_>>();
-
-        let missing_blocks_refs = expected_block_headers
+            .collect::<BTreeSet<_>>();
+        let expected_refs = missing_blocks_refs
             .iter()
-            .map(|block| block.reference())
+            .filter(|block_ref| block_ref.round <= sync_missing_block_round_threshold)
+            .copied()
             .collect::<BTreeSet<_>>();
         core_dispatcher
             .stub_missing_block_headers(missing_blocks_refs)
-            .await;
-
-        // Stub the requests for authority 1 & 2 & 3
-        let stub_block_headers = expected_block_headers
-            .iter()
-            .map(|block_header| (block_header.reference(), block_header.clone()))
-            .collect::<BTreeMap<_, _>>();
-
-        // Authority 1 and 2 will be requested about their blocks
-        let stub_block_author_1 = stub_block_headers
-            .iter()
-            .filter(|(block, _)| block.author == AuthorityIndex::new_for_test(1))
-            .take(context.parameters.max_headers_per_header_sync_fetch)
-            .map(|(_, block)| block.clone())
-            .collect::<Vec<_>>();
-
-        let stub_block_author_2 = stub_block_headers
-            .iter()
-            .filter(|(block, _)| block.author == AuthorityIndex::new_for_test(2))
-            .take(context.parameters.max_headers_per_header_sync_fetch)
-            .map(|(_, block)| block.clone())
-            .collect::<Vec<_>>();
-
-        // Authority 3 will be requested about the first block headers in the missing
-        // blocks
-        let stub_block_author_3 = stub_block_headers
-            .iter()
-            .take(context.parameters.max_headers_per_header_sync_fetch)
-            .map(|(_, block)| block.clone())
-            .collect::<Vec<_>>();
-
-        let mut expected_blocks: Vec<_> = Vec::new();
-        expected_blocks.extend(stub_block_author_1.clone());
-        expected_blocks.extend(stub_block_author_2.clone());
-        expected_blocks.extend(stub_block_author_3.clone());
-
-        network_client
-            .stub_fetch_headers_response(stub_block_author_1, AuthorityIndex::new_for_test(1), None)
-            .await;
-        network_client
-            .stub_fetch_headers_response(stub_block_author_2, AuthorityIndex::new_for_test(2), None)
-            .await;
-        network_client
-            .stub_fetch_headers_response(stub_block_author_3, AuthorityIndex::new_for_test(3), None)
             .await;
 
         // Now create some blocks to simulate a commit lag
@@ -2980,22 +2936,15 @@ mod tests {
             }
         }
 
-        // We should be in commit lag mode, but since there are missing blocks within
-        // the acceptable round thresholds those ones should be fetched. Nothing above.
-        let added_block_headers = core_dispatcher.get_and_drain_block_headers().await;
-
-        // Compare as sets: a header served by several peers is delivered once
-        // per peer; the block manager, not the synchronizer, filters
-        // duplicates.
-        let added_refs: BTreeSet<_> = added_block_headers
-            .iter()
-            .map(|block| block.reference())
-            .collect();
-        let expected_refs: BTreeSet<_> = expected_blocks
-            .iter()
-            .map(|block| block.reference())
-            .collect();
-        assert_eq!(added_refs, expected_refs);
+        // THEN while the commit lags, exactly the missing headers within the
+        // round threshold are requested.
+        let requested_refs = network_client
+            .fetch_headers_requests()
+            .await
+            .into_iter()
+            .flat_map(|(refs, _)| refs)
+            .collect::<BTreeSet<_>>();
+        assert_eq!(requested_refs, expected_refs);
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -3092,10 +3041,14 @@ mod tests {
 
         sleep(4 * FETCH_REQUEST_TIMEOUT).await;
 
-        // Since we should be in commit lag mode none of the missed blocks should have
-        // been fetched - hence nothing should be sent to core for processing.
-        let added_blocks = core_dispatcher.get_and_drain_blocks().await;
-        assert_eq!(added_blocks, vec![]);
+        // While the commit lags, no missing header is requested or sent to core.
+        assert!(network_client.fetch_headers_requests().await.is_empty());
+        assert!(
+            core_dispatcher
+                .get_and_drain_block_headers()
+                .await
+                .is_empty()
+        );
 
         // AND advance now the local commit index by adding a new commit that matches
         // the commit index of quorum

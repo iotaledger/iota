@@ -4150,10 +4150,10 @@ mod test {
                 .metrics
                 .node_metrics
                 .dag_state_store_read_count
-                .with_label_values(&["get_transactions"])
+                .with_label_values(&["get_verified_transactions"])
                 .get(),
             0,
-            "dag_state_store_read_count for get_transactions should be zero"
+            "transactions above the GC round are read without the store"
         );
 
         // All transactions should be found in DagState or store.

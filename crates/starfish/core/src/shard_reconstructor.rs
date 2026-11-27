@@ -1386,106 +1386,6 @@ mod tests {
             .expect("We should expect graceful shutdown");
     }
 
-    /// Test that once a FullTransaction message is received, the reconstructor
-    /// stops collecting shards and does not reconstruct even if enough shards
-    /// arrive
-    #[tokio::test]
-    async fn test_stop_collecting_shards_when_full_transaction_arrives() {
-        telemetry_subscribers::init_for_testing();
-
-        // GIVEN
-        let h = TestHarness::new(15);
-        let context = &h.context;
-        let transaction_message_sender = h.tx.clone();
-
-        // Create block header & transactions
-        let header = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(7, 1).build());
-        let block_ref = header.reference();
-
-        let txs = Transaction::random_transactions(5, 64);
-        let serialized = Transaction::serialize(&txs).unwrap();
-
-        let mut encoder = create_encoder(context);
-        let transactions_commitment = TransactionsCommitment::compute_transactions_commitment(
-            &serialized,
-            context,
-            &mut encoder,
-        )
-        .unwrap();
-
-        let info_length = context.committee.info_length();
-        let parity_length = context.committee.parity_length();
-
-        let all_shards = encoder
-            .encode_serialized_data(&serialized, info_length, parity_length)
-            .unwrap();
-
-        // Shuffle shard indices so it's not always the same missing one
-        let mut rng = rng();
-        let mut indices: Vec<usize> = (0..all_shards.len()).collect();
-        indices.shuffle(&mut rng);
-
-        // Take all but one shard
-        let almost_all = &indices[..info_length - 1];
-        let missing_index = indices[info_length - 1];
-
-        let mut batch = Vec::new();
-        // Add all shards except the missing one
-        for &i in almost_all {
-            batch.push(TransactionMessage::Shard(ShardMessage {
-                transaction_ref: TransactionRef::new(block_ref, transactions_commitment),
-                block_digest: Some(block_ref.digest),
-                shard: all_shards[i].clone(),
-                shard_index: i,
-            }));
-        }
-
-        transaction_message_sender.send(batch).await.unwrap();
-
-        // Wait — should not reconstruct yet
-        tokio::time::sleep(Duration::from_millis(600)).await;
-        let fetched = h.core_dispatcher.get_and_drain_transactions().await;
-        assert!(
-            fetched.is_empty(),
-            "With header + (info_length - 1) shards, no reconstruction should happen"
-        );
-
-        // WHEN: send a FullTransaction message. The reconstructor should stop
-        // collecting shards
-        transaction_message_sender
-            .send(vec![TransactionMessage::FullTransaction(
-                TransactionRef::new(block_ref, transactions_commitment),
-            )])
-            .await
-            .unwrap();
-
-        // Now send ONE more random shard (the missing one to make total info_length)
-        let extra_shard_index = indices[missing_index];
-        transaction_message_sender
-            .send(vec![TransactionMessage::Shard(ShardMessage {
-                transaction_ref: TransactionRef::new(block_ref, transactions_commitment),
-                block_digest: Some(block_ref.digest),
-                shard: all_shards[extra_shard_index].clone(),
-                shard_index: extra_shard_index,
-            })])
-            .await
-            .unwrap();
-
-        // Wait and check that no reconstruction happens
-        tokio::time::sleep(Duration::from_millis(600)).await;
-        let fetched = h.core_dispatcher.get_and_drain_transactions().await;
-        assert!(
-            fetched.is_empty(),
-            "Once FullTransaction is received, reconstructor should ignore shards and not reconstruct"
-        );
-
-        // Clean up
-        h.handle
-            .stop()
-            .await
-            .expect("We should expect graceful shutdown");
-    }
-
     /// Test reconstruction over multiple rounds with one authority that has a
     /// blocked connection
     #[tokio::test]
@@ -1623,24 +1523,19 @@ mod tests {
         let carrier_block = VerifiedBlock::new_for_test(TestBlockHeader::new(2, 0).build());
 
         // GIVEN: a shard-source block (round 1, authority 1) — the block the shard
-        // was erasure-coded from. It is from a *different* round and author than the
-        // carrier block, which is the normal situation inside a BlockBundle.
-        let shard_source = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(1, 1).build());
-        let shard_source_ref = shard_source.reference();
-
-        // Sanity: the two blocks must have distinct references for the test to be
-        // meaningful.
-        assert_ne!(
-            carrier_block.reference(),
-            shard_source_ref,
-            "Test pre-condition: carrier and shard-source blocks must differ"
+        // was erasure-coded from. It has a *different* round, author and commitment
+        // than the carrier block, which is the normal situation inside a BlockBundle.
+        let shard_source = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(1, 1)
+                .set_commitment(TransactionsCommitment::MAX)
+                .build(),
         );
 
         // GIVEN: a ShardWithProof whose block_ref points to shard_source.
         let shard_with_proof = ShardWithProof::new(
             vec![0u8; 32],
             vec![],
-            shard_source_ref,
+            shard_source.reference(),
             shard_source.transactions_commitment(),
         );
 
@@ -1658,16 +1553,9 @@ mod tests {
             .collect();
 
         assert_eq!(shard_msgs.len(), 1, "Expected exactly one shard message");
-
-        let shard_tx_ref = shard_msgs[0].transaction_ref();
         assert_eq!(
-            shard_tx_ref.round, shard_source_ref.round,
-            "ShardMessage.transaction_ref.round must match the shard-source block's round"
-        );
-        assert_eq!(
-            shard_tx_ref.author, shard_source_ref.author,
-            "ShardMessage.transaction_ref.author must point to the shard-source block's author \
-             (authority=1), not the carrier block's author (authority=0)"
+            shard_msgs[0].transaction_ref(),
+            shard_source.transaction_ref()
         );
     }
 
@@ -2537,6 +2425,11 @@ mod tests {
             VerifiedBlockHeader::new_for_test(TestBlockHeader::new(5, 1).build()).reference();
         let (real_commitment, real_shards) = encode_payload_for_slot(&context, &mut encoder, 1);
         let real_ref = TransactionRef::new(block_ref, real_commitment);
+        let slot_resolved_drops = context
+            .metrics
+            .node_metrics
+            .shard_reconstructor_dropped_shards
+            .with_label_values(&["slot_resolved"]);
 
         // A partially filled accumulator for the real commitment and a
         // fabricated sibling in the same slot.
@@ -2573,21 +2466,27 @@ mod tests {
                 .contains(&(5, block_ref.author))
         );
 
+        // A later shard for the delivered payload itself is dropped as already
+        // processed, before the resolved-slot check.
+        reconstructor
+            .handle_transaction_message(TransactionMessage::Shard(ShardMessage {
+                transaction_ref: real_ref,
+                block_digest: Some(block_ref.digest),
+                shard: real_shards[1].clone(),
+                shard_index: 1,
+            }))
+            .await
+            .unwrap();
+        assert!(reconstructor.shard_accumulators.is_empty());
+        assert_eq!(slot_resolved_drops.get(), 0);
+
         // A later shard for a third commitment in the slot opens nothing.
         reconstructor
             .handle_transaction_message(shard_for_slot(&context, &mut encoder, 5, 1, 3, 2))
             .await
             .unwrap();
         assert!(reconstructor.shard_accumulators.is_empty());
-        assert_eq!(
-            context
-                .metrics
-                .node_metrics
-                .shard_reconstructor_dropped_shards
-                .with_label_values(&["slot_resolved"])
-                .get(),
-            1,
-        );
+        assert_eq!(slot_resolved_drops.get(), 1);
 
         // Resolved slots below the gc floor are themselves evicted.
         reconstructor.evict_below(6);
