@@ -5079,7 +5079,6 @@ async fn test_builtin_passkey_authenticator() -> Result<(), anyhow::Error> {
 /// by a key that does not match the account's registered public key.
 #[sim_test]
 async fn test_builtin_ed25519_authenticator_wrong_key() -> Result<(), anyhow::Error> {
-    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     let mut test_env = TestEnvironment::new().await;
@@ -5116,7 +5115,7 @@ async fn test_builtin_ed25519_authenticator_wrong_key() -> Result<(), anyhow::Er
     let sig = builtin_sig_for_keypair(&kp2, &tx_data, aa_ref)?;
     let aa_tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx_data, vec![sig]));
 
-    let err = test_env.handle_tx(aa_tx).await.unwrap_err();
+    let err = test_env.admission_error(true, aa_tx).await;
     let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
         panic!("Expected MoveAuthenticatorExecutionFailure for wrong Ed25519 key, got: {err:?}");
     };
@@ -5133,7 +5132,6 @@ async fn test_builtin_ed25519_authenticator_wrong_key() -> Result<(), anyhow::Er
 /// by a key that does not match the account's registered public key.
 #[sim_test]
 async fn test_builtin_secp256k1_authenticator_wrong_key() -> Result<(), anyhow::Error> {
-    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     let mut test_env = TestEnvironment::new().await;
@@ -5170,7 +5168,7 @@ async fn test_builtin_secp256k1_authenticator_wrong_key() -> Result<(), anyhow::
     let sig = builtin_sig_for_keypair(&kp2, &tx_data, aa_ref)?;
     let aa_tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx_data, vec![sig]));
 
-    let err = test_env.handle_tx(aa_tx).await.unwrap_err();
+    let err = test_env.admission_error(true, aa_tx).await;
     let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
         panic!("Expected MoveAuthenticatorExecutionFailure for wrong Secp256k1 key, got: {err:?}");
     };
@@ -5187,7 +5185,6 @@ async fn test_builtin_secp256k1_authenticator_wrong_key() -> Result<(), anyhow::
 /// by a key that does not match the account's registered public key.
 #[sim_test]
 async fn test_builtin_secp256r1_authenticator_wrong_key() -> Result<(), anyhow::Error> {
-    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     let mut test_env = TestEnvironment::new().await;
@@ -5224,7 +5221,7 @@ async fn test_builtin_secp256r1_authenticator_wrong_key() -> Result<(), anyhow::
     let sig = builtin_sig_for_keypair(&kp2, &tx_data, aa_ref)?;
     let aa_tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx_data, vec![sig]));
 
-    let err = test_env.handle_tx(aa_tx).await.unwrap_err();
+    let err = test_env.admission_error(true, aa_tx).await;
     let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
         panic!("Expected MoveAuthenticatorExecutionFailure for wrong Secp256r1 key, got: {err:?}");
     };
@@ -5242,7 +5239,6 @@ async fn test_builtin_secp256r1_authenticator_wrong_key() -> Result<(), anyhow::
 /// provided for a 2-of-2 scheme).
 #[sim_test]
 async fn test_builtin_multisig_authenticator_threshold_not_met() -> Result<(), anyhow::Error> {
-    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     let mut test_env = TestEnvironment::new().await;
@@ -5294,7 +5290,7 @@ async fn test_builtin_multisig_authenticator_threshold_not_met() -> Result<(), a
     );
     let aa_tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx_data, vec![auth_sig]));
 
-    let err = test_env.handle_tx(aa_tx).await.unwrap_err();
+    let err = test_env.admission_error(true, aa_tx).await;
     let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
         panic!(
             "Expected MoveAuthenticatorExecutionFailure for insufficient MultiSig weight, got: \
@@ -5315,7 +5311,6 @@ async fn test_builtin_multisig_authenticator_threshold_not_met() -> Result<(), a
 /// the account.
 #[sim_test]
 async fn test_builtin_passkey_authenticator_wrong_key() -> Result<(), anyhow::Error> {
-    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     let mut test_env = TestEnvironment::new().await;
@@ -5457,7 +5452,7 @@ async fn test_builtin_passkey_authenticator_wrong_key() -> Result<(), anyhow::Er
     );
     let aa_tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx_data, vec![auth_sig]));
 
-    let err = test_env.handle_tx(aa_tx).await.unwrap_err();
+    let err = test_env.admission_error(true, aa_tx).await;
     let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
         panic!(
             "Expected MoveAuthenticatorExecutionFailure for wrong Passkey credential, got: {err:?}"
@@ -5478,7 +5473,6 @@ async fn test_builtin_passkey_authenticator_wrong_key() -> Result<(), anyhow::Er
 #[sim_test]
 async fn test_builtin_ed25519_authenticator_signature_scheme_mismatch() -> Result<(), anyhow::Error>
 {
-    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     let mut test_env = TestEnvironment::new().await;
@@ -5519,7 +5513,7 @@ async fn test_builtin_ed25519_authenticator_signature_scheme_mismatch() -> Resul
     let sig = builtin_sig_for_keypair(&secp256k1_kp, &tx_data, aa_ref)?;
     let aa_tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx_data, vec![sig]));
 
-    let err = test_env.handle_tx(aa_tx).await.unwrap_err();
+    let err = test_env.admission_error(true, aa_tx).await;
     let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
         panic!(
             "Expected MoveAuthenticatorExecutionFailure for Secp256k1 sig on Ed25519 account, \
@@ -5545,7 +5539,6 @@ async fn test_builtin_ed25519_authenticator_signature_scheme_mismatch() -> Resul
 /// Move authenticator aborts.
 #[sim_test]
 async fn test_builtin_sig_rejected_by_custom_ed25519_authenticator() -> Result<(), anyhow::Error> {
-    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     let mut test_env = TestEnvironment::new().await;
@@ -5580,7 +5573,7 @@ async fn test_builtin_sig_rejected_by_custom_ed25519_authenticator() -> Result<(
     let sig = builtin_sig_for_keypair(&kp, &tx_data, aa_ref)?;
     let aa_tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx_data, vec![sig]));
 
-    let err = test_env.handle_tx(aa_tx).await.unwrap_err();
+    let err = test_env.admission_error(true, aa_tx).await;
     let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
         panic!(
             "Expected MoveAuthenticatorExecutionFailure when a builtin-format signature is used \
@@ -5606,22 +5599,23 @@ async fn test_builtin_authenticator_rejects_type_argument() -> Result<(), anyhow
     let signature = builtin_signature_arg(&kp, &tx_data)?;
 
     let err = test_env
-        .handle_tx_in_process(
+        .test_cluster
+        .submit_tx_expecting_rejection(
             &validator,
             builtin_authenticated_tx(&tx_data, aa_ref, vec![signature.clone()], vec![TypeTag::U8]),
         )
-        .await
-        .unwrap_err();
+        .await;
     assert_move_authentication_failure(&err, "NUMBER_OF_TYPE_ARGUMENTS_MISMATCH");
 
     // The same authenticator without the type argument is accepted.
     test_env
-        .handle_tx_in_process(
-            &validator,
-            builtin_authenticated_tx(&tx_data, aa_ref, vec![signature], vec![]),
-        )
-        .await?;
-    Ok(())
+        .execute_and_check_tx_correctness(builtin_authenticated_tx(
+            &tx_data,
+            aa_ref,
+            vec![signature],
+            vec![],
+        ))
+        .await
 }
 
 /// Test that the built-in authenticator rejects malformed signature arguments:
@@ -5649,23 +5643,24 @@ async fn test_builtin_authenticator_rejects_malformed_signature_argument()
         ),
     ] {
         let err = test_env
-            .handle_tx_in_process(
+            .test_cluster
+            .submit_tx_expecting_rejection(
                 &validator,
                 builtin_authenticated_tx(&tx_data, aa_ref, call_args, vec![]),
             )
-            .await
-            .unwrap_err();
+            .await;
         assert_move_authentication_failure(&err, expected);
     }
 
     // The same transaction with a well-formed signature argument is accepted.
     test_env
-        .handle_tx_in_process(
-            &validator,
-            builtin_authenticated_tx(&tx_data, aa_ref, vec![signature], vec![]),
-        )
-        .await?;
-    Ok(())
+        .execute_and_check_tx_correctness(builtin_authenticated_tx(
+            &tx_data,
+            aa_ref,
+            vec![signature],
+            vec![],
+        ))
+        .await
 }
 
 /// Test that a built-in account cannot be created when

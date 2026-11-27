@@ -10,16 +10,14 @@
 //! and once the window is full the oldest is evicted and subtracted.
 //!
 //! [`SlidingWindowSchedule::reputation_scores`] exposes the aggregate as
-//! [`ReputationScores`] — the same type the V2 `LeaderSwapTable` is built from.
-//! The sliding window is an alternative *score source* for the existing swap
-//! table; it does not select leaders itself.
+//! [`ReputationScores`], which the `LeaderSwapTable` is built from. The
+//! sliding window does not select leaders itself.
 //!
 //! # Usage
 //!
-//! When the sliding-window leader schedule is enabled (protocol flag
-//! `consensus_enable_sliding_window_leader_schedule`), the leader schedule
-//! feeds each committed subdag to [`SlidingWindowSchedule::add_commit`] in
-//! consecutive index order and rebuilds the `LeaderSwapTable` from
+//! The leader schedule feeds each committed subdag to
+//! [`SlidingWindowSchedule::add_commit`] in consecutive index order and
+//! rebuilds the `LeaderSwapTable` from
 //! [`SlidingWindowSchedule::reputation_scores`] every `commits_per_schedule`
 //! commits.
 //!

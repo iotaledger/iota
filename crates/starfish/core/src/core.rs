@@ -1970,15 +1970,11 @@ impl CoreTestFixture {
         store: Option<Arc<dyn Store>>,
     ) -> Self {
         let (committee, mut signers) = local_committee_and_keys(0, authorities);
-        let mut context = context;
-        context = context
-            .with_committee(committee)
-            .with_authority_index(own_index);
-        context
-            .protocol_config
-            .set_consensus_bad_nodes_stake_threshold_for_testing(33);
-
-        let context = Arc::new(context);
+        let context = Arc::new(
+            context
+                .with_committee(committee)
+                .with_authority_index(own_index),
+        );
         // Reuse an existing store to model a restart (recovery from persisted
         // state); otherwise start from a fresh one.
         let store: Arc<dyn Store> = match store {
@@ -2947,16 +2943,7 @@ mod test {
         telemetry_subscribers::init_for_testing();
         let default_params = Parameters::default();
 
-        let (mut context, _) = Context::new_for_test(4);
-        // The expected scores come from V2 vote scoring and the good/bad split
-        // assumes stake-rank selection; run with the sliding-window schedule
-        // and absolute-score selection off.
-        context
-            .protocol_config
-            .set_consensus_enable_sliding_window_leader_schedule_for_testing(false);
-        context
-            .protocol_config
-            .set_consensus_enable_absolute_score_leader_schedule_for_testing(false);
+        let (context, _) = Context::new_for_test(4);
         // create the cores and their signals for all the authorities
         let mut cores = create_cores(context, vec![1, 1, 1, 1]).await;
 
@@ -2974,8 +2961,8 @@ mod test {
             )
             .await;
         }
-        // The ordinary path proposes every round; this run does not cross a
-        // schedule rotation.
+        // The ordinary path proposes every round: every authority scores the
+        // same, so no rotation swaps a leader.
         assert_eq!(rounds_needing_timeout, BTreeSet::new());
 
         for core_fixture in cores {
@@ -2994,15 +2981,16 @@ mod test {
                 .scan_commits((0..=CommitIndex::MAX).into())
                 .unwrap();
             assert_eq!(all_stored_commits.len(), 27);
-            assert_eq!(
+            // Every authority has the same score, so all are good and none are
+            // bad.
+            assert!(
                 core_fixture
                     .core
                     .leader_schedule
                     .leader_swap_table
                     .read()
                     .bad_nodes
-                    .len(),
-                1
+                    .is_empty()
             );
             assert_eq!(
                 core_fixture
@@ -3012,10 +3000,13 @@ mod test {
                     .read()
                     .good_nodes
                     .len(),
-                1
+                4
             );
+            // Commits 1..=17 are scored (the window lags the boundary at 20 by
+            // 3). Each credits every authority the full committee stake (4),
+            // doubled for strong votes.
             let expected_reputation_scores =
-                ReputationScores::new((11..=20).into(), vec![29, 29, 29, 29]);
+                ReputationScores::new((11..=20).into(), vec![136, 136, 136, 136]);
             assert_eq!(
                 core_fixture
                     .core
@@ -3036,11 +3027,11 @@ mod test {
     /// authorities, so the resulting leader schedule is independent of RNG
     /// seed and topology.
     ///
-    /// Stands in for the leader timeout where the ordinary path did not
-    /// propose, recording the round in `rounds_needing_timeout`. This is the
-    /// round after a schedule rotation: the strong votes of the previous round
-    /// are pinned to the leader the previous schedule elected, not the one now
-    /// elected.
+    /// Stands in for the soft timeout where the ordinary path did not propose,
+    /// recording the round in `rounds_needing_timeout`. That happens in the
+    /// round after a schedule rotation that swaps a leader: the strong votes of
+    /// the previous round are pinned to the leader the previous schedule
+    /// elected, not the one now elected.
     async fn gossip_one_round(
         cores: &mut [CoreTestFixture],
         round: u32,
@@ -3155,46 +3146,27 @@ mod test {
     /// restart-invariant: a recovered node resumes with the same
     /// commits-until-next-rotation as one that never restarted.
     ///
-    /// On the sliding-window path the scorer's scored frontier lags the
-    /// rotation boundary by `MAX_PENDING_COMMITS = 3`, while recovery rebuilds
-    /// the rotation-counting scoring subdag from the persisted
+    /// The scorer's scored frontier lags the rotation boundary by
+    /// `MAX_PENDING_COMMITS = 3`, while recovery rebuilds the
+    /// rotation-counting scoring subdag from the persisted
     /// `commit_range.end() + 1`. The count stays invariant because the
     /// persisted end is the rotation boundary (the last committed index), not
     /// the lagging frontier. The assertions compare live vs. restarted directly
-    /// (no hard-coded count) and run for both the sliding-window and V2 paths.
-    #[rstest]
-    #[case::v2(false, false)]
-    #[case::v2_absolute_scores(false, true)]
-    #[case::sliding_window(true, false)]
-    #[case::sliding_window_absolute_scores(true, true)]
+    /// (no hard-coded count).
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    async fn test_leader_schedule_restart_invariant_rotation(
-        #[case] enable_sliding_window: bool,
-        #[case] enable_absolute_score_leader_schedule: bool,
-    ) {
+    async fn test_leader_schedule_restart_invariant_rotation() {
         telemetry_subscribers::init_for_testing();
         let default_params = Parameters::default();
 
         let (mut context, _) = Context::new_for_test(4);
-        if enable_absolute_score_leader_schedule {
-            context
-                .protocol_config
-                .set_consensus_enable_absolute_score_leader_schedule_for_testing(true);
-        }
-        if enable_sliding_window {
-            context
-                .protocol_config
-                .set_consensus_enable_sliding_window_leader_schedule_for_testing(true);
-            // Pin the rotation interval small and keep `window_size >=
-            // commits_per_schedule` (a protocol-config invariant the flag
-            // getter asserts).
-            context
-                .protocol_config
-                .set_commits_per_schedule_for_testing(10);
-            context
-                .protocol_config
-                .set_leader_schedule_window_size_for_testing(20);
-        }
+        // Pin the rotation interval small and keep `window_size >=
+        // commits_per_schedule`.
+        context
+            .protocol_config
+            .set_commits_per_schedule_for_testing(10);
+        context
+            .protocol_config
+            .set_leader_schedule_window_size_for_testing(20);
 
         // Drive a real 4-core network until it has done >= 1 rotation and sits
         // mid-interval, persisting a real `CommitInfo`.
@@ -3252,30 +3224,9 @@ mod test {
     #[tokio::test]
     #[serial]
     async fn test_sequenced_transactions_no_headers() {
-        test_sequenced_transactions_no_headers_impl(true).await;
-    }
-
-    #[tokio::test]
-    #[serial]
-    #[should_panic(
-        expected = "consensus_fast_commit_sync requires consensus_commit_transactions_only_for_traversed_headers to be enabled"
-    )]
-    async fn test_sequenced_transactions_no_headers_invalid_config() {
-        test_sequenced_transactions_no_headers_impl(false).await;
-    }
-
-    async fn test_sequenced_transactions_no_headers_impl(commit_only_for_traversed_headers: bool) {
         telemetry_subscribers::init_for_testing();
         let committee_size = 10;
-        let (mut context, _key_pairs) = Context::new_for_test(committee_size);
-        context
-            .protocol_config
-            .set_consensus_commit_transactions_only_for_traversed_headers_for_testing(
-                commit_only_for_traversed_headers,
-            );
-        // Enforce the protocol-config invariant before exercising the pipeline:
-        // fast commit sync requires committing only for traversed headers.
-        assert!(context.protocol_config.consensus_fast_commit_sync());
+        let (context, _key_pairs) = Context::new_for_test(committee_size);
         let own_index = AuthorityIndex::new_for_test(0);
         let core_fixture_own = CoreTestFixture::new(
             context.clone(),
@@ -3347,36 +3298,18 @@ mod test {
                 existing_headers.insert(*block_ref);
             }
             for transaction in &transactions {
-                // Transactions from all authors except authority_to_skip should also have a
-                // corresponding block_ref being traversed in the committed sub_dag
-                // Same after num_rounds_with_skip_ancestors
-                if transaction.author() != authority_to_skip
-                    || transaction.round() >= num_rounds_with_skip_ancestors
-                {
-                    assert!(
-                        existing_headers.contains(
-                            &transaction
-                                .block_ref()
-                                .expect("block_ref should be set in test")
-                        ),
-                        "{}",
-                        transaction
-                            .block_ref()
-                            .expect("block_ref should be set in test")
-                    );
-                } else {
-                    assert!(
-                        !existing_headers.contains(
-                            &transaction
-                                .block_ref()
-                                .expect("block_ref should be set in test")
-                        ) && !commit_only_for_traversed_headers,
-                        "{}",
-                        transaction
-                            .block_ref()
-                            .expect("block_ref should be set in test")
-                    );
-                }
+                // Every sequenced transaction has its block_ref traversed in the
+                // committed sub_dags, so none of authority_to_skip's transactions
+                // before num_rounds_with_skip_ancestors is sequenced.
+                let block_ref = transaction
+                    .block_ref()
+                    .expect("block_ref should be set in test");
+                assert!(
+                    transaction.author() != authority_to_skip
+                        || transaction.round() >= num_rounds_with_skip_ancestors,
+                    "{block_ref}"
+                );
+                assert!(existing_headers.contains(&block_ref), "{block_ref}");
             }
             all_sequenced_transactions.extend(transactions);
             if sub_dag_leader_round == total_rounds - 2 {
@@ -3399,17 +3332,12 @@ mod test {
             .find(|(a, _)| a.author == authority_to_skip)
             .unwrap()
             .0;
-        if commit_only_for_traversed_headers {
-            assert_eq!(
-                first_missing_transaction_from_skipped.round,
-                num_rounds_with_skip_ancestors
-            );
-        } else {
-            assert_eq!(first_missing_transaction_from_skipped.round, 1);
-        }
-        // Ensure that the block header corresponding to the
-        // first_missing_transaction_from_skipped is not in dag_state
-        // if commit_only_for_traversed_headers=false and in dag_state otherwise
+        assert_eq!(
+            first_missing_transaction_from_skipped.round,
+            num_rounds_with_skip_ancestors
+        );
+        // The block header corresponding to the first_missing_transaction_from_skipped
+        // is in dag_state.
         let is_in_dag_state = {
             let dag = core_catch_up.dag_state.read();
             // resolve_block_refs is empty iff the block header is absent from
@@ -3418,7 +3346,7 @@ mod test {
                 .iter()
                 .any(|block_ref| dag.get_verified_block_headers(&[*block_ref])[0].is_some())
         };
-        assert_eq!(is_in_dag_state, commit_only_for_traversed_headers);
+        assert!(is_in_dag_state);
         // No commit is solid (with all transactions being locally available) yet:
         // the round 1 leader is committed optimistically, so even the first commit
         // sequences round 1 transactions, and none of them are synced yet.
@@ -3453,18 +3381,13 @@ mod test {
         assert_eq!(last_solid_commit_round, last_commit_round);
         // Flush to evict verified transactions from first rounds;
         core_catch_up.dag_state.write().flush();
-        // Try to get a verified transaction from skipped authority. It should be
-        // impossible if commit_only_for_traversed_headers = false with
-        // get_verified_transactions() method since the header is not available;
-        // should be possible with commit_only_for_traversed_headers = true
+        // A verified transaction from the skipped authority is available, since its
+        // header is in dag_state.
         let opt_verified_transaction = core_catch_up
             .dag_state
             .read()
             .get_verified_transactions(&[first_missing_transaction_from_skipped]);
-        assert_eq!(
-            opt_verified_transaction[0].is_some(),
-            commit_only_for_traversed_headers
-        );
+        assert!(opt_verified_transaction[0].is_some());
         // The transaction from the skipped authority was flushed, so its bytes
         // are in the store.
         let opt_serialized_transaction = core_fixture_catch_up
@@ -3586,45 +3509,56 @@ mod test {
         telemetry_subscribers::init_for_testing();
         let default_params = Parameters::default();
 
-        let (mut context, _) = Context::new_for_test(6);
-        // The expected scores come from V2 vote scoring and the good/bad split
-        // assumes stake-rank selection; run with the sliding-window schedule
-        // and absolute-score selection off.
-        context
-            .protocol_config
-            .set_consensus_enable_sliding_window_leader_schedule_for_testing(false);
-        context
-            .protocol_config
-            .set_consensus_enable_absolute_score_leader_schedule_for_testing(false);
+        let (context, _) = Context::new_for_test(6);
 
         // create the cores and their signals for all the authorities
         let mut cores = create_cores(context, vec![1, 1, 1, 1, 1, 1]).await;
 
+        // The other authorities never receive authority 5's blocks, so it never
+        // votes in their view, scores 0 and is the bad node after a rotation.
+        let withheld = AuthorityIndex::new_for_test(5);
+
         // Now iterate over a few rounds and ensure the corresponding signals are
         // created while network advances
         let mut rounds_needing_timeout = BTreeSet::new();
+        let mut rounds_needing_leader_timeout = BTreeSet::new();
         let mut last_round_blocks = Vec::new();
         for round in 1..=33 {
             let mut this_round_blocks = Vec::new();
             // Wait for min block delay to allow blocks to be proposed.
             sleep(default_params.min_block_delay).await;
             for core_fixture in &mut cores {
+                let own_index = core_fixture.core.context.own_index;
+                let delivered_blocks = last_round_blocks
+                    .iter()
+                    .filter(|block: &&VerifiedBlock| {
+                        own_index == withheld || block.author() != withheld
+                    })
+                    .cloned()
+                    .collect::<Vec<_>>();
                 // add the blocks from last round
                 // this will trigger a block creation for the round and a signal should be
                 // emitted
                 core_fixture
                     .core
-                    .add_blocks(last_round_blocks.clone(), DataSource::Test)
+                    .add_blocks(delivered_blocks, DataSource::Test)
                     .unwrap();
-                // Stand in for the leader timeout where the ordinary path did not
-                // propose: the round after the schedule rotates, where the strong
-                // votes of the previous round are pinned to the leader the
-                // previous schedule elected rather than the one now elected.
+                // Stand in for the leader timeouts where the ordinary path did not
+                // propose. The soft timeout covers a previous-round leader the
+                // strong votes were not cast for; the leader timeout covers a
+                // previous-round leader this authority does not have.
                 if core_fixture.core.last_proposed_round() < round {
                     rounds_needing_timeout.insert(round);
                     core_fixture
                         .core
                         .new_block(round, ReasonToCreateBlock::SoftTimeout)
+                        .unwrap();
+                }
+                if core_fixture.core.last_proposed_round() < round {
+                    rounds_needing_leader_timeout.insert(round);
+                    core_fixture
+                        .core
+                        .new_block(round, ReasonToCreateBlock::MaxLeaderTimeout)
                         .unwrap();
                 }
                 // A "new round" signal should be received given that all the blocks of previous
@@ -3644,13 +3578,17 @@ mod test {
                 .unwrap()
                 .unwrap();
                 assert_eq!(verified_block.round(), round);
-                assert_eq!(verified_block.author(), core_fixture.core.context.own_index);
+                assert_eq!(verified_block.author(), own_index);
 
                 // ensure that produced block is referring to the blocks of last_round
-                assert_eq!(
-                    verified_block.ancestors().len(),
-                    core_fixture.core.context.committee.size()
-                );
+                // it received
+                let committee_size = core_fixture.core.context.committee.size();
+                let expected_ancestors = if round == 1 || own_index == withheld {
+                    committee_size
+                } else {
+                    committee_size - 1
+                };
+                assert_eq!(verified_block.ancestors().len(), expected_ancestors);
                 for ancestor in verified_block.ancestors() {
                     if verified_block.round() > 1 {
                         // don't bother with round 1 block which just contains the genesis blocks.
@@ -3667,9 +3605,16 @@ mod test {
             }
             last_round_blocks = this_round_blocks;
         }
-        // The ordinary path proposes every round but round 23, where the
-        // rotation moves the leader the round 22 votes were pinned to.
-        assert_eq!(rounds_needing_timeout, BTreeSet::from([23]));
+        // Authority 5 is the leader of rounds 5 and 11 under the first
+        // schedule; the others do not have its block, so they propose rounds 6
+        // and 12 on the leader timeout, and authority 5 proposes rounds 7 and
+        // 13 on the soft timeout since no one else strongly voted for it. From
+        // the rotation at commit 10 on, its leader rounds are swapped to good
+        // nodes. The rotation at commit 20 (leader round 22) swaps round 23 to a
+        // different good node than the first schedule did, after the round 24
+        // votes were pinned to the old one, so round 25 needs the soft timeout.
+        assert_eq!(rounds_needing_timeout, BTreeSet::from([6, 7, 12, 13, 25]));
+        assert_eq!(rounds_needing_leader_timeout, BTreeSet::from([6, 12]));
         for core_fixture in cores {
             // Check commits have been persisted to store
             let last_commit = core_fixture
@@ -3677,23 +3622,10 @@ mod test {
                 .read_last_commit()
                 .unwrap()
                 .expect("last commit should be set");
-            // There are 31 leader rounds with rounds completed up to and including
-            // round 33. Round 33 blocks will only include their own blocks, so there
-            // should only be 30 commits.
-            // However on a leader schedule change boundary its is possible for a
-            // new leader to get selected for the same round if the leader elected
-            // gets swapped allowing for multiple leaders to be committed at a round.
-            // Meaning with multi leader per round explicitly set to 1 we will have 30,
-            // otherwise 31.
-            // NOTE: We used 31 leader rounds to specifically trigger the scenario
-            // where the leader schedule boundary occurred AND we had a swap to a new
-            // leader for the same round
-            let expected_commit_count = 30;
-            // Leave the code for re-use.
-            // let expected_commit_count = match num_leaders_per_round {
-            //    Some(1) => 30,
-            //    _ => 31,
-            //};
+            // Leader rounds 1..=30 are committed, except 5 and 11, which are
+            // skipped: the others never voted for authority 5. Round 23 changes
+            // its leader at a rotation, but only one leader is committed for it.
+            let expected_commit_count = 28;
             assert_eq!(last_commit.index(), expected_commit_count);
             let all_stored_commits = core_fixture
                 .store
@@ -3707,8 +3639,10 @@ mod test {
                     .leader_swap_table
                     .read()
                     .bad_nodes
-                    .len(),
-                1
+                    .keys()
+                    .copied()
+                    .collect::<Vec<_>>(),
+                vec![withheld]
             );
             assert_eq!(
                 core_fixture
@@ -3718,10 +3652,14 @@ mod test {
                     .read()
                     .good_nodes
                     .len(),
-                1
+                5
             );
+            // Commits 1..=17 are scored (the window lags the boundary at 20 by
+            // 3). Each credits authorities 0..=4 the stake of its certifiers
+            // (5), doubled for strong votes. Authority 5's blocks are in no
+            // committed sub-DAG, so it scores 0.
             let expected_reputation_scores =
-                ReputationScores::new((21..=30).into(), vec![43, 43, 43, 43, 43, 43]);
+                ReputationScores::new((11..=20).into(), vec![170, 170, 170, 170, 170, 0]);
             assert_eq!(
                 core_fixture
                     .core

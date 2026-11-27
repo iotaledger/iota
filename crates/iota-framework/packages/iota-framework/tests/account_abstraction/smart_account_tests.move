@@ -264,11 +264,7 @@ fun other_test_authenticator(): AuthenticatorFunctionRefV1<SmartAccount> {
 }
 
 fun builtin_test_authenticator(): AuthenticatorFunctionRefV1<SmartAccount> {
-    authenticator_function::create_auth_function_ref_v1_for_testing(
-        @0x2,
-        ascii::string(b"builtin_authenticator_functions"),
-        ascii::string(b"builtin_authenticator_v1"),
-    )
+    builtin_authenticator_functions::builtin_authenticator_function_ref_v1()
 }
 
 /// Runs `$f` with an immutable reference to a shared `SmartAccount` (any sender).

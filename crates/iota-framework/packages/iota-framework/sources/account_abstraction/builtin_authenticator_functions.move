@@ -309,3 +309,31 @@ public fun builtin_authenticator_v1_for_testing<Account: key>(
 ) {
     builtin_authenticator_v1(account, signature)
 }
+
+/// Returns a `PublicKeyAttached` event with these fields.
+#[test_only]
+public fun create_public_key_attached_for_testing(
+    account_id: ID,
+    public_key: PublicKey,
+): PublicKeyAttached {
+    PublicKeyAttached { account_id, public_key }
+}
+
+/// Returns a `PublicKeyDetached` event with these fields.
+#[test_only]
+public fun create_public_key_detached_for_testing(
+    account_id: ID,
+    public_key: PublicKey,
+): PublicKeyDetached {
+    PublicKeyDetached { account_id, public_key }
+}
+
+/// Returns a `PublicKeyRotated` event with these fields.
+#[test_only]
+public fun create_public_key_rotated_for_testing(
+    account_id: ID,
+    from: PublicKey,
+    to: PublicKey,
+): PublicKeyRotated {
+    PublicKeyRotated { account_id, from, to }
+}

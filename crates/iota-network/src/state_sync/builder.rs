@@ -3,13 +3,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     sync::{Arc, RwLock, atomic::AtomicBool},
 };
 
 use anemo::codegen::InboundRequestLayer;
 use anemo_tower::{inflight_limit, rate_limit};
-use iota_config::{node::CheckpointArchiveConfig, p2p::StateSyncConfig};
+use iota_config::{
+    node::CheckpointArchiveConfig,
+    p2p::{MIN_CHECKPOINT_SUMMARY_SIZE, StateSyncConfig},
+};
 use iota_types::{messages_checkpoint::VerifiedCheckpoint, storage::WriteStore};
 use tap::Pipe;
 use tokio::{
@@ -18,9 +21,9 @@ use tokio::{
 };
 
 use super::{
-    Handle, PeerHeights, StateSync, StateSyncEventLoop, StateSyncMessage, StateSyncServer,
+    Handle, PeerHeights, StateSyncEventLoop, StateSyncMessage, StateSyncServer,
     metrics::Metrics,
-    server::{CheckpointContentsDownloadLimitLayer, Server},
+    server::{CheckpointContentsDownloadLimitLayer, Server, SizeLimitLayer},
 };
 
 pub struct Builder<S> {
@@ -92,7 +95,11 @@ impl<S> Builder<S>
 where
     S: WriteStore + Clone + Send + Sync + 'static,
 {
-    pub fn build(self) -> (UnstartedStateSync<S>, StateSyncServer<impl StateSync>) {
+    /// # Panics
+    ///
+    /// Panics if `max-checkpoint-summary-size` in the config is below
+    /// [`MIN_CHECKPOINT_SUMMARY_SIZE`].
+    pub fn build(self) -> (UnstartedStateSync<S>, anemo::Router<anemo::ServicesSealed>) {
         let state_sync_config = self.config.clone().unwrap_or_default();
         let (mut builder, server) = self.build_internal();
         let mut state_sync_server = StateSyncServer::new(server);
@@ -137,9 +144,19 @@ where
                 .add_layer_for_get_checkpoint_contents(InboundRequestLayer::new(layer));
         }
 
-        (builder, state_sync_server)
+        let router = anemo::Router::new()
+            .add_rpc_service(state_sync_server)
+            .route_layer(SizeLimitLayer::new(
+                state_sync_config.max_checkpoint_summary_size(),
+            ));
+
+        (builder, router)
     }
 
+    /// # Panics
+    ///
+    /// Panics if `max-checkpoint-summary-size` in the config is below
+    /// [`MIN_CHECKPOINT_SUMMARY_SIZE`].
     pub(super) fn build_internal(self) -> (UnstartedStateSync<S>, Server<S>) {
         let Builder {
             store,
@@ -150,6 +167,14 @@ where
         } = self;
         let store = store.unwrap();
         let config = config.unwrap_or_default();
+        let max_checkpoint_summary_size = config.max_checkpoint_summary_size();
+        if max_checkpoint_summary_size < MIN_CHECKPOINT_SUMMARY_SIZE {
+            panic!(
+                "Invalid state sync config: max-checkpoint-summary-size \
+                 {max_checkpoint_summary_size} is below the minimum of \
+                 {MIN_CHECKPOINT_SUMMARY_SIZE}"
+            );
+        }
         let metrics = metrics.unwrap_or_else(Metrics::disabled);
 
         let (sender, mailbox) = mpsc::channel(config.mailbox_capacity());
@@ -162,8 +187,9 @@ where
         };
         let peer_heights = PeerHeights {
             peers: HashMap::new(),
-            unprocessed_checkpoints: HashMap::new(),
-            sequence_number_to_digest: HashMap::new(),
+            unprocessed_checkpoints: BTreeMap::new(),
+            max_checkpoint_lookahead: config.max_checkpoint_lookahead(),
+            max_checkpoint_summary_size: config.max_checkpoint_summary_size(),
             wait_interval_when_no_peer_to_sync_content: config
                 .wait_interval_when_no_peer_to_sync_content(),
         }
