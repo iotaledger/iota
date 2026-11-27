@@ -20,7 +20,7 @@ use serde::{Serialize, de::DeserializeOwned};
 
 use crate::{
     config::ServiceConfig,
-    consistency::{Checkpointed, ConsistentIndexCursor, TransactionCursor},
+    consistency::{Checkpointed, ConsistentIndexCursor, LiveCursor, TransactionCursor},
     data::{Conn, Db, DbConnection, DieselBackend, DieselConn, Query},
     error::Error,
     raw_query::RawQuery,
@@ -52,6 +52,11 @@ pub(crate) struct Page<C> {
     /// `(after, before)`, this field states whether the entries up to limit
     /// are taken from the `Front` or `Back` of that range.
     end: End,
+
+    /// Whether the page reads a consistent view. In a consistent view, the
+    /// rows at the `after` and `before` cursors must be in the results. In a
+    /// live view, these rows can change or go away between two pages.
+    consistent: bool,
 }
 
 /// Whether the page is extracted from the beginning or the end of the range
@@ -153,6 +158,7 @@ impl<C> Page<C> {
                 before,
                 limit: limit.unwrap_or(limits.default_page_size as u64),
                 end: End::Front,
+                consistent: true,
             },
 
             (None, after, Some(limit), before) => Page {
@@ -160,6 +166,7 @@ impl<C> Page<C> {
                 before,
                 limit,
                 end: End::Back,
+                consistent: true,
             },
         };
 
@@ -178,6 +185,7 @@ impl<C> Page<C> {
             before: None,
             limit,
             end: End::Front,
+            consistent: true,
         }
     }
 
@@ -266,6 +274,29 @@ pub(crate) fn oldest_viewable_checkpoint(db: &Db) -> u64 {
         .watermark_cache()
         .get_lowest_available_cp_for_tables(&[CommitterTables::Checkpoints])
         .unwrap_or(0) as u64
+}
+
+impl<C> Page<C>
+where
+    C: LiveCursor,
+{
+    /// Prepares the page to read a live view at `checkpoint_viewed_at`.
+    ///
+    /// In a live view, the latest checkpoint can change between two pages,
+    /// and the rows at the page cursors can change or go away. This method:
+    ///
+    /// 1. Sets the checkpoint of the page cursors to `checkpoint_viewed_at`, so that they agree
+    ///    with the cursors that the query builds.
+    /// 2. Marks the page as not consistent, so that [`Page::paginate_results`] does not reject the
+    ///    page when the rows at the page cursors are missing.
+    // The first query over a live table, the SmartAccount lookup, removes this.
+    #[cfg_attr(not(test), expect(dead_code))]
+    pub(crate) fn set_live_view(&mut self, checkpoint_viewed_at: u64) {
+        for cursor in self.after.iter_mut().chain(self.before.iter_mut()) {
+            cursor.set_checkpoint_viewed_at(checkpoint_viewed_at);
+        }
+        self.consistent = false;
+    }
 }
 
 impl<C> Page<C>
@@ -521,7 +552,9 @@ impl<C: CursorType + Eq + Clone + Send + Sync + 'static> Page<C> {
     ///
     /// `results` must be sorted in ascending cursor order and fetched with
     /// inclusive cursor bounds, so that the rows at the `after`/`before`
-    /// cursors are part of the result set (see [`Page::apply`]).
+    /// cursors are part of the result set (see [`Page::apply`]). For a live
+    /// page (see [`Page::live`]) those rows may be missing, and the results
+    /// then start after the cursor.
     pub(crate) fn paginate_results<T>(
         &self,
         f_cursor: Option<C>,
@@ -544,13 +577,14 @@ impl<C: CursorType + Eq + Clone + Send + Sync + 'static> Page<C> {
                 // Page drawn from the front, and the cursor for the first element does not match
                 // `after`. That cursor must have appeared in the previous page, and should also be
                 // at the tip of the current page. This absence implies the bound was invalid, so
-                // we return an empty result.
-                (Some(a), Some(f), _, _, End::Front) if f != *a => {
+                // we return an empty result. A live view does not apply this check, because the
+                // row at `after` can change or go away between two pages.
+                (Some(a), Some(f), _, _, End::Front) if self.consistent && f != *a => {
                     return (false, false, vec![].into_iter());
                 }
 
                 // Similar to above case, but for back of results.
-                (_, _, Some(l), Some(b), End::Back) if l != *b => {
+                (_, _, Some(l), Some(b), End::Back) if self.consistent && l != *b => {
                     return (false, false, vec![].into_iter());
                 }
 
@@ -771,6 +805,7 @@ impl<C: Eq> Eq for BcsCursor<C> {}
 #[cfg(test)]
 mod tests {
     use expect_test::expect;
+    use serde::{Deserialize, Serialize};
 
     use super::*;
     use crate::types::uint53::MAX_UINT53;
@@ -882,6 +917,7 @@ mod tests {
                 before: None,
                 limit: 20,
                 end: Front,
+                consistent: true,
             }"#]];
         expect.assert_eq(&format!("{page:#?}"));
     }
@@ -900,6 +936,7 @@ mod tests {
                 before: None,
                 limit: 20,
                 end: Front,
+                consistent: true,
             }"#]];
         expect.assert_eq(&format!("{page:#?}"));
     }
@@ -918,6 +955,7 @@ mod tests {
                 before: None,
                 limit: 10,
                 end: Front,
+                consistent: true,
             }"#]];
         expect.assert_eq(&format!("{page:#?}"));
     }
@@ -936,6 +974,7 @@ mod tests {
                 ),
                 limit: 20,
                 end: Front,
+                consistent: true,
             }"#]];
         expect.assert_eq(&format!("{page:#?}"));
     }
@@ -954,6 +993,7 @@ mod tests {
                 ),
                 limit: 10,
                 end: Back,
+                consistent: true,
             }"#]];
         expect.assert_eq(&format!("{page:#?}"));
     }
@@ -980,6 +1020,7 @@ mod tests {
                 ),
                 limit: 10,
                 end: Front,
+                consistent: true,
             }"#]];
         expect.assert_eq(&format!("{page:#?}"));
     }
@@ -1006,6 +1047,7 @@ mod tests {
                 ),
                 limit: 10,
                 end: Back,
+                consistent: true,
             }"#]];
         expect.assert_eq(&format!("{page:#?}"));
     }
@@ -1032,6 +1074,7 @@ mod tests {
                 ),
                 limit: 20,
                 end: Front,
+                consistent: true,
             }"#]];
         expect.assert_eq(&format!("{page:#?}"));
     }
@@ -1079,5 +1122,143 @@ mod tests {
                 ),
             }"#]];
         expect.assert_eq(&format!("{err:#?}"));
+    }
+
+    /// A cursor of a test table: the number of a row and the checkpoint it
+    /// was viewed at.
+    #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
+    struct RowCursor {
+        n: u64,
+        c: UInt53,
+    }
+
+    type TestCursor = JsonCursor<RowCursor>;
+
+    impl Checkpointed for TestCursor {
+        fn checkpoint_viewed_at(&self) -> u64 {
+            self.c.into()
+        }
+    }
+
+    impl LiveCursor for TestCursor {
+        fn set_checkpoint_viewed_at(&mut self, checkpoint_viewed_at: u64) {
+            *self = JsonCursor::new(RowCursor {
+                n: self.n,
+                c: UInt53::new_unchecked(checkpoint_viewed_at),
+            });
+        }
+    }
+
+    /// A row of the test table, identified by its number.
+    struct Row(u64);
+
+    impl Target<TestCursor> for Row {
+        fn cursor(&self, checkpoint_viewed_at: u64) -> TestCursor {
+            JsonCursor::new(RowCursor {
+                n: self.0,
+                c: UInt53::new_unchecked(checkpoint_viewed_at),
+            })
+        }
+    }
+
+    /// Runs `paginate_results` for `page` over `rows`, which are the rows
+    /// its query returned in ascending order, viewed at `checkpoint_viewed_at`.
+    fn paginate_at(
+        page: &Page<TestCursor>,
+        checkpoint_viewed_at: u64,
+        rows: Vec<u64>,
+    ) -> (bool, bool, Vec<u64>) {
+        let rows: Vec<Row> = rows.into_iter().map(Row).collect();
+        let first = rows.first().map(|row| row.cursor(checkpoint_viewed_at));
+        let last = rows.last().map(|row| row.cursor(checkpoint_viewed_at));
+        let (prev, next, results) = page.paginate_results(first, last, rows);
+        (prev, next, results.map(|row| row.0).collect())
+    }
+
+    /// [`paginate_at`] checkpoint 0, where the cursors of the test pages are.
+    fn paginate(page: &Page<TestCursor>, rows: Vec<u64>) -> (bool, bool, Vec<u64>) {
+        paginate_at(page, 0, rows)
+    }
+
+    fn row_cursor(n: u64) -> TestCursor {
+        JsonCursor::new(RowCursor {
+            n,
+            c: UInt53::new_unchecked(0),
+        })
+    }
+
+    fn page_after(first: u64, after: u64) -> Page<TestCursor> {
+        let config = ServiceConfig::default();
+        Page::from_params(&config, Some(first), Some(row_cursor(after)), None, None).unwrap()
+    }
+
+    fn page_before(last: u64, before: u64) -> Page<TestCursor> {
+        let config = ServiceConfig::default();
+        Page::from_params(&config, None, None, Some(last), Some(row_cursor(before))).unwrap()
+    }
+
+    /// `page`, read as a live view at checkpoint 0.
+    fn live(mut page: Page<TestCursor>) -> Page<TestCursor> {
+        page.set_live_view(0);
+        page
+    }
+
+    /// A consistent page expects the row of its `after` cursor to be the
+    /// first result, and is empty when it is not.
+    #[test]
+    fn test_consistent_page_is_empty_without_the_after_row() {
+        assert_eq!(
+            paginate(&page_after(2, 5), vec![6, 7, 8]),
+            (false, false, vec![])
+        );
+    }
+
+    /// A live page starts right after a gone `after` row.
+    #[test]
+    fn test_live_page_starts_after_a_gone_after_row() {
+        assert_eq!(
+            paginate(&live(page_after(2, 5)), vec![6, 7, 8]),
+            (false, true, vec![6, 7])
+        );
+    }
+
+    /// A live page whose `after` row is present pages like a consistent one.
+    #[test]
+    fn test_live_page_with_the_after_row_present() {
+        let rows = vec![5, 6, 7, 8];
+        let expected = (true, true, vec![6, 7]);
+        assert_eq!(paginate(&page_after(2, 5), rows.clone()), expected);
+        assert_eq!(paginate(&live(page_after(2, 5)), rows), expected);
+    }
+
+    /// The same for the `before` cursor of a page drawn from the back.
+    #[test]
+    fn test_consistent_page_is_empty_without_the_before_row() {
+        assert_eq!(
+            paginate(&page_before(2, 5), vec![2, 3, 4]),
+            (false, false, vec![])
+        );
+    }
+
+    /// A live page drawn from the back ends right before a gone `before` row.
+    #[test]
+    fn test_live_page_ends_before_a_gone_before_row() {
+        assert_eq!(
+            paginate(&live(page_before(2, 5)), vec![2, 3, 4]),
+            (true, false, vec![3, 4])
+        );
+    }
+
+    /// A live view moves the cursors of the page to the checkpoint it is
+    /// read at, so that they match the cursors the query builds there.
+    #[test]
+    fn test_live_view_moves_the_cursors_to_its_checkpoint() {
+        let mut page = page_after(2, 5);
+        page.set_live_view(7);
+        assert_eq!(page.after().unwrap().checkpoint_viewed_at(), 7);
+        assert_eq!(
+            paginate_at(&page, 7, vec![5, 6, 7]),
+            (true, false, vec![6, 7])
+        );
     }
 }
