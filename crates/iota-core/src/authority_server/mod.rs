@@ -130,7 +130,7 @@ impl ValidatorService {
     /// Refuses the request when the traffic controller does. Otherwise returns
     /// `client` with what the traffic controller decided for it, which the
     /// tally of the request needs.
-    fn check_traffic(&self, client: Option<IpAddr>) -> Result<TallyClient, tonic::Status> {
+    fn check_traffic(&self, client: Option<IpAddr>) -> Result<ClientAndAccess, tonic::Status> {
         let Some(traffic_controller) = &self.traffic_controller else {
             return Ok((client, ClientAccess::Limited));
         };
@@ -154,7 +154,7 @@ impl ValidatorService {
 
     fn tally_traffic<T>(
         &self,
-        client_and_access: TallyClient,
+        client_and_access: ClientAndAccess,
         response: Result<(T, Weight), tonic::Status>,
     ) -> Result<T, tonic::Status> {
         let (spam_weight, error, unwrapped): (Weight, Option<IotaError>, Result<T, tonic::Status>) =
@@ -182,7 +182,7 @@ impl ValidatorService {
     async fn pre_handle<ProtoReq, DomainReq>(
         &self,
         request: tonic::Request<ProtoReq>,
-    ) -> Result<(DomainReq, TallyClient), tonic::Status>
+    ) -> Result<(DomainReq, ClientAndAccess), tonic::Status>
     where
         ProtoReq: TryInto<DomainReq>,
         ProtoReq::Error: std::fmt::Display,
@@ -207,7 +207,7 @@ impl ValidatorService {
     /// tonic response.
     fn post_handle_unary<DomainResp, ProtoResp>(
         &self,
-        client_and_access: TallyClient,
+        client_and_access: ClientAndAccess,
         result: Result<(DomainResp, Weight), tonic::Status>,
     ) -> Result<tonic::Response<ProtoResp>, tonic::Status>
     where
@@ -228,7 +228,7 @@ impl ValidatorService {
     /// policy. Top-level errors are tallied once at stream creation.
     fn post_handle_stream<S, DomainItem, ProtoItem>(
         &self,
-        client_and_access: TallyClient,
+        client_and_access: ClientAndAccess,
         result: Result<S, tonic::Status>,
         item_error: fn(&DomainItem) -> Option<IotaError>,
     ) -> Result<tonic::Response<StreamResponse<ProtoItem>>, tonic::Status>
@@ -324,13 +324,13 @@ pub(super) fn normalize(err: &IotaError) -> Weight {
 }
 
 /// The client of a request, and what the traffic controller decided for it.
-type TallyClient = (Option<IpAddr>, ClientAccess);
+type ClientAndAccess = (Option<IpAddr>, ClientAccess);
 
 /// Records a single traffic tally. No-op if traffic control is disabled, or
 /// if an allow rule serves the client, since no policy counts such a client.
 fn record_tally(
     traffic_controller: Option<&Arc<TrafficController>>,
-    (client, access): TallyClient,
+    (client, access): ClientAndAccess,
     spam_weight: Weight,
     error: Option<IotaError>,
 ) {
