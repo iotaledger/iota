@@ -2193,3 +2193,338 @@ async fn test_drop_at_the_commit_fails_fast_through_the_fullnode() {
         started.elapsed()
     );
 }
+
+// ---------------------------------------------------------------------------
+// ClaimAccount under crashes, catch-up and epoch changes
+// ---------------------------------------------------------------------------
+
+/// Turns on `enable_claim_account_transaction`, which no protocol version
+/// enables yet, with the bounds on a claim's cost that it needs.
+fn enable_claim_account() -> iota_protocol_config::OverrideGuard {
+    ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_claim_account_max_computation_units_for_testing(5_000);
+        config.set_claim_account_storage_bytes_bound_for_testing(2_000);
+        config.set_enable_claim_account_transaction_for_testing(true);
+        config
+    })
+}
+
+/// The Ed25519 key, drawn from `seed`, of an address the claim traffic
+/// claims.
+fn claim_traffic_key(seed: u32) -> iota_sdk_crypto::simple::SimpleKeypair {
+    use rand::SeedableRng;
+
+    let mut bytes = [0xC1; 32];
+    bytes[..4].copy_from_slice(&seed.to_le_bytes());
+    iota_sdk_crypto::simple::SimpleKeypair::from(
+        iota_sdk_crypto::ed25519::Ed25519PrivateKey::random_with(rand::rngs::StdRng::from_seed(
+            bytes,
+        )),
+    )
+}
+
+fn address_of(keypair: &iota_sdk_crypto::simple::SimpleKeypair) -> Address {
+    Address::from(&keypair.public_key())
+}
+
+/// `tx` signed by `keypair`.
+fn signed(
+    tx: &Transaction,
+    keypair: &iota_sdk_crypto::simple::SimpleKeypair,
+) -> iota_types::transaction::TransactionEnvelope {
+    use iota_sdk_crypto::Signer;
+
+    let signature: iota_sdk_types::SimpleSignature = keypair.sign(&tx.signing_digest());
+    iota_types::transaction::TransactionEnvelope::from_user_sig_data(
+        tx.clone(),
+        vec![iota_sdk_types::UserSignature::Simple(signature)],
+    )
+}
+
+/// A `ClaimAccount` of `keypair`'s address paid with `gas`, unsigned.
+fn claim_of(
+    keypair: &iota_sdk_crypto::simple::SimpleKeypair,
+    gas: ObjectReference,
+    gas_price: u64,
+) -> Transaction {
+    use iota_sdk_types::{ClaimAccountTransaction, SmartAccountClaim, TransactionKind};
+    use iota_types::transaction::TransactionAPI;
+
+    Transaction::new(
+        TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(
+            SmartAccountClaim::new(&keypair.public_key()),
+        )),
+        address_of(keypair),
+        gas,
+        gas_price * iota_types::transaction::TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+        gas_price,
+    )
+}
+
+/// Until `stop` is set, claims fresh addresses. Each one gets three gas coins,
+/// and then two claims of it and a plain-signed transfer of it are sent at
+/// once, so commits carry second claims and plain signatures racing claims
+/// that post-consensus validation must decide the same way on every
+/// validator. Returns the seeds of the keys of the addresses claimed.
+fn spawn_claim_traffic(
+    test_cluster: Arc<TestCluster>,
+    stop: Arc<AtomicBool>,
+) -> JoinHandle<Vec<u32>> {
+    use iota_types::transaction::TransactionAPI;
+
+    tokio::spawn(async move {
+        let rgp = test_cluster.get_reference_gas_price().await;
+        let mut claimed = vec![];
+        for seed in 0.. {
+            if stop.load(Ordering::SeqCst) {
+                break;
+            }
+            let keypair = claim_traffic_key(seed);
+            let address = address_of(&keypair);
+            let mut coins = vec![];
+            for _ in 0..3 {
+                coins.push(
+                    test_cluster
+                        .fund_address_and_return_gas(rgp, Some(20_000_000_000), address)
+                        .await,
+                );
+            }
+            let mut second = claim_of(&keypair, coins[1], rgp);
+            second.gas_data_mut().budget += 1;
+            let transfer = TestTransactionBuilder::new(address, coins[2], rgp)
+                .transfer_iota(Some(1), dbg_addr(2))
+                .build();
+            let send = |tx: Transaction| {
+                let test_cluster = test_cluster.clone();
+                let tx = signed(&tx, &keypair);
+                async move {
+                    timeout(
+                        Duration::from_secs(30),
+                        test_cluster.wallet.execute_transaction_may_fail(tx),
+                    )
+                    .await
+                }
+            };
+            let _ = tokio::join!(
+                send(claim_of(&keypair, coins[0], rgp)),
+                send(second),
+                send(transfer),
+            );
+            if test_cluster
+                .get_object_from_fullnode_store(&ObjectId::from(address))
+                .await
+                .is_some()
+            {
+                claimed.push(seed);
+            }
+        }
+        claimed
+    })
+}
+
+/// Stops the claim traffic and returns the seeds of the keys of the addresses
+/// it claimed, asserting that it claimed some.
+async fn stop_claim_traffic(traffic: JoinHandle<Vec<u32>>, stop: &AtomicBool) -> Vec<u32> {
+    stop.store(true, Ordering::SeqCst);
+    let claimed = traffic.await.unwrap();
+    assert!(!claimed.is_empty(), "the traffic claimed no address");
+    claimed
+}
+
+/// Every node holds the same account at each address of `claimed`: one claim
+/// created it, and no node executed another.
+fn assert_one_account_per_address(test_cluster: &TestCluster, claimed: &[u32]) {
+    for seed in claimed {
+        let account_id = ObjectId::from(address_of(&claim_traffic_key(*seed)));
+        let accounts: Vec<_> = test_cluster
+            .all_node_handles()
+            .iter()
+            .map(|handle| {
+                handle.with(|node| {
+                    node.state()
+                        .get_object(&account_id)
+                        .map(|account| (account.object_ref(), account.owner.clone()))
+                })
+            })
+            .collect();
+        assert!(
+            accounts[0].is_some() && accounts.iter().all(|account| *account == accounts[0]),
+            "account {account_id}: {accounts:?}"
+        );
+    }
+}
+
+/// Runs claim traffic while one validator is killed `kills` times at
+/// `fail_point` and restarts. Every validator must reach the same
+/// checkpoints, with one account at each claimed address.
+async fn run_crashes_at_fail_point_under_claims(fail_point: &'static str, kills: usize) {
+    telemetry_subscribers::init_for_testing();
+    let _guard = enable_claim_account();
+    let test_cluster = build_cluster(600_000).await;
+    let stop = Arc::new(AtomicBool::new(false));
+    let traffic = spawn_claim_traffic(test_cluster.clone(), stop.clone());
+
+    kill_a_validator_at_fail_point(&test_cluster, fail_point, kills).await;
+
+    let claimed = stop_claim_traffic(traffic, &stop).await;
+    assert_validators_reach_the_same_checkpoints(&test_cluster).await;
+    assert_one_account_per_address(&test_cluster, &claimed);
+}
+
+/// A validator killed right after it saved a commit's validation decisions,
+/// several times while claims race second claims and plain signatures,
+/// replays each commit from the saved decisions, the claims' locks included.
+#[sim_test]
+async fn test_crashes_after_post_consensus_decisions_under_claims() {
+    run_crashes_at_fail_point_under_claims("crash-after-post-consensus-decisions", 3).await;
+}
+
+/// As above, at the shared `crash` fail points.
+#[sim_test]
+async fn test_crashes_at_shared_crash_points_under_claims() {
+    run_crashes_at_fail_point_under_claims("crash", 3).await;
+}
+
+/// A validator stopped while addresses are claimed catches up from the
+/// certified checkpoints without forking. Afterwards it refuses at admission
+/// a second claim and a plain signature of an address claimed while it was
+/// stopped.
+#[sim_test]
+async fn test_stopped_validator_catches_up_across_claims_without_fork() {
+    use iota_core::authority_client::validator_v2::ValidatorV2API;
+    use iota_types::{
+        error::{IotaError, UserInputError},
+        messages_grpc::TxStatusUpdate,
+    };
+
+    telemetry_subscribers::init_for_testing();
+    let _guard = enable_claim_account();
+    let test_cluster = build_cluster(600_000).await;
+    let stop = Arc::new(AtomicBool::new(false));
+    let traffic = spawn_claim_traffic(test_cluster.clone(), stop.clone());
+
+    let lagging = test_cluster.get_validator_pubkeys()[1];
+    sleep(Duration::from_secs(5)).await;
+    test_cluster.stop_node(&lagging);
+    sleep(Duration::from_secs(10)).await;
+    test_cluster.start_node(&lagging).await;
+    let claimed = stop_claim_traffic(traffic, &stop).await;
+    assert_validators_reach_the_same_checkpoints(&test_cluster).await;
+    assert_one_account_per_address(&test_cluster, &claimed);
+
+    let keypair = claim_traffic_key(claimed[0]);
+    let address = address_of(&keypair);
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let gas = test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), address)
+        .await;
+    let client = test_cluster.authority_aggregator().authority_clients[&lagging]
+        .authority_client()
+        .clone();
+    for (tx, expected) in [
+        (
+            claim_of(&keypair, gas, rgp),
+            IotaError::from(UserInputError::AccountAlreadyExplicit { address }),
+        ),
+        (
+            TestTransactionBuilder::new(address, gas, rgp)
+                .transfer_iota(Some(1), dbg_addr(2))
+                .build(),
+            IotaError::from(UserInputError::PlainSignatureForExplicitAccount { address }),
+        ),
+    ] {
+        let answers = client
+            .submit_tx(
+                vec![signed(&tx, &keypair)],
+                Some(std::net::SocketAddr::new([127, 0, 0, 1].into(), 0)),
+            )
+            .await
+            .unwrap();
+        assert!(
+            matches!(
+                answers.as_slice(),
+                [(_, TxStatusUpdate::Rejected { error })] if *error == expected
+            ),
+            "{answers:?}"
+        );
+    }
+}
+
+/// One validator executes every transaction up to a second late while
+/// addresses are claimed, so its validation of a commit runs ahead of its
+/// execution of the claims the commit's horizon does not cover yet. It is
+/// then restarted with the delay still in place. Every validator must reach
+/// the same checkpoints, with one account at each claimed address.
+#[sim_test]
+async fn test_execution_stall_on_one_validator_under_claims_does_not_fork() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = enable_claim_account();
+    let test_cluster = build_cluster(600_000).await;
+    let stalled = test_cluster.get_validator_pubkeys()[2];
+    let stalled_sim_id = sim_node_id(&test_cluster, &stalled);
+    let stall = Arc::new(AtomicBool::new(true));
+    {
+        let stall = stall.clone();
+        register_fail_point_async("transaction_execution_delay", move || {
+            let stall = iota_simulator::current_simnode_id() == stalled_sim_id
+                && stall.load(Ordering::SeqCst);
+            async move {
+                if stall {
+                    let delay = Uniform::new(0, 1_000).unwrap().sample(&mut rand::rng());
+                    sleep(Duration::from_millis(delay)).await;
+                }
+            }
+        });
+    }
+    let stop = Arc::new(AtomicBool::new(false));
+    let traffic = spawn_claim_traffic(test_cluster.clone(), stop.clone());
+
+    sleep(Duration::from_secs(10)).await;
+    assert_validators_reach_the_same_checkpoints(&test_cluster).await;
+    test_cluster.stop_node(&stalled);
+    sleep(Duration::from_secs(5)).await;
+    test_cluster.start_node(&stalled).await;
+    sleep(Duration::from_secs(5)).await;
+
+    stall.store(false, Ordering::SeqCst);
+    let claimed = stop_claim_traffic(traffic, &stop).await;
+    assert_validators_reach_the_same_checkpoints(&test_cluster).await;
+    assert_one_account_per_address(&test_cluster, &claimed);
+    clear_fail_point("transaction_execution_delay");
+}
+
+/// Claims across two epoch changes, with one validator stopped across the
+/// first. Every validator must reach the same checkpoints, with one account
+/// at each claimed address, and a claim of an address claimed in an earlier
+/// epoch is refused.
+#[sim_test]
+async fn test_claims_around_an_epoch_change_keep_one_account_per_address() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = enable_claim_account();
+    let test_cluster = build_cluster(15_000).await;
+    let names = test_cluster.get_validator_pubkeys();
+    let stop = Arc::new(AtomicBool::new(false));
+    let traffic = spawn_claim_traffic(test_cluster.clone(), stop.clone());
+
+    wait_for_validators_to_reach_epoch(&test_cluster, &names, 1).await;
+    let lagging = names[3];
+    test_cluster.stop_node(&lagging);
+    wait_for_validators_to_reach_epoch(&test_cluster, &names[..3], 2).await;
+    test_cluster.start_node(&lagging).await;
+    wait_for_validators_to_reach_epoch(&test_cluster, &names, 3).await;
+
+    let claimed = stop_claim_traffic(traffic, &stop).await;
+    assert_validators_reach_the_same_checkpoints(&test_cluster).await;
+    assert_one_account_per_address(&test_cluster, &claimed);
+    let keypair = claim_traffic_key(claimed[0]);
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let gas = test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), address_of(&keypair))
+        .await;
+    let error = test_cluster
+        .wallet
+        .execute_transaction_may_fail(signed(&claim_of(&keypair, gas, rgp), &keypair))
+        .await
+        .expect_err("a claim of an address claimed in an earlier epoch must be refused");
+    assert!(error.to_string().contains("already explicit"), "{error}");
+}
