@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["EpochStartSystemState"],"fn":["convert_validator_to_epoch_start_info"],"struct":["EpochStartSystemStateV1","EpochStartSystemStateV2","EpochStartValidatorInfoV1"],"trait":["EpochStartSystemStateTrait"]};

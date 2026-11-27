@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["get_transaction_input_objects","get_transaction_output_objects"],"struct":["HistoricObjects","HistoricObjectsBucket"]};

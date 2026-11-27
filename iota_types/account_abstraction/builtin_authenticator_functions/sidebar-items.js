@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME","BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME","INVALID_SIGNATURE_ERROR_CODE","PUBLIC_KEY_FIELD_NAME_STRUCT_NAME"],"fn":["builtin_authenticator_function_ref_v1","is_builtin_authenticator_function_ref"],"struct":["PublicKeyFieldName"]};

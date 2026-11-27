@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["check_db_migration_consistency","reset_database","run_migrations"],"mod":["__diesel_schema_migrations"]};

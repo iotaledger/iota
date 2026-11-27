@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["Authentication","DevInspect","Genesis","Normal","PrivateCall","System"],"trait":["ExecutionMode"],"type":["TransactionIndex"]};

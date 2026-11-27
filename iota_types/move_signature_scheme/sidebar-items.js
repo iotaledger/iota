@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["SIGNATURE_SCHEME_MODULE_NAME","SIGNATURE_SCHEME_STRUCT_NAME"],"struct":["MoveSignatureScheme"]};

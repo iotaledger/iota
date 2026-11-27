@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["PUBLIC_KEY_MODULE_NAME","PUBLIC_KEY_STRUCT_NAME"],"fn":["verify_builtin_authenticator_signature","verify_personal_message_signature"],"struct":["MovePublicKey"]};
