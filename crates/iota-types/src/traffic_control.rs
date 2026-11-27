@@ -203,7 +203,7 @@ pub enum PolicyType {
 /// free. Each client has a gas balance that refills by `gas-per-sec` up to
 /// `burst-gas`. A simulation reserves the computation limit of one transaction
 /// (`max_gas_computation_bucket` of the protocol), or the whole `burst-gas` if
-/// that is lower, and is refused while the balance of its client is below that
+/// that is lower. It is refused while the balance of its client is below that
 /// amount. The client's other requests are still served. Both values are in
 /// gas units and must be above 0.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]

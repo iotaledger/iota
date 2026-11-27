@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! The gas limit of simulations. Each client has a gas balance that refills by
-//! `gas-per-sec` up to `burst-gas`. A simulation reserves the computation
-//! limit of one transaction, or `burst-gas` if that is lower, when it starts and
-//! gives back what it did not use when it ends, so simulations a client runs
-//! at the same time cannot pass the limit together.
+//! `gas-per-sec` up to `burst-gas`. When a simulation starts, it reserves the
+//! computation limit of one transaction, or `burst-gas` if that is lower. When
+//! it ends, it gives back what it did not use. So simulations that a client
+//! runs at the same time cannot pass the limit together.
 
 use std::{
     net::IpAddr,
