@@ -1339,7 +1339,12 @@ async fn an_epoch_change_gives_the_simulation_gas_limit_the_new_computation_limi
         ProtocolConfig::apply_overrides_for_testing(move |_, _| next_protocol_config.clone());
     let next_committee = Committee::new(
         epoch_store.epoch() + 1,
-        epoch_store.committee().voting_rights.iter().cloned().collect(),
+        epoch_store
+            .committee()
+            .voting_rights
+            .iter()
+            .cloned()
+            .collect(),
     );
     let state_hasher = Arc::new(GlobalStateHasher::new_for_tests(
         state.get_global_state_hash_store().clone(),
@@ -1349,7 +1354,9 @@ async fn an_epoch_change_gives_the_simulation_gas_limit_the_new_computation_limi
             &epoch_store,
             SupportedProtocolVersions::SYSTEM_DEFAULT,
             next_committee,
-            epoch_store.epoch_start_config().new_at_next_epoch_for_testing(),
+            epoch_store
+                .epoch_start_config()
+                .new_at_next_epoch_for_testing(),
             state_hasher,
             // The state check needs the root state hash that the end of epoch
             // computes, and this epoch ends without checkpoints.
