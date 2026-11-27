@@ -2337,10 +2337,13 @@ impl AuthorityPerEpochStore {
         self.cut_off_validators.read().clone()
     }
 
+    /// Replaces the cut-off validators with `validators` and logs each one
+    /// that was not among them before.
     pub(crate) fn set_cut_off_validators(&self, validators: BTreeSet<AuthorityName>) {
         let mut cut_off_validators = self.cut_off_validators.write();
         for validator in validators.difference(&cut_off_validators) {
             info!(
+                epoch = self.epoch(),
                 validator = ?validator.concise(),
                 "validator cut off for the rest of the epoch, as of the last executed checkpoint"
             );
