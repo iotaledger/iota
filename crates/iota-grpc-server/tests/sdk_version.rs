@@ -9,15 +9,15 @@ mod common;
 use std::sync::Arc;
 
 use common::{MockGrpcStateReader, start_test_server};
-use iota_grpc_server::{
-    GrpcServerHandle,
-    constants::{IOTA_SDK_GRPC_CLIENT_VERSION_MIN, X_IOTA_SDK_GRPC_CLIENT_VERSION_MIN},
-};
-use iota_grpc_types::v1::{
-    ledger_service::{GetServiceInfoRequest, ledger_service_client::LedgerServiceClient},
-    transaction_execution_service::{
-        ExecuteTransactionsRequest,
-        transaction_execution_service_client::TransactionExecutionServiceClient,
+use iota_grpc_server::{GrpcServerHandle, constants::IOTA_SDK_GRPC_CLIENT_VERSION_MIN};
+use iota_grpc_types::{
+    headers::X_IOTA_SDK_GRPC_CLIENT_VERSION_MIN,
+    v1::{
+        ledger_service::{GetServiceInfoRequest, ledger_service_client::LedgerServiceClient},
+        transaction_execution_service::{
+            ExecuteTransactionsRequest,
+            transaction_execution_service_client::TransactionExecutionServiceClient,
+        },
     },
 };
 use tonic::{Code, metadata::MetadataMap, transport::Channel};

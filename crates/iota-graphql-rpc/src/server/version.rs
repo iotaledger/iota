@@ -9,6 +9,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use axum_extra::headers;
+use iota_sdk_graphql_client::X_IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN;
 
 use crate::{
     config::Version,
@@ -16,21 +17,17 @@ use crate::{
 };
 
 pub(crate) static VERSION_HEADER: HeaderName = HeaderName::from_static("x-iota-rpc-version");
-// TODO(https://github.com/iotaledger/iota/issues/13598): replace with
-// `iota_sdk_graphql_client::X_IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN` once an
-// `iota-sdk-graphql-client` release has it, and test that the bundled
-// `iota-sdk-graphql-client` accepts the minimum.
-pub(crate) static IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN_HEADER: HeaderName =
-    HeaderName::from_static("x-iota-sdk-graphql-client-version-min");
 
 /// Lowest `iota-sdk-graphql-client` version able to decode this service's
-/// responses, sent in the [`IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN_HEADER`] of every response.
+/// responses, sent in the [`X_IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN`] header of every response.
 ///
 /// Bump this alongside SDK releases containing wire-visible changes (e.g., new enum variants or
 /// renamed fields) to force older clients to reject the service and fail safely rather than
 /// panicking on un-decodable values. `scripts/check_min_iota_sdk_client_version.py` fails in CI
 /// when a change to the BCS schema of `iota-sdk-types` requires raising it. A change to the
-/// GraphQL schema is not checked and has to be raised by hand.
+/// GraphQL schema is not checked and has to be raised by hand. It must not exceed the version of
+/// the `iota-sdk-graphql-client` this repository builds against, or the node's own tooling fails
+/// its calls.
 pub(crate) const IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN: &str = "1.0.0";
 
 #[expect(unused)]
@@ -123,7 +120,7 @@ pub(crate) async fn set_version_middleware(
         HeaderValue::from_static(version.full),
     );
     headers.insert(
-        IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN_HEADER.clone(),
+        X_IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN,
         HeaderValue::from_static(IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN),
     );
     response
@@ -234,8 +231,14 @@ mod tests {
     }
 
     #[test]
-    fn iota_sdk_graphql_client_version_min_is_valid_semver() {
-        semver::Version::parse(IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN).unwrap();
+    fn bundled_client_meets_iota_sdk_graphql_client_version_min() {
+        let minimum = semver::Version::parse(IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN).unwrap();
+        let bundled = semver::Version::parse(iota_sdk_graphql_client::CRATE_VERSION).unwrap();
+        assert!(
+            bundled.cmp_precedence(&minimum).is_ge(),
+            "IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN ({minimum}) is newer than the bundled \
+             iota-sdk-graphql-client ({bundled})"
+        );
     }
 
     #[tokio::test]
@@ -255,7 +258,7 @@ mod tests {
         assert_eq!(
             response
                 .headers()
-                .get(&IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN_HEADER),
+                .get(X_IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN),
             Some(&HeaderValue::from_static(
                 IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN
             ))
@@ -275,7 +278,7 @@ mod tests {
         assert_eq!(
             response
                 .headers()
-                .get(&IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN_HEADER),
+                .get(X_IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN),
             Some(&HeaderValue::from_static(
                 IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN
             ))

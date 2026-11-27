@@ -5,24 +5,19 @@ use iota_grpc_types::{google::rpc::bad_request::FieldViolation, v1::error_reason
 
 use crate::error::RpcError;
 
-/// Name of the response header carrying
-/// [`IOTA_SDK_GRPC_CLIENT_VERSION_MIN`].
-// TODO(https://github.com/iotaledger/iota/issues/13598): replace with
-// `iota_grpc_types::headers::X_IOTA_SDK_GRPC_CLIENT_VERSION_MIN`
-// once an `iota-sdk-grpc-types` release has it, and test that the bundled
-// `iota-sdk-grpc-client` accepts the minimum.
-pub const X_IOTA_SDK_GRPC_CLIENT_VERSION_MIN: &str = "x-iota-sdk-grpc-client-version-min";
-
 /// Lowest `iota-sdk-grpc-client` version able to decode this node's gRPC
-/// responses, sent in the [`X_IOTA_SDK_GRPC_CLIENT_VERSION_MIN`] header of
-/// every response.
+/// responses, sent in the
+/// [`X_IOTA_SDK_GRPC_CLIENT_VERSION_MIN`](iota_grpc_types::headers::X_IOTA_SDK_GRPC_CLIENT_VERSION_MIN)
+/// header of every response.
 ///
 /// Raise it to the SDK release that ships a wire-visible change (a new enum
 /// variant, a new `oneof` case, ...) once that release is out, so clients on
 /// an older SDK fail their calls instead of choking on values they cannot
 /// decode. `scripts/check_min_iota_sdk_client_version.py` fails in CI when a
 /// change to the BCS schema of `iota-sdk-types` requires raising it. A change
-/// to the proto definitions is not checked and has to be raised by hand.
+/// to the proto definitions is not checked and has to be raised by hand. It
+/// must not exceed the version of the `iota-sdk-grpc-client` this repository
+/// builds against, or the node's own tooling fails its calls.
 pub const IOTA_SDK_GRPC_CLIENT_VERSION_MIN: &str = "1.0.0";
 
 /// Maximum number of nested `All`, `Any` and `Not` filters in a transaction or
@@ -98,7 +93,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn iota_sdk_grpc_client_version_min_is_valid_semver() {
-        Version::parse(IOTA_SDK_GRPC_CLIENT_VERSION_MIN).unwrap();
+    fn bundled_client_meets_iota_sdk_grpc_client_version_min() {
+        let minimum = Version::parse(IOTA_SDK_GRPC_CLIENT_VERSION_MIN).unwrap();
+        let bundled = Version::parse(iota_grpc_client::CRATE_VERSION).unwrap();
+        assert!(
+            bundled.cmp_precedence(&minimum).is_ge(),
+            "IOTA_SDK_GRPC_CLIENT_VERSION_MIN ({minimum}) is newer than the bundled \
+             iota-sdk-grpc-client ({bundled})"
+        );
     }
 }
