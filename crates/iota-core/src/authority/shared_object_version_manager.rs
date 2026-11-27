@@ -192,9 +192,8 @@ impl SharedObjVerManager {
         for assignable in assignables {
             if !assignable.contains_shared_object() {
                 // A transaction without shared inputs has no version
-                // assignments, except when it is cancelled (execution-worker
-                // congestion): the cancellation version is then carried on
-                // its gas object.
+                // assignments, except when it is cancelled: the cancellation
+                // version is then carried on its gas object.
                 let cancelled = assignable
                     .key()
                     .as_digest()
@@ -255,20 +254,18 @@ impl SharedObjVerManager {
                     VersionAssignment::new(reference.object_id, reference.version)
                 })
                 .collect();
-            // A cancelled transaction without shared inputs carries the
-            // cancellation version on its gas object, which is not part of
-            // the effects' shared object entries. Reconstruct it from the
-            // execution status so re-execution reproduces the cancellation.
-            if !transaction.contains_shared_object() {
-                if let Some(version) = gas_object_cancellation_version_from_effects(effects) {
-                    let gas_object_id = transaction
-                        .transaction()
-                        .gas()
-                        .first()
-                        .expect("user transactions have at least one gas object")
-                        .object_id;
-                    tx_assigned_versions.push(VersionAssignment::new(gas_object_id, version));
-                }
+            // A transaction cancelled through its gas object carries the
+            // cancellation version there, which is not part of the effects'
+            // shared object entries. Reconstruct it from the execution status
+            // so re-execution reproduces the cancellation.
+            if let Some(version) = gas_object_cancellation_version_from_effects(effects) {
+                let gas_object_id = transaction
+                    .transaction()
+                    .gas()
+                    .first()
+                    .expect("user transactions have at least one gas object")
+                    .object_id;
+                tx_assigned_versions.push(VersionAssignment::new(gas_object_id, version));
             }
             let tx_key = transaction.key();
             trace!(
@@ -290,12 +287,12 @@ impl SharedObjVerManager {
     ) -> AssignedVersions {
         let tx_key = assignable.key();
 
-        // Check if the transaction is cancelled due to congestion.
+        // Check if the transaction is cancelled.
         let cancellation_info = tx_key
             .as_digest()
             .and_then(|tx_digest| cancelled_txns.get(tx_digest));
         let congested_objects_info: Option<HashSet<_>> =
-            if let Some(CancelConsensusTransactionReason::Congested {
+            if let Some(CancelConsensusTransactionReason::SharedObjectCongestion {
                 congested_objects,
                 suggested_gas_price: _,
             }) = &cancellation_info
@@ -318,12 +315,14 @@ impl SharedObjVerManager {
 
         if txn_cancelled {
             // A cancelled transaction gets cancellation versions instead of
-            // real ones: one per shared input, or one on the gas object when
-            // it has no shared inputs (below). Note that the new lamport
-            // version does not depend on any of these assignments.
+            // real ones. The version that tells the reason goes on the
+            // objects that caused the cancellation, and on the gas object
+            // when no object did (below). Every other shared input gets
+            // `Version::CANCELED_READ`. Note that the new lamport version does
+            // not depend on any of these assignments.
             for SharedObjectReference { object_id: id, .. } in shared_input_objects.iter() {
                 let assigned_version = match cancellation_info {
-                    Some(CancelConsensusTransactionReason::Congested {
+                    Some(CancelConsensusTransactionReason::SharedObjectCongestion {
                         congested_objects: _,
                         suggested_gas_price,
                     }) => {
@@ -358,42 +357,45 @@ impl SharedObjVerManager {
                             Version::CANCELED_READ
                         }
                     }
+                    Some(CancelConsensusTransactionReason::ExecutionWorkerCongestion {
+                        ..
+                    }) => Version::CANCELED_READ,
                     None => unreachable!("cancelled transaction should have cancellation info"),
                 };
                 assigned_versions.push(VersionAssignment::new(*id, assigned_version));
                 is_mutable_input.push(false);
             }
 
-            // A cancelled transaction without shared inputs carries the
-            // cancellation version on its gas object instead. The gas object
-            // is still read and charged normally during the cancelled
-            // execution; this assignment only transports the cancellation.
-            if shared_input_objects.is_empty() {
-                let suggested_gas_price = match cancellation_info {
-                    Some(CancelConsensusTransactionReason::Congested {
-                        suggested_gas_price,
-                        ..
-                    }) => suggested_gas_price,
-                    Some(CancelConsensusTransactionReason::DkgFailed) => unreachable!(
-                        "only congestion can cancel a transaction without shared inputs"
-                    ),
-                    None => unreachable!("cancelled transaction should have cancellation info"),
-                };
-                let assigned_version =
+            // A cancellation that no object caused is carried on the gas
+            // object. The gas object is still read and charged normally
+            // during the cancelled execution; this assignment only transports
+            // the cancellation.
+            let gas_object_version = match cancellation_info {
+                Some(CancelConsensusTransactionReason::ExecutionWorkerCongestion {
+                    suggested_gas_price,
+                }) => Some(
                     Version::new_congested_with_suggested_gas_price(suggested_gas_price.expect(
                         "execution-worker congestion control requires the gas price feedback \
                             mechanism, so a suggested gas price must be present",
                     ))
-                    .unwrap();
+                    .unwrap(),
+                ),
+                Some(
+                    CancelConsensusTransactionReason::SharedObjectCongestion { .. }
+                    | CancelConsensusTransactionReason::DkgFailed,
+                ) => None,
+                None => unreachable!("cancelled transaction should have cancellation info"),
+            };
+            if let Some(gas_object_version) = gas_object_version {
                 let gas_object_id = assignable
                     .as_tx()
-                    .expect("only a transaction can be cancelled without shared inputs")
+                    .expect("only a transaction is cancelled without an object as the cause")
                     .transaction()
                     .gas()
                     .first()
                     .expect("user transactions have at least one gas object")
                     .object_id;
-                assigned_versions.push(VersionAssignment::new(gas_object_id, assigned_version));
+                assigned_versions.push(VersionAssignment::new(gas_object_id, gas_object_version));
             }
         } else {
             for (
@@ -457,11 +459,11 @@ impl SharedObjVerManager {
     }
 }
 
-/// Returns the cancellation version to assign to the gas object of a
-/// cancelled transaction without shared inputs, reconstructed from the
-/// effects' execution status. Returns `None` when the effects are not an
-/// execution-worker congestion cancellation, which is the only cancellation a
-/// transaction without shared inputs can carry on its gas object.
+/// Returns the cancellation version that a transaction cancelled through its
+/// gas object carries there, reconstructed from the effects' execution
+/// status. Returns `None` when the effects are not an execution-worker
+/// congestion cancellation, which is the only cancellation carried on the gas
+/// object.
 pub(crate) fn gas_object_cancellation_version_from_effects(
     effects: &TransactionEffects,
 ) -> Option<Version> {
@@ -838,14 +840,14 @@ mod tests {
         let cancelled_txns: BTreeMap<TransactionDigest, CancelConsensusTransactionReason> = [
             (
                 *transactions[1].digest(),
-                CancelConsensusTransactionReason::Congested {
+                CancelConsensusTransactionReason::SharedObjectCongestion {
                     congested_objects: vec![id1],
                     suggested_gas_price: Some(suggested_gas_price),
                 },
             ),
             (
                 *transactions[3].digest(),
-                CancelConsensusTransactionReason::Congested {
+                CancelConsensusTransactionReason::SharedObjectCongestion {
                     congested_objects: vec![id2],
                     suggested_gas_price: Some(suggested_gas_price),
                 },
@@ -976,7 +978,7 @@ mod tests {
         let suggested_gas_price = 1_000;
         let cancelled_txns: BTreeMap<TransactionDigest, CancelConsensusTransactionReason> = [(
             *cancelled_tx.digest(),
-            CancelConsensusTransactionReason::Congested {
+            CancelConsensusTransactionReason::SharedObjectCongestion {
                 congested_objects: vec![id],
                 suggested_gas_price: Some(suggested_gas_price),
             },
@@ -1150,10 +1152,10 @@ mod tests {
         );
     }
 
-    // A transaction without shared inputs that is cancelled for congestion
-    // carries its cancellation version on the gas object. All three assignment
-    // paths must agree on that assignment: consensus processing, the
-    // per-transaction assignment used for the
+    // A transaction without shared inputs that is cancelled for
+    // execution-worker congestion carries its cancellation version on the gas
+    // object. All three assignment paths must agree on that assignment:
+    // consensus processing, the per-transaction assignment used for the
     // consensus commit prologue, and the reconstruction from the effects'
     // execution status used by checkpoint replay.
     #[tokio::test]
@@ -1171,8 +1173,7 @@ mod tests {
         let suggested_gas_price = 1_000;
         let cancelled_txns: BTreeMap<TransactionDigest, CancelConsensusTransactionReason> = [(
             *transaction.digest(),
-            CancelConsensusTransactionReason::Congested {
-                congested_objects: vec![],
+            CancelConsensusTransactionReason::ExecutionWorkerCongestion {
                 suggested_gas_price: Some(suggested_gas_price),
             },
         )]
@@ -1247,6 +1248,104 @@ mod tests {
         )
         .unwrap();
         assert!(assigned_versions.0.is_empty());
+    }
+
+    // A transaction with a shared input that is cancelled for execution-worker
+    // congestion, which no object caused: the shared input gets
+    // `Version::CANCELED_READ` and the cancellation version is carried on the
+    // gas object, on the same three assignment paths as for a transaction
+    // without shared inputs.
+    #[tokio::test]
+    async fn test_assign_versions_for_tx_with_shared_input_cancelled_for_worker_congestion() {
+        let shared_object = Object::shared_for_testing();
+        let id = shared_object.id();
+        let init_shared_version = shared_object
+            .owner
+            .into_opt_shared()
+            .expect("expected shared object");
+        let authority = TestAuthorityBuilder::new()
+            .with_starting_objects(std::slice::from_ref(&shared_object))
+            .build()
+            .await;
+        let epoch_store = authority.epoch_store_for_testing();
+
+        let transaction =
+            generate_shared_objs_tx_with_gas_version(&[(id, init_shared_version, false)], 3);
+        let gas_object_id = transaction.transaction().gas()[0].object_id;
+        let suggested_gas_price = 1_000;
+        let cancelled_txns: BTreeMap<TransactionDigest, CancelConsensusTransactionReason> = [(
+            *transaction.digest(),
+            CancelConsensusTransactionReason::ExecutionWorkerCongestion {
+                suggested_gas_price: Some(suggested_gas_price),
+            },
+        )]
+        .into_iter()
+        .collect();
+
+        let gas_object_assignment = vec![VersionAssignment::new(
+            gas_object_id,
+            Version::new_congested_with_suggested_gas_price(suggested_gas_price).unwrap(),
+        )];
+        let expected_assignment = [
+            vec![VersionAssignment::new(id, Version::CANCELED_READ)],
+            gas_object_assignment.clone(),
+        ]
+        .concat();
+
+        // Consensus processing.
+        let ConsensusSharedObjVerAssignment {
+            shared_input_next_versions,
+            assigned_versions,
+        } = SharedObjVerManager::assign_versions_from_consensus(
+            &epoch_store,
+            authority.get_object_cache_reader().as_ref(),
+            [Schedulable::Transaction(&transaction)].iter(),
+            &cancelled_txns,
+        )
+        .unwrap();
+        assert_eq!(
+            assigned_versions.0,
+            vec![(transaction.key(), expected_assignment.clone())]
+        );
+        // The cancelled transaction leaves the shared object's next version
+        // where it was, and the gas object does not enter that tracking.
+        assert_eq!(
+            shared_input_next_versions,
+            HashMap::from([(id, init_shared_version)])
+        );
+
+        // The per-transaction assignment recorded in the consensus commit
+        // prologue.
+        let prologue_assignment = SharedObjVerManager::assign_versions_for_transaction(
+            &epoch_store,
+            &Schedulable::Transaction(&transaction),
+            &mut HashMap::new(),
+            &cancelled_txns,
+            true,
+        );
+        assert_eq!(prologue_assignment, expected_assignment);
+
+        // Reconstruction from the effects' execution status (checkpoint
+        // replay). The test effects have no entry for a shared input that is
+        // only read, so only the gas object's assignment comes back.
+        let effects = TestEffectsBuilder::new(transaction.data())
+            .with_status(ExecutionStatus::Failure {
+                error: ExecutionError::ExecutionCanceledDueToExecutionWorkerCongestion {
+                    suggested_gas_price,
+                },
+                command: None,
+            })
+            .build();
+        let replay_assignment = SharedObjVerManager::assign_versions_from_effects(
+            &[(&transaction, &effects)],
+            &epoch_store,
+            authority.get_object_cache_reader().as_ref(),
+        )
+        .unwrap();
+        assert_eq!(
+            replay_assignment.0,
+            vec![(transaction.key(), gas_object_assignment)]
+        );
     }
 
     /// Shared objects read by a transaction's `MoveAuthenticator`s are shared

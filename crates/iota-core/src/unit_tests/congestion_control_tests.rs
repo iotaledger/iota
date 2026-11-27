@@ -1712,9 +1712,11 @@ async fn test_execution_worker_congestion_cancels_owned_object_only_tx() {
 
 // A transaction with shared inputs deferred by execution-worker congestion
 // (rather than congestion on its objects) reports no congested objects from
-// the scheduler. Once past the deferral limit it is cancelled through the
-// existing shared object cancellation path, with all of its shared inputs
-// treated as congested.
+// the scheduler. Once past the deferral limit it is cancelled like a
+// transaction without shared inputs: the effects report execution-worker
+// congestion and name no object. Re-executing it from those effects on a
+// second authority (the checkpoint replay path) must reproduce identical
+// effects.
 #[sim_test]
 async fn test_execution_worker_congestion_cancels_shared_object_tx() {
     telemetry_subscribers::init_for_testing();
@@ -1830,7 +1832,7 @@ async fn test_execution_worker_congestion_cancels_shared_object_tx() {
             .unwrap()
     };
 
-    let mut cancellations = 0;
+    let mut cancelled = Vec::new();
     for schedulable in &executable_transactions {
         let tx = schedulable
             .as_tx()
@@ -1844,41 +1846,44 @@ async fn test_execution_worker_congestion_cancels_shared_object_tx() {
         let (effects, _) = authority_state
             .try_execute_immediately(tx, env, &epoch_store)
             .unwrap();
-        let shared_input = shared_input_of(tx.digest());
-        match effects.status() {
-            ExecutionStatus::Success => {}
+        let is_cancelled = match effects.status() {
+            ExecutionStatus::Success => false,
             ExecutionStatus::Failure {
                 error:
-                    ExecutionError::ExecutionCanceledDueToSharedObjectCongestionV2 {
-                        congested_objects,
+                    ExecutionError::ExecutionCanceledDueToExecutionWorkerCongestion {
                         suggested_gas_price,
                     },
                 command: None,
             } => {
-                // The worker pool, not an object, was congested, so all of
-                // the transaction's shared inputs are treated as congested.
-                assert_eq!(congested_objects, &vec![shared_input]);
+                // The execution workers, not an object, were congested, so
+                // the effects name no congested object: the shared input is
+                // a cancelled read.
                 assert!(*suggested_gas_price > 0);
                 assert_eq!(
                     effects.input_shared_objects(),
                     vec![InputSharedObject::Canceled(ObjectVersion::new(
-                        shared_input,
-                        Version::new_congested_with_suggested_gas_price(*suggested_gas_price)
-                            .unwrap()
+                        shared_input_of(tx.digest()),
+                        Version::CANCELED_READ
                     ))]
                 );
-                cancellations += 1;
+                true
             }
-            other => panic!("expected success or congestion cancellation, got {other:?}"),
+            other => {
+                panic!("expected success or execution-worker congestion, got {other:?}")
+            }
+        };
+        if is_cancelled {
+            cancelled.push((tx.clone(), effects));
         }
     }
     assert_eq!(
-        cancellations, 1,
+        cancelled.len(),
+        1,
         "exactly one transaction fits the single execution worker"
     );
+    let (cancelled_tx, effects) = cancelled.pop().unwrap();
 
-    // The effects report the shared input as congested, but the metrics name
-    // the execution workers that shed the transaction.
+    // The metrics name the execution workers, as the effects do.
     for (reason, count) in [
         ("execution_worker_congestion", 1),
         ("shared_object_congestion", 0),
@@ -1893,6 +1898,40 @@ async fn test_execution_worker_congestion_cancels_shared_object_tx() {
             "{reason}"
         );
     }
+
+    // Re-execute from the effects on a second authority holding the same
+    // genesis objects. The versions rebuilt from the effects, on the shared
+    // input from its entry and on the gas object from the execution status,
+    // are those assigned at sequencing, and reproduce identical effects.
+    let authority_state_2 = TestAuthorityBuilder::new()
+        .with_reference_gas_price(TEST_ONLY_GAS_PRICE)
+        .with_protocol_config(test_setup.protocol_config.clone())
+        .build()
+        .await;
+    authority_state_2.insert_genesis_objects(&genesis_objects);
+    let epoch_store_2 = authority_state_2.epoch_store_for_testing();
+    let assigned_versions_2 = epoch_store_2
+        .acquire_shared_version_assignments_from_effects(
+            &cancelled_tx,
+            &effects,
+            authority_state_2.get_object_cache_reader().as_ref(),
+        )
+        .unwrap();
+    assert_eq!(
+        Some(&assigned_versions_2),
+        assigned_versions.get(&cancelled_tx.key())
+    );
+    // The second authority executes the transaction outside the consensus
+    // handler, so it is assigned a commit first, as the handler would.
+    epoch_store_2.assign_to_a_new_commit_for_testing(&[cancelled_tx.key()]);
+    let (effects_2, _) = authority_state_2
+        .try_execute_immediately(
+            &cancelled_tx,
+            ExecutionEnv::new().with_assigned_versions(assigned_versions_2),
+            &epoch_store_2,
+        )
+        .unwrap();
+    assert_eq!(effects, effects_2);
 }
 
 // A cancelled transaction without shared inputs that pays with multiple gas

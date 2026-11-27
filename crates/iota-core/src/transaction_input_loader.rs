@@ -186,11 +186,6 @@ impl TransactionInputLoader {
         let mut object_keys = Vec::with_capacity(input_object_kinds.len());
         let mut fetches = Vec::with_capacity(input_object_kinds.len());
         let mut gas_object_cancellation = None;
-        // Only a transaction without shared inputs can carry a cancellation
-        // version on its gas object; every other assignment names a shared object.
-        let check_gas_object_cancellation = !input_object_kinds
-            .iter()
-            .any(|kind| matches!(kind, InputObjectKind::SharedMoveObject { .. }));
 
         for (i, input) in input_object_kinds.iter().enumerate() {
             match input {
@@ -208,12 +203,20 @@ impl TransactionInputLoader {
                     continue;
                 }
                 InputObjectKind::ImmOrOwnedMoveObject(objref) => {
-                    // A cancelled transaction without shared inputs carries
-                    // its cancellation version on the gas object. Unlike a
-                    // cancelled shared input, the object is still read
-                    // normally: the cancelled execution charges gas to it.
-                    if check_gas_object_cancellation {
-                        if let Some(version) = assigned_shared_versions.get(&objref.object_id) {
+                    // An assigned version on an object that is no shared
+                    // input is the cancellation version of a transaction
+                    // cancelled through its gas object. Unlike a cancelled
+                    // shared input, the object is still read normally: the
+                    // cancelled execution charges gas to it.
+                    if let Some(version) = assigned_shared_versions.get(&objref.object_id) {
+                        let is_shared_input = input_object_kinds.iter().any(|kind| {
+                            matches!(
+                                kind,
+                                InputObjectKind::SharedMoveObject { id, .. }
+                                    if *id == objref.object_id
+                            )
+                        });
+                        if !is_shared_input {
                             assert!(
                                 version.is_canceled(),
                                 "non-shared input {} of {tx_key:?} has a non-cancellation \

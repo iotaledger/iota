@@ -53,11 +53,21 @@ fn authenticator_function_ref_field(account: &Object) -> Object {
     )
 }
 
-/// Executes a transaction that uses `Random` and is sent by a Move account,
-/// which also pays for gas, with the versions consensus assigns when it
-/// cancels the transaction because randomness is unavailable.
-async fn execute_cancelled_move_account_transaction() -> (TransactionEffects, Option<ExecutionError>)
-{
+/// Why the transaction is cancelled at sequencing.
+enum Cancellation {
+    /// Randomness is unavailable; the transaction uses `Random`.
+    RandomnessUnavailable,
+    /// Execution-worker congestion, with this suggested gas price; the
+    /// account is the transaction's only shared input.
+    ExecutionWorkerCongestion(u64),
+}
+
+/// Executes a transaction sent by a Move account, which also pays for gas,
+/// with the versions assigned at sequencing when it is cancelled for
+/// `cancellation`.
+async fn execute_cancelled_move_account_transaction(
+    cancellation: Cancellation,
+) -> (TransactionEffects, Option<ExecutionError>) {
     let account = Object::shared_for_testing();
     let account_id = account.id();
     let sender: Address = account_id.into();
@@ -74,20 +84,35 @@ async fn execute_cancelled_move_account_transaction() -> (TransactionEffects, Op
     let epoch_store = authority.epoch_store_for_testing();
     let rgp = authority.reference_gas_price_for_testing().unwrap();
 
-    let randomness_state = authority.get_object(&ObjectId::RANDOMNESS_STATE).unwrap();
-    let Owner::Shared(randomness_initial_version) = randomness_state.owner else {
-        panic!("the randomness state must be a shared object");
-    };
     let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
 
     let mut builder = ProgrammableTransactionBuilder::new();
-    builder
-        .input(CallArg::Shared(SharedObjectReference::new(
-            ObjectId::RANDOMNESS_STATE,
-            randomness_initial_version,
-            false,
-        )))
-        .unwrap();
+    let assigned_versions = match cancellation {
+        Cancellation::RandomnessUnavailable => {
+            let randomness_state = authority.get_object(&ObjectId::RANDOMNESS_STATE).unwrap();
+            let Owner::Shared(randomness_initial_version) = randomness_state.owner else {
+                panic!("the randomness state must be a shared object");
+            };
+            builder
+                .input(CallArg::Shared(SharedObjectReference::new(
+                    ObjectId::RANDOMNESS_STATE,
+                    randomness_initial_version,
+                    false,
+                )))
+                .unwrap();
+            vec![
+                VersionAssignment::new(ObjectId::RANDOMNESS_STATE, Version::RANDOMNESS_UNAVAILABLE),
+                VersionAssignment::new(account_id, Version::CANCELED_READ),
+            ]
+        }
+        Cancellation::ExecutionWorkerCongestion(suggested_gas_price) => vec![
+            VersionAssignment::new(account_id, Version::CANCELED_READ),
+            VersionAssignment::new(
+                gas_id,
+                Version::new_congested_with_suggested_gas_price(suggested_gas_price).unwrap(),
+            ),
+        ],
+    };
     let tx = Transaction::new_programmable_allow_sponsor(
         sender,
         vec![gas_ref],
@@ -111,12 +136,7 @@ async fn execute_cancelled_move_account_transaction() -> (TransactionEffects, Op
     let executable =
         VerifiedExecutableTransaction::new_from_checkpoint(verified, epoch_store.epoch(), 1);
 
-    // The versions consensus assigns to a transaction it cancels because
-    // randomness is unavailable.
-    let env = ExecutionEnv::new().with_assigned_versions(vec![
-        VersionAssignment::new(ObjectId::RANDOMNESS_STATE, Version::RANDOMNESS_UNAVAILABLE),
-        VersionAssignment::new(account_id, Version::CANCELED_READ),
-    ]);
+    let env = ExecutionEnv::new().with_assigned_versions(assigned_versions);
     // With the P-COOL flow, a committee validator executes only
     // transactions of commits its consensus handler assigned.
     epoch_store.assign_commit_to_transactions(1, vec![executable.key()]);
@@ -134,7 +154,8 @@ async fn cancelled_move_account_transaction_gets_cancellation_effects() {
         config.set_enable_pcool_flow_for_testing(false);
         config
     });
-    let (effects, execution_error) = execute_cancelled_move_account_transaction().await;
+    let (effects, execution_error) =
+        execute_cancelled_move_account_transaction(Cancellation::RandomnessUnavailable).await;
     assert!(
         matches!(
             effects.status(),
@@ -153,7 +174,8 @@ async fn cancelled_move_account_transaction_gets_cancellation_effects() {
 /// charged.
 #[tokio::test]
 async fn cancelled_move_account_transaction_charges_nobody_with_the_pcool_flow() {
-    let (effects, _) = execute_cancelled_move_account_transaction().await;
+    let (effects, _) =
+        execute_cancelled_move_account_transaction(Cancellation::RandomnessUnavailable).await;
 
     assert!(
         matches!(
@@ -162,6 +184,34 @@ async fn cancelled_move_account_transaction_charges_nobody_with_the_pcool_flow()
                 if error.is_execution_canceled_due_to_randomness_unavailable()
         ),
         "expected cancellation effects, got {:?}",
+        effects.status()
+    );
+    assert_eq!(effects.gas_cost_summary(), &GasCostSummary::default());
+}
+
+/// With the P-COOL flow, a transaction cancelled for execution-worker
+/// congestion charges nobody either when a Move account pays for its gas. The
+/// effects report execution-worker congestion and name no object, although the
+/// account is a shared input.
+#[tokio::test]
+async fn worker_congestion_cancelled_move_account_transaction_charges_nobody_with_the_pcool_flow() {
+    let suggested_gas_price = 2_000;
+    let (effects, _) = execute_cancelled_move_account_transaction(
+        Cancellation::ExecutionWorkerCongestion(suggested_gas_price),
+    )
+    .await;
+
+    assert!(
+        matches!(
+            effects.status(),
+            ExecutionStatus::Failure {
+                error: iota_sdk_types::ExecutionError::ExecutionCanceledDueToExecutionWorkerCongestion {
+                    suggested_gas_price: price,
+                },
+                ..
+            } if *price == suggested_gas_price
+        ),
+        "expected execution-worker congestion cancellation effects, got {:?}",
         effects.status()
     );
     assert_eq!(effects.gas_cost_summary(), &GasCostSummary::default());

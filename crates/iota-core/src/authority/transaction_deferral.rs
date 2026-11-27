@@ -83,16 +83,34 @@ impl DeferralKey {
 pub enum DeferralReason {
     RandomnessNotReady,
 
-    Congestion {
-        // The congested objects. It is empty when no single object is the
-        // cause: when the execution-worker pool is congested, or when the
-        // transaction waits for the transaction named by its transaction
-        // dependency input.
+    // Shared objects the transaction touches are congested.
+    SharedObjectCongestion {
+        // The congested objects, never empty.
         congested_objects: Vec<ObjectId>,
-        // Whether the transaction waits for its transaction dependency. Such
-        // a deferral records no suggested gas price of its own.
-        for_dependency: bool,
     },
+
+    // The execution-worker pool is congested, and no single object is the
+    // cause.
+    ExecutionWorkerCongestion,
+
+    // The transaction waits for the transaction named by its transaction
+    // dependency input. Such a deferral records no suggested gas price of
+    // its own.
+    PendingTransactionDependency,
+}
+
+impl DeferralReason {
+    /// The value of the `reason` label under which the consensus handler's
+    /// metrics count this deferral, and a cancellation that follows from it.
+    /// `None` for a wait for randomness, which those metrics do not count.
+    pub fn metric_label(&self) -> Option<&'static str> {
+        match self {
+            Self::RandomnessNotReady => None,
+            Self::SharedObjectCongestion { .. } => Some("shared_object_congestion"),
+            Self::ExecutionWorkerCongestion => Some("execution_worker_congestion"),
+            Self::PendingTransactionDependency => Some("transaction_dependency"),
+        }
+    }
 }
 
 pub fn transaction_deferral_within_limit(

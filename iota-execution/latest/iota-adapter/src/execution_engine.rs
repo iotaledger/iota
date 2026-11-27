@@ -1630,9 +1630,9 @@ mod checked {
             match reason {
                 version if version.is_congested() => Err(ExecutionError::new(
                     match cancelled_objects {
-                        // A transaction cancelled through its gas object has no shared
-                        // inputs, so the execution workers are the congested resource
-                        // and no individual object is responsible.
+                        // A congestion version on the gas object means that no
+                        // object caused the cancellation: the execution workers
+                        // are the congested resource.
                         CancelledObjects::GasObject => {
                             ExecutionErrorKind::ExecutionCanceledDueToExecutionWorkerCongestion {
                                 suggested_gas_price: version
