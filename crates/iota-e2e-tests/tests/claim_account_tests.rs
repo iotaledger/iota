@@ -1380,3 +1380,609 @@ fn claim_public_key(kp: &iota_sdk_crypto::simple::SimpleKeypair) -> (u8, Vec<u8>
     let public_key = kp.public_key();
     (public_key.scheme().to_u8(), public_key.as_ref().to_vec())
 }
+
+// ---------------------------------------------------------------------------
+// Claims that reach a commit: sponsors, races through two validators, and
+// transactions a faulty validator admits
+// ---------------------------------------------------------------------------
+
+/// The Ed25519 keypair the wallet holds for `address`.
+#[cfg(msim)]
+fn wallet_keypair(
+    test_cluster: &test_cluster::TestCluster,
+    address: iota_sdk_types::Address,
+) -> iota_sdk_crypto::simple::SimpleKeypair {
+    use iota_keys::keystore::AccountKeystore;
+
+    test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .get_key(&address)
+        .expect("the wallet holds the address's key")
+        .as_keypair()
+        .expect("stored key must be a keypair")
+        .clone()
+}
+
+/// A `ClaimAccount` of `owner` with `keypair`'s key, paid with `gas`,
+/// unsigned.
+#[cfg(msim)]
+fn claim_transaction(
+    keypair: &iota_sdk_crypto::simple::SimpleKeypair,
+    owner: iota_sdk_types::Address,
+    gas: iota_sdk_types::ObjectReference,
+    gas_price: u64,
+) -> iota_sdk_types::Transaction {
+    use iota_sdk_types::{
+        ClaimAccountTransaction, SmartAccountClaim, Transaction, TransactionKind,
+    };
+    use iota_types::transaction::TransactionAPI;
+
+    let (public_key_scheme, public_key_raw_bytes) = claim_public_key(keypair);
+    Transaction::new(
+        TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(
+            SmartAccountClaim {
+                public_key_scheme,
+                public_key_raw_bytes,
+            },
+        )),
+        owner,
+        gas,
+        gas_price * iota_types::transaction::TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+        gas_price,
+    )
+}
+
+/// Submits `transaction` to `validator` alone and returns its answer.
+#[cfg(msim)]
+async fn submit_to(
+    test_cluster: &test_cluster::TestCluster,
+    validator: &iota_types::base_types::AuthorityName,
+    transaction: iota_types::transaction::TransactionEnvelope,
+) -> iota_types::messages_grpc::TxStatusUpdate {
+    use std::net::SocketAddr;
+
+    use iota_core::authority_client::validator_v2::ValidatorV2API;
+
+    let mut answers = test_cluster.authority_aggregator().authority_clients[validator]
+        .authority_client()
+        .clone()
+        .submit_tx(
+            vec![transaction],
+            Some(SocketAddr::new([127, 0, 0, 1].into(), 0)),
+        )
+        .await
+        .unwrap();
+    assert_eq!(answers.len(), 1);
+    answers.remove(0).1
+}
+
+/// Submits `transaction` to `validator`, which skips its validity and input
+/// checks, as a faulty validator can, so that it reaches a commit.
+#[cfg(msim)]
+async fn submit_through_a_faulty_validator(
+    test_cluster: &test_cluster::TestCluster,
+    validator: &iota_types::base_types::AuthorityName,
+    transaction: iota_types::transaction::TransactionEnvelope,
+) {
+    use iota_macros::{clear_fail_point, register_fail_point_if};
+    use iota_types::messages_grpc::TxStatusUpdate;
+
+    let faulty_sim_id = test_cluster
+        .swarm
+        .node(validator)
+        .unwrap()
+        .get_node_handle()
+        .unwrap()
+        .with(|_| iota_simulator::current_simnode_id());
+    for fail_point in ["admit-without-validity-check", "admit-without-input-checks"] {
+        register_fail_point_if(fail_point, move || {
+            iota_simulator::current_simnode_id() == faulty_sim_id
+        });
+    }
+    let answer = submit_to(test_cluster, validator, transaction).await;
+    clear_fail_point("admit-without-validity-check");
+    clear_fail_point("admit-without-input-checks");
+    assert!(
+        matches!(answer, TxStatusUpdate::Submitted),
+        "the faulty validator must submit the transaction, got {answer:?}"
+    );
+}
+
+/// What each validator records as the final drop of `digest`, waiting up to
+/// a minute for it; `None` where it records none.
+#[cfg(msim)]
+async fn drops_on_every_validator(
+    test_cluster: &test_cluster::TestCluster,
+    digest: iota_sdk_types::TransactionDigest,
+) -> Vec<Option<iota_types::error::IotaError>> {
+    let mut drops = vec![];
+    for handle in test_cluster.all_validator_handles() {
+        drops.push(
+            tokio::time::timeout(
+                std::time::Duration::from_secs(60),
+                handle.with_async(|node| async move {
+                    node.state()
+                        .epoch_store_for_testing()
+                        .notify_read_dropped_digests(digest)
+                        .await
+                }),
+            )
+            .await
+            .ok(),
+        );
+    }
+    drops
+}
+
+/// Whether each node of the cluster, the fullnode included, executed
+/// `digest`.
+#[cfg(msim)]
+fn executed_on_every_node(
+    test_cluster: &test_cluster::TestCluster,
+    digest: iota_sdk_types::TransactionDigest,
+) -> Vec<bool> {
+    test_cluster
+        .all_node_handles()
+        .iter()
+        .map(|handle| {
+            handle.with(|node| {
+                node.state()
+                    .get_transaction_cache_reader()
+                    .try_get_executed_effects(&digest)
+                    .unwrap()
+                    .is_some()
+            })
+        })
+        .collect()
+}
+
+/// Waits until the fullnode has executed `count` more checkpoints.
+#[cfg(msim)]
+async fn wait_for_checkpoints(test_cluster: &test_cluster::TestCluster, count: u64) {
+    let highest = || {
+        test_cluster.fullnode_handle.iota_node.with(|node| {
+            node.state()
+                .get_checkpoint_store()
+                .get_highest_executed_checkpoint_seq_number()
+                .unwrap()
+                .unwrap_or_default()
+        })
+    };
+    let target = highest() + count;
+    tokio::time::timeout(std::time::Duration::from_secs(120), async {
+        while highest() < target {
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        }
+    })
+    .await
+    .expect("the fullnode must execute more checkpoints");
+}
+
+/// Another address pays for a claim: the claim creates the account at the
+/// sender's address, the sponsor's coin pays, and the sponsor still sends with
+/// its plain signature.
+#[cfg(msim)]
+#[sim_test]
+async fn test_sponsored_claim_account_succeeds() {
+    use iota_keys::keystore::AccountKeystore;
+    use iota_sdk_types::{ObjectId, UserSignature, crypto::Intent};
+    use iota_types::{
+        effects::TransactionEffectsAPI,
+        transaction::{TransactionAPI, TransactionEnvelope},
+    };
+
+    telemetry_subscribers::init_for_testing();
+    let _guard = enable_claim_account();
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let sender = test_cluster.get_address_0();
+    let sponsor = test_cluster.get_address_1();
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let sponsor_gas = first_gas_coin(&test_cluster.wallet, sponsor).await;
+    let mut tx = claim_transaction(
+        &wallet_keypair(&test_cluster, sender),
+        sender,
+        sponsor_gas,
+        rgp,
+    );
+    tx.gas_data_mut().owner = sponsor;
+    let keystore = test_cluster.wallet.config().keystore();
+    let signatures = [sender, sponsor]
+        .iter()
+        .map(|signer| {
+            UserSignature::Simple(
+                keystore
+                    .sign_secure(signer, &tx, Intent::iota_transaction())
+                    .unwrap(),
+            )
+        })
+        .collect();
+
+    let effects = test_cluster
+        .execute_transaction(TransactionEnvelope::from_user_sig_data(tx, signatures))
+        .await;
+
+    assert!(effects.status().is_success(), "{:?}", effects.status());
+    assert_eq!(
+        effects.gas_object().reference().object_id,
+        sponsor_gas.object_id
+    );
+    let account = effects
+        .created()
+        .into_iter()
+        .find(|created| matches!(created.owner(), Owner::Shared(_)))
+        .expect("the claim creates the account");
+    assert_eq!(account.reference().object_id, ObjectId::from(sender));
+    let transfer = test_cluster
+        .test_transaction_builder_with_sender(sponsor)
+        .await
+        .transfer_iota(Some(1), sender)
+        .build();
+    let effects = test_cluster.sign_and_execute_transaction(&transfer).await;
+    assert!(effects.status().is_success(), "{:?}", effects.status());
+}
+
+/// Two claims of one address submitted to two validators at once, so that no
+/// validator's soft lock sees both: both reach consensus, and post-consensus
+/// validation keeps one. Every node executes the same one; every validator
+/// drops the other with `AccountAlreadyExplicit` and tells its submitter, and
+/// its gas coin keeps its version.
+#[cfg(msim)]
+#[sim_test]
+async fn test_claims_sent_to_two_validators_keep_one() {
+    use iota_sdk_types::ObjectId;
+    use iota_types::{
+        error::{IotaError, UserInputError},
+        messages_grpc::TxStatusUpdate,
+    };
+
+    telemetry_subscribers::init_for_testing();
+    let _guard = enable_claim_account();
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let owner = test_cluster.get_address_0();
+    let keypair = wallet_keypair(&test_cluster, owner);
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let coins = test_cluster
+        .wallet
+        .get_gas_objects_owned_by_address(owner, None)
+        .await
+        .unwrap();
+    let claims = [coins[0], coins[1]].map(|gas| {
+        test_cluster
+            .wallet
+            .sign_transaction(&claim_transaction(&keypair, owner, gas, rgp))
+    });
+    let validators = test_cluster.get_validator_pubkeys();
+
+    let answers = tokio::join!(
+        submit_to(&test_cluster, &validators[0], claims[0].clone()),
+        submit_to(&test_cluster, &validators[1], claims[1].clone()),
+    );
+
+    assert!(
+        matches!(
+            answers,
+            (TxStatusUpdate::Submitted, TxStatusUpdate::Submitted)
+        ),
+        "{answers:?}"
+    );
+    tokio::time::timeout(std::time::Duration::from_secs(60), async {
+        while test_cluster
+            .get_object_from_fullnode_store(&ObjectId::from(owner))
+            .await
+            .is_none()
+        {
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        }
+    })
+    .await
+    .expect("one claim must create the account");
+    let executed: Vec<_> = claims
+        .iter()
+        .map(|claim| executed_on_every_node(&test_cluster, *claim.digest()))
+        .collect();
+    let winner = executed
+        .iter()
+        .position(|nodes| nodes.iter().any(|executed| *executed))
+        .expect("a node executed one of the claims");
+    let loser = 1 - winner;
+    wait_for_checkpoints(&test_cluster, 5).await;
+    assert!(
+        executed_on_every_node(&test_cluster, *claims[winner].digest())
+            .iter()
+            .all(|executed| *executed)
+    );
+    assert!(
+        executed_on_every_node(&test_cluster, *claims[loser].digest())
+            .iter()
+            .all(|executed| !*executed)
+    );
+    let already_explicit: IotaError =
+        UserInputError::AccountAlreadyExplicit { address: owner }.into();
+    assert!(
+        drops_on_every_validator(&test_cluster, *claims[loser].digest())
+            .await
+            .iter()
+            .all(|drop| drop.as_ref() == Some(&already_explicit))
+    );
+    let loser_gas = [coins[0], coins[1]][loser];
+    assert_eq!(
+        test_cluster
+            .get_latest_object_ref(&loser_gas.object_id)
+            .await,
+        loser_gas
+    );
+}
+
+/// A claim of each wallet address submitted to one validator while a
+/// plain-signed transfer of the address is submitted to another: the claim
+/// always executes, and the transfer either executes on every node or on none,
+/// as post-consensus validation kept it before the claim or dropped it after.
+#[cfg(msim)]
+#[sim_test]
+async fn test_claim_racing_a_plain_signed_transfer_has_one_outcome_on_every_node() {
+    use futures::future::join_all;
+    use iota_types::effects::TransactionEffectsAPI;
+
+    telemetry_subscribers::init_for_testing();
+    let _guard = enable_claim_account();
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let validators = test_cluster.get_validator_pubkeys();
+    let mut pairs = vec![];
+    for owner in test_cluster.get_addresses() {
+        let keypair = wallet_keypair(&test_cluster, owner);
+        let coins = test_cluster
+            .wallet
+            .get_gas_objects_owned_by_address(owner, None)
+            .await
+            .unwrap();
+        let claim = test_cluster
+            .wallet
+            .sign_transaction(&claim_transaction(&keypair, owner, coins[0], rgp));
+        let transfer = test_cluster.wallet.sign_transaction(
+            &iota_test_transaction_builder::TestTransactionBuilder::new(owner, coins[1], rgp)
+                .transfer_iota(Some(1), iota_sdk_types::Address::ZERO)
+                .build(),
+        );
+        pairs.push((claim, transfer));
+    }
+
+    join_all(pairs.iter().flat_map(|(claim, transfer)| {
+        [
+            submit_to(&test_cluster, &validators[0], claim.clone()),
+            submit_to(&test_cluster, &validators[1], transfer.clone()),
+        ]
+    }))
+    .await;
+
+    let claims: Vec<_> = pairs.iter().map(|(claim, _)| *claim.digest()).collect();
+    let effects = tokio::time::timeout(
+        std::time::Duration::from_secs(60),
+        test_cluster
+            .fullnode_handle
+            .iota_node
+            .with_async(|node| async move {
+                node.state()
+                    .get_transaction_cache_reader()
+                    .try_notify_read_executed_effects("", &claims)
+                    .await
+            }),
+    )
+    .await
+    .expect("every claim must execute")
+    .unwrap();
+    assert!(effects.iter().all(|effects| effects.status().is_success()));
+    wait_for_checkpoints(&test_cluster, 10).await;
+    for (_, transfer) in &pairs {
+        let executed = executed_on_every_node(&test_cluster, *transfer.digest());
+        assert!(
+            executed.iter().all(|on_node| *on_node == executed[0]),
+            "transfer {}: {executed:?}",
+            transfer.digest()
+        );
+    }
+}
+
+/// After a claim executed, a validator that skips its admission checks puts a
+/// second claim of the address in a block. Every validator drops it at the
+/// commit with `AccountAlreadyExplicit`, nobody executes it, and the account
+/// and the claim's gas coin are left as they were.
+#[cfg(msim)]
+#[sim_test]
+async fn test_second_claim_admitted_by_a_faulty_validator_is_dropped_at_the_commit() {
+    use iota_sdk_types::ObjectId;
+    use iota_types::error::{IotaError, UserInputError};
+
+    telemetry_subscribers::init_for_testing();
+    let _guard = enable_claim_account();
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let owner = test_cluster.get_address_0();
+    let keypair = wallet_keypair(&test_cluster, owner);
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let first = claim_transaction(
+        &keypair,
+        owner,
+        first_gas_coin(&test_cluster.wallet, owner).await,
+        rgp,
+    );
+    test_cluster
+        .wallet
+        .execute_transaction_may_fail(test_cluster.wallet.sign_transaction(&first))
+        .await
+        .expect("the first claim must execute");
+    let account = test_cluster
+        .get_latest_object_ref(&ObjectId::from(owner))
+        .await;
+    let gas = first_gas_coin(&test_cluster.wallet, owner).await;
+    let second = test_cluster
+        .wallet
+        .sign_transaction(&claim_transaction(&keypair, owner, gas, rgp));
+    let digest = *second.digest();
+
+    submit_through_a_faulty_validator(
+        &test_cluster,
+        &test_cluster.get_validator_pubkeys()[0],
+        second,
+    )
+    .await;
+
+    let already_explicit: IotaError =
+        UserInputError::AccountAlreadyExplicit { address: owner }.into();
+    assert_eq!(
+        drops_on_every_validator(&test_cluster, digest).await,
+        vec![Some(already_explicit); test_cluster.all_validator_handles().len()]
+    );
+    wait_for_checkpoints(&test_cluster, 5).await;
+    assert!(
+        executed_on_every_node(&test_cluster, digest)
+            .iter()
+            .all(|executed| !*executed)
+    );
+    assert_eq!(
+        test_cluster
+            .get_latest_object_ref(&ObjectId::from(owner))
+            .await,
+        account
+    );
+    assert_eq!(
+        test_cluster.get_latest_object_ref(&gas.object_id).await,
+        gas
+    );
+}
+
+/// After a claim executed, a validator that skips its admission checks puts a
+/// transfer of the address signed with its plain signature in a block. Every
+/// validator drops it at the commit, as a copy: nobody executes it and its gas
+/// coin keeps its version. The same transfer signed through the account's
+/// built-in authenticator, with the same digest, then executes.
+#[cfg(msim)]
+#[sim_test]
+async fn test_plain_signature_admitted_by_a_faulty_validator_is_dropped_at_the_commit() {
+    use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
+    use iota_sdk_types::ObjectId;
+
+    telemetry_subscribers::init_for_testing();
+    let _guard = enable_claim_account();
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let owner = test_cluster.get_address_0();
+    let keypair = wallet_keypair(&test_cluster, owner);
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let claim = claim_transaction(
+        &keypair,
+        owner,
+        first_gas_coin(&test_cluster.wallet, owner).await,
+        rgp,
+    );
+    let response = test_cluster
+        .wallet
+        .execute_transaction_may_fail(test_cluster.wallet.sign_transaction(&claim))
+        .await
+        .expect("the claim must execute");
+    let effects = response.effects.expect("response must include effects");
+    let Owner::Shared(initial_shared_version) = effects
+        .created()
+        .iter()
+        .find(|created| created.reference.object_id == ObjectId::from(owner))
+        .expect("the claim creates the account")
+        .owner
+        .clone()
+    else {
+        panic!("the account must be shared");
+    };
+    let gas = first_gas_coin(&test_cluster.wallet, owner).await;
+    let transfer = iota_test_transaction_builder::TestTransactionBuilder::new(owner, gas, rgp)
+        .transfer_iota(Some(1), iota_sdk_types::Address::ZERO)
+        .with_gas_budget(
+            rgp * iota_types::transaction::TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+        )
+        .build();
+    let plain = test_cluster.wallet.sign_transaction(&transfer);
+    let digest = *plain.digest();
+
+    submit_through_a_faulty_validator(
+        &test_cluster,
+        &test_cluster.get_validator_pubkeys()[0],
+        plain,
+    )
+    .await;
+
+    wait_for_checkpoints(&test_cluster, 10).await;
+    assert!(
+        executed_on_every_node(&test_cluster, digest)
+            .iter()
+            .all(|executed| !*executed)
+    );
+    assert_eq!(
+        test_cluster.get_latest_object_ref(&gas.object_id).await,
+        gas
+    );
+    let response =
+        execute_as_claimed_account(&test_cluster, &keypair, transfer, initial_shared_version).await;
+    assert_eq!(response.digest, digest);
+    let effects = response.effects.expect("response must include effects");
+    assert!(effects.status().is_ok(), "{:?}", effects.status());
+}
+
+/// A validator that skips its admission checks puts in a block a claim whose
+/// key does not derive its sender, signed by the sender. Block verification
+/// does not run the validity check, so the block is accepted, and every
+/// validator drops the claim at the commit with the validity error. The
+/// rightful claim of the address then executes.
+#[cfg(msim)]
+#[sim_test]
+async fn test_claim_whose_key_does_not_derive_the_sender_from_a_faulty_validator_is_dropped_at_the_commit()
+ {
+    use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
+    use iota_types::error::{IotaError, UserInputError};
+
+    telemetry_subscribers::init_for_testing();
+    let _guard = enable_claim_account();
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let owner = test_cluster.get_address_0();
+    let other = test_cluster.get_address_1();
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let coins = test_cluster
+        .wallet
+        .get_gas_objects_owned_by_address(owner, None)
+        .await
+        .unwrap();
+    let mismatched = test_cluster.wallet.sign_transaction(&claim_transaction(
+        &wallet_keypair(&test_cluster, other),
+        owner,
+        coins[0],
+        rgp,
+    ));
+    let digest = *mismatched.digest();
+
+    submit_through_a_faulty_validator(
+        &test_cluster,
+        &test_cluster.get_validator_pubkeys()[0],
+        mismatched,
+    )
+    .await;
+
+    let drops = drops_on_every_validator(&test_cluster, digest).await;
+    assert!(
+        drops.iter().all(|drop| matches!(
+            drop,
+            Some(IotaError::UserInput {
+                error: UserInputError::IncorrectUserSignature { .. }
+            })
+        )),
+        "{drops:?}"
+    );
+    let response = test_cluster
+        .wallet
+        .execute_transaction_may_fail(test_cluster.wallet.sign_transaction(&claim_transaction(
+            &wallet_keypair(&test_cluster, owner),
+            owner,
+            coins[1],
+            rgp,
+        )))
+        .await
+        .expect("the rightful claim must execute");
+    let effects = response.effects.expect("response must include effects");
+    assert!(effects.status().is_ok(), "{:?}", effects.status());
+}

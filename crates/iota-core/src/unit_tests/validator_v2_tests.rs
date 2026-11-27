@@ -1672,3 +1672,273 @@ async fn test_submit_single_tx_rejects_a_second_claim_in_flight() {
     assert_eq!(*address, sender);
     assert_eq!(*pending_transaction, first_digest);
 }
+
+/// A validator with `ClaimAccount` accepted, which no protocol version does
+/// yet, and validator attestation on or off, whose consensus client accepts a
+/// given number of submissions.
+struct ClaimSubmitter {
+    authority_state: Arc<AuthorityState>,
+    consensus_adapter: Arc<ConsensusAdapter>,
+    metrics: Arc<ValidatorServiceMetrics>,
+    epoch_store: Arc<AuthorityPerEpochStore>,
+    soft_locks: Arc<PreConsensusSoftLocks>,
+    rgp: u64,
+    _guard: iota_protocol_config::OverrideGuard,
+}
+
+impl ClaimSubmitter {
+    /// The validator, with `objects` at genesis, accepting `submissions`
+    /// transactions.
+    async fn new(attestation: bool, objects: &[Object], submissions: usize) -> Self {
+        let guard = ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
+            config.set_claim_account_max_computation_units_for_testing(5_000);
+            config.set_claim_account_storage_bytes_bound_for_testing(2_000);
+            config.set_enable_claim_account_transaction_for_testing(true);
+            config.set_enable_validator_attestation_for_testing(attestation);
+            config
+        });
+        let authority_state = TestAuthorityBuilder::new()
+            .with_starting_objects(objects)
+            .build()
+            .await;
+        let mut mock = MockConsensusClient::new();
+        mock.expect_submit().times(submissions).returning(|_, _| {
+            Ok(with_block_status(starfish_core::BlockStatus::Sequenced(
+                starfish_core::TransactionRef::default(),
+            )))
+        });
+        let consensus_adapter = Arc::new(ConsensusAdapter::new(
+            Arc::new(mock),
+            CheckpointStore::new_for_tests(),
+            authority_state.name,
+            Arc::new(ConnectionMonitorStatusForTests {}),
+            100_000,
+            100_000,
+            None,
+            None,
+            ConsensusAdapterMetrics::new_test(),
+            50,
+        ));
+        let epoch_store = authority_state.epoch_store_for_testing().clone();
+        assert_eq!(
+            epoch_store.protocol_config().enable_validator_attestation(),
+            attestation
+        );
+        let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+        Self {
+            authority_state,
+            consensus_adapter,
+            metrics: Arc::new(ValidatorServiceMetrics::new_for_tests()),
+            epoch_store,
+            soft_locks: Arc::new(PreConsensusSoftLocks::new()),
+            rgp,
+            _guard: guard,
+        }
+    }
+
+    async fn submit(&self, transaction: TransactionEnvelope) -> TxStatusUpdate {
+        ValidatorService::submit_single_tx(
+            &self.authority_state,
+            &self.consensus_adapter,
+            &self.metrics,
+            &self.epoch_store,
+            &self.soft_locks,
+            transaction,
+        )
+        .await
+        .0
+    }
+
+    /// A claim of `sender`, the address of `sender_key`, paid with its gas
+    /// coin `gas_id`.
+    fn claim(
+        &self,
+        sender: Address,
+        sender_key: &AccountPrivateKey,
+        gas_id: &ObjectId,
+    ) -> TransactionEnvelope {
+        let claim = iota_sdk_types::SmartAccountClaim {
+            public_key_scheme: iota_sdk_types::SignatureScheme::Ed25519.to_u8(),
+            public_key_raw_bytes: AsRef::<[u8]>::as_ref(&sender_key.public_key()).to_vec(),
+        };
+        to_sender_signed_transaction(
+            Transaction::new(
+                iota_sdk_types::TransactionKind::new_claim_account(
+                    iota_sdk_types::ClaimAccountTransaction::new_smart_account(claim),
+                ),
+                sender,
+                self.authority_state
+                    .get_object(gas_id)
+                    .unwrap()
+                    .object_ref(),
+                iota_types::transaction::TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE
+                    * self.rgp,
+                self.rgp,
+            ),
+            sender_key,
+        )
+    }
+
+    /// A transfer by `sender` that names `sender`'s claim lock as an owned
+    /// object, paid with its gas coin `gas_id`.
+    fn transfer_of_the_claim_lock(
+        &self,
+        sender: Address,
+        sender_key: &AccountPrivateKey,
+        gas_id: &ObjectId,
+    ) -> TransactionEnvelope {
+        crate::test_utils::make_transfer_object_transaction(
+            crate::post_consensus_validation::claim_lock_reference(sender),
+            self.authority_state
+                .get_object(gas_id)
+                .unwrap()
+                .object_ref(),
+            sender,
+            sender_key,
+            dbg_addr(1),
+            self.rgp,
+        )
+    }
+}
+
+/// [`test_submit_single_tx_rejects_a_second_claim_in_flight`] with validator
+/// attestation off, where the soft locks are taken after the dry run rather
+/// than inside the attestation.
+#[tokio::test]
+async fn test_submit_single_tx_rejects_a_second_claim_in_flight_without_attestation() {
+    telemetry_subscribers::init_for_testing();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas_ids = [ObjectId::random(), ObjectId::random()];
+    let submitter = ClaimSubmitter::new(
+        false,
+        &gas_ids.map(|id| Object::with_id_owner_for_testing(id, sender)),
+        1,
+    )
+    .await;
+    let first = submitter.claim(sender, &sender_key, &gas_ids[0]);
+    let first_digest = *first.digest();
+
+    assert!(matches!(
+        submitter.submit(first).await,
+        TxStatusUpdate::Submitted
+    ));
+    let second = submitter
+        .submit(submitter.claim(sender, &sender_key, &gas_ids[1]))
+        .await;
+
+    assert!(
+        matches!(
+            &second,
+            TxStatusUpdate::Rejected {
+                error: IotaError::UserInput {
+                    error: UserInputError::AccountClaimPending {
+                        address,
+                        pending_transaction,
+                    },
+                },
+            } if *address == sender && *pending_transaction == first_digest
+        ),
+        "{second:?}"
+    );
+}
+
+/// Once the first claim of an address leaves this validator's soft locks, as
+/// it does when its commit is processed or its lock expires, a second claim
+/// of the address is submitted: post-consensus validation decides between
+/// them.
+#[tokio::test]
+async fn test_submit_single_tx_admits_a_second_claim_once_the_first_left_the_soft_locks() {
+    telemetry_subscribers::init_for_testing();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas_ids = [ObjectId::random(), ObjectId::random()];
+    let submitter = ClaimSubmitter::new(
+        true,
+        &gas_ids.map(|id| Object::with_id_owner_for_testing(id, sender)),
+        2,
+    )
+    .await;
+    let first = submitter.claim(sender, &sender_key, &gas_ids[0]);
+    let first_digest = *first.digest();
+    assert!(matches!(
+        submitter.submit(first).await,
+        TxStatusUpdate::Submitted
+    ));
+
+    submitter.soft_locks.release(&first_digest);
+
+    let second = submitter
+        .submit(submitter.claim(sender, &sender_key, &gas_ids[1]))
+        .await;
+    assert!(matches!(second, TxStatusUpdate::Submitted), "{second:?}");
+}
+
+/// A transaction that names an address's claim lock as an owned object, while
+/// a claim of the address is in flight, conflicts with the claim's soft lock:
+/// it is rejected as a conflict on that reference, not as a pending claim,
+/// since it is no claim.
+#[tokio::test]
+async fn test_submit_single_tx_refuses_a_transaction_naming_a_pending_claims_lock() {
+    telemetry_subscribers::init_for_testing();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas_ids = [ObjectId::random(), ObjectId::random()];
+    let submitter = ClaimSubmitter::new(
+        true,
+        &gas_ids.map(|id| Object::with_id_owner_for_testing(id, sender)),
+        1,
+    )
+    .await;
+    let claim = submitter.claim(sender, &sender_key, &gas_ids[0]);
+    let claim_digest = *claim.digest();
+    assert!(matches!(
+        submitter.submit(claim).await,
+        TxStatusUpdate::Submitted
+    ));
+
+    let naming_the_lock = submitter
+        .submit(submitter.transfer_of_the_claim_lock(sender, &sender_key, &gas_ids[1]))
+        .await;
+
+    assert!(
+        matches!(
+            &naming_the_lock,
+            TxStatusUpdate::Rejected {
+                error: IotaError::ObjectLockConflict {
+                    obj_ref,
+                    pending_transaction,
+                },
+            } if *obj_ref == crate::post_consensus_validation::claim_lock_reference(sender)
+                && *pending_transaction == claim_digest
+        ),
+        "{naming_the_lock:?}"
+    );
+}
+
+/// A transaction that names an address's claim lock as an owned object is
+/// rejected, since no object has that reference, and leaves no soft lock
+/// behind: a claim of the address sent next is submitted.
+#[tokio::test]
+async fn test_submit_single_tx_naming_a_claim_lock_does_not_block_a_claim() {
+    telemetry_subscribers::init_for_testing();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas_ids = [ObjectId::random(), ObjectId::random()];
+    let submitter = ClaimSubmitter::new(
+        true,
+        &gas_ids.map(|id| Object::with_id_owner_for_testing(id, sender)),
+        1,
+    )
+    .await;
+
+    let naming_the_lock = submitter
+        .submit(submitter.transfer_of_the_claim_lock(sender, &sender_key, &gas_ids[1]))
+        .await;
+    assert!(
+        matches!(naming_the_lock, TxStatusUpdate::Rejected { .. }),
+        "{naming_the_lock:?}"
+    );
+    assert_eq!(submitter.soft_locks.lock_count(), 0);
+
+    let claim = submitter
+        .submit(submitter.claim(sender, &sender_key, &gas_ids[0]))
+        .await;
+    assert!(matches!(claim, TxStatusUpdate::Submitted), "{claim:?}");
+}

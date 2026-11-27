@@ -442,12 +442,7 @@ async fn simulation_without_gas_coins_reads_the_nonce_of_the_mock_gas_coin() {
 #[cfg(msim)]
 #[sim_test]
 async fn claim_account_needs_no_key_proof() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_claim_account_max_computation_units_for_testing(5_000);
-        config.set_claim_account_storage_bytes_bound_for_testing(2_000);
-        config.set_enable_claim_account_transaction_for_testing(true);
-        config
-    });
+    let _guard = enable_claim_account();
     let test_cluster = TestClusterBuilder::new().build().await;
     let owner = test_cluster.get_address_0();
     let keypair = test_cluster
@@ -486,9 +481,166 @@ async fn claim_account_needs_no_key_proof() {
     .await;
 }
 
+/// `ClaimAccount` of a Secp256k1 address, signed by its key: the claim
+/// creates the account, which then sends with the built-in authenticator and
+/// the same key.
+#[cfg(msim)]
+#[sim_test]
+async fn secp256k1_claim_creates_an_account_that_sends() {
+    claim_account_and_send_from_it(KeyHolder::Keypair(SimpleKeypair::from(
+        Secp256k1PrivateKey::random_with(StdRng::from_seed([30; 32])),
+    )))
+    .await;
+}
+
+/// As above, with a Secp256r1 key.
+#[cfg(msim)]
+#[sim_test]
+async fn secp256r1_claim_creates_an_account_that_sends() {
+    claim_account_and_send_from_it(KeyHolder::Keypair(SimpleKeypair::from(
+        Secp256r1PrivateKey::random_with(StdRng::from_seed([31; 32])),
+    )))
+    .await;
+}
+
+/// As above, with a passkey.
+#[cfg(msim)]
+#[sim_test]
+async fn passkey_claim_creates_an_account_that_sends() {
+    claim_account_and_send_from_it(KeyHolder::new_passkey().await).await;
+}
+
+/// As above, with a MultiSig key whose committee mixes Secp256k1 and
+/// Secp256r1 members, two of three signing.
+#[cfg(msim)]
+#[sim_test]
+async fn multisig_claim_creates_an_account_that_sends() {
+    claim_account_and_send_from_it(KeyHolder::new_mixed_multisig(32)).await;
+}
+
+#[cfg(msim)]
+async fn claim_account_and_send_from_it(key: KeyHolder) {
+    let _guard = enable_claim_account();
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let account = claim_account(&test_cluster, &key).await;
+    send_from_account(&test_cluster, account, &key).await;
+}
+
+/// A claimed account rotates its key, with the new key's proof, and sends
+/// with the new key. The old key still derives the account's address, but
+/// neither its plain signature for the address nor a new claim of the address
+/// is accepted.
+#[cfg(msim)]
+#[sim_test]
+async fn claimed_account_rotates_its_key_and_sends_with_the_new_one() {
+    let _guard = enable_claim_account();
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let key = KeyHolder::ed25519(33);
+    let new_key = KeyHolder::Keypair(SimpleKeypair::from(Secp256k1PrivateKey::random_with(
+        StdRng::from_seed([34; 32]),
+    )));
+    let account = claim_account(&test_cluster, &key).await;
+
+    let effects = try_rotate_public_key(&test_cluster, account, &key, &new_key, |tx| {
+        key_proof_message_for_sender(&test_cluster, tx, false)
+    })
+    .await;
+    assert_success(&effects);
+    send_from_account(&test_cluster, account, &new_key).await;
+
+    let sender = Address::from(account.object_id);
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let gas = test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), sender)
+        .await;
+    let transfer = TestTransactionBuilder::new(sender, gas, rgp)
+        .transfer_iota(None, Address::ZERO)
+        .build();
+    let error = test_cluster
+        .wallet
+        .execute_transaction_may_fail(signed_by(&transfer, &key).await)
+        .await
+        .expect_err("the old key's plain signature must be rejected");
+    assert!(
+        error
+            .to_string()
+            .contains("must sign with a MoveAuthenticator"),
+        "{error}"
+    );
+    let gas = test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), sender)
+        .await;
+    let error = test_cluster
+        .wallet
+        .execute_transaction_may_fail(signed_by(&claim_transaction(&key, gas, rgp), &key).await)
+        .await
+        .expect_err("a new claim of the address must be rejected");
+    assert!(error.to_string().contains("already explicit"), "{error}");
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/// Turns on `enable_claim_account_transaction`, which no protocol version
+/// enables yet, with the bounds on a claim's cost that it needs. The override
+/// is thread-local, so it reaches the nodes only in the simulator, which runs
+/// them on the test's thread.
+#[cfg(msim)]
+fn enable_claim_account() -> iota_protocol_config::OverrideGuard {
+    ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_claim_account_max_computation_units_for_testing(5_000);
+        config.set_claim_account_storage_bytes_bound_for_testing(2_000);
+        config.set_enable_claim_account_transaction_for_testing(true);
+        config
+    })
+}
+
+/// A `ClaimAccount` of the address `key` derives, paid with `gas` at
+/// `gas_price`, unsigned.
+#[cfg(msim)]
+fn claim_transaction(key: &KeyHolder, gas: ObjectReference, gas_price: u64) -> Transaction {
+    let claim = SmartAccountClaim {
+        public_key_scheme: key.scheme().to_u8(),
+        public_key_raw_bytes: key.raw_public_key(),
+    };
+    Transaction::new(
+        TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(claim)),
+        key.address(),
+        gas,
+        gas_price * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+        gas_price,
+    )
+}
+
+/// `tx` signed by `key` with a plain signature.
+#[cfg(msim)]
+async fn signed_by(tx: &Transaction, key: &KeyHolder) -> TransactionEnvelope {
+    TransactionEnvelope::from_user_sig_data(
+        tx.clone(),
+        vec![UserSignature::from_bytes(&key.sign_transaction(tx).await).unwrap()],
+    )
+}
+
+/// Claims the address `key` derives, funded first, with a claim signed by
+/// `key`, and returns the account the claim created.
+#[cfg(msim)]
+async fn claim_account(test_cluster: &TestCluster, key: &KeyHolder) -> ObjectReference {
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let sender = key.address();
+    let gas = test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), sender)
+        .await;
+    let effects = execute(
+        test_cluster,
+        signed_by(&claim_transaction(key, gas, rgp), key).await,
+    )
+    .await;
+    assert_success(&effects);
+    let account = created_account(&effects);
+    assert_eq!(Address::from(account.object_id), sender);
+    account
+}
 
 /// A key that signs key proofs and transactions.
 enum KeyHolder {
@@ -499,9 +651,9 @@ enum KeyHolder {
         /// The compressed Secp256r1 public key of the credential.
         public_key: Vec<u8>,
     },
-    /// A MultiSig key whose members all sign.
+    /// A MultiSig key and the members of it that sign, in committee order.
     Multisig {
-        members: Vec<Ed25519PrivateKey>,
+        members: Vec<SimpleKeypair>,
         committee: MultisigCommittee,
     },
 }
@@ -519,7 +671,11 @@ impl KeyHolder {
     fn new_multisig<const N: usize>(seeds: [u8; N]) -> Self {
         let members: Vec<_> = seeds
             .iter()
-            .map(|seed| Ed25519PrivateKey::random_with(StdRng::from_seed([*seed; 32])))
+            .map(|seed| {
+                SimpleKeypair::from(Ed25519PrivateKey::random_with(StdRng::from_seed(
+                    [*seed; 32],
+                )))
+            })
             .collect();
         let committee = MultisigCommittee::new(
             members
@@ -530,6 +686,31 @@ impl KeyHolder {
         )
         .unwrap();
         Self::Multisig { members, committee }
+    }
+
+    /// A MultiSig key of a Secp256k1, a Secp256r1 and a second Secp256k1
+    /// member drawn from `seed`, with weight 1 each and a threshold of two,
+    /// for which the first two members sign.
+    #[cfg(msim)]
+    fn new_mixed_multisig(seed: u8) -> Self {
+        let rng = |index: u8| StdRng::from_seed([seed.wrapping_add(index); 32]);
+        let members = [
+            SimpleKeypair::from(Secp256k1PrivateKey::random_with(rng(0))),
+            SimpleKeypair::from(Secp256r1PrivateKey::random_with(rng(1))),
+            SimpleKeypair::from(Secp256k1PrivateKey::random_with(rng(2))),
+        ];
+        let committee = MultisigCommittee::new(
+            members
+                .iter()
+                .map(|member| MultisigMember::new(member.public_key(), 1))
+                .collect(),
+            2,
+        )
+        .unwrap();
+        Self::Multisig {
+            members: members.into_iter().take(2).collect(),
+            committee,
+        }
     }
 
     /// Registers a new passkey with a mock WebAuthn authenticator.
@@ -593,6 +774,15 @@ impl KeyHolder {
             ),
             public_key,
         }
+    }
+
+    /// The address this key derives, which its claim claims.
+    #[cfg(msim)]
+    fn address(&self) -> Address {
+        iota_types::move_public_key::MovePublicKey::new(self.scheme(), self.raw_public_key())
+            .unwrap()
+            .address()
+            .unwrap()
     }
 
     fn scheme(&self) -> SignatureScheme {
