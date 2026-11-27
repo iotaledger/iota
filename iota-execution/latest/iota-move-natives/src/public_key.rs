@@ -222,7 +222,7 @@ pub fn verify_builtin_authenticator_signature_impl(
         protocol_config,
         &public_key,
         &signature.as_bytes_ref(),
-        auth_context.tx_data_bytes(),
+        auth_context.tx_signing_digest(),
     )
     .is_ok();
 

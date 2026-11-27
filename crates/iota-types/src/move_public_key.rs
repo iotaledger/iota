@@ -6,7 +6,7 @@ use iota_protocol_config::ProtocolConfig;
 use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::{
     Address, Ed25519PublicKey, Identifier, Secp256k1PublicKey, Secp256r1PublicKey, SignatureScheme,
-    StructTag, Transaction, UserSignature,
+    SigningDigest, StructTag, UserSignature,
     crypto::{Intent, IntentMessage, MultisigCommittee, PersonalMessage},
 };
 use move_core_types::runtime_value::{MoveStructLayout, MoveTypeLayout};
@@ -147,8 +147,8 @@ impl From<&SimpleKeypair> for MovePublicKey {
 /// whose scheme must be the scheme of `public_key`. This format is consistent
 /// for all schemes: Ed25519, Secp256k1, Secp256r1, MultiSig, and Passkey.
 ///
-/// `tx_data_bytes` is the BCS-encoded `Transaction` used to reconstruct
-/// the signing message as `IntentMessage(Intent::iota_transaction(), tx_data)`.
+/// `tx_signing_digest` is the signing digest of the transaction: the digest of
+/// `IntentMessage(Intent::iota_transaction(), tx_data)`.
 ///
 /// The multisig and passkey verification rules are taken from
 /// `protocol_config`.
@@ -156,20 +156,13 @@ pub fn verify_builtin_authenticator_signature(
     protocol_config: &ProtocolConfig,
     public_key: &MovePublicKey,
     signature_bytes: &[u8],
-    tx_data_bytes: &[u8],
+    tx_signing_digest: &SigningDigest,
 ) -> IotaResult<()> {
     let (signature, address) = parse_signature_of_public_key(public_key, signature_bytes)?;
 
-    // TODO: it would be nice to avoid this deserialization.
-    let tx_data: Transaction =
-        bcs::from_bytes(tx_data_bytes).map_err(|e| IotaError::InvalidSignature {
-            error: format!("Failed to deserialize transaction data: {e}"),
-        })?;
-    let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data);
-
     let verify_params = VerifyParams::from_protocol_config(protocol_config);
 
-    signature.verify_claims(&intent_msg, address, &verify_params)
+    signature.verify_signing_digest(tx_signing_digest, address, &verify_params)
 }
 
 /// Verifies a signature, by `public_key`, of a personal message.

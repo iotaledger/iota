@@ -5,7 +5,7 @@
 pub use enum_dispatch::enum_dispatch;
 use iota_sdk_crypto::{Verifier, multisig::MultisigVerifier};
 use iota_sdk_types::{
-    Address,
+    Address, SigningDigest,
     crypto::{IntentMessage, MultisigAggregatedSignature},
 };
 use serde::Serialize;
@@ -29,7 +29,19 @@ impl AuthenticatorTrait for MultisigAggregatedSignature {
     where
         T: Serialize,
     {
-        let digest = intent_message.signing_digest();
+        self.verify_signing_digest(
+            &intent_message.signing_digest(),
+            multisig_address,
+            verify_params,
+        )
+    }
+
+    fn verify_signing_digest(
+        &self,
+        digest: &SigningDigest,
+        multisig_address: Address,
+        verify_params: &VerifyParams,
+    ) -> Result<(), IotaError> {
         let verifier = MultisigVerifier::new()
             .with_address(multisig_address)
             .with_accept_passkey_in_multisig(verify_params.accept_passkey_in_multisig)
@@ -39,7 +51,7 @@ impl AuthenticatorTrait for MultisigAggregatedSignature {
             );
 
         verifier
-            .verify(&digest, self)
+            .verify(digest, self)
             .map_err(|e| IotaError::InvalidSignature {
                 error: format!("Invalid multisig: {e}"),
             })

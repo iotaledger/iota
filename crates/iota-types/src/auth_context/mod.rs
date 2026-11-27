@@ -3,8 +3,11 @@
 
 mod fields_v1;
 
+use fastcrypto::hash::HashFunction;
 pub use fields_v1::*;
-use iota_sdk_types::{Digest, MoveAuthenticatorDigest, ProgrammableTransaction};
+use iota_sdk_types::{
+    Digest, MoveAuthenticatorDigest, ProgrammableTransaction, SigningDigest, crypto::Intent,
+};
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{
@@ -17,6 +20,7 @@ use crate::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRef, AuthenticatorFunctionRefV1,
     },
+    crypto::DefaultHash,
 };
 
 pub const AUTH_CONTEXT_MODULE_NAME: &IdentStr = ident_str!("auth_context");
@@ -72,6 +76,8 @@ pub struct AuthContext {
     tx_commands: Vec<MoveCommand>,
     /// The BCS-serialized `Transaction` bytes.
     tx_data_bytes: Vec<u8>,
+    /// The signing digest of the transaction, computed from `tx_data_bytes`.
+    tx_signing_digest: SigningDigest,
 }
 
 impl AuthContext {
@@ -84,6 +90,7 @@ impl AuthContext {
         ptb: &ProgrammableTransaction,
         tx_data_bytes: Vec<u8>,
     ) -> Self {
+        let tx_signing_digest = transaction_signing_digest(&tx_data_bytes);
         Self {
             auth_digest,
             sender_auth_digest,
@@ -93,6 +100,7 @@ impl AuthContext {
             tx_inputs: ptb.inputs.iter().map(MoveCallArg::from).collect(),
             tx_commands: ptb.commands.iter().map(MoveCommand::from).collect(),
             tx_data_bytes,
+            tx_signing_digest,
         }
     }
 
@@ -106,6 +114,7 @@ impl AuthContext {
             tx_inputs: Vec::new(),
             tx_commands: Vec::new(),
             tx_data_bytes: Vec::new(),
+            tx_signing_digest: transaction_signing_digest(&[]),
         }
     }
 
@@ -158,6 +167,13 @@ impl AuthContext {
 
     pub fn tx_data_bytes(&self) -> &Vec<u8> {
         &self.tx_data_bytes
+    }
+
+    /// Returns the signing digest of the transaction: the digest of
+    /// `IntentMessage(Intent::iota_transaction(), tx_data)`, where
+    /// [`Self::tx_data_bytes`] is the BCS encoding of `tx_data`.
+    pub fn tx_signing_digest(&self) -> &SigningDigest {
+        &self.tx_signing_digest
     }
 
     pub fn to_bcs_bytes(&self) -> Vec<u8> {
@@ -218,6 +234,7 @@ impl AuthContext {
         self.auth_digest = auth_digest;
         self.tx_inputs = tx_inputs;
         self.tx_commands = tx_commands;
+        self.tx_signing_digest = transaction_signing_digest(&tx_data_bytes);
         self.tx_data_bytes = tx_data_bytes;
         self.sender_auth_digest = sender_auth_digest;
         self.sponsor_auth_digest = sponsor_auth_digest;
@@ -256,6 +273,18 @@ pub fn is_auth_context(
         && struct_name == AUTH_CONTEXT_STRUCT_NAME
 }
 
+/// Returns the signing digest of
+/// `IntentMessage(Intent::iota_transaction(), tx_data)`, where `tx_data_bytes`
+/// is the BCS encoding of `tx_data`.
+fn transaction_signing_digest(tx_data_bytes: &[u8]) -> SigningDigest {
+    // The BCS encoding of an `IntentMessage` is the intent bytes followed by
+    // the BCS encoding of its value.
+    let mut hasher = DefaultHash::default();
+    hasher.update(Intent::iota_transaction().to_bytes());
+    hasher.update(tx_data_bytes);
+    hasher.finalize().digest
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AuthContextData {
     pub transaction_data_bytes: Vec<u8>,
@@ -268,11 +297,12 @@ pub struct AuthContextData {
 #[cfg(test)]
 mod tests {
     use iota_sdk_types::{
-        Argument, Command, Identifier, ObjectId, ProgrammableTransaction, TypeTag,
+        Address, Argument, Command, Identifier, ObjectDigest, ObjectId, ObjectReference,
+        ProgrammableTransaction, Transaction, TypeTag, Version,
     };
 
     use super::*;
-    use crate::transaction::CallArg;
+    use crate::transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI};
 
     #[test]
     fn auth_context_new_from_components() {
@@ -351,6 +381,44 @@ mod tests {
     }
 
     #[test]
+    fn auth_context_tx_signing_digest_is_the_signing_digest_of_the_transaction() {
+        let tx = dummy_tx();
+        let ctx = AuthContext::new_from_components(
+            MoveAuthenticatorDigest::default(),
+            Digest::default(),
+            None,
+            None,
+            None,
+            &ProgrammableTransaction {
+                inputs: vec![],
+                commands: vec![],
+            },
+            bcs::to_bytes(&tx).unwrap(),
+        );
+
+        assert_eq!(ctx.tx_signing_digest(), &tx.signing_digest());
+    }
+
+    #[test]
+    fn auth_context_replace_updates_tx_signing_digest() {
+        let tx = dummy_tx();
+        let mut ctx = AuthContext::new_for_testing();
+
+        ctx.replace(
+            MoveAuthenticatorDigest::default(),
+            vec![],
+            vec![],
+            bcs::to_bytes(&tx).unwrap(),
+            Digest::default(),
+            None,
+            None,
+            None,
+        );
+
+        assert_eq!(ctx.tx_signing_digest(), &tx.signing_digest());
+    }
+
+    #[test]
     fn auth_context_to_bcs_bytes_is_deterministic() {
         let ctx = AuthContext::new_for_testing();
         assert_eq!(ctx.to_bcs_bytes(), ctx.to_bcs_bytes());
@@ -374,5 +442,17 @@ mod tests {
         let non_empty_bytes = ctx.to_bcs_bytes();
 
         assert_ne!(empty_bytes, non_empty_bytes);
+    }
+
+    /// Constructs a minimal dummy `Transaction`.
+    fn dummy_tx() -> Transaction {
+        Transaction::new_transfer_iota(
+            Address::ZERO,
+            Address::new([1; 32]),
+            None,
+            ObjectReference::new(ObjectId::ZERO, Version::default(), ObjectDigest::MIN),
+            TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+            1000,
+        )
     }
 }

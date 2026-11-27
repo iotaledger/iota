@@ -5,7 +5,7 @@
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_crypto::{Verifier, simple::SimpleVerifier};
 use iota_sdk_types::{
-    Address, UserSignature,
+    Address, SigningDigest, UserSignature,
     crypto::{IntentMessage, SimpleSignature},
 };
 use serde::Serialize;
@@ -52,6 +52,22 @@ pub trait AuthenticatorTrait {
     ) -> IotaResult
     where
         T: Serialize;
+
+    /// Like [`Self::verify_claims`], for the message whose signing digest is
+    /// `digest`.
+    ///
+    /// Returns an error unless the authenticator checks a signature of the
+    /// signing digest.
+    fn verify_signing_digest(
+        &self,
+        _digest: &SigningDigest,
+        _author: Address,
+        _aux_verify_data: &VerifyParams,
+    ) -> IotaResult {
+        Err(IotaError::InvalidSignature {
+            error: "The authenticator does not check a signature of a signing digest".into(),
+        })
+    }
 }
 
 impl AuthenticatorTrait for UserSignature {
@@ -74,6 +90,25 @@ impl AuthenticatorTrait for UserSignature {
             _ => unimplemented!("a new UserSignature variant was added and needs to be handled"),
         }
     }
+
+    fn verify_signing_digest(
+        &self,
+        digest: &SigningDigest,
+        author: Address,
+        aux_verify_data: &VerifyParams,
+    ) -> IotaResult {
+        match self {
+            UserSignature::Simple(s) => s.verify_signing_digest(digest, author, aux_verify_data),
+            UserSignature::Multisig(s) => s.verify_signing_digest(digest, author, aux_verify_data),
+            UserSignature::PasskeyAuthenticator(s) => {
+                s.verify_signing_digest(digest, author, aux_verify_data)
+            }
+            UserSignature::MoveAuthenticator(s) => {
+                s.verify_signing_digest(digest, author, aux_verify_data)
+            }
+            _ => unimplemented!("a new UserSignature variant was added and needs to be handled"),
+        }
+    }
 }
 
 impl AuthenticatorTrait for SimpleSignature {
@@ -82,11 +117,20 @@ impl AuthenticatorTrait for SimpleSignature {
         &self,
         value: &IntentMessage<T>,
         author: Address,
-        _aux_verify_data: &VerifyParams,
+        aux_verify_data: &VerifyParams,
     ) -> IotaResult
     where
         T: Serialize,
     {
+        self.verify_signing_digest(&value.signing_digest(), author, aux_verify_data)
+    }
+
+    fn verify_signing_digest(
+        &self,
+        digest: &SigningDigest,
+        author: Address,
+        _aux_verify_data: &VerifyParams,
+    ) -> IotaResult {
         // `SimpleVerifier` only checks the signature against its embedded public
         // key, so the signer/author binding is enforced here.
         let address: Address = self.to_public_key().into();
@@ -97,7 +141,7 @@ impl AuthenticatorTrait for SimpleSignature {
         }
 
         SimpleVerifier
-            .verify(&value.signing_digest(), self)
+            .verify(digest, self)
             .map_err(|e| IotaError::InvalidSignature {
                 error: format!("Fail to verify user sig {e}"),
             })
