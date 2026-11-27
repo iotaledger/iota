@@ -349,7 +349,7 @@ mod tests {
         error_policy_type: PolicyType,
         access_rules: AccessRules,
     ) -> (axum::Router, Arc<TrafficController>) {
-        router_with(
+        router_with_policy_config_and_methods(
             PolicyConfig {
                 spam_policy_type,
                 error_policy_type,
@@ -362,7 +362,7 @@ mod tests {
 
     /// A JSON-RPC router serving `methods`, whose traffic controller runs
     /// `policy_config` without dry run, reading the client from the socket.
-    fn router_with(
+    fn router_with_policy_config_and_methods(
         policy_config: PolicyConfig,
         methods: Methods,
     ) -> (axum::Router, Arc<TrafficController>) {
@@ -474,9 +474,10 @@ mod tests {
         module.into()
     }
 
-    /// A gas limit of 100 with the computation cap of [`router_with`], so that
-    /// one held reservation takes the whole balance, and an error policy that
-    /// blocks a client on its first error.
+    /// A gas limit of 100 with the computation cap of
+    /// [`router_with_policy_config_and_methods`], so that one held reservation
+    /// takes the whole balance, and an error policy that blocks a client on its
+    /// first error.
     fn gas_limited(access_rules: AccessRules) -> PolicyConfig {
         PolicyConfig {
             error_policy_type: PolicyType::TestNConnIP(1),
@@ -495,8 +496,10 @@ mod tests {
     /// client is not blocked.
     #[tokio::test]
     async fn a_simulation_over_the_gas_limit_is_refused_as_busy() {
-        let (router, traffic_controller) =
-            router_with(gas_limited(AccessRules::default()), simulating_methods());
+        let (router, traffic_controller) = router_with_policy_config_and_methods(
+            gas_limited(AccessRules::default()),
+            simulating_methods(),
+        );
         let request = r#"{"jsonrpc":"2.0","id":1,"method":"test_simulate"}"#;
 
         // Hold the whole balance, so that the request finds none left.
@@ -520,7 +523,7 @@ mod tests {
     /// so a client that an allow rule serves has no gas limit.
     #[tokio::test]
     async fn an_allowed_client_reserves_no_simulation_gas() {
-        let (router, traffic_controller) = router_with(
+        let (router, traffic_controller) = router_with_policy_config_and_methods(
             gas_limited(AccessRules {
                 allow: vec![CLIENT.ip().to_string()],
                 ..Default::default()
