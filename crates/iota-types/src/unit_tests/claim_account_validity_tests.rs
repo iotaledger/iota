@@ -281,6 +281,182 @@ fn simulation_fills_in_an_unset_claim_budget_no_lower_than_the_gas_floor() {
     );
 }
 
+/// The BCS bytes of a MultiSig committee of `members` with `threshold`, built
+/// without the committee's own validation, so that they can describe a
+/// committee the chain refuses.
+fn committee_bytes(members: &[MultisigMember], threshold: u16) -> Vec<u8> {
+    let mut bytes = vec![u8::try_from(members.len()).expect("fewer than 128 members")];
+    for member in members {
+        bytes.extend(bcs::to_bytes(member).expect("a member encodes"));
+    }
+    bytes.extend(threshold.to_le_bytes());
+    bytes
+}
+
+/// A key of every scheme a claim accepts passes when it derives the sender.
+/// A key the chain cannot hold, of a scheme without a public key or not in its
+/// compressed form, or a committee that fails the committee rules, is refused
+/// as unsupported before the sender is compared. The same Secp256r1 bytes
+/// under the Passkey flag derive another address.
+#[test]
+fn claim_key_validity_for_every_scheme() {
+    use iota_sdk_crypto::{
+        ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey,
+    };
+    use iota_sdk_types::PasskeyPublicKey;
+
+    let config = config();
+    let claim = |scheme: u8, raw: Vec<u8>| SmartAccountClaim {
+        public_key_scheme: scheme,
+        public_key_raw_bytes: raw,
+    };
+    let bytes = |key: &dyn AsRef<[u8]>| key.as_ref().to_vec();
+    let derived = |scheme: SignatureScheme, raw: &[u8]| {
+        MovePublicKey::new(scheme, raw.to_vec())
+            .expect("a valid key")
+            .address()
+            .expect("a valid key derives an address")
+    };
+
+    let k1 = Secp256k1PrivateKey::random().public_key();
+    let r1 = Secp256r1PrivateKey::random().public_key();
+    let other_r1 = Secp256r1PrivateKey::random().public_key();
+    let ed25519 = Ed25519PrivateKey::random().public_key();
+    for (scheme, raw) in [
+        (SignatureScheme::Secp256k1, bytes(&k1)),
+        (SignatureScheme::Secp256r1, bytes(&r1)),
+        (SignatureScheme::PasskeyAuthenticator, bytes(&r1)),
+    ] {
+        let sender = derived(scheme, &raw);
+        claim_tx(claim(scheme.to_u8(), raw), sender)
+            .validity_check(&config)
+            .unwrap_or_else(|error| panic!("a {scheme:?} claim must pass: {error:?}"));
+    }
+    assert_eq!(
+        derived(SignatureScheme::PasskeyAuthenticator, &bytes(&r1)),
+        PasskeyPublicKey::new(r1).derive_address()
+    );
+    assert!(matches!(
+        claim_tx(
+            claim(SignatureScheme::PasskeyAuthenticator.to_u8(), bytes(&r1)),
+            derived(SignatureScheme::Secp256r1, &bytes(&r1)),
+        )
+        .validity_check(&config),
+        Err(UserInputError::IncorrectUserSignature { .. })
+    ));
+
+    let member = |public_key: PublicKey, weight| MultisigMember::new(public_key, weight);
+    let valid_members = [
+        member(PublicKey::Secp256k1(k1), 1),
+        member(PublicKey::Secp256r1(r1), 1),
+    ];
+    let valid_committee = committee_bytes(&valid_members, 2);
+    assert_eq!(
+        valid_committee,
+        bcs::to_bytes(&MultisigCommittee::new(valid_members.to_vec(), 2).unwrap()).unwrap(),
+        "the hand-built bytes must be those of a committee"
+    );
+    let mut with_trailing_byte = valid_committee;
+    with_trailing_byte.push(0);
+    let eleven_members: Vec<_> = (0..MULTISIG_COMMITTEE_SIZE_MAX + 1)
+        .map(|_| {
+            member(
+                PublicKey::Secp256r1(Secp256r1PrivateKey::random().public_key()),
+                1,
+            )
+        })
+        .collect();
+    let mut uncompressed = vec![0x04];
+    uncompressed.extend([0x11; 64]);
+
+    let refused = [
+        (
+            "uncompressed key",
+            SignatureScheme::Secp256k1.to_u8(),
+            uncompressed,
+        ),
+        ("BLS flag", SignatureScheme::Bls12381.to_u8(), bytes(&r1)),
+        ("zkLogin flag", 0x05, bytes(&r1)),
+        (
+            "MoveAuthenticator flag",
+            SignatureScheme::MoveAuthenticator.to_u8(),
+            bytes(&r1),
+        ),
+        ("unknown flag", 0xff, bytes(&r1)),
+        (
+            "Ed25519 key under the Secp256k1 flag",
+            SignatureScheme::Secp256k1.to_u8(),
+            bytes(&ed25519),
+        ),
+        (
+            "zero weight",
+            SignatureScheme::Multisig.to_u8(),
+            committee_bytes(
+                &[
+                    member(PublicKey::Secp256k1(k1), 0),
+                    member(PublicKey::Secp256r1(r1), 1),
+                ],
+                1,
+            ),
+        ),
+        (
+            "threshold above the weights",
+            SignatureScheme::Multisig.to_u8(),
+            committee_bytes(&valid_members, 3),
+        ),
+        (
+            "zero threshold",
+            SignatureScheme::Multisig.to_u8(),
+            committee_bytes(&valid_members, 0),
+        ),
+        (
+            "duplicate member",
+            SignatureScheme::Multisig.to_u8(),
+            committee_bytes(
+                &[
+                    member(PublicKey::Secp256r1(r1), 1),
+                    member(PublicKey::Secp256r1(r1), 1),
+                ],
+                1,
+            ),
+        ),
+        (
+            "eleven members",
+            SignatureScheme::Multisig.to_u8(),
+            committee_bytes(&eleven_members, 1),
+        ),
+        (
+            "no member",
+            SignatureScheme::Multisig.to_u8(),
+            committee_bytes(&[], 1),
+        ),
+        (
+            "Ed25519 member mixed with another scheme",
+            SignatureScheme::Multisig.to_u8(),
+            committee_bytes(
+                &[
+                    member(PublicKey::Ed25519(ed25519), 1),
+                    member(PublicKey::Secp256r1(other_r1), 1),
+                ],
+                1,
+            ),
+        ),
+        (
+            "trailing byte",
+            SignatureScheme::Multisig.to_u8(),
+            with_trailing_byte,
+        ),
+    ];
+    for (case, scheme, raw) in refused {
+        let (sender, _): (Address, AccountPrivateKey) = get_key_pair();
+        let result = claim_tx(claim(scheme, raw), sender).validity_check(&config);
+        assert!(
+            matches!(result, Err(UserInputError::Unsupported(_))),
+            "{case}: {result:?}"
+        );
+    }
+}
+
 /// A claim carries plain signatures only: a gas owner whose
 /// `MoveAuthenticator` failed at execution would leave the claim kept without
 /// its account. The rule that a transaction with a `MoveAuthenticator` is

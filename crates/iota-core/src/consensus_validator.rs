@@ -1268,6 +1268,49 @@ mod tests {
             .unwrap();
     }
 
+    /// Block verification checks a claim's signature and that the kind is
+    /// enabled, not the claim's validity: a claim whose key does not derive
+    /// its sender, signed by the sender, is accepted in a block, and
+    /// post-consensus validation drops it.
+    #[tokio::test]
+    async fn accept_a_claim_account_whose_key_does_not_derive_the_sender() {
+        use iota_sdk_types::{
+            ClaimAccountTransaction, SmartAccountClaim, Transaction, TransactionKind,
+            crypto::PublicKey,
+        };
+        use iota_types::{
+            base_types::random_object_ref,
+            crypto::{AccountPrivateKey, get_key_pair},
+            transaction::TransactionAPI,
+            utils::to_sender_signed_transaction,
+        };
+
+        let _guard = claim_account_enabled(true);
+        let (_, _, validator) = self_identifier_fixture(None).await;
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+        let (_, other_key): (_, AccountPrivateKey) = get_key_pair();
+        let claim = SmartAccountClaim::new(&PublicKey::Ed25519(other_key.public_key()));
+        let transaction = Transaction::new(
+            TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(claim)),
+            sender,
+            random_object_ref(),
+            100_000_000,
+            1,
+        );
+        let mismatched = to_sender_signed_transaction(transaction, &sender_key);
+        assert!(matches!(
+            mismatched
+                .data()
+                .transaction()
+                .validity_check(validator.epoch_store.protocol_config()),
+            Err(iota_types::error::UserInputError::IncorrectUserSignature { .. })
+        ));
+
+        validator
+            .validate_transactions(vec![user_transaction(mismatched)])
+            .unwrap();
+    }
+
     #[tokio::test]
     async fn accept_transaction_dependency_with_the_flag() {
         let _guard = transaction_dependencies_enabled(true);

@@ -6,12 +6,14 @@
 /// units.
 /// The two aborting authenticators abort with different codes, so a test can
 /// tell which one failed. The object can also be shared first and made an
-/// account later, and receive objects until then.
+/// account later, and receive objects until then. A last authenticator, which
+/// always passes, is for a `SmartAccount`.
 module move_authenticator::test_account;
 
 use iota::account;
 use iota::auth_context::AuthContext;
 use iota::authenticator_function::AuthenticatorFunctionRefV1;
+use iota::smart_account::SmartAccount;
 use iota::transfer::Receiving;
 
 public struct TestAccount has key {
@@ -68,3 +70,8 @@ public fun authenticate_fail(_: &TestAccount, _: &AuthContext, _: &TxContext) {
 public fun authenticate_fail_other(_: &TestAccount, _: &AuthContext, _: &TxContext) {
     abort 2
 }
+
+/// Authenticates a `SmartAccount`, passing every transaction, so that a
+/// claimed account can rotate to an authenticator other than the built-in one.
+#[authenticator]
+public fun authenticate_smart_account(_: &SmartAccount, _: &AuthContext, _: &TxContext) {}
