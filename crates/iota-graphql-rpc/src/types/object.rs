@@ -30,7 +30,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     backward_view::{HistoricalFilter, consistent, historical},
     config::DEFAULT_PAGE_SIZE,
-    consistency::{Checkpointed, UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER},
+    consistency::{Checkpointed, LiveCursor, UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER},
     data::{DataLoader, Db, DbConnection, QueryExecutor, package_resolver::PackageResolver},
     error::Error,
     filter, or_filter,
@@ -1263,6 +1263,16 @@ impl HistoricalObjectCursor {
 impl Checkpointed for Cursor {
     fn checkpoint_viewed_at(&self) -> u64 {
         self.checkpoint_viewed_at.into()
+    }
+}
+
+impl LiveCursor for Cursor {
+    fn set_checkpoint_viewed_at(&mut self, checkpoint_viewed_at: u64) {
+        *self = Cursor::new(HistoricalObjectCursor::new(
+            self.object_id.clone(),
+            self.object_version.into(),
+            checkpoint_viewed_at,
+        ));
     }
 }
 
