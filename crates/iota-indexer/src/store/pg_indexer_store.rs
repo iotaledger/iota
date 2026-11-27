@@ -599,7 +599,7 @@ impl PgIndexerStore {
             .context("Failed to delete smart account keys from PostgresDB")
     }
 
-    fn persist_smart_account_keys_chunk(
+    pub(crate) fn persist_smart_account_keys_chunk(
         &self,
         keys: Vec<StoredSmartAccountKey>,
     ) -> Result<(), IndexerError> {

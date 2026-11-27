@@ -16,7 +16,10 @@ use super::{
 };
 use crate::{
     errors::IndexerError,
-    restore::{persist::populate_remaining_tables, verify::verify_epoch_info},
+    restore::{
+        persist::{RestoreStore, populate_remaining_tables},
+        verify::verify_epoch_info,
+    },
     store::PgIndexerStore,
     types::IndexerResult,
 };
@@ -61,10 +64,11 @@ pub async fn start(
 
     let verified_epoch_info =
         verify_epoch_info(epoch_info, epoch, genesis, snapshot_chain_id).await?;
+    let restore_store = RestoreStore::new(&pg_indexer_store);
     let ((), num_objects) = tokio::try_join!(
         reader
             .read_to_db(
-                &pg_indexer_store,
+                &restore_store,
                 abort_registration,
                 Some(StateAccumulatorSender {
                     partials: state_hash_tx,
@@ -74,7 +78,13 @@ pub async fn start(
             .map_err(IndexerError::from),
         verify_state_hash(state_hash_rx, accumulation_done_rx, &verified_epoch_info),
     )?;
-    populate_remaining_tables(&pg_indexer_store, verified_epoch_info, snapshot_chain_id).await?;
+    populate_remaining_tables(
+        &pg_indexer_store,
+        verified_epoch_info,
+        snapshot_chain_id,
+        restore_store.into_smart_account_keys(),
+    )
+    .await?;
 
     info!(
         epoch,
