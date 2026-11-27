@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Decides, by IP address, whether the node serves a client's request: either
-//! every client not on the allowlist is refused, or every client on the
-//! blocklist is, until its block expires.
+//! Decides, by IP address, whether the node serves a client's request: by the
+//! access rules of the node, and by the blocklist of the clients that breached
+//! a policy, until their blocks expire.
 
 use std::{
     net::{IpAddr, Ipv6Addr},
@@ -15,19 +15,22 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+use arc_swap::ArcSwap;
 use dashmap::{DashMap, mapref::entry::Entry};
 use iota_common::fatal;
 use iota_metrics::spawn_monitored_task;
-use iota_types::traffic_control::PolicyConfig;
+use iota_types::traffic_control::{AccessRuleList, ClientIdSource, DefaultAction, PolicyConfig};
+use ipnet::{IpNet, Ipv4Net};
+use parking_lot::Mutex;
 use prometheus_filtered::IntGauge;
 use tokio::time::{Interval, MissedTickBehavior};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, warn};
 
 use crate::{
+    ClientAccess,
     block_log::{BlockReason, log_block},
     metrics::TrafficControllerMetrics,
-    parse_ip,
     policies::PolicyResponse,
 };
 
@@ -247,19 +250,42 @@ impl Blocklist {
     }
 }
 
-enum Access {
-    /// Every client not on the allowlist is refused, and nothing is blocked.
-    /// The allowlist is populated once at initialization, and stays sorted so
-    /// that `check` can binary-search it.
-    Allowlist(Vec<IpAddr>),
-    /// Every client on the blocklist is refused until its block expires.
-    Blocklist(Blocklist),
+/// The access rules in force, swapped as one unit so that a check never sees
+/// half of a change. Every rule is canonical: an IPv4 network written as an
+/// IPv4-mapped IPv6 network is held as the IPv4 network, and host bits are
+/// cleared.
+#[derive(Clone)]
+struct RuleSet {
+    allow: Vec<IpNet>,
+    deny: Vec<IpNet>,
+    default: DefaultAction,
+}
+
+impl RuleSet {
+    fn list_mut(&mut self, list: AccessRuleList) -> &mut Vec<IpNet> {
+        match list {
+            AccessRuleList::Allow => &mut self.allow,
+            AccessRuleList::Deny => &mut self.deny,
+        }
+    }
+}
+
+/// Why the node refuses a client that no allow rule serves.
+#[derive(Clone, Copy)]
+enum Refusal {
+    DenyRule,
+    Blocklist,
+    Default,
 }
 
 /// Decides, by IP address, whether the node serves a client's request, and
 /// keeps the clients it refuses.
 pub(crate) struct ClientAccessManager {
-    access: Access,
+    rules: ArcSwap<RuleSet>,
+    /// Held while the rules change, so that two changes do not overwrite each
+    /// other and the rule gauges show the last change.
+    rules_update: Mutex<()>,
+    blocklist: Blocklist,
     metrics: Arc<TrafficControllerMetrics>,
     // Read on the request path in `check` and by the blocklist when it logs a
     // block, and toggled by the admin API.
@@ -267,93 +293,154 @@ pub(crate) struct ClientAccessManager {
 }
 
 impl ClientAccessManager {
-    /// Takes the allowlist, the dry-run flag, and in blocklist mode the
-    /// blocklist TTLs and the IPv6 prefix length from `policy_config`. In
-    /// blocklist mode, spawns the task that drops expired blocks, so it must
-    /// then be called from within a tokio runtime, and panics if a blocklist
-    /// TTL exceeds [`MAX_BLOCKLIST_TTL_SEC`] or the IPv6 prefix length is not
-    /// between [`MIN_IPV6_PREFIX_LEN`] and 128.
+    /// Takes the access rules, the dry-run flag, the blocklist TTLs and the
+    /// IPv6 prefix length from `policy_config`, and spawns the task that drops
+    /// expired blocks, so it must be called from within a tokio runtime.
+    ///
+    /// # Panics
+    ///
+    /// If an access rule is neither an IP address nor a CIDR network, if a
+    /// blocklist TTL exceeds [`MAX_BLOCKLIST_TTL_SEC`], or if the IPv6 prefix
+    /// length is not between [`MIN_IPV6_PREFIX_LEN`] and 128.
     pub(crate) fn new(
         policy_config: &PolicyConfig,
         metrics: Arc<TrafficControllerMetrics>,
     ) -> Self {
         metrics.dry_run_enabled.set(policy_config.dry_run as i64);
-        let access = match &policy_config.allow_list {
-            Some(allow_list) => Access::Allowlist(parse_allowlist(allow_list)),
-            None => Access::Blocklist(Blocklist::new(policy_config, metrics.clone())),
+        let parse = |rules: &[String]| {
+            rules
+                .iter()
+                .map(|rule| {
+                    parse_access_rule(rule).unwrap_or_else(|err| {
+                        fatal!("Invalid traffic control config: access rule {rule:?}: {err}")
+                    })
+                })
+                .collect::<Vec<_>>()
         };
+        let access_rules = &policy_config.access_rules;
+        let rules = RuleSet {
+            allow: parse(&access_rules.allow),
+            deny: parse(&access_rules.deny),
+            default: access_rules.default,
+        };
+        warn_about_rules(&rules, policy_config);
+        set_rule_metrics(&rules, &metrics);
         Self {
-            access,
+            rules: ArcSwap::from_pointee(rules),
+            rules_update: Mutex::new(()),
+            blocklist: Blocklist::new(policy_config, metrics.clone()),
             metrics,
             dry_run: AtomicBool::new(policy_config.dry_run),
         }
     }
 
-    /// Whether to serve a request from `client`, with dry run considered. A
-    /// request whose client IP the node could not resolve is refused in
-    /// allowlist mode, and served in blocklist mode.
-    pub(crate) fn check(&self, client: &Option<IpAddr>, proxied_client: &Option<IpAddr>) -> bool {
-        let dry_run = self.dry_run();
+    /// Whether to serve a request from `client`, with dry run considered. The
+    /// rules match `client` only. A request whose client IP the node could not
+    /// resolve matches no rule, so the default action decides it.
+    pub(crate) fn check(
+        &self,
+        client: &Option<IpAddr>,
+        proxied_client: &Option<IpAddr>,
+    ) -> ClientAccess {
         if client.is_none() {
             self.metrics.unresolved_client_requests.inc();
         }
-        let allowed = match &self.access {
-            Access::Allowlist(allowlist) => {
-                client.is_some_and(|client| allowlist.binary_search(&client).is_ok())
-            }
-            Access::Blocklist(blocklist) => !blocklist.blocks(client, proxied_client),
+        let rules = self.rules.load();
+        let client_address = client.map(|client| client.to_canonical());
+        let matches = |list: &[IpNet]| {
+            client_address.is_some_and(|client| list.iter().any(|rule| rule.contains(&client)))
         };
-        match (allowed, dry_run) {
-            (true, _) => true,
-            (false, true) => {
-                debug!("Dry run mode: Blocked request from client {:?}", client);
-                self.metrics.num_dry_run_blocked_requests.inc();
-                true
-            }
-            (false, false) => {
-                debug!("Blocked request from client {:?}", client);
-                self.metrics.requests_blocked_at_protocol.inc();
-                false
-            }
+        if matches(&rules.allow) {
+            self.metrics.allow_rule_requests.inc();
+            return ClientAccess::Allowed;
         }
+        let refusal = if matches(&rules.deny) {
+            Refusal::DenyRule
+        } else if self.blocklist.blocks(client, proxied_client) {
+            Refusal::Blocklist
+        } else if rules.default == DefaultAction::Deny {
+            Refusal::Default
+        } else {
+            return ClientAccess::Limited;
+        };
+        if self.dry_run() {
+            debug!("Dry run mode: Blocked request from client {:?}", client);
+            match refusal {
+                Refusal::DenyRule => &self.metrics.num_dry_run_deny_rule_requests,
+                Refusal::Blocklist => &self.metrics.num_dry_run_blocked_requests,
+                Refusal::Default => &self.metrics.num_dry_run_default_deny_requests,
+            }
+            .inc();
+            return ClientAccess::Limited;
+        }
+        debug!("Blocked request from client {:?}", client);
+        self.metrics.requests_blocked_at_protocol.inc();
+        if matches!(refusal, Refusal::DenyRule) {
+            self.metrics.deny_rule_requests.inc();
+        }
+        ClientAccess::Refused
+    }
+
+    /// Adds `rule` to `list`, and returns whether it was not there already.
+    /// The next check applies it.
+    pub(crate) fn add_rule(&self, list: AccessRuleList, rule: IpNet) -> bool {
+        self.update_rules(|rules| {
+            let rules = rules.list_mut(list);
+            let added = !rules.contains(&rule);
+            if added {
+                rules.push(rule);
+            }
+            added
+        })
+    }
+
+    /// Removes `rule` from `list`, and returns whether it was there. The next
+    /// check applies the change.
+    pub(crate) fn remove_rule(&self, list: AccessRuleList, rule: IpNet) -> bool {
+        self.update_rules(|rules| {
+            let rules = rules.list_mut(list);
+            let len = rules.len();
+            rules.retain(|existing| *existing != rule);
+            rules.len() != len
+        })
+    }
+
+    /// Applies `update` to a copy of the rules in force and puts the copy in
+    /// force.
+    fn update_rules(&self, update: impl FnOnce(&mut RuleSet) -> bool) -> bool {
+        let _update = self.rules_update.lock();
+        let mut rules = RuleSet::clone(&self.rules.load());
+        let changed = update(&mut rules);
+        set_rule_metrics(&rules, &self.metrics);
+        self.rules.store(Arc::new(rules));
+        changed
     }
 
     /// Refuses each client that a policy reports as breaching it. The
     /// addresses in `response` must already be cut by [`client_prefix`].
-    /// No-op in allowlist mode.
     pub(crate) fn block(&self, response: PolicyResponse, reason: BlockReason) {
-        if let Access::Blocklist(blocklist) = &self.access {
-            blocklist.block(response, reason, &self.dry_run);
-        }
+        self.blocklist.block(response, reason, &self.dry_run);
     }
 
     pub(crate) fn dry_run(&self) -> bool {
         self.dry_run.load(Ordering::Relaxed)
     }
 
-    /// The connection and proxy blocklist TTLs in force, or `None` in
-    /// allowlist mode, which blocks nothing.
-    pub(crate) fn blocklist_ttls_sec(&self) -> Option<(u64, u64)> {
-        match &self.access {
-            Access::Allowlist(_) => None,
-            Access::Blocklist(blocklist) => Some((
-                blocklist.ttls.connection_blocklist_ttl_sec(),
-                blocklist.ttls.proxy_blocklist_ttl_sec(),
-            )),
-        }
+    /// The connection and proxy blocklist TTLs in force.
+    pub(crate) fn blocklist_ttls_sec(&self) -> (u64, u64) {
+        (
+            self.blocklist.ttls.connection_blocklist_ttl_sec(),
+            self.blocklist.ttls.proxy_blocklist_ttl_sec(),
+        )
     }
 
-    /// Rejects blocklist TTLs that [`Self::reconfigure`] must not apply: any
-    /// TTL in allowlist mode, and a TTL above [`MAX_BLOCKLIST_TTL_SEC`].
+    /// Rejects blocklist TTLs that [`Self::reconfigure`] must not apply: a TTL
+    /// above [`MAX_BLOCKLIST_TTL_SEC`].
     pub(crate) fn validate_reconfigure(
         &self,
         connection_blocklist_ttl_sec: Option<u64>,
         proxy_blocklist_ttl_sec: Option<u64>,
     ) -> Result<(), String> {
-        let sets_ttl = connection_blocklist_ttl_sec.is_some() || proxy_blocklist_ttl_sec.is_some();
-        if sets_ttl && matches!(self.access, Access::Allowlist(_)) {
-            return Err("Cannot reconfigure the blocklist TTLs in allowlist mode".to_string());
-        }
         validate_blocklist_ttls(connection_blocklist_ttl_sec, proxy_blocklist_ttl_sec)
     }
 
@@ -369,16 +456,86 @@ impl ClientAccessManager {
         if let Some(dry_run) = dry_run {
             self.metrics.dry_run_enabled.set(dry_run as i64);
             let was_dry_run = self.dry_run.swap(dry_run, Ordering::Relaxed);
-            if let (true, false, Access::Blocklist(blocklist)) =
-                (was_dry_run, dry_run, &self.access)
-            {
-                blocklist.log_unlogged_blocks();
+            if was_dry_run && !dry_run {
+                self.blocklist.log_unlogged_blocks();
             }
         }
-        if let Access::Blocklist(blocklist) = &self.access {
-            blocklist.reconfigure_ttls(connection_blocklist_ttl_sec, proxy_blocklist_ttl_sec);
+        self.blocklist
+            .reconfigure_ttls(connection_blocklist_ttl_sec, proxy_blocklist_ttl_sec);
+    }
+}
+
+/// Parses an access rule: an IP address, or a network in CIDR notation. The
+/// rule is made canonical, as [`RuleSet`] holds it.
+pub(crate) fn parse_access_rule(rule: &str) -> Result<IpNet, String> {
+    let network = if rule.contains('/') {
+        rule.parse::<IpNet>()
+            .map_err(|_| "not a CIDR network: the address or the prefix length is not valid")?
+    } else {
+        IpNet::from(
+            rule.parse::<IpAddr>()
+                .map_err(|_| "not an IP address or a CIDR network".to_string())?,
+        )
+    };
+    let network = match network {
+        IpNet::V6(network) => network
+            .addr()
+            .to_ipv4_mapped()
+            .zip(network.prefix_len().checked_sub(96))
+            .and_then(|(address, prefix_len)| Ipv4Net::new(address, prefix_len).ok())
+            .map_or(IpNet::V6(network), IpNet::V4),
+        network => network,
+    };
+    Ok(network.trunc())
+}
+
+/// Warns about rules that do not do what they appear to.
+fn warn_about_rules(rules: &RuleSet, policy_config: &PolicyConfig) {
+    let client_from_x_forwarded_for = matches!(
+        policy_config.client_id_source,
+        ClientIdSource::XForwardedFor(_)
+    );
+    if policy_config.dry_run && (!rules.deny.is_empty() || rules.default == DefaultAction::Deny) {
+        warn!(
+            "Traffic control runs in dry run mode, thus the node serves the clients that the \
+             deny rules or the default action `deny` refuse, and only counts them"
+        );
+    }
+    for rule in &rules.deny {
+        if let IpNet::V6(network) = rule {
+            let prefix_len = ipv6_prefix_len_of(network.addr(), policy_config.ipv6_prefix_len);
+            if network.prefix_len() > prefix_len {
+                warn!(
+                    "The deny rule {rule} is longer than the IPv6 prefix length of a client \
+                     (`ipv6-prefix-len`, {prefix_len}), thus the client can avoid it by moving \
+                     to another address of its own prefix"
+                );
+            }
         }
     }
+    if !rules.allow.is_empty() && client_from_x_forwarded_for {
+        warn!(
+            "The allow rules match the client that the x-forwarded-for header names. They hold \
+             only if clients reach the node through its proxy alone, since a client that \
+             reaches the node directly writes the whole header"
+        );
+    }
+    if rules.default == DefaultAction::Deny && client_from_x_forwarded_for {
+        warn!(
+            "The default action `deny` refuses every request that carries no x-forwarded-for \
+             header, since the node resolves no client for it and no allow rule can match it. \
+             On a validator these are all the requests of the other nodes, which call it \
+             directly"
+        );
+    }
+}
+
+fn set_rule_metrics(rules: &RuleSet, metrics: &TrafficControllerMetrics) {
+    metrics.allow_rules.set(rules.allow.len() as i64);
+    metrics.deny_rules.set(rules.deny.len() as i64);
+    metrics
+        .default_deny
+        .set((rules.default == DefaultAction::Deny) as i64);
 }
 
 /// Rejects a blocklist TTL above [`MAX_BLOCKLIST_TTL_SEC`].
@@ -438,19 +595,6 @@ pub(crate) fn ipv6_prefix_len_of(address: Ipv6Addr, ipv6_prefix_len: u8) -> u8 {
         || segments[..2] == [0x2001, 0]
         || segments[..2] == [0x64, 0xff9b];
     if kept_whole { 128 } else { ipv6_prefix_len }
-}
-
-/// Returns the allowlist sorted, so that `check` can binary-search it.
-fn parse_allowlist(allow_list: &[String]) -> Vec<IpAddr> {
-    let mut allowlist: Vec<IpAddr> = allow_list
-        .iter()
-        .map(|ip_str| {
-            parse_ip(ip_str)
-                .unwrap_or_else(|| fatal!("Failed to parse allowlist IP address: {ip_str:?}"))
-        })
-        .collect();
-    allowlist.sort_unstable();
-    allowlist
 }
 
 fn blocked(client: &Option<IpAddr>, blocklist: &BlockMap) -> bool {
@@ -552,18 +696,14 @@ async fn run_clear_blocklists_loop(
 mod tests {
     use std::net::Ipv4Addr;
 
+    use iota_types::traffic_control::AccessRules;
+
     use super::*;
+    use crate::block_log::tests::capture_plain;
 
     const CLIENT: IpAddr = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
 
     impl ClientAccessManager {
-        fn blocklist(&self) -> Option<&Blocklist> {
-            match &self.access {
-                Access::Blocklist(blocklist) => Some(blocklist),
-                Access::Allowlist(_) => None,
-            }
-        }
-
         /// Blocks the direct client `client`, as a policy response does.
         fn block_client(&self, client: IpAddr, reason: BlockReason) {
             let response = PolicyResponse {
@@ -586,17 +726,15 @@ mod tests {
         /// Moves the expiration of every direct client's block into the past,
         /// as if its TTL had passed.
         pub(crate) fn expire_client_blocks(&self) {
-            if let Some(blocklist) = self.blocklist() {
-                let past = SystemTime::now() - Duration::from_secs(1);
-                for mut block in blocklist.clients.iter_mut() {
-                    block.expiration = past;
-                }
+            let past = SystemTime::now() - Duration::from_secs(1);
+            for mut block in self.blocklist.clients.iter_mut() {
+                block.expiration = past;
             }
         }
 
         /// When the block of the direct client `client` expires, if it has one.
         fn client_block_expiration(&self, client: IpAddr) -> Option<SystemTime> {
-            self.blocklist()?
+            self.blocklist
                 .clients
                 .get(&client)
                 .map(|block| block.expiration)
@@ -610,7 +748,9 @@ mod tests {
         )
     }
 
-    fn blocklist_mode(dry_run: bool, ttl_sec: u64) -> PolicyConfig {
+    /// A policy config with no access rules, with `dry_run`, and with both
+    /// blocklist TTLs set to `ttl_sec`.
+    fn base_policy_config(dry_run: bool, ttl_sec: u64) -> PolicyConfig {
         PolicyConfig {
             connection_blocklist_ttl_sec: ttl_sec,
             proxy_blocklist_ttl_sec: ttl_sec,
@@ -621,27 +761,28 @@ mod tests {
 
     #[tokio::test]
     async fn a_blocked_client_is_refused_without_any_policy() {
-        let manager = manager(blocklist_mode(false, 120));
-        assert!(manager.check(&Some(CLIENT), &None));
+        let manager = manager(base_policy_config(false, 120));
+        assert!(manager.check(&Some(CLIENT), &None).is_served());
 
         manager.block_client(CLIENT, BlockReason::Spam);
-        assert!(!manager.check(&Some(CLIENT), &None));
+        assert!(!manager.check(&Some(CLIENT), &None).is_served());
 
         manager.block_proxied_client(CLIENT, BlockReason::Spam);
-        assert!(!manager.check(&None, &Some(CLIENT)));
+        assert!(!manager.check(&None, &Some(CLIENT)).is_served());
+        assert_eq!(manager.metrics.requests_blocked_at_protocol.get(), 2);
     }
 
     #[tokio::test]
     async fn a_block_ends_with_its_ttl() {
-        let manager = manager(blocklist_mode(false, 120));
+        let manager = manager(base_policy_config(false, 120));
         manager.block_client(CLIENT, BlockReason::Spam);
         manager.expire_client_blocks();
-        assert!(manager.check(&Some(CLIENT), &None));
+        assert!(manager.check(&Some(CLIENT), &None).is_served());
     }
 
     #[tokio::test]
     async fn a_breach_never_shortens_an_active_block() {
-        let manager = manager(blocklist_mode(false, 3600));
+        let manager = manager(base_policy_config(false, 3600));
         manager.block_client(CLIENT, BlockReason::Spam);
         let first_expiration = manager.client_block_expiration(CLIENT).unwrap();
 
@@ -655,21 +796,21 @@ mod tests {
 
     #[tokio::test]
     async fn a_zero_ttl_blocks_nothing() {
-        let manager = manager(blocklist_mode(false, 0));
+        let manager = manager(base_policy_config(false, 0));
         manager.block_client(CLIENT, BlockReason::Spam);
         manager.block_proxied_client(CLIENT, BlockReason::Spam);
-        assert!(manager.check(&Some(CLIENT), &Some(CLIENT)));
+        assert!(manager.check(&Some(CLIENT), &Some(CLIENT)).is_served());
         assert_eq!(manager.metrics.connection_ip_blocklist_len.get(), 0);
         assert_eq!(manager.metrics.proxy_ip_blocklist_len.get(), 0);
     }
 
     #[tokio::test]
     async fn the_maximum_ttl_blocks() {
-        let manager = manager(blocklist_mode(false, MAX_BLOCKLIST_TTL_SEC));
+        let manager = manager(base_policy_config(false, MAX_BLOCKLIST_TTL_SEC));
         manager.block_client(CLIENT, BlockReason::Spam);
         manager.block_proxied_client(CLIENT, BlockReason::Spam);
-        assert!(!manager.check(&Some(CLIENT), &None));
-        assert!(!manager.check(&None, &Some(CLIENT)));
+        assert!(!manager.check(&Some(CLIENT), &None).is_served());
+        assert!(!manager.check(&None, &Some(CLIENT)).is_served());
     }
 
     #[tokio::test]
@@ -677,7 +818,7 @@ mod tests {
     async fn a_connection_blocklist_ttl_above_the_maximum_is_rejected() {
         manager(PolicyConfig {
             connection_blocklist_ttl_sec: MAX_BLOCKLIST_TTL_SEC + 1,
-            ..blocklist_mode(false, 120)
+            ..base_policy_config(false, 120)
         });
     }
 
@@ -686,55 +827,294 @@ mod tests {
     async fn a_proxy_blocklist_ttl_above_the_maximum_is_rejected() {
         manager(PolicyConfig {
             proxy_blocklist_ttl_sec: MAX_BLOCKLIST_TTL_SEC + 1,
-            ..blocklist_mode(false, 120)
+            ..base_policy_config(false, 120)
         });
     }
 
     #[tokio::test]
     async fn dry_run_serves_a_blocked_client_and_counts_it() {
-        let manager = manager(blocklist_mode(true, 120));
+        let manager = manager(base_policy_config(true, 120));
         manager.block_client(CLIENT, BlockReason::Spam);
-        assert!(manager.check(&Some(CLIENT), &None));
+        assert!(manager.check(&Some(CLIENT), &None).is_served());
         assert_eq!(manager.metrics.num_dry_run_blocked_requests.get(), 1);
 
         manager.reconfigure(Some(false), None, None);
-        assert!(!manager.check(&Some(CLIENT), &None));
+        assert!(!manager.check(&Some(CLIENT), &None).is_served());
     }
 
     #[tokio::test]
     async fn dropping_the_blocklist_stops_its_cleanup_task() {
-        let manager = manager(blocklist_mode(false, 120));
-        let shutdown = manager.blocklist().unwrap().shutdown.clone();
+        let manager = manager(base_policy_config(false, 120));
+        let shutdown = manager.blocklist.shutdown.clone();
         assert!(!shutdown.is_cancelled());
         drop(manager);
         assert!(shutdown.is_cancelled());
     }
 
-    #[test]
-    fn allowlist_mode_sets_no_blocklist_ttl_gauges() {
-        let manager = manager(PolicyConfig {
-            allow_list: Some(vec![CLIENT.to_string()]),
-            connection_blocklist_ttl_sec: 120,
-            proxy_blocklist_ttl_sec: 120,
-            ..Default::default()
-        });
-        assert_eq!(manager.metrics.connection_blocklist_ttl_sec.get(), 0);
-        assert_eq!(manager.metrics.proxy_blocklist_ttl_sec.get(), 0);
-    }
-
-    #[test]
-    fn allowlist_mode_blocks_nothing() {
-        let manager = manager(PolicyConfig {
-            allow_list: Some(vec![CLIENT.to_string()]),
-            dry_run: false,
-            ..Default::default()
-        });
-        manager.block_client(CLIENT, BlockReason::Spam);
-        assert!(manager.check(&Some(CLIENT), &None));
-    }
-
     fn v6(segments: [u16; 8]) -> IpAddr {
         IpAddr::V6(Ipv6Addr::from(segments))
+    }
+
+    fn with_rules(allow: &[&str], deny: &[&str], default: DefaultAction) -> PolicyConfig {
+        let rules = |rules: &[&str]| rules.iter().map(|rule| rule.to_string()).collect();
+        PolicyConfig {
+            access_rules: AccessRules {
+                allow: rules(allow),
+                deny: rules(deny),
+                default,
+            },
+            ..base_policy_config(false, 120)
+        }
+    }
+
+    fn ip(address: &str) -> Option<IpAddr> {
+        Some(address.parse().unwrap())
+    }
+
+    #[tokio::test]
+    async fn an_allowed_client_is_served_although_it_is_blocked() {
+        let manager = manager(with_rules(&["10.0.0.1"], &[], DefaultAction::Limit));
+        manager.block_client(CLIENT, BlockReason::Spam);
+        assert_eq!(manager.check(&Some(CLIENT), &None), ClientAccess::Allowed);
+        assert_eq!(manager.metrics.allow_rule_requests.get(), 1);
+    }
+
+    #[tokio::test]
+    async fn a_deny_rule_refuses_a_client_that_breached_no_policy() {
+        let manager = manager(with_rules(&[], &["10.0.0.1"], DefaultAction::Limit));
+        assert_eq!(manager.check(&Some(CLIENT), &None), ClientAccess::Refused);
+        assert_eq!(manager.metrics.deny_rule_requests.get(), 1);
+        assert_eq!(manager.check(&ip("10.0.0.2"), &None), ClientAccess::Limited);
+        assert_eq!(manager.metrics.requests_blocked_at_protocol.get(), 1);
+    }
+
+    #[tokio::test]
+    async fn dry_run_serves_a_denied_client_and_counts_it() {
+        let manager = manager(PolicyConfig {
+            dry_run: true,
+            ..with_rules(&[], &["10.0.0.1"], DefaultAction::Limit)
+        });
+        assert_eq!(manager.check(&Some(CLIENT), &None), ClientAccess::Limited);
+        assert_eq!(manager.metrics.num_dry_run_deny_rule_requests.get(), 1);
+        assert_eq!(manager.metrics.deny_rule_requests.get(), 0);
+    }
+
+    #[tokio::test]
+    async fn an_allow_rule_wins_over_a_deny_rule_for_the_same_address() {
+        let manager = manager(with_rules(
+            &["10.0.0.1"],
+            &["10.0.0.0/8"],
+            DefaultAction::Deny,
+        ));
+        assert_eq!(manager.check(&Some(CLIENT), &None), ClientAccess::Allowed);
+        assert_eq!(manager.check(&ip("10.0.0.2"), &None), ClientAccess::Refused);
+    }
+
+    #[tokio::test]
+    async fn a_network_rule_covers_the_addresses_inside_it_only() {
+        let manager = manager(with_rules(
+            &["198.51.100.0/24", "2001:db8::/32"],
+            &[],
+            DefaultAction::Deny,
+        ));
+        assert_eq!(
+            manager.check(&ip("198.51.100.7"), &None),
+            ClientAccess::Allowed
+        );
+        assert_eq!(
+            manager.check(&ip("198.51.101.7"), &None),
+            ClientAccess::Refused
+        );
+        assert_eq!(
+            manager.check(&ip("2001:db8:1::1"), &None),
+            ClientAccess::Allowed
+        );
+        assert_eq!(
+            manager.check(&ip("2001:db9::1"), &None),
+            ClientAccess::Refused
+        );
+    }
+
+    #[tokio::test]
+    async fn an_ipv4_mapped_address_matches_the_ipv4_rule() {
+        let manager = manager(with_rules(
+            &["10.0.0.1"],
+            &["::ffff:10.0.0.2"],
+            DefaultAction::Limit,
+        ));
+        assert_eq!(
+            manager.check(&ip("::ffff:10.0.0.1"), &None),
+            ClientAccess::Allowed
+        );
+        assert_eq!(manager.check(&ip("10.0.0.2"), &None), ClientAccess::Refused);
+    }
+
+    #[tokio::test]
+    async fn an_ipv6_rule_of_128_bits_matches_one_address() {
+        let manager = manager(with_rules(&["2001:db8::1/128"], &[], DefaultAction::Deny));
+        assert_eq!(
+            manager.check(&ip("2001:db8::1"), &None),
+            ClientAccess::Allowed
+        );
+        assert_eq!(
+            manager.check(&ip("2001:db8::2"), &None),
+            ClientAccess::Refused
+        );
+    }
+
+    #[tokio::test]
+    async fn the_default_deny_refuses_unmatched_and_unresolved_clients() {
+        let denying = manager(with_rules(&["10.0.0.1"], &[], DefaultAction::Deny));
+        assert_eq!(denying.check(&ip("10.0.0.2"), &None), ClientAccess::Refused);
+        assert_eq!(denying.check(&None, &None), ClientAccess::Refused);
+        assert_eq!(denying.metrics.unresolved_client_requests.get(), 1);
+        assert_eq!(denying.metrics.requests_blocked_at_protocol.get(), 2);
+        assert_eq!(denying.metrics.allow_rules.get(), 1);
+        assert_eq!(denying.metrics.default_deny.get(), 1);
+
+        let dry_run_manager = manager(PolicyConfig {
+            dry_run: true,
+            ..with_rules(&["10.0.0.1"], &[], DefaultAction::Deny)
+        });
+        assert_eq!(dry_run_manager.check(&None, &None), ClientAccess::Limited);
+        assert_eq!(
+            dry_run_manager
+                .metrics
+                .num_dry_run_default_deny_requests
+                .get(),
+            1
+        );
+    }
+
+    #[tokio::test]
+    async fn without_rules_an_unresolved_client_is_served_and_counted() {
+        let manager = manager(base_policy_config(false, 120));
+        assert_eq!(manager.check(&None, &None), ClientAccess::Limited);
+        assert_eq!(manager.metrics.unresolved_client_requests.get(), 1);
+    }
+
+    /// The warnings the node logs at startup for `policy_config`.
+    fn startup_warnings(policy_config: PolicyConfig) -> Vec<String> {
+        capture_plain(|| drop(manager(policy_config)))
+            .lines()
+            .into_iter()
+            .filter(|line| line.contains("WARN"))
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn deny_rules_or_the_default_deny_under_dry_run_are_warned_about() {
+        let warnings = startup_warnings(PolicyConfig {
+            dry_run: true,
+            ..with_rules(&[], &["192.0.2.0/24"], DefaultAction::Limit)
+        });
+        assert_eq!(warnings.len(), 1, "{warnings:?}");
+        assert!(warnings[0].contains("dry run mode"), "{warnings:?}");
+
+        let warnings = startup_warnings(PolicyConfig {
+            dry_run: true,
+            ..with_rules(&[], &[], DefaultAction::Deny)
+        });
+        assert_eq!(warnings.len(), 1, "{warnings:?}");
+        assert!(warnings[0].contains("dry run mode"), "{warnings:?}");
+
+        // Dry run does not change what an allow rule does.
+        let warnings = startup_warnings(PolicyConfig {
+            dry_run: true,
+            ..with_rules(&["192.0.2.1"], &[], DefaultAction::Limit)
+        });
+        assert!(warnings.is_empty(), "{warnings:?}");
+    }
+
+    #[tokio::test]
+    async fn an_ipv6_deny_rule_longer_than_the_client_prefix_is_warned_about() {
+        let warnings = startup_warnings(with_rules(
+            &[],
+            &["2001:db8::/48", "2001:db8:2::/64", "2001:db8:1::1/128"],
+            DefaultAction::Limit,
+        ));
+        assert_eq!(warnings.len(), 1, "{warnings:?}");
+        assert!(
+            warnings[0].contains("The deny rule 2001:db8:1::1/128 is longer"),
+            "{warnings:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn allow_rules_behind_a_proxy_are_warned_about() {
+        let warnings = startup_warnings(PolicyConfig {
+            client_id_source: ClientIdSource::XForwardedFor(1),
+            ..with_rules(&["192.0.2.1"], &[], DefaultAction::Limit)
+        });
+        assert_eq!(warnings.len(), 1, "{warnings:?}");
+        assert!(warnings[0].contains("x-forwarded-for"), "{warnings:?}");
+    }
+
+    #[tokio::test]
+    async fn the_default_deny_behind_a_proxy_is_warned_about() {
+        let warnings = startup_warnings(PolicyConfig {
+            client_id_source: ClientIdSource::XForwardedFor(1),
+            ..with_rules(&[], &[], DefaultAction::Deny)
+        });
+        assert_eq!(warnings.len(), 1, "{warnings:?}");
+        assert!(
+            warnings[0].contains(
+                "The default action `deny` refuses every request that carries no x-forwarded-for \
+                 header"
+            ),
+            "{warnings:?}"
+        );
+
+        // A client read from the connection is always resolved.
+        let warnings = startup_warnings(with_rules(&[], &[], DefaultAction::Deny));
+        assert!(warnings.is_empty(), "{warnings:?}");
+    }
+
+    #[tokio::test]
+    async fn a_rule_changed_at_runtime_applies_to_the_next_check() {
+        let manager = manager(base_policy_config(false, 120));
+        assert_eq!(manager.metrics.default_deny.get(), 0);
+        let rule = parse_access_rule("10.0.0.0/24").unwrap();
+        assert!(manager.add_rule(AccessRuleList::Deny, rule));
+        assert!(!manager.add_rule(AccessRuleList::Deny, rule));
+        assert_eq!(manager.check(&Some(CLIENT), &None), ClientAccess::Refused);
+        assert_eq!(manager.metrics.deny_rules.get(), 1);
+
+        assert!(manager.add_rule(
+            AccessRuleList::Allow,
+            parse_access_rule("10.0.0.1").unwrap()
+        ));
+        assert_eq!(manager.check(&Some(CLIENT), &None), ClientAccess::Allowed);
+        assert_eq!(manager.metrics.allow_rules.get(), 1);
+
+        assert!(manager.remove_rule(AccessRuleList::Deny, rule));
+        assert!(!manager.remove_rule(AccessRuleList::Deny, rule));
+        assert_eq!(manager.metrics.deny_rules.get(), 0);
+        assert_eq!(manager.check(&ip("10.0.0.2"), &None), ClientAccess::Limited);
+    }
+
+    #[test]
+    fn rules_are_made_canonical() {
+        let parse = |rule| parse_access_rule(rule).unwrap().to_string();
+        assert_eq!(parse("198.51.100.7/24"), "198.51.100.0/24");
+        assert_eq!(parse("203.0.113.7"), "203.0.113.7/32");
+        assert_eq!(parse("::ffff:10.0.0.0/104"), "10.0.0.0/8");
+        assert_eq!(parse("::ffff:10.0.0.1"), "10.0.0.1/32");
+        assert_eq!(parse("2001:db8::1"), "2001:db8::1/128");
+        assert_eq!(parse("::ffff:0.0.0.0/96"), "0.0.0.0/0");
+        assert_eq!(parse("::ffff:0:0/95"), "::fffe:0:0/95");
+        assert!(
+            parse_access_rule("10.0.0.1/33")
+                .unwrap_err()
+                .starts_with("not a CIDR network: the address or the prefix length")
+        );
+        assert!(parse_access_rule("not-an-address").is_err());
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "access rule \"10.0.0.300\"")]
+    async fn an_invalid_rule_stops_the_node() {
+        manager(with_rules(&["10.0.0.300"], &[], DefaultAction::Limit));
     }
 
     #[test]
@@ -807,25 +1187,37 @@ mod tests {
 
     #[tokio::test]
     async fn a_block_covers_the_ipv6_prefix_of_the_client() {
-        let manager = manager(blocklist_mode(false, 120));
+        let manager = manager(base_policy_config(false, 120));
         manager.block_client(
             client_prefix(v6([0x2001, 0xdb8, 1, 2, 0, 0, 0, 1]), 64),
             BlockReason::Spam,
         );
-        assert!(!manager.check(&Some(v6([0x2001, 0xdb8, 1, 2, 0, 0, 0, 0xffff])), &None));
-        assert!(manager.check(&Some(v6([0x2001, 0xdb8, 1, 3, 0, 0, 0, 1])), &None));
+        assert!(
+            !manager
+                .check(&Some(v6([0x2001, 0xdb8, 1, 2, 0, 0, 0, 0xffff])), &None)
+                .is_served()
+        );
+        assert!(
+            manager
+                .check(&Some(v6([0x2001, 0xdb8, 1, 3, 0, 0, 0, 1])), &None)
+                .is_served()
+        );
     }
 
     #[tokio::test]
     async fn a_prefix_length_of_128_blocks_only_the_address() {
         let manager = manager(PolicyConfig {
             ipv6_prefix_len: 128,
-            ..blocklist_mode(false, 120)
+            ..base_policy_config(false, 120)
         });
         let client = v6([0x2001, 0xdb8, 1, 2, 0, 0, 0, 1]);
         manager.block_client(client, BlockReason::Spam);
-        assert!(!manager.check(&Some(client), &None));
-        assert!(manager.check(&Some(v6([0x2001, 0xdb8, 1, 2, 0, 0, 0, 2])), &None));
+        assert!(!manager.check(&Some(client), &None).is_served());
+        assert!(
+            manager
+                .check(&Some(v6([0x2001, 0xdb8, 1, 2, 0, 0, 0, 2])), &None)
+                .is_served()
+        );
     }
 
     #[tokio::test]
@@ -833,7 +1225,7 @@ mod tests {
     async fn a_prefix_length_below_32_is_rejected() {
         manager(PolicyConfig {
             ipv6_prefix_len: 31,
-            ..blocklist_mode(false, 120)
+            ..base_policy_config(false, 120)
         });
     }
 
@@ -842,19 +1234,7 @@ mod tests {
     async fn a_prefix_length_above_128_is_rejected() {
         manager(PolicyConfig {
             ipv6_prefix_len: 129,
-            ..blocklist_mode(false, 120)
+            ..base_policy_config(false, 120)
         });
-    }
-
-    #[test]
-    fn the_allowlist_holds_single_ipv6_addresses() {
-        let allowed = v6([0x2001, 0xdb8, 1, 2, 0, 0, 0, 1]);
-        let manager = manager(PolicyConfig {
-            allow_list: Some(vec![allowed.to_string()]),
-            dry_run: false,
-            ..Default::default()
-        });
-        assert!(manager.check(&Some(allowed), &None));
-        assert!(!manager.check(&Some(v6([0x2001, 0xdb8, 1, 2, 0, 0, 0, 2])), &None));
     }
 }

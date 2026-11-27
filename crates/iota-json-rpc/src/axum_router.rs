@@ -17,7 +17,7 @@ use iota_json_rpc_api::{
     TRANSACTION_NOT_FOUND_ERROR_CODE,
 };
 use iota_traffic_controller::{
-    ClientIpStatus, TrafficController, get_client_ip, policies::TrafficTally,
+    ClientAccess, ClientIpStatus, TrafficController, get_client_ip, policies::TrafficTally,
 };
 use iota_types::traffic_control::{ClientIdSource, PolicyConfig, Weight};
 use jsonrpsee::{
@@ -117,11 +117,13 @@ pub async fn json_rpc_handler<L: Logger>(
     };
     // Check whether the client may be served before reading the body, so a
     // refused client's body is neither read nor parsed.
-    if let Some(traffic_controller) = &service.traffic_controller {
-        if let Err(blocked_response) = handle_traffic_req(traffic_controller.clone(), &client) {
-            return ok_response(blocked_response.into_result());
-        }
-    }
+    let access = match &service.traffic_controller {
+        Some(traffic_controller) => match handle_traffic_req(traffic_controller, &client) {
+            Ok(access) => access,
+            Err(blocked_response) => return ok_response(blocked_response.into_result()),
+        },
+        None => ClientAccess::Limited,
+    };
     let raw_request = match Json::<Box<RawValue>>::from_request(request, &()).await {
         Ok(Json(raw_request)) => raw_request,
         Err(rejection) => {
@@ -131,7 +133,7 @@ pub async fn json_rpc_handler<L: Logger>(
             if let Some(traffic_controller) = &service.traffic_controller {
                 let parse_error =
                     MethodResponse::error(Id::Null, ErrorObject::from(ErrorCode::ParseError));
-                handle_traffic_resp(traffic_controller.clone(), client, &parse_error);
+                handle_traffic_resp(traffic_controller, client, access, &parse_error);
             }
             return rejection.into_response();
         }
@@ -140,7 +142,8 @@ pub async fn json_rpc_handler<L: Logger>(
     let api_version = headers
         .get(CLIENT_TARGET_API_VERSION_HEADER)
         .and_then(|h| h.to_str().ok());
-    let response = process_raw_request(&service, api_version, raw_request.get(), client).await;
+    let response =
+        process_raw_request(&service, api_version, raw_request.get(), client, access).await;
 
     ok_response(response.into_result())
 }
@@ -177,6 +180,7 @@ async fn process_raw_request<L: Logger>(
     api_version: Option<&str>,
     raw_request: &str,
     client: Option<IpAddr>,
+    access: ClientAccess,
 ) -> MethodResponse {
     let response = if let Ok(request) = serde_json::from_str::<Request>(raw_request) {
         process_request(request, api_version, service.call_data()).await
@@ -192,30 +196,37 @@ async fn process_raw_request<L: Logger>(
     // A request the node cannot parse is tallied like any other request, so
     // that a client cannot send malformed requests without a limit.
     if let Some(traffic_controller) = &service.traffic_controller {
-        handle_traffic_resp(traffic_controller.clone(), client, &response);
+        handle_traffic_resp(traffic_controller, client, access, &response);
     }
     response
 }
 
+/// What the traffic controller decided for a request from `client`, or the
+/// response to send when it refuses the request.
 fn handle_traffic_req(
-    traffic_controller: Arc<TrafficController>,
+    traffic_controller: &TrafficController,
     client: &Option<IpAddr>,
-) -> Result<(), MethodResponse> {
-    if !traffic_controller.check(client, &None) {
-        // Entity in blocklist
+) -> Result<ClientAccess, MethodResponse> {
+    let access = traffic_controller.check(client, &None);
+    if access.is_served() {
+        Ok(access)
+    } else {
         let err_obj =
             ErrorObject::borrowed(ErrorCode::ServerIsBusy.code(), TOO_MANY_REQUESTS_MSG, None);
         Err(MethodResponse::error(Id::Null, err_obj))
-    } else {
-        Ok(())
     }
 }
 
+/// Tallies the request, unless an allow rule serves its client.
 fn handle_traffic_resp(
-    traffic_controller: Arc<TrafficController>,
+    traffic_controller: &TrafficController,
     client: Option<IpAddr>,
+    access: ClientAccess,
     response: &MethodResponse,
 ) {
+    if access == ClientAccess::Allowed {
+        return;
+    }
     let error = response.as_error_code().map(ErrorCode::from);
     traffic_controller.tally(TrafficTally {
         direct: client,
@@ -263,7 +274,9 @@ mod tests {
         TRANSACTION_EXECUTION_CLIENT_ERROR_CODE, TRANSACTION_NOT_FOUND_ERROR_CODE,
     };
     use iota_traffic_controller::TrafficController;
-    use iota_types::traffic_control::{ClientIdSource, PolicyConfig, PolicyType, Weight};
+    use iota_types::traffic_control::{
+        AccessRuleList, AccessRules, ClientIdSource, PolicyConfig, PolicyType, Weight,
+    };
     use jsonrpsee::{Extensions, core::server::Methods, types::ErrorCode};
     use tower::ServiceExt;
 
@@ -278,6 +291,15 @@ mod tests {
         spam_policy_type: PolicyType,
         error_policy_type: PolicyType,
     ) -> (axum::Router, Arc<TrafficController>) {
+        router_with_rules(spam_policy_type, error_policy_type, AccessRules::default())
+    }
+
+    /// Like [`router`], with the given access rules.
+    fn router_with_rules(
+        spam_policy_type: PolicyType,
+        error_policy_type: PolicyType,
+        access_rules: AccessRules,
+    ) -> (axum::Router, Arc<TrafficController>) {
         let policy_config = PolicyConfig {
             client_id_source: ClientIdSource::SocketAddr,
             connection_blocklist_ttl_sec: 120,
@@ -285,6 +307,7 @@ mod tests {
             error_policy_type,
             spam_sample_rate: Weight::one(),
             dry_run: false,
+            access_rules,
             ..Default::default()
         };
         let traffic_controller = Arc::new(TrafficController::init_for_test(policy_config.clone()));
@@ -334,7 +357,42 @@ mod tests {
 
         assert_eq!(status, StatusCode::OK);
         assert!(body.contains("Method not found"), "{body}");
-        assert!(!traffic_controller.check(&Some(CLIENT.ip()), &None));
+        assert!(
+            !traffic_controller
+                .check(&Some(CLIENT.ip()), &None)
+                .is_served()
+        );
+    }
+
+    /// A request from a client that an allow rule serves is not tallied, so no
+    /// policy blocks the client.
+    #[tokio::test]
+    async fn requests_from_an_allowed_client_are_not_tallied() {
+        let (router, traffic_controller) = router_with_rules(
+            PolicyType::TestNConnIP(1),
+            PolicyType::TestNConnIP(1),
+            AccessRules {
+                allow: vec![CLIENT.ip().to_string()],
+                ..Default::default()
+            },
+        );
+        let request = r#"{"jsonrpc":"2.0","id":1,"method":"unknown_method"}"#;
+
+        for _ in 0..3 {
+            let (_, body) = send(&router, Some("application/json"), request).await;
+            assert!(body.contains("Method not found"), "{body}");
+            send(&router, Some("application/json"), "not-json").await;
+        }
+        // Without the rule the blocklist applies, so the client is served only
+        // if no policy blocked it.
+        traffic_controller
+            .remove_access_rule(AccessRuleList::Allow, &CLIENT.ip().to_string())
+            .unwrap();
+        assert!(
+            traffic_controller
+                .check(&Some(CLIENT.ip()), &None)
+                .is_served()
+        );
     }
 
     /// A body the `Json` extractor rejects keeps its status and is tallied, and
@@ -357,7 +415,9 @@ mod tests {
 
             assert_eq!(send(&router, content_type, body.clone()).await.0, status);
             assert!(
-                !traffic_controller.check(&Some(CLIENT.ip()), &None),
+                !traffic_controller
+                    .check(&Some(CLIENT.ip()), &None)
+                    .is_served(),
                 "{status}: the rejected request must be tallied"
             );
 
@@ -378,7 +438,11 @@ mod tests {
         let (status, _) = send(&router, Some("application/json"), "not-json").await;
 
         assert_eq!(status, StatusCode::BAD_REQUEST);
-        assert!(!traffic_controller.check(&Some(CLIENT.ip()), &None));
+        assert!(
+            !traffic_controller
+                .check(&Some(CLIENT.ip()), &None)
+                .is_served()
+        );
     }
 
     #[test]

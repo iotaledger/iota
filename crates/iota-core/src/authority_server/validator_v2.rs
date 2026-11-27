@@ -1209,9 +1209,9 @@ impl ValidatorV2 for ValidatorService {
         &self,
         request: tonic::Request<SubmitTxRequest>,
     ) -> Result<tonic::Response<Self::SubmitTxStream>, tonic::Status> {
-        let (req, ip) = self.pre_handle(request).await?;
+        let (req, client_and_access) = self.pre_handle(request).await?;
         self.post_handle_stream(
-            ip,
+            client_and_access,
             self.submit_tx_impl(req).await,
             |(_, update)| match update {
                 TxStatusUpdate::Rejected { error } => Some(error.clone()),
@@ -1226,26 +1226,30 @@ impl ValidatorV2 for ValidatorService {
         &self,
         request: tonic::Request<GetTxStatusRequest>,
     ) -> Result<tonic::Response<Self::GetTxStatusStream>, tonic::Status> {
-        let (req, ip) = self.pre_handle(request).await?;
+        let (req, client_and_access) = self.pre_handle(request).await?;
         // A rejection a status query reports is the outcome of an earlier
         // submission, not an error in this request.
-        self.post_handle_stream(ip, self.get_tx_status_impl(req).await, |_| None)
+        self.post_handle_stream(
+            client_and_access,
+            self.get_tx_status_impl(req).await,
+            |_| None,
+        )
     }
 
     async fn notify_capabilities(
         &self,
         request: tonic::Request<NotifyCapabilitiesRequest>,
     ) -> Result<tonic::Response<NotifyCapabilitiesResponse>, tonic::Status> {
-        let (req, ip) = self.pre_handle(request).await?;
-        self.post_handle_unary(ip, self.notify_capabilities_impl(req).await)
+        let (req, client_and_access) = self.pre_handle(request).await?;
+        self.post_handle_unary(client_and_access, self.notify_capabilities_impl(req).await)
     }
 
     async fn health_check(
         &self,
         request: tonic::Request<HealthCheckRequest>,
     ) -> Result<tonic::Response<HealthCheckResponse>, tonic::Status> {
-        let (req, ip) = self.pre_handle(request).await?;
-        self.post_handle_unary(ip, self.health_check_impl(req))
+        let (req, client_and_access) = self.pre_handle(request).await?;
+        self.post_handle_unary(client_and_access, self.health_check_impl(req))
     }
 }
 

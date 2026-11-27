@@ -25,7 +25,7 @@ impl ValidatorPeer for ValidatorService {
         &self,
         request: tonic::Request<GetCheckpointRequest>,
     ) -> Result<tonic::Response<GetCheckpointResponse>, tonic::Status> {
-        let (req, ip) = self.pre_handle(request).await?;
-        self.post_handle_unary(ip, self.get_checkpoint_impl(req).await)
+        let (req, client_and_access) = self.pre_handle(request).await?;
+        self.post_handle_unary(client_and_access, self.get_checkpoint_impl(req).await)
     }
 }

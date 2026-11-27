@@ -17,6 +17,13 @@ pub struct TrafficControllerMetrics {
     pub requests_blocked_at_protocol: IntCounter,
     pub rate_limiter_evictions: IntCounter,
     pub num_dry_run_blocked_requests: IntCounter,
+    pub num_dry_run_deny_rule_requests: IntCounter,
+    pub num_dry_run_default_deny_requests: IntCounter,
+    pub allow_rule_requests: IntCounter,
+    pub deny_rule_requests: IntCounter,
+    pub allow_rules: IntGauge,
+    pub deny_rules: IntGauge,
+    pub default_deny: IntGauge,
     pub tally_handled: IntCounter,
     pub error_tally_handled: IntCounter,
     pub tally_error_types: IntCounterVec,
@@ -74,7 +81,50 @@ impl TrafficControllerMetrics {
             .unwrap(),
             num_dry_run_blocked_requests: register_int_counter_with_registry!(
                 "traffic_control_num_dry_run_blocked_requests",
-                "Number of requests blocked in traffic controller dry run mode",
+                "Number of requests from blocklisted clients that dry run mode served",
+                registry
+            )
+            .unwrap(),
+            num_dry_run_deny_rule_requests: register_int_counter_with_registry!(
+                "traffic_control_num_dry_run_deny_rule_requests",
+                "Number of requests that a deny rule matched and dry run mode served",
+                registry
+            )
+            .unwrap(),
+            num_dry_run_default_deny_requests: register_int_counter_with_registry!(
+                "traffic_control_num_dry_run_default_deny_requests",
+                "Number of requests that the default action deny would refuse and dry run \
+                    mode served",
+                registry
+            )
+            .unwrap(),
+            allow_rule_requests: register_int_counter_with_registry!(
+                "traffic_control_allow_rule_requests",
+                "Number of requests that an allow rule matched, which no policy counts",
+                registry
+            )
+            .unwrap(),
+            deny_rule_requests: register_int_counter_with_registry!(
+                "traffic_control_deny_rule_requests",
+                "Number of requests that a deny rule refused",
+                registry
+            )
+            .unwrap(),
+            allow_rules: register_int_gauge_with_registry!(
+                "traffic_control_allow_rules",
+                "Number of allow rules in force",
+                registry
+            )
+            .unwrap(),
+            deny_rules: register_int_gauge_with_registry!(
+                "traffic_control_deny_rules",
+                "Number of deny rules in force",
+                registry
+            )
+            .unwrap(),
+            default_deny: register_int_gauge_with_registry!(
+                "traffic_control_default_deny",
+                "If 1, the default action is deny; if 0, it is limit",
                 registry
             )
             .unwrap(),
@@ -144,5 +194,33 @@ impl TrafficControllerMetrics {
 
     pub fn new_for_tests() -> Self {
         Self::new(&Registry::new())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use iota_metrics::{MetricGroups, MetricLevel};
+
+    use super::*;
+
+    #[test]
+    fn the_traffic_control_metric_group_covers_the_traffic_controller_metrics() {
+        // The default level exposes every metric, so only the group can hide
+        // one, whatever level the metric has.
+        let gathered_metrics = |traffic_control| {
+            let groups = MetricGroups {
+                default: MetricLevel::Trace,
+                traffic_control,
+                ..MetricGroups::default()
+            };
+            let (filter, _) = groups.startup_filter(None);
+            let registry = Registry::new_custom(None, None, Some(Arc::new(filter))).unwrap();
+            TrafficControllerMetrics::new(&registry);
+            registry.gather().len()
+        };
+        assert!(gathered_metrics(MetricLevel::Trace) > 0);
+        assert_eq!(gathered_metrics(MetricLevel::Off), 0);
     }
 }

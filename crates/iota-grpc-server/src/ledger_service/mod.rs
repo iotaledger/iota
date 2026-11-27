@@ -217,7 +217,7 @@ mod tests {
     };
 
     use futures::stream;
-    use iota_traffic_controller::TrafficController;
+    use iota_traffic_controller::{ClientAccess, TrafficController};
     use iota_types::traffic_control::{PolicyConfig, PolicyType, Weight};
 
     use super::*;
@@ -243,7 +243,11 @@ mod tests {
                 dry_run: false,
                 ..Default::default()
             }));
-            let tally_handle = TallyHandle::new(traffic_controller.clone(), Some(CLIENT));
+            let tally_handle = TallyHandle::new(
+                traffic_controller.clone(),
+                Some(CLIENT),
+                ClientAccess::Limited,
+            );
             let read_stream = tally_read_stream(
                 stream::iter(responses.clone()),
                 Some(tally_handle),
@@ -252,7 +256,7 @@ mod tests {
             );
             drop(read_stream.take(read).collect::<Vec<_>>().await);
             // Charged at least `threshold` times.
-            if !traffic_controller.check(&Some(CLIENT), &None) {
+            if !traffic_controller.check(&Some(CLIENT), &None).is_served() {
                 charges = threshold;
             }
         }
