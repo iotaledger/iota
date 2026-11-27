@@ -6489,12 +6489,19 @@ impl AuthorityPerEpochStore {
             .consensus_handler_deferred_transactions
             .inc_by(total_deferred_txns as u64);
         authority_metrics
-            .consensus_handler_cancelled_transactions
-            .inc_by(cancelled_txns.len() as u64);
+            .consensus_handler_commit_deferred_transactions
+            .set(total_deferred_txns as i64);
         authority_metrics
             .consensus_handler_max_object_costs
             .with_label_values(&["regular_commit"])
             .set(shared_object_congestion_tracker.max_occupied_slot_end_time() as i64);
+        authority_metrics
+            .consensus_handler_execution_worker_end_time
+            .set(
+                shared_object_congestion_tracker
+                    .max_worker_occupied_slot_end_time()
+                    .unwrap_or(0) as i64,
+            );
         if let Some(randomness_tracker) = &shared_object_using_randomness_congestion_tracker {
             authority_metrics
                 .consensus_handler_max_object_costs
@@ -6514,6 +6521,7 @@ impl AuthorityPerEpochStore {
         // Record accumulated debts from this consensus commit following sequencing.
         // This output will be written to consensus quarantine so the debts can be
         // loaded in the future consensus commit rounds where the objects are involved.
+        let mut execution_worker_debt: ExecutionTime = 0;
         if let Some(max_execution_duration_per_commit) = shared_object_congestion_tracker
             .congestion_control_parameters()
             .max_execution_duration_per_commit()
@@ -6524,6 +6532,14 @@ impl AuthorityPerEpochStore {
             if let Some(debt) = shared_object_congestion_tracker
                 .accumulated_worker_debt(max_execution_duration_per_commit)
             {
+                execution_worker_debt = debt
+                    .iter()
+                    .map(|(start_time, end_time, worker_count)| {
+                        end_time
+                            .saturating_sub(*start_time)
+                            .saturating_mul(u64::from(*worker_count))
+                    })
+                    .fold(0, ExecutionTime::saturating_add);
                 output.set_congestion_control_worker_debt(debt);
             }
             if self.protocol_config.enable_transaction_dependencies() {
@@ -6548,6 +6564,9 @@ impl AuthorityPerEpochStore {
                 );
             }
         }
+        authority_metrics
+            .consensus_handler_execution_worker_debt
+            .set(execution_worker_debt as i64);
 
         // With `allow_dkg_completion_after_timeout` off, advance the DKG state
         // machine on every commit while it is still pending, even when no new
@@ -7194,8 +7213,19 @@ impl AuthorityPerEpochStore {
                         congested_objects,
                         for_dependency,
                     } => {
+                        // A deferral caused by execution-worker congestion
+                        // reports no congested objects, and neither does a
+                        // wait for the transaction dependency.
+                        let congestion_reason = if for_dependency {
+                            "transaction_dependency"
+                        } else if congested_objects.is_empty() {
+                            "execution_worker_congestion"
+                        } else {
+                            "shared_object_congestion"
+                        };
                         authority_metrics
                             .consensus_handler_congested_transactions
+                            .with_label_values(&[congestion_reason])
                             .inc();
 
                         let within_limit = transaction_deferral_within_limit(
@@ -7249,7 +7279,19 @@ impl AuthorityPerEpochStore {
                             }
                         } else {
                             // Cancel the transaction that has been deferred for too long.
-                            //
+                            authority_metrics
+                                .consensus_handler_cancelled_transactions
+                                .with_label_values(&[congestion_reason])
+                                .inc();
+                            if let Some(suggested_gas_price) = suggested_gas_price {
+                                authority_metrics
+                                    .consensus_handler_suggested_gas_price_increase
+                                    .with_label_values(&[congestion_reason])
+                                    .observe(suggested_gas_price.saturating_sub(
+                                        verified_executable_tx.transaction().gas_price(),
+                                    ) as f64);
+                            }
+
                             // A deferral caused by execution-worker congestion, or by a wait
                             // for the transaction dependency, reports no congested objects.
                             // Cancellation is signalled through assigned versions on the
@@ -7295,6 +7337,10 @@ impl AuthorityPerEpochStore {
                             DKG failed",
                         verified_executable_tx.digest(),
                     );
+                    authority_metrics
+                        .consensus_handler_cancelled_transactions
+                        .with_label_values(&["randomness_unavailable"])
+                        .inc();
 
                     return Ok(ConsensusTransactionResult::Cancelled((
                         verified_executable_tx,

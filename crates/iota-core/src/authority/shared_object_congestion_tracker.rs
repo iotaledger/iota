@@ -835,6 +835,14 @@ impl SharedObjectCongestionTracker {
             )
     }
 
+    /// Returns the end time of the last occupied execution-worker slot, or
+    /// `None` when execution-worker congestion control is inactive.
+    pub(super) fn max_worker_occupied_slot_end_time(&self) -> Option<ExecutionTime> {
+        self.worker_slots
+            .as_ref()
+            .map(WorkerSlots::max_occupied_end_time)
+    }
+
     /// Returns accumulated debts for objects whose budgets have been exceeded
     /// over the course of the commit. Consumes the tracker object, since
     /// this should only be called once after all txs have been processed.

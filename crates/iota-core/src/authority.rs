@@ -386,9 +386,28 @@ pub struct AuthorityMetrics {
     pub consensus_handler_num_low_scoring_authorities: IntGauge,
     pub consensus_handler_scores: IntGaugeVec,
     pub consensus_handler_deferred_transactions: IntCounter,
-    pub consensus_handler_congested_transactions: IntCounter,
+    /// Transactions deferred or cancelled at sequencing for congestion, by
+    /// `reason`: `shared_object_congestion`, `execution_worker_congestion`, or
+    /// `transaction_dependency` for a wait for the transaction dependency.
+    pub consensus_handler_congested_transactions: IntCounterVec,
     pub consensus_handler_dependency_deferred_transactions: IntCounter,
-    pub consensus_handler_cancelled_transactions: IntCounter,
+    /// Transactions cancelled at sequencing, by `reason`: the three reasons
+    /// above or `randomness_unavailable`.
+    pub consensus_handler_cancelled_transactions: IntCounterVec,
+    /// Transactions the most recent consensus commit deferred to a later one.
+    pub(crate) consensus_handler_commit_deferred_transactions: IntGauge,
+    /// For each transaction cancelled for congestion, its suggested gas price
+    /// minus its own gas price (0 when the suggestion is not higher), by the
+    /// same `reason` as the counters above.
+    pub(crate) consensus_handler_suggested_gas_price_increase: HistogramVec,
+    /// Execution-worker debt carried out of the most recent consensus commit:
+    /// over all workers, the estimated execution duration scheduled past the
+    /// per-commit limit. 0 when execution-worker congestion control is off.
+    pub(crate) consensus_handler_execution_worker_debt: IntGauge,
+    /// End time of the last occupied execution-worker slot in the most recent
+    /// consensus commit, carried debt included. 0 when execution-worker
+    /// congestion control is off.
+    pub(crate) consensus_handler_execution_worker_end_time: IntGauge,
     /// Number of user transactions dropped during a consensus commit because
     /// post-consensus conflict/lock validation rejected them. Distinct from
     /// `consensus_handler_load_shedding_dropped_transactions`.
@@ -935,22 +954,54 @@ impl AuthorityMetrics {
             consensus_handler_deferred_transactions: register_int_counter_with_registry!(
                 "consensus_handler_deferred_transactions",
                 "Number of transactions deferred by consensus handler",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
-            consensus_handler_congested_transactions: register_int_counter_with_registry!(
+            consensus_handler_congested_transactions: register_int_counter_vec_with_registry!(
                 "consensus_handler_congested_transactions",
-                "Number of transactions deferred by consensus handler due to congestion",
-                registry,
+                "Number of transactions deferred or cancelled at sequencing for congestion, by reason: shared_object_congestion, execution_worker_congestion or transaction_dependency",
+                &["reason"],
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             consensus_handler_dependency_deferred_transactions: register_int_counter_with_registry!(
                 "consensus_handler_dependency_deferred_transactions",
                 "Number of times the consensus handler deferred a transaction for the transaction it depends on",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
-            consensus_handler_cancelled_transactions: register_int_counter_with_registry!(
+            consensus_handler_cancelled_transactions: register_int_counter_vec_with_registry!(
                 "consensus_handler_cancelled_transactions",
-                "Number of transactions cancelled by consensus handler",
-                registry,
+                "Number of transactions cancelled at sequencing, by reason: shared_object_congestion, execution_worker_congestion, transaction_dependency or randomness_unavailable",
+                &["reason"],
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            consensus_handler_commit_deferred_transactions: register_int_gauge_with_registry!(
+                "consensus_handler_commit_deferred_transactions",
+                "Number of transactions the most recent consensus commit deferred to a later commit",
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            consensus_handler_suggested_gas_price_increase: register_histogram_vec_with_registry!(
+                "consensus_handler_suggested_gas_price_increase",
+                "For each transaction cancelled at sequencing for congestion, its suggested gas price minus its own gas price (0 when the suggestion is not higher), by reason: shared_object_congestion, execution_worker_congestion or transaction_dependency",
+                &["reason"],
+                POSITIVE_INT_BUCKETS.to_vec(),
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            consensus_handler_execution_worker_debt: register_int_gauge_with_registry!(
+                "consensus_handler_execution_worker_debt",
+                "Execution-worker debt carried out of the most recent consensus commit: over all workers, the estimated execution duration scheduled past the per-commit limit. 0 when execution-worker congestion control is off",
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            consensus_handler_execution_worker_end_time: register_int_gauge_with_registry!(
+                "consensus_handler_execution_worker_end_time",
+                "End time of the last occupied execution-worker slot in the most recent consensus commit, carried debt included. 0 when execution-worker congestion control is off",
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             consensus_handler_validation_dropped_transactions: register_int_counter_with_registry!(
                 "consensus_handler_validation_dropped_transactions",
@@ -996,18 +1047,21 @@ impl AuthorityMetrics {
             consensus_handler_load_shedding_dropped_transactions: register_int_counter_with_registry!(
                 "consensus_handler_load_shedding_dropped_transactions",
                 "Number of user transactions dropped by post-consensus load shedding, based on the quorum load shedding percentage",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             consensus_handler_load_shedding_percentage: register_int_gauge_with_registry!(
                 "consensus_handler_load_shedding_percentage",
                 "Stake-weighted quorum (2f+1) load shedding percentage enforced on user transactions in the most recent consensus commit. 0 when the P-COOL flow is disabled.",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             consensus_handler_max_object_costs: register_int_gauge_vec_with_registry!(
                 "consensus_handler_max_congestion_control_object_costs",
                 "Max object costs for congestion control in the current consensus commit",
                 &["commit_type"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             consensus_committed_subdags: register_int_counter_vec_with_registry!(
                 "consensus_committed_subdags",
