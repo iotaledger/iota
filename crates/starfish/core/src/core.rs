@@ -43,7 +43,7 @@ use crate::{
     },
     block_manager::BlockManager,
     block_rate_limiter::BlockRateLimiter,
-    commit::{CertifiedCommits, CommitAPI, PendingSubDag},
+    commit::{CommitAPI, PendingSubDag},
     commit_observer::{CommitObserver, CommittedSubDagSource},
     commit_syncer::fast::FastSyncOutput,
     commit_vote_monitor::CommitVoteMonitor,
@@ -577,42 +577,25 @@ impl Core {
         Ok(())
     }
 
-    // Adds the certified commits that have been synced via the commit syncer. We
-    // are using the commit info to skip running the decision
-    // rule and immediately commit the corresponding leaders and sub dags.
+    /// Adds the block headers and transactions of commits fetched by the
+    /// regular commit syncer. Returns the same as `add_block_headers`.
     #[tracing::instrument(skip_all)]
     pub(crate) fn add_certified_commits(
         &mut self,
-        certified_commits: CertifiedCommits,
+        block_headers: Vec<VerifiedBlockHeader>,
+        transactions: Vec<CommitmentVerifiedTransactions>,
     ) -> ConsensusResult<(
         BTreeSet<BlockRef>,
         BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         let _scope = monitored_scope("Core::add_certified_commits");
 
-        // First, collect and add all transactions from certified commits.
         // Transactions must be added before processing commits to ensure they are
         // available when creating new commits.
-        let all_transactions: Vec<CommitmentVerifiedTransactions> = certified_commits
-            .commits()
-            .iter()
-            .flat_map(|commit| commit.transactions())
-            .cloned()
-            .collect();
-
-        if !all_transactions.is_empty() {
-            self.add_transactions(all_transactions, DataSource::CommitSyncer)?;
+        if !transactions.is_empty() {
+            self.add_transactions(transactions, DataSource::CommitSyncer)?;
         }
 
-        // Then collect and add block headers.
-        let block_headers = certified_commits
-            .commits()
-            .iter()
-            .flat_map(|commit| commit.block_headers())
-            .cloned()
-            .collect::<Vec<_>>();
-
-        // Add block headers in certified commits to the block manager.
         self.add_block_headers(block_headers, DataSource::CommitSyncer)
     }
 
@@ -3413,7 +3396,7 @@ mod test {
             .authorities(active_authorities)
             .skip_ancestor_links(authorities_to_skip_ancestors)
             .build();
-        let sub_dags_and_commits = dag_builder.get_sub_dag_and_certified_commits(1..=total_rounds);
+        let sub_dags_and_commits = dag_builder.get_sub_dag_and_commits(1..=total_rounds);
 
         let (mut core_own, mut commit_receiver_own) =
             (core_fixture_own.core, core_fixture_own.commit_receiver);
@@ -3455,13 +3438,17 @@ mod test {
         }
         // Now the node that tries to catch up will sync the certified commits
         // The commits contain only the headers
-        let certified_commits = sub_dags_and_commits
+        let block_headers = sub_dags_and_commits
             .iter()
-            .map(|(_, c)| c.clone())
-            .collect::<Vec<_>>();
+            .flat_map(|(sub_dag, _)| sub_dag.headers.clone())
+            .collect();
+        let transactions = sub_dags_and_commits
+            .iter()
+            .flat_map(|(sub_dag, _)| sub_dag.transactions.clone())
+            .collect();
         let mut core_catch_up = core_fixture_catch_up.core;
         let (missing_references, missing_transactions) = core_catch_up
-            .add_certified_commits(CertifiedCommits::new(certified_commits))
+            .add_certified_commits(block_headers, transactions)
             .expect("We should not fail with certified commits");
         assert!(missing_references.is_empty());
         let first_missing_transaction_from_skipped = *missing_transactions
@@ -3580,7 +3567,7 @@ mod test {
         }
 
         // Get all the committed sub dags up to round 10
-        let sub_dags_and_commits = dag_builder.get_sub_dag_and_certified_commits(1..=10);
+        let sub_dags_and_commits = dag_builder.get_sub_dag_and_commits(1..=10);
 
         // Now try to commit up to the latest leader (round = 4). Do not provide any
         // certified commits.
@@ -3609,12 +3596,20 @@ mod test {
 
         // The commits of leader rounds 5-8 should be committed via the certified
         // commits.
-        let certified_commits = sub_dags_and_commits
+        let certified_sub_dags = sub_dags_and_commits
             .iter()
             .skip(3)
             .take(5)
-            .map(|(_, c)| c.clone())
+            .map(|(sub_dag, _)| sub_dag)
             .collect::<Vec<_>>();
+        let certified_block_headers = certified_sub_dags
+            .iter()
+            .flat_map(|sub_dag| sub_dag.headers.clone())
+            .collect();
+        let certified_transactions = certified_sub_dags
+            .iter()
+            .flat_map(|sub_dag| sub_dag.transactions.clone())
+            .collect();
 
         // Now only add the blocks of rounds 8..=12. The blocks up to round 7 should be
         // accepted via the certified commits processing.
@@ -3627,7 +3622,7 @@ mod test {
 
         // The corresponding blocks of the certified commits should be accepted and
         // stored before linearizing and committing the DAG.
-        core.add_certified_commits(CertifiedCommits::new(certified_commits))
+        core.add_certified_commits(certified_block_headers, certified_transactions)
             .expect("Should not fail");
 
         let commits = store.scan_commits((6..=10).into()).unwrap();

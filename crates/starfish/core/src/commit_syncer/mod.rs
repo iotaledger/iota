@@ -59,10 +59,7 @@ use crate::{
         TransactionsCommitment,
     },
     block_verifier::{BlockVerifier, serialized_transactions_size_limit},
-    commit::{
-        CertifiedCommits, Commit, CommitAPI as _, CommitDigest, CommitRange, CommitRef,
-        TrustedCommit,
-    },
+    commit::{Commit, CommitAPI as _, CommitDigest, CommitRange, CommitRef, TrustedCommit},
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
     core_thread::CoreThreadDispatcher,
@@ -534,12 +531,6 @@ fn verify_transactions_commitment(
 /// latency it feeds to [`crate::peer_responsiveness::PeerResponsiveness`].
 pub(crate) trait FetchedCommits {
     fn delivered_commits(&self) -> usize;
-}
-
-impl FetchedCommits for CertifiedCommits {
-    fn delivered_commits(&self) -> usize {
-        self.commits().len()
-    }
 }
 
 /// Factor by which a peer's measured latency is inflated when it delivered less

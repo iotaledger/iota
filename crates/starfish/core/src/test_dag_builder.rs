@@ -25,7 +25,7 @@ use crate::{
         TestBlockHeaderVersion, Transaction, TransactionsCommitment, VerifiedBlock,
         VerifiedBlockHeader, genesis_block_headers,
     },
-    commit::{CertifiedCommit, CommitAPI, CommitDigest, TrustedCommit, WAVE_LENGTH},
+    commit::{CommitAPI, CommitDigest, TrustedCommit, WAVE_LENGTH},
     context::Context,
     dag_state::{DagState, DataSource},
     encoder::{ShardEncoder, create_encoder},
@@ -365,26 +365,6 @@ impl DagBuilder {
         rounds
             .into_iter()
             .map(|round| self.leader_block(round))
-            .collect()
-    }
-
-    pub(crate) fn get_sub_dag_and_certified_commits(
-        &mut self,
-        leader_rounds: RangeInclusive<Round>,
-    ) -> Vec<(CommittedSubDag, CertifiedCommit)> {
-        let commits = self.get_sub_dag_and_commits(leader_rounds);
-        commits
-            .into_iter()
-            .map(|(sub_dag, commit)| {
-                // TODO: we need to request real blocks from sub_dag after we add the
-                // corresponding field and logic in sub_dag
-                let block_headers = sub_dag.headers.clone();
-                let transactions = sub_dag.transactions.clone();
-
-                let certified_commit =
-                    CertifiedCommit::new_certified(commit, block_headers, transactions);
-                (sub_dag, certified_commit)
-            })
             .collect()
     }
 

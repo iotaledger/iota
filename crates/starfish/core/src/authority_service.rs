@@ -2455,9 +2455,7 @@ mod tests {
         },
         block_manager::BlockManager,
         block_verifier::SignedBlockVerifier,
-        commit::{
-            CertifiedCommits, CommitDigest, CommitRange, CommitRef, SubDagBase, TrustedCommit,
-        },
+        commit::{CommitDigest, CommitRange, CommitRef, SubDagBase, TrustedCommit},
         commit_observer::CommitObserver,
         commit_syncer::CommitSyncType,
         commit_vote_monitor::CommitVoteMonitor,
@@ -3975,7 +3973,8 @@ mod tests {
 
         async fn add_certified_commits(
             &self,
-            _commits: CertifiedCommits,
+            _block_headers: Vec<VerifiedBlockHeader>,
+            _transactions: Vec<CommitmentVerifiedTransactions>,
         ) -> Result<
             (
                 BTreeSet<BlockRef>,

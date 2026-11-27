@@ -22,11 +22,13 @@ use tokio::{
 use tracing::{debug, info, warn};
 
 use crate::{
-    CommitConsumerMonitor, CommitIndex,
+    CommitConsumerMonitor, CommitIndex, VerifiedBlockHeader,
+    block_header::CommitmentVerifiedTransactions,
     block_verifier::BlockVerifier,
-    commit::{CertifiedCommit, CertifiedCommits, CommitAPI as _, CommitRange},
+    commit::{CommitAPI as _, CommitRange, TrustedCommit},
     commit_syncer::{
-        CommitSyncType, CommitSyncerHandle, Inner, REGULAR_FETCH_ATTEMPT_MULTIPLIER,
+        CommitSyncType, CommitSyncerHandle, FetchedCommits, Inner,
+        REGULAR_FETCH_ATTEMPT_MULTIPLIER,
         fast::{FastSyncPauseSource, paused_by_fast_sync},
         fetch_loop as shared_fetch_loop, handle_fetch_join_error, requeue_partial_range,
         schedule_commit_ranges, try_start_fetches as shared_try_start_fetches,
@@ -242,48 +244,39 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
         target_end: CommitIndex,
         certified_commits: CertifiedCommits,
     ) {
-        assert!(!certified_commits.commits().is_empty());
+        assert!(!certified_commits.commits.is_empty());
 
-        let (total_blocks_fetched, total_headers_size_bytes, total_transactions_size_bytes) =
-            certified_commits.commits().iter().fold(
-                (0, 0, 0),
-                |(blocks, header_bytes, transaction_bytes), c| {
-                    (
-                        blocks + c.block_headers().len(),
-                        header_bytes
-                            + c.block_headers()
-                                .iter()
-                                .map(|b| b.serialized().len())
-                                .sum::<usize>() as u64,
-                        transaction_bytes
-                            + c.transactions()
-                                .iter()
-                                .map(|b| b.serialized().len())
-                                .sum::<usize>() as u64,
-                    )
-                },
-            );
+        let total_headers_size_bytes: usize = certified_commits
+            .block_headers
+            .iter()
+            .map(|b| b.serialized().len())
+            .sum();
+        let total_transactions_size_bytes: usize = certified_commits
+            .transactions
+            .iter()
+            .map(|t| t.serialized().len())
+            .sum();
 
         let metrics = &self.inner.context.metrics.node_metrics;
         let sync_label = self.inner.sync_type.as_str();
         metrics
             .commit_sync_fetched_commits
             .with_label_values(&[sync_label])
-            .inc_by(certified_commits.commits().len() as u64);
+            .inc_by(certified_commits.commits.len() as u64);
         metrics
             .commit_sync_fetched_block_headers
-            .inc_by(total_blocks_fetched as u64);
+            .inc_by(certified_commits.block_headers.len() as u64);
         metrics
             .commit_sync_total_fetched_block_headers_size
-            .inc_by(total_headers_size_bytes);
+            .inc_by(total_headers_size_bytes as u64);
         metrics
             .commit_sync_total_fetched_transactions_size
             .with_label_values(&[sync_label])
-            .inc_by(total_transactions_size_bytes);
+            .inc_by(total_transactions_size_bytes as u64);
 
         let (commit_start, commit_end) = (
-            certified_commits.commits().first().unwrap().index(),
-            certified_commits.commits().last().unwrap().index(),
+            certified_commits.commits.first().unwrap().index(),
+            certified_commits.commits.last().unwrap().index(),
         );
         self.highest_fetched_commit_index = self.highest_fetched_commit_index.max(commit_end);
         metrics
@@ -322,35 +315,30 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
             if fetched_commit_range.end() <= self.synced_commit_index {
                 continue;
             }
+            let CertifiedCommits {
+                commits,
+                block_headers,
+                transactions,
+            } = commits;
 
             debug!(
                 "[{}] Fetched certified block headers for commit range {:?}: {}",
                 self.inner.sync_type.as_str(),
                 fetched_commit_range,
-                commits
-                    .commits()
+                block_headers
                     .iter()
-                    .flat_map(|c| c.block_headers())
                     .map(|b| b.reference().to_string())
                     .join(","),
             );
 
-            // Compare transactions available in CertifiedCommits with
-            // committed_transactions in TrustedCommits
-            let mut expected_transactions = BTreeSet::new();
-            let mut available_transactions = BTreeSet::new();
-
-            for certified_commit in commits.commits() {
-                // Collect committed_transactions from the TrustedCommit
-                for tx_ref in certified_commit.committed_transactions() {
-                    expected_transactions.insert(*tx_ref);
-                }
-
-                // Collect available transactions from CommitmentVerifiedTransactions
-                for verified_txns in certified_commit.transactions() {
-                    available_transactions.insert(verified_txns.transaction_ref());
-                }
-            }
+            // Compare the fetched transactions with those the commits list.
+            let expected_transactions: BTreeSet<TransactionRef> = commits
+                .iter()
+                .flat_map(|c| c.committed_transactions())
+                .copied()
+                .collect();
+            let available_transactions: BTreeSet<TransactionRef> =
+                transactions.iter().map(|t| t.transaction_ref()).collect();
 
             // Find missing transactions
             let missing_transactions: Vec<_> = expected_transactions
@@ -376,7 +364,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
             match self
                 .inner
                 .core_thread_dispatcher
-                .add_certified_commits(commits)
+                .add_certified_commits(block_headers, transactions)
                 .await
             {
                 Ok((missing_headers, missing_committed_txns)) => {
@@ -556,13 +544,12 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
             .cloned()
             .collect();
 
-        // 3a. Collect the committed transaction refs of each commit.
-        let commits_tx_refs: Vec<Vec<TransactionRef>> = commits
+        // 3a. Collect the committed transaction refs of the commits.
+        let committed_tx_refs: Vec<TransactionRef> = commits
             .iter()
-            .map(|c| c.committed_transactions().to_vec())
+            .flat_map(|c| c.committed_transactions())
+            .copied()
             .collect();
-        let committed_tx_refs: Vec<TransactionRef> =
-            commits_tx_refs.iter().flatten().copied().collect();
 
         let num_chunks = block_refs
             .len()
@@ -743,36 +730,27 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
             BTreeMap::new()
         };
 
-        // 14. Now create the Certified commits by assigning the block headers and transactions to
-        //     each commit and retaining the commit votes history.
-        let mut certified_commits = Vec::new();
-        for (commit, commit_tx_refs) in commits.iter().zip(&commits_tx_refs) {
-            let block_headers = commit
-                .block_headers()
-                .iter()
-                .map(|block_ref| {
-                    fetched_block_headers
-                        .remove(block_ref)
-                        // safe to call .expect here as we make sure beforehand that all headers
-                        // from the commit are fetched
-                        .expect("Block should exist")
-                })
-                .collect::<Vec<_>>();
+        // 14. Collect the block headers and transactions in commit order.
+        let block_headers = block_refs
+            .iter()
+            .map(|block_ref| {
+                fetched_block_headers
+                    .remove(block_ref)
+                    // safe to call .expect here as we make sure beforehand that all headers
+                    // from the commit are fetched
+                    .expect("Block should exist")
+            })
+            .collect();
+        let transactions = committed_tx_refs
+            .iter()
+            .filter_map(|tx_ref| transactions_map.remove(tx_ref))
+            .collect();
 
-            // Collect transactions for this commit
-            let commit_transactions = commit_tx_refs
-                .iter()
-                .filter_map(|tx_ref| transactions_map.remove(tx_ref))
-                .collect::<Vec<_>>();
-
-            certified_commits.push(CertifiedCommit::new_certified(
-                commit.clone(),
-                block_headers,
-                commit_transactions,
-            ));
-        }
-
-        Ok(CertifiedCommits::new(certified_commits))
+        Ok(CertifiedCommits {
+            commits,
+            block_headers,
+            transactions,
+        })
     }
 
     #[cfg(test)]
@@ -803,6 +781,22 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
     #[cfg(test)]
     fn synced_commit_index(&self) -> CommitIndex {
         self.synced_commit_index
+    }
+}
+
+/// Commits fetched from one peer, with all their block headers and the
+/// transactions the peer returned, both in commit order. Transactions can be
+/// missing; the transactions synchronizer fetches them later.
+#[derive(Clone, Debug)]
+struct CertifiedCommits {
+    commits: Vec<TrustedCommit>,
+    block_headers: Vec<VerifiedBlockHeader>,
+    transactions: Vec<CommitmentVerifiedTransactions>,
+}
+
+impl FetchedCommits for CertifiedCommits {
+    fn delivered_commits(&self) -> usize {
+        self.commits.len()
     }
 }
 
@@ -1062,8 +1056,12 @@ mod tests {
             CommitConsumerMonitor, Transaction,
             block_header::{TestBlockHeader, TransactionsCommitment, VerifiedBlockHeader},
             block_verifier::NoopBlockVerifier,
-            commit::{CertifiedCommits, CommitDigest, TrustedCommit},
-            commit_syncer::{Inner, regular::RegularCommitSyncer, tests::FakeNetworkClient},
+            commit::{CommitDigest, TrustedCommit},
+            commit_syncer::{
+                Inner,
+                regular::{CertifiedCommits, RegularCommitSyncer},
+                tests::FakeNetworkClient,
+            },
             commit_vote_monitor::CommitVoteMonitor,
             context::Context,
             core_thread::tests::MockCoreThreadDispatcher,
@@ -1262,7 +1260,7 @@ mod tests {
                 run_fetch_once(commits, block_headers, transactions, context).await;
 
             let certified = result.unwrap();
-            assert_eq!(certified.commits().len(), 2);
+            assert_eq!(certified.commits.len(), 2);
             assert_unprovable_faults(&inner, vec![0; 4]);
         }
 
