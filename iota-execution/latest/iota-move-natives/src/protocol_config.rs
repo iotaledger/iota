@@ -18,13 +18,15 @@ use smallvec::smallvec;
 
 use crate::{get_extension, get_extension_mut, object_runtime::ObjectRuntime};
 
-/// Abort code returned when the parameter name is not valid UTF-8.
+/// Abort code returned when the parameter name is not valid UTF-8:
+/// `iota::protocol_config::EInvalidUtf8ParamName`.
 const E_INVALID_UTF8_PARAM_NAME: u64 = 0;
 /// Abort code returned when the parameter is absent in the current protocol
-/// version.
+/// version: `iota::protocol_config::EParamNotFound`.
 const E_PARAM_NOT_FOUND: u64 = 1;
 /// Abort code returned when the requested Move type does not match the actual
-/// parameter type stored in the protocol config.
+/// parameter type stored in the protocol config:
+/// `iota::protocol_config::ETypeMismatch`.
 const E_TYPE_MISMATCH: u64 = 2;
 
 /// Per-test overrides for protocol config feature flags and parameters.

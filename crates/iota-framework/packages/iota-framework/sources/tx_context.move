@@ -5,29 +5,30 @@
 module iota::tx_context;
 
 #[test_only]
-/// Number of bytes in an tx hash (which will be the transaction digest)
-const TX_HASH_LENGTH: u64 = 32;
-
-#[test_only]
 /// Expected an tx hash of length 32, but found a different length
 const EBadTxHashLength: u64 = 0;
-
 #[test_only]
-/// Number of bytes in a chain identifier
-const CHAIN_IDENTIFIER_LENGTH: u64 = 32;
-
-// Not 1: the native `last_created_id` aborts with 1 in this module.
+/// The native `last_created_id` aborts with this code when the transaction has created no object.
+const ENoIdsCreated: u64 = 1;
 #[test_only]
 /// Expected a chain identifier of length 32, but found a different length
 const EBadChainIdentifierLength: u64 = 2;
-
 #[test_only]
-/// Number of bytes in a transaction nonce
-const TX_NONCE_LENGTH: u64 = 32;
-
+/// The native `native_tx_nonce` aborts with this code when the transaction has no nonce.
+const ENoTxNonce: u64 = 3;
 #[test_only]
 /// Expected a transaction nonce of length 32, but found a different length
 const EBadTxNonceLength: u64 = 4;
+
+#[test_only]
+/// Number of bytes in an tx hash (which will be the transaction digest)
+const TX_HASH_LENGTH: u64 = 32;
+#[test_only]
+/// Number of bytes in a chain identifier
+const CHAIN_IDENTIFIER_LENGTH: u64 = 32;
+#[test_only]
+/// Number of bytes in a transaction nonce
+const TX_NONCE_LENGTH: u64 = 32;
 
 #[allow(unused_field)]
 /// Information about the transaction currently being executed.
@@ -127,7 +128,7 @@ native fun native_gas_budget(): u64;
 /// the same gas coin version read the same nonce in their authenticators. Only one of them can
 /// execute: an authenticator that passes does not mean that its nonce is used.
 ///
-/// Aborts with code 3 if the transaction has no gas coin.
+/// Aborts with `ENoTxNonce` if the transaction has no gas coin.
 public fun tx_nonce(_self: &TxContext): vector<u8> {
     native_tx_nonce()
 }
@@ -239,6 +240,8 @@ public fun get_ids_created(self: &TxContext): u64 {
 
 #[test_only]
 /// Return the most recent created object ID.
+///
+/// Aborts with `ENoIdsCreated` if the transaction has created no object.
 public fun last_created_object_id(_self: &TxContext): address {
     last_created_id()
 }

@@ -61,6 +61,10 @@ const EAuthenticatorIsBuiltin: vector<u8> =
 const EKeyProofExpired: vector<u8> = b"The key proof has expired.";
 #[error(code = 4)]
 const EInvalidKeyProof: vector<u8> = b"The key proof is not a valid signature by the key.";
+#[test_only]
+/// The native `key_proof_message` aborts with this code when the chain identifier or the nonce is
+/// not 32 bytes.
+const EInvalidKeyProofMessageValue: u64 = 5;
 
 // === Public Functions ===
 
@@ -94,9 +98,7 @@ public fun builder_v1(
 
 /// Returns `true` if and only if the account's authenticator is the built-in one.
 public fun has_builtin_authenticator(account: &SmartAccount): bool {
-    builtin_authenticator_functions::is_builtin_authenticator(
-        account.borrow_auth_function_ref_v1(),
-    )
+    builtin_authenticator_functions::is_builtin_authenticator(account.borrow_auth_function_ref_v1())
 }
 
 /// Returns `true` if and only if the account has a public key attached.
@@ -274,7 +276,7 @@ fun verify_key_proof(
 /// approve attaching their key to `account`. For a new account, `account` is the transaction
 /// sender. The SDK function that clients call writes the same text.
 ///
-/// Aborts with code 5 if `chain_identifier` or `nonce` is not 32 bytes.
+/// Aborts with `EInvalidKeyProofMessageValue` if `chain_identifier` or `nonce` is not 32 bytes.
 native fun key_proof_message(
     chain_identifier: vector<u8>,
     account: address,

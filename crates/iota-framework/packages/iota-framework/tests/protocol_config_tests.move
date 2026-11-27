@@ -45,28 +45,28 @@ fun test_get_attr_u16() {
 }
 
 #[test]
-#[expected_failure(abort_code = 0, location = iota::protocol_config)]
+#[expected_failure(abort_code = protocol_config::EInvalidUtf8ParamName)]
 // A non-UTF-8 byte sequence as the parameter name is a programming error and must abort.
 fun test_get_attr_invalid_utf8() {
     let _: u64 = protocol_config::get_attr(x"ff");
 }
 
 #[test]
-#[expected_failure(abort_code = 1, location = iota::protocol_config)]
+#[expected_failure(abort_code = protocol_config::EParamNotFound)]
 // An unknown parameter name is a programming error and must abort.
 fun test_get_attr_unknown_param() {
     let _: u64 = protocol_config::get_attr(b"nonexistent_parameter_name");
 }
 
 #[test]
-#[expected_failure(abort_code = 2, location = iota::protocol_config)]
+#[expected_failure(abort_code = protocol_config::ETypeMismatch)]
 // max_arguments is a u32; requesting it as u64 is a programming error that must abort.
 fun test_get_attr_type_mismatch() {
     let _: u64 = protocol_config::get_attr(b"max_arguments");
 }
 
 #[test]
-#[expected_failure(abort_code = 1, location = iota::protocol_config)]
+#[expected_failure(abort_code = protocol_config::EParamNotFound)]
 // bridge_should_try_to_finalize_committee was deprecated to None at protocol v9;
 // requesting it is a programming error and must abort.
 fun test_get_attr_deprecated_to_none() {
@@ -92,7 +92,7 @@ fun test_override_flag_enabled_to_disabled() {
 }
 
 #[test]
-#[expected_failure(abort_code = 1, location = iota::protocol_config)]
+#[expected_failure(abort_code = protocol_config::EParamNotFound)]
 // An unknown flag name is a programming error and must abort, so typos fail loudly.
 fun test_override_flag_unknown() {
     protocol_config::set_feature_enabled_for_testing(b"nonexistent_feature_flag", true);
@@ -109,14 +109,14 @@ fun test_override_attr() {
 }
 
 #[test]
-#[expected_failure(abort_code = 1, location = iota::protocol_config)]
+#[expected_failure(abort_code = protocol_config::EParamNotFound)]
 // An unknown parameter name is a programming error and must abort, so typos fail loudly.
 fun test_override_attr_unknown() {
     protocol_config::set_attr_for_testing(b"nonexistent_parameter_name", 42u64);
 }
 
 #[test]
-#[expected_failure(abort_code = 2, location = iota::protocol_config)]
+#[expected_failure(abort_code = protocol_config::ETypeMismatch)]
 // max_arguments is a u32; overriding it with a u64 is a programming error that must abort.
 fun test_override_attr_type_mismatch() {
     protocol_config::set_attr_for_testing(b"max_arguments", 42u64);
