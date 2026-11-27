@@ -100,6 +100,10 @@ pub fn create_remote_store_client(
 /// and options. It allows configuring retry behavior through the `retry_config`
 /// argument.
 ///
+/// The function sets `ring` as the default crypto provider for `rustls`, if it has not been already
+/// set. Users that want to install another provider are thus advised to do so before calling this
+/// function.
+///
 /// # Arguments
 ///
 /// * `url`: The URL of the remote store.  The scheme of the URL determines the storage provider:
