@@ -28,8 +28,11 @@ use iota_types::{
 
 use super::TransactionReadSource;
 use crate::{
-    error::RpcError, merge::Merge, traffic_control::TallyHandle,
-    transaction_execution_service::CommandResultsReadSource, types::GrpcReader,
+    error::RpcError,
+    merge::Merge,
+    traffic_control::TallyHandle,
+    transaction_execution_service::{CommandResultsReadSource, run_simulation},
+    types::GrpcReader,
     validation::validate_read_mask,
 };
 
@@ -204,7 +207,7 @@ async fn simulate_single_transaction(
         mock_gas_id,
         suggested_gas_price,
         gas_data,
-    } = super::run_simulation(executor, tally_handle, transaction_data.clone(), vm_checks).await?;
+    } = run_simulation(executor, tally_handle, transaction_data.clone(), vm_checks).await?;
 
     // Build the response
     let mut response = SimulatedTransaction::default();

@@ -38,7 +38,8 @@ use tonic::Code;
 
 use super::CommandOutputsReadSource;
 use crate::{
-    error::RpcError, merge::Merge, traffic_control::TallyHandle, types::GrpcReader,
+    error::RpcError, merge::Merge, traffic_control::TallyHandle,
+    transaction_execution_service::run_simulation, types::GrpcReader,
     validation::validate_read_mask,
 };
 
@@ -138,7 +139,7 @@ async fn view_function_call(
     };
 
     // Dev-inspect the transaction
-    let simulation = super::run_simulation(
+    let simulation = run_simulation(
         executor,
         tally_handle,
         transaction.into(),
