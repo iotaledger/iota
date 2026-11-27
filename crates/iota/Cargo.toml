@@ -30,7 +30,7 @@ colored.workspace = true
 fastcrypto.workspace = true
 futures.workspace = true
 http.workspace = true
-iota-sdk-ledger = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "76684f1b13b4e1ed655f13dc11d1da339448a235", features = ["hid", "speculos"], default-features = false }
+iota-sdk-ledger = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "51f560a275952f7ced9aaf34858ea1df1a62e23b", features = ["hid", "speculos"], default-features = false }
 json_to_table.workspace = true
 miette = { version = "7", features = ["fancy"] }
 rand.workspace = true
