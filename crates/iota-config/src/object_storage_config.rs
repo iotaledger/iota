@@ -240,7 +240,13 @@ impl ObjectStoreConfig {
             self.object_store_connection_limit,
         )))
     }
+    /// The function sets `ring` as the default crypto provider for `rustls`, if it has not been
+    /// already set. Users that want to install another provider are thus advised to do so before
+    /// calling this function.
     pub fn make(&self) -> Result<Arc<DynObjectStore>, anyhow::Error> {
+        // The cloud stores build a reqwest client, which panics if no rustls
+        // crypto provider is installed.
+        let _ = rustls::crypto::ring::default_provider().install_default();
         match &self.object_store {
             Some(ObjectStoreType::File) => self.new_local_fs(),
             Some(ObjectStoreType::S3) => self.new_s3(),
@@ -248,5 +254,39 @@ impl ObjectStoreConfig {
             Some(ObjectStoreType::Azure) => self.new_azure(),
             _ => bail!("at least one storage backend should be provided"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn config(object_store: ObjectStoreType) -> ObjectStoreConfig {
+        ObjectStoreConfig {
+            object_store: Some(object_store),
+            bucket: Some("bucket".to_string()),
+            aws_region: Some("us-east-1".to_string()),
+            aws_access_key_id: Some("key-id".to_string()),
+            aws_secret_access_key: Some("secret".to_string()),
+            azure_storage_account: Some("account".to_string()),
+            azure_storage_access_key: Some("a2V5".to_string()),
+            object_store_connection_limit: 1,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn make_s3() {
+        config(ObjectStoreType::S3).make().unwrap();
+    }
+
+    #[test]
+    fn make_gcs() {
+        config(ObjectStoreType::GCS).make().unwrap();
+    }
+
+    #[test]
+    fn make_azure() {
+        config(ObjectStoreType::Azure).make().unwrap();
     }
 }

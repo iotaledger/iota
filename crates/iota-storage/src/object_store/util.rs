@@ -200,7 +200,7 @@ pub async fn list_all_epochs(object_store: Arc<DynObjectStore>) -> Result<Vec<(u
     let mut out = vec![];
     let mut success_marker_found = false;
     for (epoch, path) in remote_epoch_dirs.iter().sorted() {
-        let success_marker = path.child(SUCCESS_MARKER);
+        let success_marker = path.clone().join(SUCCESS_MARKER);
         let get_result = object_store.get(&success_marker).await;
         match get_result {
             Err(_) => {
@@ -209,7 +209,7 @@ pub async fn list_all_epochs(object_store: Arc<DynObjectStore>) -> Result<Vec<(u
                 }
             }
             Ok(_) => {
-                let metadata_path = path.child(EPOCH_METADATA_FILENAME);
+                let metadata_path = path.clone().join(EPOCH_METADATA_FILENAME);
                 let epoch_end_timestamp_ms = match object_store.get_bytes(&metadata_path).await {
                     Ok(bytes) => match serde_json::from_slice::<EpochMetadata>(&bytes) {
                         Ok(metadata) => metadata.epoch_end_timestamp_ms,
@@ -304,7 +304,7 @@ pub async fn find_missing_epochs_dirs(
             candidate_epoch += 1;
             continue;
         }
-        let success_marker = path.child(success_marker);
+        let success_marker = path.clone().join(success_marker);
         let get_result = store.get(&success_marker).await;
         match get_result {
             Err(Error::NotFound { .. }) => {
@@ -389,9 +389,13 @@ mod tests {
             MANIFEST_FILENAME,
             SUCCESS_MARKER,
         ] {
-            put(&store, &epoch_dir.child(file), Bytes::from_static(b"data"))
-                .await
-                .unwrap();
+            put(
+                &store,
+                &epoch_dir.clone().join(file),
+                Bytes::from_static(b"data"),
+            )
+            .await
+            .unwrap();
         }
 
         let stopping_store = StopsDeleting {
@@ -414,11 +418,11 @@ mod tests {
         let (store, epoch_dir) = interrupted_delete(true).await;
 
         assert!(matches!(
-            store.head(&epoch_dir.child(SUCCESS_MARKER)).await,
+            store.head(&epoch_dir.clone().join(SUCCESS_MARKER)).await,
             Err(object_store::Error::NotFound { .. })
         ));
         store
-            .head(&epoch_dir.child(MANIFEST_FILENAME))
+            .head(&epoch_dir.join(MANIFEST_FILENAME))
             .await
             .unwrap();
     }
@@ -428,7 +432,7 @@ mod tests {
         let (store, epoch_dir) = interrupted_delete(false).await;
 
         for file in ["1_1.obj", MANIFEST_FILENAME, SUCCESS_MARKER] {
-            store.head(&epoch_dir.child(file)).await.unwrap();
+            store.head(&epoch_dir.clone().join(file)).await.unwrap();
         }
     }
 

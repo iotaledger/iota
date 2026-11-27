@@ -242,7 +242,7 @@ impl StateSnapshotUploader {
             };
             put(
                 &self.snapshot_store,
-                &db_path.child(EPOCH_METADATA_FILENAME),
+                &db_path.clone().join(EPOCH_METADATA_FILENAME),
                 metadata.to_bytes()?,
             )
             .await?;
@@ -252,7 +252,7 @@ impl StateSnapshotUploader {
             );
         }
         // Drops marker in the output directory that upload completed successfully
-        let success_marker = db_path.child(SUCCESS_MARKER);
+        let success_marker = db_path.join(SUCCESS_MARKER);
         put(
             &self.snapshot_store,
             &success_marker,

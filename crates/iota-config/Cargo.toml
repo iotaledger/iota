@@ -37,6 +37,7 @@ dirs.workspace = true
 fastcrypto.workspace = true
 object_store.workspace = true
 reqwest.workspace = true
+rustls.workspace = true
 serde_yaml.workspace = true
 
 # internal dependencies
