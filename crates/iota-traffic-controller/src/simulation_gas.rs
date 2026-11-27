@@ -552,6 +552,23 @@ mod tests {
     }
 
     #[test]
+    fn the_gauges_show_the_settings_in_force() {
+        let gauges = |limiter: &SimulationGasLimiter| {
+            (
+                limiter.metrics.simulation_gas_per_sec.get(),
+                limiter.metrics.simulation_burst_gas.get(),
+            )
+        };
+        let off =
+            SimulationGasLimiter::new(None, Arc::new(TrafficControllerMetrics::new_for_tests()));
+        assert_eq!(gauges(&off), (0, 0));
+        let limiter = limiter(10, 250);
+        assert_eq!(gauges(&limiter), (10, 250));
+        limiter.reconfigure(Some(20), None);
+        assert_eq!(gauges(&limiter), (20, 250));
+    }
+
+    #[test]
     #[should_panic(expected = "gas-per-sec must be above 0")]
     fn a_zero_rate_stops_the_node() {
         limiter(0, 100);
