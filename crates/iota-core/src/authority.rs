@@ -1855,6 +1855,7 @@ impl AuthorityState {
                 .writeback_cache
                 .backpressure_threshold_for_rpc()
         {
+            self.update_overload_metrics("writeback_cache");
             return Err(IotaError::ValidatorOverloadedRetryAfter {
                 retry_after_secs: 10,
             });
