@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! The gas limit of simulations. Each client has a gas balance that refills by
-//! `gas-per-sec` up to `burst-gas`. A simulation reserves the computation cap
-//! of one transaction, or `burst-gas` if that is lower, when it starts and
+//! `gas-per-sec` up to `burst-gas`. A simulation reserves the computation
+//! limit of one transaction, or `burst-gas` if that is lower, when it starts and
 //! gives back what it did not use when it ends, so simulations a client runs
 //! at the same time cannot pass the limit together.
 
@@ -184,8 +184,8 @@ impl SimulationGasLimiter {
 
     /// Reserves gas for one simulation of `client`, and returns how much, or
     /// `None` when simulations have no gas limit. The reservation is the
-    /// computation cap of one transaction, or `burst-gas` if that is lower. A
-    /// full balance always passes.
+    /// computation limit of one transaction, or `burst-gas` if that is lower.
+    /// A full balance always passes.
     pub(crate) fn reserve(
         &self,
         client: Option<IpAddr>,
@@ -502,7 +502,7 @@ mod tests {
     }
 
     #[test]
-    fn a_burst_below_the_computation_cap_still_serves_a_full_balance() {
+    fn a_burst_below_the_computation_limit_still_serves_a_full_balance() {
         let limiter = limiter(1, 40);
         assert_eq!(
             limiter.reserve(CLIENT, ENFORCED, Instant::now()),
@@ -572,7 +572,7 @@ mod tests {
     }
 
     #[test]
-    fn an_out_of_gas_simulation_is_charged_at_most_the_computation_cap() {
+    fn an_out_of_gas_simulation_is_charged_at_most_the_computation_limit() {
         // Out of gas, the computation cost is the whole budget.
         assert_eq!(charged_gas(50_000_000_000, 1000, 5_000_000), 5_000_000);
         assert_eq!(charged_gas(1001, 1000, 5_000_000), 2);
@@ -580,7 +580,7 @@ mod tests {
     }
 
     #[test]
-    fn a_zero_price_charges_the_computation_cap() {
+    fn a_zero_price_charges_the_computation_limit() {
         assert_eq!(charged_gas(1000, 0, 5_000_000), 5_000_000);
     }
 }

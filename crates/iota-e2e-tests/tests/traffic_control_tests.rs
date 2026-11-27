@@ -368,19 +368,20 @@ async fn test_validator_traffic_control_error_blocked_with_policy_reconfig(
     panic!("Expected error policy to trigger on next requests after reconfiguration");
 }
 
-/// A fullnode reserves the computation cap of one transaction for each
+/// A fullnode reserves the computation limit of one transaction for each
 /// simulation, charges the simulation what it used, and refuses a client's
-/// simulation once the client's gas balance is below the cap.
+/// simulation once the client's gas balance is below that limit.
 #[tokio::test]
 async fn test_fullnode_simulation_gas_limit() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
-    let computation_cap = ProtocolConfig::get_for_max_version_UNSAFE().max_gas_computation_bucket();
+    let computation_limit =
+        ProtocolConfig::get_for_max_version_UNSAFE().max_gas_computation_bucket();
     let policy_config = PolicyConfig {
-        // Room for two reservations of the cap. It refills too slowly to
-        // matter here.
+        // Room for two reservations of the computation limit. It refills too
+        // slowly to matter here.
         simulation_gas_limit: Some(SimulationGasLimitConfig {
             gas_per_sec: 1,
-            burst_gas: 2 * computation_cap,
+            burst_gas: 2 * computation_limit,
         }),
         dry_run: false,
         ..Default::default()
@@ -396,13 +397,13 @@ async fn test_fullnode_simulation_gas_limit() -> Result<(), anyhow::Error> {
         .transfer_iota(None, sender)
         .build();
 
-    // Each simulation gets back all of the cap but the little a transfer
-    // uses, so the balance stays above the cap.
+    // Each simulation gets back all of the computation limit but the little
+    // a transfer uses, so the balance stays above that limit.
     for _ in 0..2 {
         client
             .simulate_transaction(transaction.clone())
             .await
-            .expect("a balance above the cap is within the limit");
+            .expect("a balance above the computation limit is within the gas limit");
     }
     // The balance is cut to the new burst at its next refill.
     test_cluster
@@ -410,7 +411,7 @@ async fn test_fullnode_simulation_gas_limit() -> Result<(), anyhow::Error> {
         .iota_node
         .state()
         .reconfigure_traffic_control(TrafficControlReconfigParams {
-            simulation_burst_gas: Some(computation_cap),
+            simulation_burst_gas: Some(computation_limit),
             ..Default::default()
         })
         .await?;
@@ -421,7 +422,7 @@ async fn test_fullnode_simulation_gas_limit() -> Result<(), anyhow::Error> {
     let error = client
         .simulate_transaction(transaction)
         .await
-        .expect_err("the transfer left the balance below the cap");
+        .expect_err("the transfer left the balance below the computation limit");
     assert!(
         error.to_string().contains("simulation gas limit reached"),
         "{error}"

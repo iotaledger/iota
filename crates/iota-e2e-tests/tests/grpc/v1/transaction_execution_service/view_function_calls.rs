@@ -328,7 +328,7 @@ async fn view_reflects_state_change() {
 }
 
 /// A view function call is a simulation, so the fullnode refuses it once the
-/// client's gas balance is below the computation cap of one transaction.
+/// client's gas balance is below the computation limit of one transaction.
 #[sim_test]
 async fn a_view_call_over_the_simulation_gas_limit_is_refused() {
     let policy_config = PolicyConfig {

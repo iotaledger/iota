@@ -160,8 +160,8 @@ async fn connect(
     connect_with(executor, None).await
 }
 
-/// Like [`connect`], with the given simulation gas limit and a computation cap
-/// of [`MAX_COMPUTATION`].
+/// Like [`connect`], with the given simulation gas limit and a computation
+/// limit of [`MAX_COMPUTATION`] for one transaction.
 async fn connect_with(
     executor: Arc<SimulationExecutor>,
     simulation_gas_limit: Option<SimulationGasLimitConfig>,
@@ -190,7 +190,7 @@ async fn connect_with(
     (handle, TransactionExecutionServiceClient::new(channel))
 }
 
-/// The computation cap of one transaction in these tests, in gas units.
+/// The computation limit of one transaction in these tests, in gas units.
 const MAX_COMPUTATION: u64 = 1_000;
 
 /// A request that simulates `n` transactions which pass the checks of the

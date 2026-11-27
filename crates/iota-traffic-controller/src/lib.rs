@@ -157,11 +157,11 @@ impl TrafficController {
         }
     }
 
-    /// Sets the computation cap of one transaction, `max_gas_computation_bucket`
-    /// of the protocol in force, in gas units. A simulation reserves this much
-    /// of its client's gas balance, or `burst-gas` if that is lower, and is
-    /// charged at most this much. Until it is set, a simulation reserves the
-    /// whole `burst-gas`.
+    /// Sets the computation limit of one transaction,
+    /// `max_gas_computation_bucket` of the protocol in force, in gas units. A
+    /// simulation reserves this much of its client's gas balance, or
+    /// `burst-gas` if that is lower, and is charged at most this much. Until
+    /// it is set, a simulation reserves the whole `burst-gas`.
     pub fn set_max_simulation_computation(&self, gas: u64) {
         self.simulation_gas.set_max_computation(gas);
     }
@@ -174,7 +174,8 @@ impl TrafficController {
     /// # Errors
     ///
     /// [`SimulationGasRefusal`] while the client's balance is below the
-    /// reservation: the computation cap, or `burst-gas` if that is lower.
+    /// reservation: the computation limit of one transaction, or `burst-gas`
+    /// if that is lower.
     pub fn reserve_simulation_gas(
         &self,
         client: Option<IpAddr>,
