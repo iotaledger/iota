@@ -206,15 +206,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_traffic_control_metric_group_covers_these_metrics() {
-        let groups = MetricGroups {
-            traffic_control: MetricLevel::Off,
-            ..MetricGroups::default()
+    fn the_traffic_control_metric_group_covers_the_traffic_controller_metrics() {
+        // The default level exposes every metric, so only the group can hide
+        // one, whatever level the metric has.
+        let gathered_metrics = |traffic_control| {
+            let groups = MetricGroups {
+                default: MetricLevel::Trace,
+                traffic_control,
+                ..MetricGroups::default()
+            };
+            let (filter, _) = groups.startup_filter(None);
+            let registry = Registry::new_custom(None, None, Some(Arc::new(filter))).unwrap();
+            TrafficControllerMetrics::new(&registry);
+            registry.gather().len()
         };
-        let (filter, _) = groups.startup_filter(None);
-        let registry = Registry::new_custom(None, None, Some(Arc::new(filter))).unwrap();
-        let metrics = TrafficControllerMetrics::new(&registry);
-        metrics.tallies.inc();
-        assert!(registry.gather().is_empty());
+        assert!(gathered_metrics(MetricLevel::Trace) > 0);
+        assert_eq!(gathered_metrics(MetricLevel::Off), 0);
     }
 }
