@@ -98,9 +98,7 @@ pub(crate) fn reserve_simulation_gas(
     let Some(handle) = extensions.get::<SimulationGasHandle>() else {
         return Ok(None);
     };
-    handle
-        .reserve()
-        .map_err(|refusal| Error::ServerIsBusy(refusal.to_string()))
+    Ok(handle.reserve()?)
 }
 
 impl<L: Logger> JsonRpcService<L> {
@@ -491,9 +489,9 @@ mod tests {
     }
 
     /// A method that reserves simulation gas, as the simulation methods do,
-    /// is refused with `ServerIsBusy` and the time to retry once its client is
-    /// over the limit, and the refusal does not feed the error policy, so the
-    /// client is not blocked.
+    /// is refused with `ServerIsBusy` once its client is over the limit, with
+    /// the time to retry in the message and in `data.retry_after_secs`. The
+    /// refusal does not feed the error policy, so the client is not blocked.
     #[tokio::test]
     async fn a_simulation_over_the_gas_limit_is_refused_as_busy() {
         let (router, traffic_controller) = router_with_policy_config_and_methods(
@@ -507,11 +505,17 @@ mod tests {
             .reserve_simulation_gas(Some(CLIENT.ip()), ClientAccess::Limited)
             .unwrap();
         let (_, body) = send(&router, Some("application/json"), request).await;
-        assert!(
-            body.contains(&ErrorCode::ServerIsBusy.code().to_string())
-                && body.contains("simulation gas limit reached, retry in "),
-            "{body}"
-        );
+        let response: serde_json::Value = serde_json::from_str(&body).unwrap();
+        let error = &response["error"];
+        assert_eq!(error["code"], ErrorCode::ServerIsBusy.code(), "{body}");
+        let retry_secs: u64 = error["message"]
+            .as_str()
+            .and_then(|message| message.strip_prefix("simulation gas limit reached, retry in "))
+            .and_then(|rest| rest.strip_suffix('s'))
+            .and_then(|secs| secs.parse().ok())
+            .unwrap_or_else(|| panic!("no retry time in the message: {body}"));
+        // The client can read the same retry time without parsing the message.
+        assert_eq!(error["data"]["retry_after_secs"], retry_secs, "{body}");
         assert!(
             traffic_controller
                 .check(&Some(CLIENT.ip()), &None)

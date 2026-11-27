@@ -547,12 +547,18 @@ async fn test_fullnode_json_rpc_simulation_gas_limit() -> Result<(), anyhow::Err
 
     let busy = |error: jsonrpsee::core::ClientError| match error {
         jsonrpsee::core::ClientError::Call(error) => {
-            assert!(
-                error
-                    .message()
-                    .starts_with("simulation gas limit reached, retry in "),
-                "{error}"
-            );
+            let retry_secs: u64 = error
+                .message()
+                .strip_prefix("simulation gas limit reached, retry in ")
+                .and_then(|rest| rest.strip_suffix('s'))
+                .and_then(|secs| secs.parse().ok())
+                .unwrap_or_else(|| panic!("no retry time in the message: {error}"));
+            // The client can read the same retry time without parsing the
+            // message.
+            let data: serde_json::Value =
+                serde_json::from_str(error.data().expect("the refusal has data").get())
+                    .expect("the data is JSON");
+            assert_eq!(data["retry_after_secs"], retry_secs, "{error}");
             error.code()
         }
         other => panic!("expected an error from the method, got {other}"),

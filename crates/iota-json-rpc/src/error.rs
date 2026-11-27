@@ -12,6 +12,7 @@ use iota_json_rpc_api::{
 };
 use iota_json_rpc_types::IotaObjectResponseError;
 use iota_names::error::IotaNamesError;
+use iota_traffic_controller::SimulationGasRefusal;
 use iota_types::{
     error::{IotaError, UserInputError},
     quorum_driver_types::QuorumDriverError,
@@ -87,6 +88,11 @@ pub enum Error {
     /// later.
     #[error("{0}")]
     ServerIsBusy(String),
+
+    /// The client is over its simulation gas limit. Refused with the code of
+    /// [`Self::ServerIsBusy`], and the time to retry in `data.retry_after_secs`.
+    #[error(transparent)]
+    SimulationGasLimitReached(#[from] SimulationGasRefusal),
 }
 
 impl From<IotaError> for Error {
@@ -130,6 +136,13 @@ impl From<Error> for RpcError {
                 ErrorCode::ServerIsBusy.code(),
                 message,
                 None,
+            )),
+            Error::SimulationGasLimitReached(refusal) => RpcError::Call(ErrorObject::owned(
+                ErrorCode::ServerIsBusy.code(),
+                refusal.to_string(),
+                Some(serde_json::json!({
+                    "retry_after_secs": refusal.retry_after().as_secs()
+                })),
             )),
             Error::IotaRpcInput(err) => RpcError::Call(ErrorObject::owned::<()>(
                 ErrorCode::InvalidParams.code(),
