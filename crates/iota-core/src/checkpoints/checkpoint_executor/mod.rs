@@ -1534,8 +1534,8 @@ impl CheckpointExecutor {
             .expect("unable to get version_specific_data")
     }
 
-    /// Stores on the epoch store the validators that the totals in `data`,
-    /// the epoch's through its checkpoint, show as cut off.
+    /// Stores on the epoch store the validators that the epoch's totals in
+    /// `data` cut off. Does nothing when the cutoff is off.
     fn store_cut_off_validators(&self, data: Option<&CheckpointVersionSpecificData>) {
         let Some(max_refuted_units_squared) = self
             .epoch_store
