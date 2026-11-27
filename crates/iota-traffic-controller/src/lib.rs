@@ -1124,6 +1124,40 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_request_with_a_rejected_simulation_gas_value_applies_nothing() {
+        let controller = TrafficController::init_for_test(PolicyConfig {
+            spam_policy_type: freq_threshold(100),
+            simulation_gas_limit: Some(SimulationGasLimitConfig {
+                gas_per_sec: 1,
+                burst_gas: 100,
+            }),
+            dry_run: false,
+            ..Default::default()
+        });
+        // `gas-per-sec` of 0 is rejected. The other values are valid, but the
+        // controller must apply none of them.
+        let result = controller.admin_reconfigure(TrafficControlReconfigParams {
+            spam_threshold: Some(10),
+            dry_run: Some(true),
+            connection_blocklist_ttl_sec: Some(5),
+            simulation_gas_per_sec: Some(0),
+            simulation_burst_gas: Some(50),
+            ..Default::default()
+        });
+
+        assert!(matches!(result, Err(IotaError::InvalidAdminRequest(_))));
+        let state = controller.get_current_state();
+        assert_eq!(state.spam_threshold, Some(100));
+        assert_eq!(state.dry_run, Some(false));
+        assert_eq!(
+            state.connection_blocklist_ttl_sec,
+            Some(default_blocklist_ttl_sec())
+        );
+        assert_eq!(state.simulation_gas_per_sec, Some(1));
+        assert_eq!(state.simulation_burst_gas, Some(100));
+    }
+
+    #[tokio::test]
     async fn the_admin_api_changes_the_simulation_gas_limit() {
         let controller = TrafficController::init_for_test(PolicyConfig::default());
         assert!(matches!(
