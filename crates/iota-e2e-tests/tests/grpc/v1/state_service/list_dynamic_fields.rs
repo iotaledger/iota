@@ -50,6 +50,11 @@ async fn list_dynamic_fields_readmask_scenarios() {
             Some(FieldMask::from_paths(["kind"])),
             vec!["kind"],
         ),
+        (
+            "json_name requires explicit mask",
+            Some(FieldMask::from_paths(["field_id", "json_name"])),
+            vec!["field_id", "json_name"],
+        ),
     ];
 
     for (scenario, mask, expected_paths) in test_cases {

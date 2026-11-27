@@ -36,6 +36,8 @@ impl_field_presence_checker!(ObjectReference {
 impl_field_presence_checker!(Object {
     reference: ObjectReference,
     bcs,
+    json,
+    display,
 });
 
 impl_field_presence_checker!(CheckpointSummary { digest, bcs });
@@ -153,6 +155,7 @@ impl_field_presence_checker!(DynamicField {
     value_type,
     child_id,
     child_object,
+    json_name,
 });
 
 impl_field_presence_checker!(CoinMetadata {

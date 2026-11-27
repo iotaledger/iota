@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::sync::Arc;
+
 use iota_grpc_types::{
     field::FieldMaskTree,
     v1::{
@@ -19,7 +21,12 @@ use iota_grpc_types::{
 use iota_protocol_config::ProtocolConfig as IotaProtocolConfig;
 use iota_types::iota_sdk_types_conversions::SdkTypeConversionError;
 
-use crate::{error::RpcError, validation::object_id_proto};
+use crate::{
+    GrpcReader,
+    error::RpcError,
+    utils::{mask_names_field, render_json},
+    validation::object_id_proto,
+};
 
 pub trait Merge<T> {
     type Error;
@@ -321,6 +328,40 @@ impl Merge<&Object> for Object {
 
         Ok(())
     }
+}
+
+/// Builds an [`Object`] proto and, when the read mask names `json` explicitly,
+/// renders it from the object's Move contents.
+///
+/// Rendering `json` needs Move type-layout resolution via the reader, so it is
+/// gated with [`mask_names_field`]: a bare parent or `*` wildcard does not pull
+/// it in. Packages have no Move contents and never get a `json`.
+pub(crate) fn merge_object(
+    source: iota_types::object::Object,
+    reader: &Arc<GrpcReader>,
+    max_json_move_value_size: usize,
+    mask: &FieldMaskTree,
+) -> Result<Object, RpcError> {
+    let sdk_object: iota_sdk_types::Object =
+        source.try_into().map_err(|e: SdkTypeConversionError| {
+            RpcError::from(e).with_context("failed to convert object")
+        })?;
+
+    let mut object = Object::default();
+    object.merge(&sdk_object, mask)?;
+
+    if mask_names_field(mask, Object::JSON_FIELD.name) {
+        if let iota_sdk_types::ObjectData::Struct(move_struct) = sdk_object.data() {
+            object.json = render_json(
+                reader.clone(),
+                max_json_move_value_size,
+                &move_struct.type_tag(),
+                move_struct.contents(),
+            );
+        }
+    }
+
+    Ok(object)
 }
 
 impl Merge<Option<Vec<iota_types::object::Object>>> for Objects {

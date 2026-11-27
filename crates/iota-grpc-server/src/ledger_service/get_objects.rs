@@ -23,7 +23,6 @@ use prost_types::FieldMask;
 use crate::{
     constants::validate_max_message_size,
     error::{ObjectNotFoundError, RpcError},
-    merge::Merge,
     metrics::{RequestMetrics, ResponseItemKind},
     types::{GrpcReader, ObjectsStreamResult},
     validation::validate_read_mask,
@@ -81,6 +80,7 @@ pub(crate) fn validate_get_object_requests(
 )]
 pub(crate) fn get_objects(
     reader: Arc<GrpcReader>,
+    max_json_move_value_size: usize,
     metrics: RequestMetrics,
     GetObjectsRequest {
         requests,
@@ -113,7 +113,13 @@ pub(crate) fn get_objects(
         (object_id, version),
         {
             // Lazily fetch the object only when needed
-            let object_result = match get_object_impl(&reader, object_id, version, &read_mask) {
+            let object_result = match get_object_impl(
+                &reader,
+                object_id,
+                version,
+                max_json_move_value_size,
+                &read_mask,
+            ) {
                 Ok(object) => ObjectResult::default().with_object(object),
                 Err(error) => ObjectResult::default().with_error(error.into_status_proto()),
             };
@@ -131,9 +137,10 @@ pub(crate) fn get_objects(
 
 #[tracing::instrument(skip(reader))]
 fn get_object_impl(
-    reader: &GrpcReader,
+    reader: &Arc<GrpcReader>,
     object_id: ObjectId,
     version: Option<u64>,
+    max_json_move_value_size: usize,
     read_mask: &FieldMaskTree,
 ) -> Result<Object, RpcError> {
     let object = if let Some(version) = version {
@@ -146,5 +153,6 @@ fn get_object_impl(
             .ok_or_else(|| ObjectNotFoundError::new(object_id))?
     };
 
-    Object::merge_from(object, read_mask).map_err(|e| e.with_context("failed to merge object"))
+    crate::merge::merge_object(object, reader, max_json_move_value_size, read_mask)
+        .map_err(|e| e.with_context("failed to merge object"))
 }
