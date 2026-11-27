@@ -572,6 +572,8 @@ ExecutionError:
         STRUCT:
           - dependency:
               TYPENAME: TransactionDigest
+    46:
+      ExecutionCanceledDueToPendingTransactionDependency: UNIT
 ExecutionStatus:
   ENUM:
     0:

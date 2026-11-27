@@ -131,6 +131,7 @@ pub fn is_cancellation(kind: &ExecutionErrorKind) -> bool {
             | ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestionV2 { .. }
             | ExecutionErrorKind::ExecutionCanceledDueToExecutionWorkerCongestion { .. }
             | ExecutionErrorKind::ExecutionCanceledDueToRandomnessUnavailable
+            | ExecutionErrorKind::ExecutionCanceledDueToPendingTransactionDependency
     )
 }
 

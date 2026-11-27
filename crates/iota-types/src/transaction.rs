@@ -3531,8 +3531,9 @@ pub enum CancelledObjects {
     /// The transaction's shared inputs, reported as the congested objects.
     SharedObjects(Vec<ObjectId>),
     /// The gas object. It carries the cancellation version when a
-    /// transaction is cancelled at sequencing for congestion of the execution
-    /// workers, which no object causes. No object is reported.
+    /// transaction is cancelled at sequencing and no object is the cause:
+    /// the execution workers were congested, or its transaction dependency
+    /// was still pending. No object is reported.
     GasObject,
 }
 
@@ -3540,11 +3541,11 @@ pub enum CancelledObjects {
 pub struct InputObjects {
     objects: Vec<ObjectReadResult>,
     /// Cancellation version assigned to the gas object when a transaction is
-    /// cancelled at sequencing for congestion of the execution workers, which
-    /// no object causes. Its shared inputs, if any, are cancelled read
-    /// results that name no cause. Unlike those, the gas object itself is
-    /// still read normally, because the cancelled execution must charge gas
-    /// to it.
+    /// cancelled at sequencing and no object is the cause: the execution
+    /// workers were congested, or its transaction dependency was still
+    /// pending. Its shared inputs, if any, are cancelled read results that
+    /// name no cause. Unlike those, the gas object itself is still read
+    /// normally, because the cancelled execution must charge gas to it.
     gas_object_cancellation: Option<(ObjectId, Version)>,
     /// The transaction named by the transaction dependency input, with
     /// whether it executed successfully. Set when the input objects are read

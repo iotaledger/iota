@@ -797,6 +797,7 @@ mod tests {
             ExecutionErrorKind::TransactionDependencyFailed {
                 dependency: TransactionDigest::random(),
             },
+            ExecutionErrorKind::ExecutionCanceledDueToPendingTransactionDependency,
         ] {
             let error = ExecutionError::from_kind(kind);
             assert!(!body_ran(false, Some(&error)), "{error:?}");
@@ -837,6 +838,7 @@ mod tests {
                 suggested_gas_price: 1,
             },
             ExecutionErrorKind::ExecutionCanceledDueToRandomnessUnavailable,
+            ExecutionErrorKind::ExecutionCanceledDueToPendingTransactionDependency,
         ] {
             let error = wrapped(kind);
             assert!(

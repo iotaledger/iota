@@ -903,6 +903,14 @@ struct FeatureFlags {
     // `SmartAccount`; otherwise they abort.
     #[serde(skip_serializing_if = "is_false")]
     enable_smart_accounts: bool,
+
+    // If true, a transaction cancelled at sequencing because it waited too
+    // long for its transaction dependency is reported with a distinct
+    // `ExecutionCanceledDueToPendingTransactionDependency` execution error.
+    // Otherwise it is reported as congestion: of all its shared inputs, or of
+    // the execution workers when it has none.
+    #[serde(skip_serializing_if = "is_false")]
+    report_pending_transaction_dependency_error: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2552,6 +2560,12 @@ impl ProtocolConfig {
     /// Its prerequisites are checked once, in [`Self::get_for_version`].
     pub fn enable_transaction_dependencies(&self) -> bool {
         self.feature_flags.enable_transaction_dependencies
+    }
+
+    /// Has no effect without `enable_transaction_dependencies`.
+    pub fn report_pending_transaction_dependency_error(&self) -> bool {
+        self.feature_flags
+            .report_pending_transaction_dependency_error
     }
 
     pub fn enable_builtin_move_authenticators(&self) -> bool {
@@ -4601,6 +4615,11 @@ impl ProtocolConfig {
 
     pub fn set_enable_transaction_dependencies_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_transaction_dependencies = val;
+    }
+
+    pub fn set_report_pending_transaction_dependency_error_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .report_pending_transaction_dependency_error = val;
     }
 
     /// Turning the flow on also turns on the flags it requires, turns off
