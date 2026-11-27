@@ -39,6 +39,8 @@ pub struct ValidatorServiceMetrics {
     pub num_rejected_tx_soft_lock_conflict: IntCounter,
     pub soft_lock_table_size: IntGauge,
     pub num_rejected_tx_recently_resubmitted: IntCounter,
+    pub num_rejected_tx_status_requests: IntCounterVec,
+    pub pending_tx_status_queries: IntGauge,
 }
 
 impl ValidatorServiceMetrics {
@@ -216,6 +218,19 @@ impl ValidatorServiceMetrics {
             soft_lock_table_size: register_int_gauge_with_registry!(
                 "validator_service_soft_lock_table_size",
                 "Current number of object refs held in the pre-consensus soft lock table",
+                registry,
+            )
+                .unwrap(),
+            num_rejected_tx_status_requests: register_int_counter_vec_with_registry!(
+                "validator_service_num_rejected_tx_status_requests",
+                "Number of get_tx_status requests rejected at a limit on the queries served at once",
+                &["limit"],
+                registry,
+            )
+                .unwrap(),
+            pending_tx_status_queries: register_int_gauge_with_registry!(
+                "validator_service_pending_tx_status_queries",
+                "Current number of get_tx_status queries counted toward the total limit",
                 registry,
             )
                 .unwrap(),

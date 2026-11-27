@@ -1639,6 +1639,10 @@ impl IotaNode {
             validator_service_metrics,
             config.policy_config.clone().map(|p| p.client_id_source),
             soft_locks,
+            config
+                .validator_grpc_listener_limits
+                .ipv6_prefix_len
+                .unwrap_or(iota_http::DEFAULT_IPV6_PREFIX_LEN),
         );
 
         // Each service gets its own concurrency limit so that a flood of client
