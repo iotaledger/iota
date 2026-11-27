@@ -1,9 +1,0 @@
-[package]
-name = "smart_account_keys"
-edition = "2024"
-
-[dependencies]
-Iota = { local = "../../../../iota-framework/packages/iota-framework" }
-
-[addresses]
-smart_account_keys = "0x0"

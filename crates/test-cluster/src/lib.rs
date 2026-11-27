@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+pub mod smart_account;
+
 use std::{
     collections::HashMap,
     ffi::OsString,

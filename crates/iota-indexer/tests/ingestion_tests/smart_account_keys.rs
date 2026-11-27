@@ -8,10 +8,7 @@
 //! which Simulacrum does not support, so the key rotation and removal cases
 //! run on a test cluster.
 
-use std::path::PathBuf;
-
 use diesel::{QueryDsl, RunQueryDsl};
-use fastcrypto::hash::HashFunction;
 use iota_indexer::{
     errors::{Context, IndexerError},
     models::smart_account_keys::StoredSmartAccountKey,
@@ -22,27 +19,24 @@ use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::{Identifier, ObjectId, ObjectReference, Owner, Transaction};
 use iota_test_transaction_builder::{TestTransactionBuilder, publish_package};
 use iota_types::{
-    crypto::DefaultHash,
     effects::TransactionEffectsAPI,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI},
+};
+use test_cluster::smart_account::{
+    CUSTOM_AUTHENTICATOR_FUNCTION, CUSTOM_AUTHENTICATOR_MODULE, chain_identifier,
+    create_account_tx, created_account, created_key_field, custom_authenticator_package_path,
+    ed25519_key, key_id, mutated_object, public_key_argument, rotate_public_key,
+    rotate_to_custom_authenticator, send_from_account,
 };
 
 use crate::{
     common::{
         indexer_wait_for_checkpoint, indexer_wait_for_transaction,
-        smart_account::{
-            chain_identifier, create_account_tx, created_account, created_key_field, ed25519_key,
-            mutated_object, public_key_argument, rotate_public_key, rotate_to_custom_authenticator,
-            send_from_account,
-        },
         start_test_cluster_with_read_write_indexer,
     },
     utils::{TestSim, read_only_blocking},
 };
-
-const PACKAGE_PATH: &str = "tests/data/smart_account_keys";
-const MODULE_NAME: &str = "smart_account_keys";
 
 /// Creating a `SmartAccount` with a key attached adds the row of its key field.
 #[tokio::test]
@@ -77,7 +71,7 @@ pub async fn key_under_another_object_is_not_indexed() -> Result<(), IndexerErro
     let rgp = sim.inner.reference_gas_price();
     let publish = sim.execute_signed(
         TestTransactionBuilder::new(sender, sim.pick_gas(), rgp)
-            .publish(package_path())
+            .publish(custom_authenticator_package_path())
             .build(),
     );
     let package_id = publish
@@ -100,7 +94,7 @@ pub async fn key_under_another_object_is_not_indexed() -> Result<(), IndexerErro
     let public_key = public_key_argument(&mut builder, &ed25519_key(2));
     builder.programmable_move_call(
         package_id,
-        Identifier::from_static(MODULE_NAME),
+        Identifier::from_static(CUSTOM_AUTHENTICATOR_MODULE),
         Identifier::from_static("create_holder_with_key"),
         vec![],
         vec![public_key],
@@ -175,7 +169,7 @@ pub async fn key_rotation_and_removal_are_indexed() -> Result<(), IndexerError> 
         vec![expected_row(field, account.object_id, &new_key)]
     );
 
-    let package_id = publish_package(&cluster.wallet, package_path())
+    let package_id = publish_package(&cluster.wallet, custom_authenticator_package_path())
         .await
         .object_id;
     let effects = rotate_to_custom_authenticator(
@@ -183,17 +177,13 @@ pub async fn key_rotation_and_removal_are_indexed() -> Result<(), IndexerError> 
         account,
         &new_key,
         package_id,
-        MODULE_NAME,
-        "authenticate",
+        CUSTOM_AUTHENTICATOR_MODULE,
+        CUSTOM_AUTHENTICATOR_FUNCTION,
     )
     .await;
     indexer_wait_for_transaction(*effects.transaction_digest(), &pg_store, &client).await;
     assert_eq!(stored_keys(&pg_store).await?, vec![]);
     Ok(())
-}
-
-fn package_path() -> PathBuf {
-    [env!("CARGO_MANIFEST_DIR"), PACKAGE_PATH].iter().collect()
 }
 
 /// Returns all rows of `smart_account_keys`.
@@ -218,16 +208,6 @@ fn expected_row(
         object_id: field.object_id.as_bytes().to_vec(),
         object_version: field.version.as_u64() as i64,
         account_id: account.as_bytes().to_vec(),
-        key_id: key_id(key),
+        key_id: key_id(&key.public_key()).to_vec(),
     }
-}
-
-/// Returns the hash of the public key of `key`:
-/// blake2b256(scheme flag || raw public key bytes).
-fn key_id(key: &SimpleKeypair) -> Vec<u8> {
-    let public_key = key.public_key();
-    let mut hasher = DefaultHash::default();
-    hasher.update([public_key.scheme().to_u8()]);
-    hasher.update(public_key.as_ref());
-    hasher.finalize().digest.to_vec()
 }

@@ -2,13 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Helpers to create a `SmartAccount` with a public key attached, to send
-//! transactions from it and to change its key.
+//! transactions from it and to change its key, for tests on a [`TestCluster`].
+
+use std::path::PathBuf;
 
 use iota_sdk_crypto::{Signer, ed25519::Ed25519PrivateKey, simple::SimpleKeypair};
 use iota_sdk_types::{
     Address, Argument, Identifier, MoveAuthenticatorV1, ObjectId, ObjectReference, Owner,
-    ProgrammableTransaction, SharedObjectReference, SimpleSignature, Transaction,
-    TransactionEffects, TypeTag, UserSignature, crypto::PersonalMessage,
+    ProgrammableTransaction, PublicKey, SharedObjectReference, SimpleSignature, Transaction,
+    TransactionEffects, TypeTag, UserSignature, crypto::PersonalMessage, hash::Hasher,
     key_proof::key_proof_message_v1,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
@@ -25,16 +27,41 @@ use iota_types::{
     },
 };
 use rand::{SeedableRng, rngs::StdRng};
-use test_cluster::TestCluster;
+
+use crate::TestCluster;
 
 /// The last epoch in which the key proofs made by these helpers are valid.
 pub const VALID_UNTIL_EPOCH: u64 = 10;
+
+/// The module of the test package at [`custom_authenticator_package_path`].
+pub const CUSTOM_AUTHENTICATOR_MODULE: &str = "custom_authenticator";
+/// The authenticator function of the test package, which accepts every
+/// transaction of the account.
+pub const CUSTOM_AUTHENTICATOR_FUNCTION: &str = "authenticate";
+
+/// Returns the path of the test package with an authenticator that is not the
+/// built-in one, and a `Holder` object that is not a `SmartAccount` but takes
+/// a public key through `create_holder_with_key`.
+pub fn custom_authenticator_package_path() -> PathBuf {
+    [env!("CARGO_MANIFEST_DIR"), "data", "custom_authenticator"]
+        .iter()
+        .collect()
+}
 
 /// Returns an Ed25519 key pair derived from `seed`.
 pub fn ed25519_key(seed: u8) -> SimpleKeypair {
     SimpleKeypair::from(Ed25519PrivateKey::random_with(StdRng::from_seed(
         [seed; 32],
     )))
+}
+
+/// Returns the hash of `public_key` the indexer stores as `key_id`:
+/// blake2b256(scheme flag || raw public key bytes).
+pub fn key_id(public_key: &PublicKey) -> [u8; 32] {
+    let mut hasher = Hasher::new();
+    hasher.update([public_key.scheme().to_u8()]);
+    hasher.update(public_key.as_ref());
+    hasher.finalize().into_bytes()
 }
 
 /// Returns the chain identifier of `cluster`: the digest of its genesis
