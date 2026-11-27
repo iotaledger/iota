@@ -289,8 +289,6 @@ where
     ///    with the cursors that the query builds.
     /// 2. Marks the page as not consistent, so that [`Page::paginate_results`] does not reject the
     ///    page when the rows at the page cursors are missing.
-    // The first query over a live table, the SmartAccount lookup, removes this.
-    #[cfg_attr(not(test), expect(dead_code))]
     pub(crate) fn set_live_view(&mut self, checkpoint_viewed_at: u64) {
         for cursor in self.after.iter_mut().chain(self.before.iter_mut()) {
             cursor.set_checkpoint_viewed_at(checkpoint_viewed_at);

@@ -3480,6 +3480,12 @@ type Query {
 	"""
 	objects(first: Int, after: String, last: Int, before: String, filter: ObjectFilter): ObjectConnection!
 	"""
+	The live `SmartAccount` objects that can be controlled by the public key
+	whose hash is given in `filter`. Pages are not a snapshot, every page
+	serves the current live data.
+	"""
+	smartAccounts(first: Int, after: String, last: Int, before: String, filter: SmartAccountFilter!): MoveObjectConnection!
+	"""
 	The Move packages that exist in the network, optionally filtered to be
 	strictly before `beforeCheckpoint` and/or strictly after
 	`afterCheckpoint`.
@@ -3807,6 +3813,17 @@ type SmartAccountClaim {
 	prefix. For MultiSig this is a BCS-encoded multisig public key.
 	"""
 	publicKeyRawBytes: Base64!
+}
+
+"""
+Selects the `SmartAccount`s by the public key attached to them.
+"""
+input SmartAccountFilter {
+	"""
+	The hash of the public key: blake2b256(scheme flag || raw public key
+	bytes).
+	"""
+	keyId: Base64!
 }
 
 """
