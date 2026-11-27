@@ -4400,6 +4400,7 @@ impl AuthorityState {
                 tm.reconfigure(new_epoch);
             }
         }
+        self.set_simulation_computation_limit(&new_epoch_store);
         self.epoch_store.store(new_epoch_store);
         epoch_store.epoch_terminated().await;
         *execution_lock = new_epoch;
@@ -6673,15 +6674,19 @@ impl AuthorityState {
             expensive_safety_check_config,
             epoch_last_checkpoint,
         )?;
-        if let Some(traffic_controller) = &self.traffic_controller {
-            traffic_controller.set_max_simulation_computation(
-                new_epoch_store
-                    .protocol_config()
-                    .max_gas_computation_bucket(),
-            );
-        }
+        self.set_simulation_computation_limit(&new_epoch_store);
         self.epoch_store.store(new_epoch_store.clone());
         Ok(new_epoch_store)
+    }
+
+    /// Gives the simulation gas limit the computation limit of one
+    /// transaction of `epoch_store`, before the node starts the epoch.
+    fn set_simulation_computation_limit(&self, epoch_store: &AuthorityPerEpochStore) {
+        if let Some(traffic_controller) = &self.traffic_controller {
+            traffic_controller.set_max_simulation_computation(
+                epoch_store.protocol_config().max_gas_computation_bucket(),
+            );
+        }
     }
 
     /// Resolves the account's `AuthenticatorFunctionRef` on the execution path,

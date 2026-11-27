@@ -1244,6 +1244,65 @@ async fn simulations_over_the_configured_cap_are_refused_until_one_ends() {
     assert!(state.try_acquire_simulation_permit().is_none());
 }
 
+/// An authority whose simulation gas limit has room for four reservations of
+/// the computation limit of one transaction in the protocol in force.
+async fn authority_with_a_simulation_gas_limit() -> Arc<AuthorityState> {
+    use iota_types::traffic_control::{PolicyConfig, SimulationGasLimitConfig};
+
+    let computation_limit =
+        ProtocolConfig::get_for_max_version_UNSAFE().max_gas_computation_bucket();
+    TestAuthorityBuilder::new()
+        .with_policy_config(PolicyConfig {
+            simulation_gas_limit: Some(SimulationGasLimitConfig {
+                gas_per_sec: 1,
+                burst_gas: 4 * computation_limit,
+            }),
+            dry_run: false,
+            ..Default::default()
+        })
+        .build()
+        .await
+}
+
+/// How many reservations of simulation gas the client `last_octet` of
+/// `10.0.0.0/24` holds at once, at most 8. Each reservation is the
+/// computation limit of one transaction that the traffic controller has.
+fn count_held_simulation_gas_reservations(state: &AuthorityState, last_octet: u8) -> usize {
+    use std::net::{IpAddr, Ipv4Addr};
+
+    use iota_traffic_controller::ClientAccess;
+
+    let traffic_controller = state
+        .traffic_controller
+        .as_ref()
+        .expect("the policy config is set");
+    let client = IpAddr::V4(Ipv4Addr::new(10, 0, 0, last_octet));
+    let mut held = Vec::new();
+    while held.len() < 8 {
+        match traffic_controller.reserve_simulation_gas(Some(client), ClientAccess::Limited) {
+            Ok(reservation) => held.push(reservation.expect("the simulation gas limit is on")),
+            Err(_) => break,
+        }
+    }
+    held.len()
+}
+
+#[tokio::test]
+async fn a_test_epoch_change_gives_the_simulation_gas_limit_the_new_computation_limit() {
+    let state = authority_with_a_simulation_gas_limit().await;
+    assert_eq!(count_held_simulation_gas_reservations(&state, 1), 4);
+
+    let mut next_protocol_config = state.epoch_store_for_testing().protocol_config().clone();
+    next_protocol_config.set_max_gas_computation_bucket_for_testing(
+        2 * next_protocol_config.max_gas_computation_bucket(),
+    );
+    state
+        .reconfigure_for_testing_with_protocol_config(next_protocol_config)
+        .await;
+
+    assert_eq!(count_held_simulation_gas_reservations(&state, 2), 2);
+}
+
 // Tests using a dynamic field that is newer than the parent in dev inspect/dry
 // run results in not being able to access the dynamic field object
 #[tokio::test]

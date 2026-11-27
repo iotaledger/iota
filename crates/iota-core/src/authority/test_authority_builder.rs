@@ -20,7 +20,7 @@ use iota_types::{
     base_types::AuthorityName, crypto::AuthorityKeyPair, digests::ChainIdentifier,
     executable_transaction::VerifiedExecutableTransaction, iota_system_state::IotaSystemStateTrait,
     object::Object, supported_protocol_versions::SupportedProtocolVersions,
-    transaction::VerifiedTransaction,
+    traffic_control::PolicyConfig, transaction::VerifiedTransaction,
 };
 use prometheus_filtered::Registry;
 
@@ -74,6 +74,7 @@ pub struct TestAuthorityBuilder<'a> {
     num_epochs_to_retain_for_indexes: Option<u64>,
     post_consensus_validation_readers: Option<NonZeroUsize>,
     max_concurrent_simulations: Option<NonZeroUsize>,
+    policy_config: Option<PolicyConfig>,
 }
 
 /// The readers a test authority validates a commit with unless a test sets
@@ -101,6 +102,13 @@ impl<'a> TestAuthorityBuilder<'a> {
                 .replace(simulations)
                 .is_none()
         );
+        self
+    }
+
+    /// Runs the authority with a traffic controller built from
+    /// `policy_config`.
+    pub fn with_policy_config(mut self, policy_config: PolicyConfig) -> Self {
+        assert!(self.policy_config.replace(policy_config).is_none());
         self
     }
 
@@ -429,6 +437,9 @@ impl<'a> TestAuthorityBuilder<'a> {
                 .unwrap_or(TEST_POST_CONSENSUS_VALIDATION_READERS),
         );
         config.max_concurrent_simulations = self.max_concurrent_simulations;
+        if let Some(policy_config) = self.policy_config {
+            config.policy_config = Some(policy_config);
+        }
 
         let chain_identifier = ChainIdentifier::from(*genesis.checkpoint().digest());
         let policy_config = config.policy_config.clone();
