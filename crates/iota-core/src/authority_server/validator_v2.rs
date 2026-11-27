@@ -30,7 +30,7 @@ use iota_types::{
         VerifiedTransaction,
     },
 };
-use starfish_core::TransactionSubmissionLimits;
+use starfish_core::BlockTransactionLimits;
 use tokio_stream::wrappers::ReceiverStream;
 
 use crate::{
@@ -246,9 +246,9 @@ fn check_consensus_transaction_size(
         }
     })?;
 
-    TransactionSubmissionLimits::new(protocol_config)
+    BlockTransactionLimits::new(protocol_config)
         .check_transaction_size(size as u64)
-        .map_err(to_iota_error)
+        .map_err(|error| to_iota_error(error.into()))
 }
 
 /// Rejects a submission because the validator is overloaded, and counts it in

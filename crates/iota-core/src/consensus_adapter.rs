@@ -1750,9 +1750,9 @@ fn check_consensus_transactions_fit(
 
     starfish_core::check_transactions_fit(
         &transaction_sizes,
-        starfish_core::TransactionSubmissionLimits::new(protocol_config),
+        starfish_core::BlockTransactionLimits::new(protocol_config),
     )
-    .map_err(to_iota_error)
+    .map_err(|error| to_iota_error(error.into()))
 }
 
 pub fn position_submit_certificate(

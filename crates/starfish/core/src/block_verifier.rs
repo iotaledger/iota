@@ -15,7 +15,10 @@ use crate::{
     context::Context,
     encoder::shard_bytes,
     error::{ConsensusError, ConsensusResult},
-    transaction::TransactionVerifier,
+    transaction::{
+        BlockTransactionLimitError, BlockTransactionLimits, TransactionVerifier,
+        check_transactions_fit,
+    },
 };
 
 pub(crate) trait BlockVerifier: Send + Sync + 'static {
@@ -66,41 +69,50 @@ impl SignedBlockVerifier {
             transaction_verifier,
         }
     }
+
+    /// Checks that the transactions of `batch` fit one block, by the rule of
+    /// [`check_transactions_fit()`] and the limits of the verifier's protocol
+    /// config.
+    ///
+    /// # Errors
+    ///
+    /// [`ConsensusError::TooManyTransactions`],
+    /// [`ConsensusError::TransactionTooLarge`] or
+    /// [`ConsensusError::TooManyTransactionBytes`], for the limit that
+    /// [`check_transactions_fit()`] reports.
     pub(crate) fn check_transactions(&self, batch: &[&[u8]]) -> ConsensusResult<()> {
-        let max_transaction_size_limit =
-            self.context.protocol_config.max_transaction_size_bytes() as usize;
-        for t in batch {
-            if t.len() > max_transaction_size_limit && max_transaction_size_limit > 0 {
-                return Err(ConsensusError::TransactionTooLarge {
-                    size: t.len(),
-                    limit: max_transaction_size_limit,
-                });
+        let transaction_sizes: Vec<u64> = batch
+            .iter()
+            .map(|transaction| transaction.len() as u64)
+            .collect();
+        let limits = BlockTransactionLimits::new(&self.context.protocol_config);
+
+        check_transactions_fit(&transaction_sizes, limits).map_err(to_consensus_error)
+    }
+}
+
+/// Returns the [`ConsensusError`] for the limit that `error` reports, with the
+/// same values.
+fn to_consensus_error(error: BlockTransactionLimitError) -> ConsensusError {
+    match error {
+        BlockTransactionLimitError::TransactionTooLarge { size, limit } => {
+            ConsensusError::TransactionTooLarge {
+                size: size as usize,
+                limit: limit as usize,
             }
         }
-
-        let max_num_transactions_limit =
-            self.context.protocol_config.max_num_transactions_in_block() as usize;
-        if batch.len() > max_num_transactions_limit && max_num_transactions_limit > 0 {
-            return Err(ConsensusError::TooManyTransactions {
-                count: batch.len(),
-                limit: max_num_transactions_limit,
-            });
+        BlockTransactionLimitError::TooManyTransactions { count, limit } => {
+            ConsensusError::TooManyTransactions {
+                count: count as usize,
+                limit: limit as usize,
+            }
         }
-
-        let total_transactions_size_limit = self
-            .context
-            .protocol_config
-            .max_transactions_in_block_bytes() as usize;
-        let total_transaction_bytes = batch.iter().map(|t| t.len()).sum::<usize>();
-        if total_transaction_bytes > total_transactions_size_limit
-            && total_transactions_size_limit > 0
-        {
-            return Err(ConsensusError::TooManyTransactionBytes {
-                size: total_transaction_bytes,
-                limit: total_transactions_size_limit,
-            });
+        BlockTransactionLimitError::TooManyTransactionBytes { size, limit } => {
+            ConsensusError::TooManyTransactionBytes {
+                size: size as usize,
+                limit: limit as usize,
+            }
         }
-        Ok(())
     }
 }
 
@@ -329,22 +341,18 @@ pub(crate) const MAX_BCS_LENGTH_PREFIX_BYTES: usize = 10;
 pub(crate) fn serialized_transactions_size_limit(context: &Context) -> usize {
     let max_bytes = context.protocol_config.max_transactions_in_block_bytes() as usize;
     let max_count = context.protocol_config.max_num_transactions_in_block() as usize;
-    // A zero protocol limit disables the corresponding check in
-    // `check_transactions`; without both bounds no finite serialized size is
-    // implied.
-    if max_bytes == 0 || max_count == 0 {
-        return usize::MAX;
-    }
+
     max_bytes
         .saturating_add(max_count.saturating_mul(MAX_BCS_LENGTH_PREFIX_BYTES))
         .saturating_add(MAX_BCS_LENGTH_PREFIX_BYTES)
 }
 
 /// Upper bound on the length of a shard encoding a transaction payload that
-/// passes `check_transactions`. `usize::MAX` when the protocol payload limits
-/// are disabled, as no finite shard length is implied then.
+/// passes `check_transactions`. `usize::MAX` when
+/// [`serialized_transactions_size_limit()`] returns `usize::MAX`.
 pub(crate) fn max_shard_bytes(context: &Context) -> usize {
     let payload_limit = serialized_transactions_size_limit(context);
+    // `shard_bytes()` would overflow on this payload length.
     if payload_limit == usize::MAX {
         return usize::MAX;
     }
@@ -377,6 +385,7 @@ impl BlockVerifier for NoopBlockVerifier {
 
 #[cfg(test)]
 pub(crate) mod test {
+    use iota_protocol_config::ProtocolConfig;
     use starfish_config::AuthorityIndex;
 
     use super::*;
@@ -454,6 +463,140 @@ pub(crate) mod test {
         let context = Arc::new(context);
         let size_limit = serialized_transactions_size_limit(&context);
         let verifier = SignedBlockVerifier::new(context, Arc::new(TxnSizeVerifier {}));
+
+        let result = verifier.check_and_parse_transactions(&vec![0u8; size_limit + 1]);
+        assert!(matches!(
+            result,
+            Err(ConsensusError::SerializedTransactionsTooLarge { size, limit })
+                if size == size_limit + 1 && limit == size_limit
+        ));
+    }
+
+    /// Returns a verifier whose protocol config limits the transactions of a
+    /// block to 10 bytes each, 4 in number and 25 bytes in total.
+    fn build_verifier_with_small_transaction_limits() -> SignedBlockVerifier {
+        build_verifier_with_transaction_limits(10, 4, 25)
+    }
+
+    /// Returns a verifier whose protocol config limits the transactions of a
+    /// block to `max_size` bytes each, `max_count` in number and `max_total`
+    /// bytes in total.
+    fn build_verifier_with_transaction_limits(
+        max_size: u64,
+        max_count: u64,
+        max_total: u64,
+    ) -> SignedBlockVerifier {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
+            config.set_consensus_max_transaction_size_bytes_for_testing(max_size);
+            config.set_consensus_max_num_transactions_in_block_for_testing(max_count);
+            config.set_consensus_max_transactions_in_block_bytes_for_testing(max_total);
+            config
+        });
+        let (context, _) = Context::new_for_test(4);
+
+        SignedBlockVerifier::new(Arc::new(context), Arc::new(TxnSizeVerifier {}))
+    }
+
+    /// Returns what [`SignedBlockVerifier::check_transactions()`] of
+    /// `verifier` answers for transactions of `sizes` bytes.
+    fn check_transactions_of_sizes(
+        verifier: &SignedBlockVerifier,
+        sizes: &[usize],
+    ) -> ConsensusResult<()> {
+        let transactions: Vec<Vec<u8>> = sizes.iter().map(|&size| vec![0; size]).collect();
+        let batch: Vec<&[u8]> = transactions.iter().map(Vec::as_slice).collect();
+
+        verifier.check_transactions(&batch)
+    }
+
+    /// A block exactly at the three limits is accepted. The error for a limit
+    /// carries the value that is over it and the limit.
+    #[tokio::test]
+    async fn block_over_one_transaction_limit_is_refused_with_error_of_that_limit() {
+        let verifier = build_verifier_with_small_transaction_limits();
+
+        check_transactions_of_sizes(&verifier, &[10, 10, 5, 0])
+            .expect("a block at every limit should be accepted");
+        assert!(matches!(
+            check_transactions_of_sizes(&verifier, &[11]),
+            Err(ConsensusError::TransactionTooLarge {
+                size: 11,
+                limit: 10
+            })
+        ));
+        assert!(matches!(
+            check_transactions_of_sizes(&verifier, &[0; 5]),
+            Err(ConsensusError::TooManyTransactions { count: 5, limit: 4 })
+        ));
+        assert!(matches!(
+            check_transactions_of_sizes(&verifier, &[10, 10, 6]),
+            Err(ConsensusError::TooManyTransactionBytes {
+                size: 26,
+                limit: 25
+            })
+        ));
+    }
+
+    /// The order is that of [`check_transactions_fit()`]: the number of
+    /// transactions comes before the size of a transaction, and the total up
+    /// to a transaction before the size of a later one.
+    #[tokio::test]
+    async fn block_over_two_transaction_limits_is_refused_for_limit_checked_first() {
+        let verifier = build_verifier_with_small_transaction_limits();
+
+        // Five transactions, the first of 11 bytes.
+        assert!(matches!(
+            check_transactions_of_sizes(&verifier, &[11, 0, 0, 0, 0]),
+            Err(ConsensusError::TooManyTransactions { count: 5, limit: 4 })
+        ));
+        // The third transaction takes the total to 30 bytes, and the fourth
+        // is of 11 bytes.
+        assert!(matches!(
+            check_transactions_of_sizes(&verifier, &[10, 10, 10, 11]),
+            Err(ConsensusError::TooManyTransactionBytes {
+                size: 30,
+                limit: 25
+            })
+        ));
+    }
+
+    /// A limit of 0 means that nothing fits, not that there is no limit. With
+    /// 0 as the number of transactions, only an empty block is accepted, and
+    /// with 0 as a size, only empty transactions are.
+    #[tokio::test]
+    async fn block_over_limit_of_zero_is_refused() {
+        let verifier = build_verifier_with_transaction_limits(10, 0, 25);
+        check_transactions_of_sizes(&verifier, &[]).expect("an empty block should be accepted");
+        assert!(matches!(
+            check_transactions_of_sizes(&verifier, &[0]),
+            Err(ConsensusError::TooManyTransactions { count: 1, limit: 0 })
+        ));
+
+        let verifier = build_verifier_with_transaction_limits(0, 4, 25);
+        check_transactions_of_sizes(&verifier, &[0, 0])
+            .expect("empty transactions should be accepted");
+        assert!(matches!(
+            check_transactions_of_sizes(&verifier, &[1]),
+            Err(ConsensusError::TransactionTooLarge { size: 1, limit: 0 })
+        ));
+
+        let verifier = build_verifier_with_transaction_limits(10, 4, 0);
+        check_transactions_of_sizes(&verifier, &[0, 0])
+            .expect("empty transactions should be accepted");
+        assert!(matches!(
+            check_transactions_of_sizes(&verifier, &[1]),
+            Err(ConsensusError::TooManyTransactionBytes { size: 1, limit: 0 })
+        ));
+    }
+
+    /// With 0 as the number of transactions, the limit on a block's
+    /// serialized transactions is still the computed bound, so a payload over
+    /// it is refused before it is decoded.
+    #[tokio::test]
+    async fn oversized_payload_is_refused_with_limit_of_zero() {
+        let verifier = build_verifier_with_transaction_limits(10, 0, 25);
+        let size_limit = serialized_transactions_size_limit(&verifier.context);
+        assert_eq!(size_limit, 25 + MAX_BCS_LENGTH_PREFIX_BYTES);
 
         let result = verifier.check_and_parse_transactions(&vec![0u8; size_limit + 1]);
         assert!(matches!(
