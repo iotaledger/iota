@@ -176,11 +176,10 @@ async fn run_simulation(
     transaction: iota_sdk_types::Transaction,
     checks: VmChecks,
 ) -> Result<SimulateTransactionResult, RpcError> {
-    let reservation = tally_handle
-        .map(TallyHandle::reserve_simulation_gas)
-        .transpose()
-        .map_err(RpcError::from)?
-        .flatten();
+    let reservation = match tally_handle {
+        Some(tally_handle) => tally_handle.reserve_simulation_gas()?,
+        None => None,
+    };
     let permit = executor.try_acquire_simulation_permit().ok_or_else(|| {
         RpcError::new(
             tonic::Code::ResourceExhausted,
