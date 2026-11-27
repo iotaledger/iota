@@ -30,7 +30,7 @@ use self::{
     client_access::{ClientAccessManager, client_prefix},
     metrics::TrafficControllerMetrics,
 };
-use crate::policies::{MAX_CLIENT_THRESHOLD, TrafficControlPolicy, TrafficTally};
+use crate::policies::{MAX_CLIENT_THRESHOLD, PolicyRole, TrafficControlPolicy, TrafficTally};
 
 /// The spam and error policies. Absent in allowlist mode, which does no
 /// tallying.
@@ -79,11 +79,13 @@ impl TrafficController {
                     &policy_config.spam_policy_type,
                     policy_config.connection_blocklist_ttl_sec,
                     metrics.rate_limiter_evictions.clone(),
+                    PolicyRole::Spam,
                 ),
                 error: TrafficControlPolicy::from_policy_type(
                     &policy_config.error_policy_type,
                     policy_config.connection_blocklist_ttl_sec,
                     metrics.rate_limiter_evictions.clone(),
+                    PolicyRole::Error,
                 ),
             };
             set_policy_config_metrics(&policies, &policy_config, &metrics);
@@ -108,6 +110,9 @@ impl TrafficController {
     /// `None` in allowlist mode, which neither tallies nor blocks.
     pub fn get_current_state(&self) -> TrafficControlReconfigParams {
         let ttls = self.client_access.blocklist_ttls_sec();
+        let spam = self.policies.as_ref().map(|policies| &policies.spam);
+        let response_items = spam.map(|spam| spam.response_items_state());
+        let rendered_fields = spam.map(|spam| spam.rendered_fields_state());
         TrafficControlReconfigParams {
             error_threshold: self
                 .policies
@@ -120,6 +125,10 @@ impl TrafficController {
             dry_run: Some(self.client_access.dry_run()),
             connection_blocklist_ttl_sec: ttls.map(|(connection, _)| connection),
             proxy_blocklist_ttl_sec: ttls.map(|(_, proxy)| proxy),
+            response_items_threshold: response_items.and_then(|(threshold, _)| threshold),
+            response_items_enabled: response_items.map(|(_, enabled)| enabled),
+            rendered_fields_threshold: rendered_fields.and_then(|(threshold, _)| threshold),
+            rendered_fields_enabled: rendered_fields.map(|(_, enabled)| enabled),
         }
     }
 
@@ -135,6 +144,10 @@ impl TrafficController {
             dry_run,
             connection_blocklist_ttl_sec,
             proxy_blocklist_ttl_sec,
+            response_items_threshold,
+            response_items_enabled,
+            rendered_fields_threshold,
+            rendered_fields_enabled,
         } = params;
         let updates = [
             (
@@ -159,11 +172,41 @@ impl TrafficController {
         self.client_access
             .validate_reconfigure(connection_blocklist_ttl_sec, proxy_blocklist_ttl_sec)
             .map_err(IotaError::InvalidAdminRequest)?;
+        // The response-item and rendered-field dimensions live on the spam
+        // policy only. Validate both before applying either, so a rejected
+        // request changes nothing.
+        let spam = self.policies.as_ref().map(|policies| &policies.spam);
+        validate_dimension(
+            spam,
+            response_items_threshold,
+            response_items_enabled,
+            spam.and_then(|spam| spam.response_items_state().0),
+            "response-items",
+        )?;
+        validate_dimension(
+            spam,
+            rendered_fields_threshold,
+            rendered_fields_enabled,
+            spam.and_then(|spam| spam.rendered_fields_state().0),
+            "rendered-fields",
+        )?;
         for (threshold, policy, gauge, _) in updates {
             if let (Some(threshold), Some(policy)) = (threshold, policy) {
                 policy.set_client_threshold(threshold);
                 gauge.set(threshold as i64);
             }
+        }
+        if let Some(spam) = spam {
+            // Validated above, so applying these cannot fail: the request is
+            // fully checked before anything here mutates state.
+            spam.set_response_items(response_items_threshold, response_items_enabled);
+            spam.set_rendered_fields(rendered_fields_threshold, rendered_fields_enabled);
+            self.metrics
+                .spam_response_items_threshold
+                .set(enforced_threshold(spam.response_items_state()));
+            self.metrics
+                .spam_rendered_fields_threshold
+                .set(enforced_threshold(spam.rendered_fields_state()));
         }
         self.client_access.reconfigure(
             dry_run,
@@ -239,6 +282,57 @@ fn validate_threshold(
     Ok(())
 }
 
+/// Validates a reconfigure request for one spam-policy dimension. `configured`
+/// is the dimension's current threshold, used to reject enabling a dimension
+/// that has no value. An omitted threshold and omitted gate change nothing.
+fn validate_dimension(
+    policy: Option<&TrafficControlPolicy>,
+    threshold: Option<u64>,
+    enabled: Option<bool>,
+    configured: Option<u64>,
+    kind: &str,
+) -> Result<(), IotaError> {
+    if threshold.is_none() && enabled.is_none() {
+        return Ok(());
+    }
+    let Some(policy) = policy else {
+        return Err(IotaError::InvalidAdminRequest(format!(
+            "Cannot reconfigure the {kind} dimension in allowlist mode"
+        )));
+    };
+    if policy.client_threshold().is_none() {
+        return Err(IotaError::InvalidAdminRequest(format!(
+            "Cannot reconfigure the {kind} dimension for a policy that does not rate limit"
+        )));
+    }
+    if let Some(threshold) = threshold {
+        if threshold > MAX_CLIENT_THRESHOLD {
+            return Err(IotaError::InvalidAdminRequest(format!(
+                "Threshold {threshold} exceeds the maximum of {MAX_CLIENT_THRESHOLD}"
+            )));
+        }
+    }
+    if enabled == Some(true) && threshold.is_none() && configured.is_none() {
+        return Err(IotaError::InvalidAdminRequest(format!(
+            "Cannot enable the {kind} dimension before setting its threshold"
+        )));
+    }
+    Ok(())
+}
+
+/// The threshold a dimension is currently enforcing, for its metric gauge: the
+/// configured value when the gate is on, else -1. An operator reads a
+/// non-negative gauge as "this dimension is enforcing at this rate" (including a
+/// rate of 0) and -1 as "not enforcing"; the configured value of a gated-off
+/// dimension is in [`TrafficController::get_current_state`].
+fn enforced_threshold((threshold, enabled): (Option<u64>, bool)) -> i64 {
+    if enabled {
+        threshold.unwrap_or(0) as i64
+    } else {
+        -1
+    }
+}
+
 /// Reports the thresholds the policies enforce.
 fn set_policy_config_metrics(
     policies: &Policies,
@@ -251,6 +345,12 @@ fn set_policy_config_metrics(
     if let Some(threshold) = policies.error.client_threshold() {
         metrics.error_client_threshold.set(threshold as i64);
     }
+    metrics
+        .spam_response_items_threshold
+        .set(enforced_threshold(policies.spam.response_items_state()));
+    metrics
+        .spam_rendered_fields_threshold
+        .set(enforced_threshold(policies.spam.rendered_fields_state()));
     if let PolicyType::FreqThreshold(config) = &policy_config.spam_policy_type {
         metrics
             .spam_proxied_client_threshold
@@ -483,6 +583,142 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn dry_run_serves_a_new_dimension_breach() {
+        // A rendered-field charge above the whole burst breaches that dimension.
+        // Dry run serves the client and counts the block instead of applying it,
+        // exactly as it does for a request-dimension breach.
+        let controller = TrafficController::init_for_test(PolicyConfig {
+            spam_policy_type: PolicyType::FreqThreshold(FreqThresholdConfig {
+                client_threshold: 1_000_000,
+                proxied_client_threshold: 1_000_000,
+                burst_secs: 1,
+                rendered_fields_threshold: Some(100),
+                ..Default::default()
+            }),
+            spam_sample_rate: Weight::one(),
+            connection_blocklist_ttl_sec: 120,
+            dry_run: true,
+            ..Default::default()
+        });
+        let mut tally = TrafficTally::new(Some(CLIENT), None, None, Weight::one());
+        tally.rendered_fields = 200;
+        controller.tally(tally);
+        assert_eq!(controller.metrics.connection_ip_blocklist_len.get(), 1);
+
+        assert!(controller.check(&Some(CLIENT), &None));
+        assert_eq!(controller.metrics.num_dry_run_blocked_requests.get(), 1);
+    }
+
+    /// A blocklist-mode controller whose spam policy rate-limits requests very
+    /// loosely (so only the rendered-field dimension can block), with that
+    /// dimension configured as given. `burst_secs: 1` makes its burst equal its
+    /// threshold.
+    fn rendered_field_controller(rendered_fields_threshold: Option<u64>) -> TrafficController {
+        TrafficController::init_for_test(PolicyConfig {
+            spam_policy_type: PolicyType::FreqThreshold(FreqThresholdConfig {
+                client_threshold: 1_000_000,
+                proxied_client_threshold: 1_000_000,
+                burst_secs: 1,
+                rendered_fields_threshold,
+                ..Default::default()
+            }),
+            spam_sample_rate: Weight::one(),
+            connection_blocklist_ttl_sec: 120,
+            dry_run: false,
+            ..Default::default()
+        })
+    }
+
+    fn rendered_field_tally(count: u32) -> TrafficTally {
+        let mut tally = TrafficTally::new(Some(CLIENT), None, None, Weight::one());
+        tally.rendered_fields = count;
+        tally
+    }
+
+    #[tokio::test]
+    async fn reconfigure_enables_disabled_dimension() {
+        let controller = rendered_field_controller(None);
+        controller.tally(rendered_field_tally(10_000));
+        assert!(controller.check(&Some(CLIENT), &None));
+
+        controller
+            .admin_reconfigure(TrafficControlReconfigParams {
+                rendered_fields_threshold: Some(100),
+                rendered_fields_enabled: Some(true),
+                ..Default::default()
+            })
+            .expect("enables the rendered-field dimension");
+
+        // A charge above the whole burst breaches, so the client is now blocked.
+        controller.tally(rendered_field_tally(200));
+        assert!(!controller.check(&Some(CLIENT), &None));
+    }
+
+    #[tokio::test]
+    async fn reconfigure_disables_dimension() {
+        let controller = rendered_field_controller(Some(100));
+        controller
+            .admin_reconfigure(TrafficControlReconfigParams {
+                rendered_fields_enabled: Some(false),
+                ..Default::default()
+            })
+            .expect("disables the rendered-field dimension");
+
+        controller.tally(rendered_field_tally(10_000));
+        assert!(controller.check(&Some(CLIENT), &None));
+    }
+
+    #[tokio::test]
+    async fn enable_without_value_is_rejected() {
+        let controller = rendered_field_controller(None);
+        let result = controller.admin_reconfigure(TrafficControlReconfigParams {
+            rendered_fields_enabled: Some(true),
+            ..Default::default()
+        });
+        assert!(matches!(result, Err(IotaError::InvalidAdminRequest(_))));
+    }
+
+    #[tokio::test]
+    async fn reconfigure_rejected_in_allowlist_mode() {
+        let controller = TrafficController::init_for_test(PolicyConfig {
+            allow_list: Some(vec![CLIENT.to_string()]),
+            ..Default::default()
+        });
+        let result = controller.admin_reconfigure(TrafficControlReconfigParams {
+            rendered_fields_threshold: Some(100),
+            rendered_fields_enabled: Some(true),
+            ..Default::default()
+        });
+        assert!(matches!(result, Err(IotaError::InvalidAdminRequest(_))));
+    }
+
+    #[tokio::test]
+    async fn get_current_state_reports_dimension_state() {
+        let controller = rendered_field_controller(Some(100));
+        let state = controller.get_current_state();
+        assert_eq!(state.rendered_fields_threshold, Some(100));
+        assert_eq!(state.rendered_fields_enabled, Some(true));
+        assert_eq!(state.response_items_threshold, None);
+        assert_eq!(state.response_items_enabled, Some(false));
+    }
+
+    #[tokio::test]
+    async fn gauge_reports_the_enforced_threshold_only() {
+        let controller = rendered_field_controller(Some(100));
+        assert_eq!(controller.metrics.spam_rendered_fields_threshold.get(), 100);
+
+        controller
+            .admin_reconfigure(TrafficControlReconfigParams {
+                rendered_fields_enabled: Some(false),
+                ..Default::default()
+            })
+            .expect("disables the rendered-field dimension");
+        // Configured at 100 but gated off: the gauge reads -1 (not enforcing),
+        // which an operator can tell apart from a dimension enforcing at 0.
+        assert_eq!(controller.metrics.spam_rendered_fields_threshold.get(), -1);
+    }
+
+    #[tokio::test]
     async fn test_the_admin_api_turns_dry_run_off_at_once() {
         let controller = TrafficController::init_for_test(policy_config(true, PolicyKind::Spam));
         controller.tally(breach(PolicyKind::Spam));
@@ -495,6 +731,7 @@ mod tests {
                 dry_run: Some(false),
                 connection_blocklist_ttl_sec: None,
                 proxy_blocklist_ttl_sec: None,
+                ..Default::default()
             })
             .expect("the request changes only the dry-run flag");
 
@@ -569,6 +806,7 @@ mod tests {
                     dry_run: Some(false),
                     connection_blocklist_ttl_sec: None,
                     proxy_blocklist_ttl_sec: None,
+                    ..Default::default()
                 })
                 .expect("the request changes only the dry-run flag");
         });
@@ -631,6 +869,7 @@ mod tests {
                 dry_run: None,
                 connection_blocklist_ttl_sec: Some(120),
                 proxy_blocklist_ttl_sec: None,
+                ..Default::default()
             })
             .expect("the request changes only the connection blocklist TTL");
 
@@ -655,6 +894,7 @@ mod tests {
                 dry_run: Some(true),
                 connection_blocklist_ttl_sec,
                 proxy_blocklist_ttl_sec,
+                ..Default::default()
             });
             assert!(matches!(result, Err(IotaError::InvalidAdminRequest(_))));
         }
@@ -679,6 +919,7 @@ mod tests {
                 dry_run: None,
                 connection_blocklist_ttl_sec: Some(0),
                 proxy_blocklist_ttl_sec: Some(0),
+                ..Default::default()
             })
             .expect("a zero blocklist TTL is valid");
 
@@ -732,6 +973,7 @@ mod tests {
             client_threshold,
             proxied_client_threshold: client_threshold,
             burst_secs: 5,
+            ..Default::default()
         })
     }
 
@@ -752,6 +994,7 @@ mod tests {
             dry_run: Some(true),
             connection_blocklist_ttl_sec: Some(5),
             proxy_blocklist_ttl_sec: Some(5),
+            ..Default::default()
         });
 
         assert!(matches!(result, Err(IotaError::InvalidAdminRequest(_))));
@@ -967,6 +1210,16 @@ mod tests {
     }
 
     #[test]
+    fn allowlist_mode_reports_the_dimensions_as_not_enforcing() {
+        // Allowlist mode tallies nothing, so neither dimension enforces; the
+        // gauges must read the -1 "not enforcing" sentinel, not the default 0
+        // (which the metric defines as enforcing at a rate of 0).
+        let controller = allowlist_mode();
+        assert_eq!(controller.metrics.spam_response_items_threshold.get(), -1);
+        assert_eq!(controller.metrics.spam_rendered_fields_threshold.get(), -1);
+    }
+
+    #[test]
     fn the_admin_api_rejects_a_blocklist_ttl_in_allowlist_mode() {
         let controller = allowlist_mode();
         for (connection_blocklist_ttl_sec, proxy_blocklist_ttl_sec) in
@@ -978,6 +1231,7 @@ mod tests {
                 dry_run: Some(true),
                 connection_blocklist_ttl_sec,
                 proxy_blocklist_ttl_sec,
+                ..Default::default()
             });
             assert!(matches!(result, Err(IotaError::InvalidAdminRequest(_))));
         }
@@ -998,6 +1252,7 @@ mod tests {
                 dry_run: Some(true),
                 connection_blocklist_ttl_sec: None,
                 proxy_blocklist_ttl_sec: None,
+                ..Default::default()
             })
             .expect("allowlist mode has a dry-run flag");
         assert!(controller.check(&Some(stranger), &None));

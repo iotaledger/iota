@@ -24,6 +24,8 @@ pub struct TrafficControllerMetrics {
     pub error_client_threshold: IntGauge,
     pub spam_proxied_client_threshold: IntGauge,
     pub error_proxied_client_threshold: IntGauge,
+    pub spam_response_items_threshold: IntGauge,
+    pub spam_rendered_fields_threshold: IntGauge,
     pub dry_run_enabled: IntGauge,
     pub connection_blocklist_ttl_sec: IntGauge,
     pub proxy_blocklist_ttl_sec: IntGauge,
@@ -31,7 +33,7 @@ pub struct TrafficControllerMetrics {
 
 impl TrafficControllerMetrics {
     pub fn new(registry: &Registry) -> Self {
-        Self {
+        let metrics = Self {
             tallies: register_int_counter_with_registry!("tallies", "Number of tallies", registry)
                 .unwrap(),
             unresolved_client_requests: register_int_counter_with_registry!(
@@ -121,6 +123,18 @@ impl TrafficControllerMetrics {
                 registry
             )
             .unwrap(),
+            spam_response_items_threshold: register_int_gauge_with_registry!(
+                "spam_response_items_threshold",
+                "Spam response-item threshold being enforced; -1 when the dimension is not enforced",
+                registry
+            )
+            .unwrap(),
+            spam_rendered_fields_threshold: register_int_gauge_with_registry!(
+                "spam_rendered_fields_threshold",
+                "Spam rendered-field threshold being enforced; -1 when the dimension is not enforced",
+                registry
+            )
+            .unwrap(),
             dry_run_enabled: register_int_gauge_with_registry!(
                 "dry_run_enabled",
                 "If 1, dry run mode is enabled and traffic will not be blocked",
@@ -139,7 +153,13 @@ impl TrafficControllerMetrics {
                 registry
             )
             .unwrap(),
-        }
+        };
+        // No dimension enforces until a rate-limiting policy configures it, so
+        // start the gauges at the -1 "not enforcing" sentinel rather than the
+        // registration default of 0 (which the gauge reads as enforcing at 0).
+        metrics.spam_response_items_threshold.set(-1);
+        metrics.spam_rendered_fields_threshold.set(-1);
+        metrics
     }
 
     pub fn new_for_tests() -> Self {

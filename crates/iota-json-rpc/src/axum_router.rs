@@ -233,6 +233,8 @@ fn handle_traffic_resp(
         // suitable rpc provider (or run their own). Later we may want
         // to provide a weight distribution based on the method being called.
         spam_weight: Weight::one(),
+        response_items: 0,
+        rendered_fields: 0,
     });
 }
 

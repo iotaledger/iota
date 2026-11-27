@@ -235,6 +235,8 @@ fn tally(traffic_controller: &TrafficController, client: Option<IpAddr>, code: C
         through_fullnode: None,
         error_info,
         spam_weight: Weight::one(),
+        response_items: 0,
+        rendered_fields: 0,
     });
 }
 
