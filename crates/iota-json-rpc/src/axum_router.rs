@@ -489,8 +489,9 @@ mod tests {
     }
 
     /// A method that reserves simulation gas, as the simulation methods do,
-    /// is refused with `ServerIsBusy` once its client is over the limit, with
-    /// the time to retry in the message and in `data.retry_after_secs`. The
+    /// is refused with `ServerIsBusy` once its client is over the limit. Its
+    /// `data.reason` tells it from the other refusals with that code, and the
+    /// time to retry is in the message and in `data.retry_after_secs`. The
     /// refusal does not feed the error policy, so the client is not blocked.
     #[tokio::test]
     async fn a_simulation_over_the_gas_limit_is_refused_as_busy() {
@@ -508,6 +509,10 @@ mod tests {
         let response: serde_json::Value = serde_json::from_str(&body).unwrap();
         let error = &response["error"];
         assert_eq!(error["code"], ErrorCode::ServerIsBusy.code(), "{body}");
+        assert_eq!(
+            error["data"]["reason"], "simulation_gas_limit_reached",
+            "{body}"
+        );
         let retry_secs: u64 = error["message"]
             .as_str()
             .and_then(|message| message.strip_prefix("simulation gas limit reached, retry in "))

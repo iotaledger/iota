@@ -90,7 +90,9 @@ pub enum Error {
     ServerIsBusy(String),
 
     /// The client is over its simulation gas limit. Refused with the code of
-    /// [`Self::ServerIsBusy`], and the time to retry in `data.retry_after_secs`.
+    /// [`Self::ServerIsBusy`], which other refusals share. `data.reason` is
+    /// `simulation_gas_limit_reached`, and `data.retry_after_secs` is the time
+    /// to retry.
     #[error(transparent)]
     SimulationGasLimitReached(#[from] SimulationGasRefusal),
 }
@@ -141,7 +143,8 @@ impl From<Error> for RpcError {
                 ErrorCode::ServerIsBusy.code(),
                 refusal.to_string(),
                 Some(serde_json::json!({
-                    "retry_after_secs": refusal.retry_after().as_secs()
+                    "reason": "simulation_gas_limit_reached",
+                    "retry_after_secs": refusal.retry_after().as_secs(),
                 })),
             )),
             Error::IotaRpcInput(err) => RpcError::Call(ErrorObject::owned::<()>(

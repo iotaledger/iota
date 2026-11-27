@@ -718,8 +718,8 @@ fn transaction_and_kind_bytes(transaction: &iota_sdk_types::Transaction) -> (Bas
 }
 
 /// Asserts that `error` is the refusal of a simulation over its client's gas
-/// limit: `ServerIsBusy`, with the time to retry in the message and in
-/// `data.retry_after_secs`.
+/// limit: `ServerIsBusy` with `data.reason` `simulation_gas_limit_reached`,
+/// and the time to retry in the message and in `data.retry_after_secs`.
 fn assert_simulation_gas_refusal(error: jsonrpsee::core::ClientError) {
     let error = match error {
         jsonrpsee::core::ClientError::Call(error) => error,
@@ -741,6 +741,7 @@ fn assert_simulation_gas_refusal(error: jsonrpsee::core::ClientError) {
         serde_json::from_str(error.data().expect("the refusal has data").get())
             .expect("the data is JSON");
     assert_eq!(data["retry_after_secs"], retry_secs, "{error}");
+    assert_eq!(data["reason"], "simulation_gas_limit_reached", "{error}");
 }
 
 /// Asserts that `error` is the refusal of a simulation while the node runs as
