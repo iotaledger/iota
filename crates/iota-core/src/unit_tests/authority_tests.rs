@@ -1252,6 +1252,7 @@ async fn authority_with_a_simulation_gas_limit() -> Arc<AuthorityState> {
     let computation_limit =
         ProtocolConfig::get_for_max_version_UNSAFE().max_gas_computation_bucket();
     TestAuthorityBuilder::new()
+        .insert_genesis_checkpoint()
         .with_policy_config(PolicyConfig {
             simulation_gas_limit: Some(SimulationGasLimitConfig {
                 gas_per_sec: 1,
@@ -1299,6 +1300,65 @@ async fn a_test_epoch_change_gives_the_simulation_gas_limit_the_new_computation_
     state
         .reconfigure_for_testing_with_protocol_config(next_protocol_config)
         .await;
+
+    assert_eq!(count_held_simulation_gas_reservations(&state, 2), 2);
+}
+
+#[tokio::test]
+async fn an_epoch_change_gives_the_simulation_gas_limit_the_new_computation_limit() {
+    use iota_config::node::ExpensiveSafetyCheckConfig;
+
+    use crate::global_state_hasher::GlobalStateHasher;
+
+    let state = authority_with_a_simulation_gas_limit().await;
+    assert_eq!(count_held_simulation_gas_reservations(&state, 1), 4);
+
+    let epoch_store = state.epoch_store_for_testing().clone();
+    // The epoch change checks that every transaction it executed is in a
+    // checkpoint, so the genesis transactions are finalized first.
+    let checkpoint_store = state.get_checkpoint_store();
+    let genesis_checkpoint = checkpoint_store
+        .get_checkpoint_by_sequence_number(0)
+        .unwrap()
+        .expect("the builder inserted the genesis checkpoint");
+    let genesis_transactions = checkpoint_store
+        .get_checkpoint_contents(&genesis_checkpoint.contents_digest)
+        .unwrap()
+        .expect("the builder inserted the genesis checkpoint contents")
+        .iter()
+        .map(|digests| digests.transaction)
+        .collect::<Vec<_>>();
+    epoch_store
+        .handle_finalized_checkpoint(genesis_checkpoint.data(), &genesis_transactions)
+        .unwrap();
+    let mut next_protocol_config = epoch_store.protocol_config().clone();
+    next_protocol_config.set_max_gas_computation_bucket_for_testing(
+        2 * next_protocol_config.max_gas_computation_bucket(),
+    );
+    let _next_protocol_config =
+        ProtocolConfig::apply_overrides_for_testing(move |_, _| next_protocol_config.clone());
+    let next_committee = Committee::new(
+        epoch_store.epoch() + 1,
+        epoch_store.committee().voting_rights.iter().cloned().collect(),
+    );
+    let state_hasher = Arc::new(GlobalStateHasher::new_for_tests(
+        state.get_global_state_hash_store().clone(),
+    ));
+    state
+        .reconfigure(
+            &epoch_store,
+            SupportedProtocolVersions::SYSTEM_DEFAULT,
+            next_committee,
+            epoch_store.epoch_start_config().new_at_next_epoch_for_testing(),
+            state_hasher,
+            // The state check needs the root state hash that the end of epoch
+            // computes, and this epoch ends without checkpoints.
+            &ExpensiveSafetyCheckConfig::new_disable_all(),
+            0,
+            0,
+        )
+        .await
+        .expect("the epoch changes");
 
     assert_eq!(count_held_simulation_gas_reservations(&state, 2), 2);
 }
