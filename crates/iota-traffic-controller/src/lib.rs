@@ -1046,9 +1046,14 @@ mod tests {
             .reserve_simulation_gas(Some(CLIENT), ClientAccess::Limited)
             .err()
             .expect("the balance is used");
+        // 100 gas is missing. The balance refills by 1 gas per second, so a
+        // stall between the two reservations shortens the wait by as many
+        // seconds.
+        let retry_after_secs = refusal.retry_after().as_secs();
+        assert!((95..=100).contains(&retry_after_secs), "{retry_after_secs}");
         assert_eq!(
             refusal.to_string(),
-            "simulation gas limit reached, retry in 100s"
+            format!("simulation gas limit reached, retry in {retry_after_secs}s")
         );
     }
 
