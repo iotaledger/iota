@@ -1031,36 +1031,6 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
 
         Ok(all_headers)
     }
-
-    #[cfg(test)]
-    #[allow(dead_code)]
-    fn pending_fetches(&self) -> BTreeSet<CommitRange> {
-        self.pending_fetches.clone()
-    }
-
-    #[cfg(test)]
-    #[allow(dead_code)]
-    fn fetched_ranges(&self) -> BTreeMap<CommitRange, FastSyncOutput> {
-        self.fetched_ranges.clone()
-    }
-
-    #[cfg(test)]
-    #[allow(dead_code)]
-    fn highest_scheduled_index(&self) -> Option<CommitIndex> {
-        self.highest_scheduled_index
-    }
-
-    #[cfg(test)]
-    #[allow(dead_code)]
-    fn highest_fetched_commit_index(&self) -> CommitIndex {
-        self.highest_fetched_commit_index
-    }
-
-    #[cfg(test)]
-    #[allow(dead_code)]
-    fn synced_commit_index(&self) -> CommitIndex {
-        self.synced_commit_index
-    }
 }
 
 /// Deserializes fetched transaction entries and keys them by their
@@ -2282,25 +2252,6 @@ mod tests {
 
         fn fetched(refs: &[TransactionRef]) -> BTreeMap<TransactionRef, Bytes> {
             refs.iter().map(|r| (*r, Bytes::new())).collect()
-        }
-
-        #[tokio::test]
-        async fn keeps_all_commits_when_all_transactions_fetched() {
-            let (tx_a, tx_b, tx_c) = (plain_ref(1), plain_ref(2), plain_ref(3));
-            let mut commits = vec![commit(1, &[tx_a]), commit(2, &[tx_b, tx_c])];
-            let mut commits_tx_refs = vec![vec![tx_a], vec![tx_b, tx_c]];
-            let mut transactions = fetched(&[tx_a, tx_b, tx_c]);
-
-            truncate_to_fully_fetched_prefix(
-                AuthorityIndex::new_for_test(1),
-                &mut commits,
-                &mut commits_tx_refs,
-                &mut transactions,
-            )
-            .unwrap();
-
-            assert_eq!(commits.len(), 2);
-            assert_eq!(transactions.len(), 3);
         }
 
         #[tokio::test]

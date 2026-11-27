@@ -25,7 +25,7 @@ use crate::{
     Transaction,
     block_header::{
         BlockHeaderAPI as _, BlockHeaderDigest, BlockRef, CommitmentVerifiedTransactions, Round,
-        TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
+        TransactionsCommitment, VerifiedBlockHeader,
     },
     commit::{CommitAPI as _, CommitDigest, CommitIndex, CommitRange, CommitRef, TrustedCommit},
     error::{ConsensusError, ConsensusResult},
@@ -266,34 +266,6 @@ impl Store for RocksDBStore {
         Ok(())
     }
 
-    fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlock>>> {
-        // Get both headers and transactions for the given references
-        let headers = self.read_verified_block_headers(refs)?;
-        let tx_refs = headers
-            .iter()
-            .map(|vh| {
-                if vh.is_none() {
-                    TransactionRef::default()
-                } else {
-                    vh.as_ref().unwrap().transaction_ref()
-                }
-            })
-            .collect::<Vec<TransactionRef>>();
-        let transactions = self.read_verified_transactions(tx_refs.as_slice())?;
-
-        // Combine them into blocks if both parts exist
-        let mut blocks = Vec::with_capacity(refs.len());
-        for (header, transactions) in headers.into_iter().zip(transactions) {
-            match (header, transactions) {
-                (Some(hdr), Some(txs)) => {
-                    blocks.push(Some(VerifiedBlock::new(hdr, txs)));
-                }
-                _ => blocks.push(None),
-            }
-        }
-        Ok(blocks)
-    }
-
     /// Return Verified Block Headers by reading their entries from storage and
     /// deserializing them
     fn read_verified_block_headers(
@@ -395,17 +367,6 @@ impl Store for RocksDBStore {
         Ok(exist)
     }
 
-    fn contains_block_at_slot(&self, slot: crate::block_header::Slot) -> ConsensusResult<bool> {
-        let found = self
-            .digests_by_authorities
-            .safe_range_iter((
-                Included((slot.authority, slot.round, BlockHeaderDigest::MIN)),
-                Included((slot.authority, slot.round, BlockHeaderDigest::MAX)),
-            ))
-            .next()
-            .is_some();
-        Ok(found)
-    }
     fn scan_block_references_by_author(
         &self,
         author: AuthorityIndex,
@@ -442,66 +403,6 @@ impl Store for RocksDBStore {
                 })
             })
             .collect()
-    }
-
-    fn scan_blocks_by_author(
-        &self,
-        author: AuthorityIndex,
-        start_round: Round,
-    ) -> ConsensusResult<Vec<VerifiedBlock>> {
-        let mut refs = vec![];
-        for kv in self.digests_by_authorities.safe_range_iter((
-            Included((author, start_round, BlockHeaderDigest::MIN)),
-            Included((author, Round::MAX, BlockHeaderDigest::MAX)),
-        )) {
-            let ((author, round, digest), _) = kv?;
-            refs.push(BlockRef::new(round, author, digest));
-        }
-        let results = self.read_blocks(refs.as_slice())?;
-        let mut blocks = Vec::with_capacity(refs.len());
-        for (r, block) in refs.into_iter().zip(results) {
-            blocks.push(
-                block.unwrap_or_else(|| panic!("Storage inconsistency: block {r:?} not found!")),
-            );
-        }
-        Ok(blocks)
-    }
-
-    // The method returns the last `num_of_rounds` rounds blocks by author in round
-    // ascending order. When a `before_round` is defined then the blocks of
-    // round `<=before_round` are returned. If not then the max value for round
-    // will be used as cut off.
-    fn scan_last_blocks_by_author(
-        &self,
-        author: AuthorityIndex,
-        num_of_rounds: u64,
-        before_round: Option<Round>,
-    ) -> ConsensusResult<Vec<VerifiedBlock>> {
-        let before_round = before_round.unwrap_or(Round::MAX);
-        let mut refs = std::collections::VecDeque::new();
-        for kv in self
-            .digests_by_authorities
-            .safe_range_iter_reversed(
-                (author, Round::MIN, BlockHeaderDigest::MIN)
-                    ..=(author, before_round, BlockHeaderDigest::MAX),
-            )
-            .take(num_of_rounds as usize)
-        {
-            let ((author, round, digest), _) = kv?;
-            refs.push_front(BlockRef::new(round, author, digest));
-        }
-        // Use make_contiguous() rather than as_slices().0 so all refs are read
-        // when the VecDeque ring buffer wraps; otherwise trailing entries would
-        // be silently dropped.
-        let refs_slice = refs.make_contiguous();
-        let results = self.read_blocks(refs_slice)?;
-        let mut blocks = vec![];
-        for (r, block) in refs.into_iter().zip(results) {
-            blocks.push(
-                block.unwrap_or_else(|| panic!("Storage inconsistency: block {r:?} not found!")),
-            );
-        }
-        Ok(blocks)
     }
 
     fn scan_misbehavior_counts(

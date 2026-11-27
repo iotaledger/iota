@@ -461,20 +461,12 @@ impl BlockSuspender {
             .set(self.headers_to_fetch.len() as i64);
     }
     #[cfg(test)]
-    pub(crate) fn blocks_to_fetch_len(&self) -> usize {
-        self.headers_to_fetch.len()
-    }
-    #[cfg(test)]
     pub(crate) fn insert_block_to_fetch(
         &mut self,
         block_ref: BlockRef,
         set: BTreeSet<AuthorityIndex>,
     ) -> Option<BTreeSet<AuthorityIndex>> {
         self.headers_to_fetch.insert(block_ref, set)
-    }
-    #[cfg(test)]
-    pub(crate) fn set_missing_ancestors_with_no_children(&mut self, block_ref: BlockRef) {
-        self.missing_ancestors.entry(block_ref).or_default();
     }
     #[cfg(test)]
     pub(crate) fn suspended_blocks_refs(&self) -> BTreeSet<BlockRef> {

@@ -154,11 +154,6 @@ impl InflightTransactionsMap {
             sync_method,
         })
     }
-
-    #[cfg(test)]
-    fn num_of_locked_transactions(&self) -> usize {
-        self.inner.lock().fetching_peers.len()
-    }
 }
 
 /// Holds the transactions locked for one request to `peer`; releases them and
@@ -1366,7 +1361,7 @@ mod tests {
         drop(guard);
         drop(all_guards);
 
-        assert_eq!(map.num_of_locked_transactions(), 0);
+        assert!(map.inner.lock().fetching_peers.is_empty());
         assert!(
             map.inner
                 .lock()

@@ -8,12 +8,8 @@ use std::{
 };
 
 use iota_metrics::monitored_scope;
-#[cfg(test)]
-use itertools::Itertools as _;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
-#[cfg(test)]
-use tracing::trace;
 
 /// Block Suspender is a private module unless under test.
 #[cfg(not(test))]
@@ -374,70 +370,6 @@ impl BlockManager {
             .block_manager_suspended_blocks
             .set(self.suspended_transactions.len() as i64);
         all_accepted_transactions
-    }
-
-    /// Tries to find the provided block_refs in DagState and BlockManager,
-    /// and returns missing block refs. Used to test behavior in case of
-    /// equivocation.
-    #[cfg(test)]
-    pub(crate) fn try_find_blocks(&mut self, block_refs: Vec<BlockRef>) -> BTreeSet<BlockRef> {
-        let _s = monitored_scope("BlockManager::try_find_blocks");
-
-        let mut block_refs = block_refs;
-
-        if block_refs.is_empty() {
-            return BTreeSet::new();
-        }
-
-        block_refs.sort_by_key(|b| b.round);
-
-        trace!(
-            "Trying to find blocks: {}",
-            block_refs.iter().map(|b| b.to_string()).join(",")
-        );
-
-        let mut blocks_to_fetch = BTreeSet::new();
-
-        for (found, block_ref) in self
-            .dag_state
-            .read()
-            .contains_block_headers(block_refs.clone())
-            .into_iter()
-            .zip(block_refs.iter())
-        {
-            if found || self.block_suspender.is_block_ref_suspended(block_ref) {
-                continue;
-            }
-            // Fetches the block if it is not in dag state or suspended.
-            blocks_to_fetch.insert(*block_ref);
-            if self
-                .block_suspender
-                .insert_block_to_fetch(*block_ref, BTreeSet::from([block_ref.author]))
-                .is_none()
-            {
-                // We want to report this as a missing ancestor even if there is no block that
-                // is actually references it right now.
-                self.block_suspender
-                    .set_missing_ancestors_with_no_children(*block_ref);
-
-                self.context
-                    .metrics
-                    .node_metrics
-                    .block_manager_missing_block_headers_by_authority
-                    .with_label_values(&[self.context.authority_hostname(block_ref.author)])
-                    .inc();
-            }
-        }
-
-        let metrics = &self.context.metrics.node_metrics;
-        metrics
-            .missing_block_headers_total
-            .inc_by(blocks_to_fetch.len() as u64);
-        metrics
-            .block_manager_missing_block_headers
-            .set(self.block_suspender.blocks_to_fetch_len() as i64);
-
-        blocks_to_fetch
     }
 
     fn update_block_received_metrics(&mut self, block: &VerifiedBlockHeader) {
@@ -966,161 +898,6 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn accept_blocks_with_timestamp_variations() {
-        let (context, _key_pairs) = Context::new_for_test(4);
-        let context = Arc::new(context);
-
-        // create a DAG of rounds 1 ~ 5.
-        let mut dag_builder = DagBuilder::new(context.clone());
-        dag_builder.layer(1).build();
-        // Set a timestamp delay on layer 2. With median-based timestamp,
-        // blocks are no longer rejected for timestamp violations.
-        dag_builder
-            .layer(2)
-            .configure_timestamp_delay_ms(5000)
-            .build();
-        dag_builder.layers(3..=5).build();
-
-        let all_block_headers = dag_builder
-            .block_headers
-            .values()
-            .cloned()
-            .collect::<Vec<_>>();
-
-        // Create BlockManager.
-        let store = Arc::new(MemStore::new());
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
-        let mut block_manager = BlockManager::new(context, dag_state);
-        // Try to accept blocks from round 2 ~ 5 into block manager. All of them should
-        // be suspended.
-        let (accepted_block_headers, missing_refs) = block_manager.try_accept_block_headers(
-            all_block_headers
-                .iter()
-                .filter(|block_header| block_header.round() > 1)
-                .cloned()
-                .collect(),
-            DataSource::Test,
-        );
-        // Missing refs should all come from round 1.
-        assert!(accepted_block_headers.is_empty());
-        assert_eq!(missing_refs.len(), 4);
-        missing_refs.iter().for_each(|missing_ref| {
-            assert_eq!(missing_ref.round, 1);
-        });
-
-        // Now add round 1 blocks into block manager.
-        let (accepted_block_headers, missing_refs) = block_manager.try_accept_block_headers(
-            all_block_headers
-                .iter()
-                .filter(|block_header| block_header.round() == 1)
-                .cloned()
-                .collect(),
-            DataSource::Test,
-        );
-        // With median-based timestamp, all blocks should be accepted regardless of
-        // timestamp violations.
-        assert_eq!(accepted_block_headers.len(), 20); // 4 blocks * 5 rounds
-        assert!(missing_refs.is_empty());
-        assert!(block_manager.suspended_blocks_refs().is_empty());
-    }
-
-    #[tokio::test]
-    async fn try_find_blocks() {
-        // GIVEN
-        let (context, _key_pairs) = Context::new_for_test(4);
-        let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
-
-        let mut block_manager = BlockManager::new(context.clone(), dag_state);
-
-        // create a DAG
-        let mut dag_builder = DagBuilder::new(context);
-        dag_builder
-            .layers(1..=2) // 2 rounds
-            .authorities(vec![
-                AuthorityIndex::new_for_test(0),
-                AuthorityIndex::new_for_test(2),
-            ]) // Create equivocating blocks for 2 authorities
-            .equivocate(3)
-            .build();
-
-        // Take only the blocks of round 2 and try to accept them
-        let round_2_block_headers = dag_builder
-            .block_headers
-            .values()
-            .filter_map(|block_headers| {
-                (block_headers.round() == 2).then_some(block_headers.clone())
-            })
-            .collect::<Vec<VerifiedBlockHeader>>();
-
-        // All blocks should be missing
-        let missing_block_refs_from_find = block_manager.try_find_blocks(
-            round_2_block_headers
-                .iter()
-                .map(|b| b.reference())
-                .collect(),
-        );
-        assert_eq!(missing_block_refs_from_find.len(), 10);
-        assert!(
-            missing_block_refs_from_find
-                .iter()
-                .all(|block_ref| block_ref.round == 2)
-        );
-
-        // Try to accept blocks which will cause blocks to be suspended and added to
-        // missing in block manager.
-        let (accepted_blocks_headers, missing) =
-            block_manager.try_accept_block_headers(round_2_block_headers.clone(), DataSource::Test);
-        assert!(accepted_blocks_headers.is_empty());
-
-        let missing_block_refs = round_2_block_headers.first().unwrap().ancestors();
-        let missing_block_refs_from_accept =
-            missing_block_refs.iter().cloned().collect::<BTreeSet<_>>();
-        assert_eq!(missing, missing_block_refs_from_accept);
-        assert_eq!(
-            block_manager.blocks_to_fetch_refs(),
-            missing_block_refs_from_accept
-        );
-
-        // No blocks should be accepted and block manager should have made note
-        // of the missing & suspended blocks.
-        // Now we can check get the result of try to find block with all the blocks
-        // from newly created but not accepted round 3.
-        dag_builder.layer(3).build();
-
-        let round_3_block_headers = dag_builder
-            .block_headers
-            .values()
-            .filter_map(|block_header| {
-                (block_header.round() == 3).then_some(block_header.reference())
-            })
-            .collect::<Vec<BlockRef>>();
-
-        let missing_block_refs_from_find = block_manager.try_find_blocks(
-            round_2_block_headers
-                .iter()
-                .map(|b| b.reference())
-                .chain(round_3_block_headers.into_iter())
-                .collect(),
-        );
-
-        assert_eq!(missing_block_refs_from_find.len(), 4);
-        assert!(
-            missing_block_refs_from_find
-                .iter()
-                .all(|block_ref| block_ref.round == 3)
-        );
-        assert_eq!(
-            block_manager.blocks_to_fetch_refs(),
-            missing_block_refs_from_accept
-                .into_iter()
-                .chain(missing_block_refs_from_find.into_iter())
-                .collect()
-        );
-    }
-
     /// Test that verifies the scenario where:
     /// 1. A header without transactions is added first and gets accepted
     /// 2. Later the full block with transactions is added
@@ -1466,45 +1243,6 @@ mod tests {
                 source.as_str()
             );
         }
-    }
-
-    /// The future-round bound also covers the full-block path, where a dropped
-    /// block takes its transactions with it.
-    #[tokio::test]
-    async fn drops_far_future_blocks() {
-        use gc_eviction_helpers::*;
-
-        let (context, _) = Context::new_for_test(4);
-        let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
-        let peer_hostname = test_peer_hostname(&context);
-
-        let far_round = context.parameters.far_future_round_ceiling(0) + 1;
-        let h = header(far_round, 1, vec![block_ref(far_round - 1, 0)]);
-        let txs =
-            CommitmentVerifiedTransactions::new_for_test(&h, vec![Transaction::new(vec![1u8; 16])]);
-        let block = VerifiedBlock::new(h, txs);
-
-        let kept = drop_far_future(
-            &context,
-            &dag_state,
-            vec![block],
-            DataSource::BlockStreaming,
-            &peer_hostname,
-            |b| b.round(),
-        );
-
-        assert!(kept.is_empty(), "far-future block must be dropped");
-        assert_eq!(
-            context
-                .metrics
-                .node_metrics
-                .dropped_far_future_headers_total
-                .with_label_values(&[DataSource::BlockStreaming.as_str(), &peer_hostname])
-                .get(),
-            1
-        );
     }
 
     /// A full block whose own round is at or below the GC floor must not be

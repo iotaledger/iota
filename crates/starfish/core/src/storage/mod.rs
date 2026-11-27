@@ -17,7 +17,7 @@ use starfish_config::AuthorityIndex;
 use crate::{
     CommitIndex,
     block_header::{
-        BlockRef, CommitmentVerifiedTransactions, Round, TransactionsCommitment, VerifiedBlock,
+        BlockRef, CommitmentVerifiedTransactions, Round, TransactionsCommitment,
         VerifiedBlockHeader,
     },
     commit::{CommitDigest, CommitInfo, CommitRange, CommitRef, TrustedCommit},
@@ -30,10 +30,6 @@ use crate::{
 pub(crate) trait Store: Send + Sync {
     /// Writes blocks, consensus commits and other data to store atomically.
     fn write(&self, write_batch: WriteBatch) -> ConsensusResult<()>;
-
-    /// Reads complete blocks by combining transactions and headers for the
-    /// given refs.
-    fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlock>>>;
 
     /// Read and get verified block headers for the given refs.
     fn read_verified_block_headers(
@@ -64,30 +60,6 @@ pub(crate) trait Store: Send + Sync {
 
     /// Checks if block headers exist in the store.
     fn contains_block_headers(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<bool>>;
-
-    /// Checks whether there is any block at the given slot
-    #[allow(dead_code)]
-    fn contains_block_at_slot(&self, slot: crate::block_header::Slot) -> ConsensusResult<bool>;
-
-    /// Reads blocks for an authority, from start_round.
-    #[expect(dead_code)]
-    fn scan_blocks_by_author(
-        &self,
-        authority: AuthorityIndex,
-        start_round: Round,
-    ) -> ConsensusResult<Vec<VerifiedBlock>>;
-
-    // The method returns the last `num_of_rounds` rounds blocks by author in round
-    // ascending order. When a `before_round` is defined then the blocks of
-    // round `<=before_round` are returned. If not then the max value for round
-    // will be used as cut off.
-    #[cfg_attr(not(test), expect(dead_code))]
-    fn scan_last_blocks_by_author(
-        &self,
-        author: AuthorityIndex,
-        num_of_rounds: u64,
-        before_round: Option<Round>,
-    ) -> ConsensusResult<Vec<VerifiedBlock>>;
 
     fn scan_block_references_by_author(
         &self,

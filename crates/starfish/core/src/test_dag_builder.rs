@@ -749,9 +749,6 @@ pub struct LayerBuilder<'a> {
     // timestamp and the round will be added to make sure that timestamps do offset.
     timestamps: Vec<BlockTimestampMs>,
 
-    // add timestamp delay
-    timestamp_delay_ms: Option<u64>,
-
     // Accumulated blocks to write to dag state
     block_headers: Vec<VerifiedBlockHeader>,
     pub(crate) transactions: Vec<CommitmentVerifiedTransactions>,
@@ -784,7 +781,6 @@ impl<'a> LayerBuilder<'a> {
             skip_acknowledgements: None,
             only_acknowledge: None,
             random_acknowledgment_percentage: None,
-            timestamp_delay_ms: None,
             ancestors,
             timestamps: vec![],
             block_headers: vec![],
@@ -983,11 +979,6 @@ impl<'a> LayerBuilder<'a> {
         for transactions in self.transactions.clone() {
             dag_state.add_transactions(transactions, DataSource::Test);
         }
-    }
-
-    pub fn configure_timestamp_delay_ms(mut self, timestamp_delay_ms: u64) -> Self {
-        self.timestamp_delay_ms = Some(timestamp_delay_ms);
-        self
     }
 
     // Layer round is minimally and randomly connected with ancestors: each block
@@ -1307,15 +1298,13 @@ impl<'a> LayerBuilder<'a> {
         if let Some(specified_authorities) = &self.specified_authorities {
             if !self.timestamps.is_empty() {
                 if let Some(position) = specified_authorities.iter().position(|&x| x == authority) {
-                    return self.timestamps[position]
-                        + (round + num_block) as u64
-                        + self.timestamp_delay_ms.unwrap_or_default();
+                    return self.timestamps[position] + (round + num_block) as u64;
                 }
             }
         }
         let author = authority.value() as u32;
         let base_ts = round as BlockTimestampMs * 1000;
-        base_ts + (author + round + num_block) as u64 + self.timestamp_delay_ms.unwrap_or_default()
+        base_ts + (author + round + num_block) as u64
     }
 
     fn should_skip_block(&self, round: Round, authority: AuthorityIndex) -> bool {
