@@ -474,10 +474,10 @@ mod tests {
         module.into()
     }
 
-    /// A gas limit of 100 with the computation cap of
-    /// [`router_with_policy_config_and_methods`], so that one held reservation
-    /// takes the whole balance, and an error policy that blocks a client on its
-    /// first error.
+    /// A gas limit of 100, equal to the computation limit of one transaction
+    /// that [`router_with_policy_config_and_methods`] sets, so that one held
+    /// reservation takes the whole balance, and an error policy that blocks a
+    /// client on its first error.
     fn gas_limited(access_rules: AccessRules) -> PolicyConfig {
         PolicyConfig {
             error_policy_type: PolicyType::TestNConnIP(1),

@@ -434,18 +434,19 @@ async fn test_fullnode_simulation_gas_limit() -> Result<(), anyhow::Error> {
 /// A fullnode charges a client's JSON-RPC dry runs, dev inspects and view
 /// calls to the client's simulation gas balance, which its gRPC simulations
 /// share, at the gas price the simulation ran with. It refuses them with
-/// `ServerIsBusy` once the balance is below the computation cap of one
+/// `ServerIsBusy` once the balance is below the computation limit of one
 /// transaction, and still serves the client's other requests.
 #[tokio::test]
 async fn test_fullnode_json_rpc_simulation_gas_limit() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
-    let computation_cap = ProtocolConfig::get_for_max_version_UNSAFE().max_gas_computation_bucket();
+    let computation_limit =
+        ProtocolConfig::get_for_max_version_UNSAFE().max_gas_computation_bucket();
     let policy_config = PolicyConfig {
-        // Room for two reservations of the cap. It refills too slowly to
-        // matter here.
+        // Room for two reservations of the computation limit. It refills too
+        // slowly to matter here.
         simulation_gas_limit: Some(SimulationGasLimitConfig {
             gas_per_sec: 1,
-            burst_gas: 2 * computation_cap,
+            burst_gas: 2 * computation_limit,
         }),
         // A refusal must not feed the error policy.
         error_policy_type: PolicyType::TestNConnIP(1),
@@ -504,8 +505,8 @@ async fn test_fullnode_json_rpc_simulation_gas_limit() -> Result<(), anyhow::Err
 
     // A view call and a dev inspect leave the gas price to the simulation.
     // Each is charged the little it used at that price, so the balance stays
-    // above the cap for the dry run. A charge of the whole cap would leave too
-    // little for it.
+    // above the computation limit for the dry run. A charge of the whole
+    // computation limit would leave too little for it.
     let results: IotaMoveViewCallResults = jsonrpc_client
         .request("iota_view", view_call.clone())
         .await
@@ -532,7 +533,7 @@ async fn test_fullnode_json_rpc_simulation_gas_limit() -> Result<(), anyhow::Err
         .iota_node
         .state()
         .reconfigure_traffic_control(TrafficControlReconfigParams {
-            simulation_burst_gas: Some(computation_cap),
+            simulation_burst_gas: Some(computation_limit),
             ..Default::default()
         })
         .await?;
@@ -563,7 +564,7 @@ async fn test_fullnode_json_rpc_simulation_gas_limit() -> Result<(), anyhow::Err
             rpc_params![transaction_bytes],
         )
         .await
-        .expect_err("the dry run left the balance below the cap");
+        .expect_err("the dry run left the balance below the computation limit");
     assert_eq!(busy(error), server_is_busy);
     let error = jsonrpc_client
         .request::<DevInspectResults, _>(
