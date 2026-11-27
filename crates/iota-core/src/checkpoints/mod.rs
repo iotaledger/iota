@@ -3744,7 +3744,6 @@ mod tests {
         ops::Deref,
     };
 
-    use fastcrypto::traits::KeyPair as _;
     use futures::{FutureExt as _, future::BoxFuture};
     use iota_macros::sim_test;
     use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
@@ -4201,7 +4200,7 @@ mod tests {
                     summary.epoch,
                     summary.clone(),
                     key,
-                    key.public().into(),
+                    key.into(),
                 ),
             }
         };

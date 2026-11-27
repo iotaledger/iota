@@ -31,7 +31,6 @@ passkey-client.workspace = true
 passkey-types.workspace = true
 prost-types.workspace = true
 rand.workspace = true
-rand08.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true

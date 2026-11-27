@@ -17,7 +17,6 @@ use std::path::{Path, PathBuf};
 
 use anyhow::bail;
 use clap::*;
-use fastcrypto::traits::{KeyPair, ToFromBytes};
 use iota_config::{
     Config, NodeConfig, PersistedConfig, local_ip_utils,
     node::{AuthorityKeyPairWithPath, KeyPairWithPath},
@@ -139,7 +138,7 @@ async fn update_next_epoch_metadata(
 
     // authority key
     let new_authority_key_pair = get_authority_key_pair().1;
-    let new_authority_key_pair_copy = new_authority_key_pair.copy();
+    let new_authority_key_pair_copy = new_authority_key_pair.clone();
     let pop = generate_proof_of_possession(&new_authority_key_pair, iota_address);
     new_config.authority_key_pair = AuthorityKeyPairWithPath::new(new_authority_key_pair);
 
@@ -216,8 +215,8 @@ async fn update_next_epoch_metadata(
         account_key,
         "update_validator_next_epoch_authority_pubkey",
         vec![
-            CallArg::pure(&new_authority_key_pair_copy.public().as_bytes().to_vec()),
-            CallArg::pure(&pop.as_bytes().to_vec()),
+            CallArg::pure(&new_authority_key_pair_copy.public_key().bytes().to_vec()),
+            CallArg::pure(&pop.bytes().to_vec()),
         ],
         iota_client,
     )

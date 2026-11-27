@@ -5,10 +5,7 @@
 use std::path::PathBuf;
 
 use anyhow::{anyhow, bail};
-use fastcrypto::{
-    encoding::{Base64, Encoding, Hex},
-    traits::EncodeDecodeBase64,
-};
+use fastcrypto::encoding::{Base64, Encoding, Hex};
 use iota_sdk_crypto::{
     ToFromBase64, ToFromBech32, ToFromBytes as _, secp256k1::Secp256k1PrivateKey,
     simple::SimpleKeypair,
@@ -31,7 +28,7 @@ pub fn write_authority_keypair_to_file<P: AsRef<std::path::Path>>(
     keypair: &AuthorityKeyPair,
     path: P,
 ) -> anyhow::Result<()> {
-    let contents = keypair.encode_base64();
+    let contents = keypair.to_base64();
     std::fs::write(path, contents)?;
     Ok(())
 }
@@ -41,7 +38,7 @@ pub fn read_authority_keypair_from_file<P: AsRef<std::path::Path>>(
     path: P,
 ) -> anyhow::Result<AuthorityKeyPair> {
     let contents = std::fs::read_to_string(path)?;
-    AuthorityKeyPair::decode_base64(contents.as_str().trim()).map_err(|e| anyhow!(e))
+    AuthorityKeyPair::from_base64(contents.as_str().trim()).map_err(|e| anyhow!(e))
 }
 
 /// Read from file as Bech32 encoded `flag || privkey` and return a
