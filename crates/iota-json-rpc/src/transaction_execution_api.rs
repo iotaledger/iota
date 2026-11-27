@@ -53,7 +53,7 @@ use tracing::{Instrument, instrument};
 use crate::{
     IotaRpcModule, ObjectProviderCache,
     authority_state::StateRead,
-    axum_router::SimulationGasHandle,
+    axum_router::reserve_simulation_gas,
     error::{Error, IotaRpcInputError},
     get_balance_changes_from_effect, get_object_changes,
     logger::FutureWithTracing,
@@ -694,21 +694,6 @@ impl WriteApiServer for TransactionExecutionApi {
     ) -> RpcResult<DryRunTransactionBlockResponse> {
         self.dry_run_transaction_block(ext, tx_bytes).trace().await
     }
-}
-
-/// Reserves gas for one simulation of the request's client. Refused while the
-/// client is over its simulation gas limit. `None` when the request has no gas
-/// limit: traffic control is off, no simulation gas limit is set, an allow
-/// rule serves the client, or the extensions carry no handle.
-pub(crate) fn reserve_simulation_gas(
-    ext: &Extensions,
-) -> Result<Option<SimulationGasReservation>, Error> {
-    let Some(handle) = ext.get::<SimulationGasHandle>() else {
-        return Ok(None);
-    };
-    handle
-        .reserve()
-        .map_err(|refusal| Error::ServerIsBusy(refusal.to_string()))
 }
 
 /// Charges the client for what `simulation` cost. A simulation that fails

@@ -32,7 +32,7 @@ use jsonrpsee::{
 use serde_json::value::RawValue;
 use tracing::error;
 
-use crate::{logger::Logger, routing_layer::RpcRouter};
+use crate::{error::Error, logger::Logger, routing_layer::RpcRouter};
 
 pub const MAX_RESPONSE_SIZE: u32 = 2 << 30;
 const TOO_MANY_REQUESTS_MSG: &str = "Too many requests";
@@ -73,7 +73,7 @@ impl<L> JsonRpcService<L> {
 /// client's simulation gas balance. It carries the client of the request and
 /// what the traffic controller decided for it.
 #[derive(Clone)]
-pub(crate) struct SimulationGasHandle {
+struct SimulationGasHandle {
     traffic_controller: Arc<TrafficController>,
     client: Option<IpAddr>,
     access: ClientAccess,
@@ -82,10 +82,25 @@ pub(crate) struct SimulationGasHandle {
 impl SimulationGasHandle {
     /// Reserves gas for one simulation, as
     /// [`TrafficController::reserve_simulation_gas`] does.
-    pub(crate) fn reserve(&self) -> Result<Option<SimulationGasReservation>, SimulationGasRefusal> {
+    fn reserve(&self) -> Result<Option<SimulationGasReservation>, SimulationGasRefusal> {
         self.traffic_controller
             .reserve_simulation_gas(self.client, self.access)
     }
+}
+
+/// Reserves gas for one simulation of the request's client. Refused while the
+/// client is over its simulation gas limit. `None` when the request has no gas
+/// limit: traffic control is off, no simulation gas limit is set, an allow
+/// rule serves the client, or the extensions carry no handle.
+pub(crate) fn reserve_simulation_gas(
+    ext: &Extensions,
+) -> Result<Option<SimulationGasReservation>, Error> {
+    let Some(handle) = ext.get::<SimulationGasHandle>() else {
+        return Ok(None);
+    };
+    handle
+        .reserve()
+        .map_err(|refusal| Error::ServerIsBusy(refusal.to_string()))
 }
 
 impl<L: Logger> JsonRpcService<L> {
@@ -312,7 +327,9 @@ mod tests {
     use jsonrpsee::{Extensions, core::server::Methods, types::ErrorCode};
     use tower::ServiceExt;
 
-    use super::{JsonRpcService, TOO_MANY_REQUESTS_MSG, json_rpc_handler, normalize};
+    use super::{
+        JsonRpcService, TOO_MANY_REQUESTS_MSG, json_rpc_handler, normalize, reserve_simulation_gas,
+    };
     use crate::routing_layer::RpcRouter;
 
     const CLIENT: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9000);
@@ -448,7 +465,7 @@ mod tests {
         let mut module = jsonrpsee::RpcModule::new(());
         module
             .register_method("test_simulate", |_, _, ext| {
-                crate::transaction_execution_api::reserve_simulation_gas(ext)
+                reserve_simulation_gas(ext)
                     .map(|reservation| reservation.is_some())
                     .map_err(jsonrpsee::core::ClientError::from)
                     .map_err(iota_json_rpc_api::error_object_from_rpc)
