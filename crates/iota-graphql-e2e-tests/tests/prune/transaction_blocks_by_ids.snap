@@ -128,8 +128,8 @@ Response: {
         }
       ],
       "pageInfo": {
-        "endCursor": "eyJjIjo5LCJ0Ijo4LCJpIjpmYWxzZX0",
-        "startCursor": "eyJjIjo5LCJ0Ijo2LCJpIjpmYWxzZX0"
+        "endCursor": "eyJjIjo5LCJ0Ijo4fQ",
+        "startCursor": "eyJjIjo5LCJ0Ijo2fQ"
       }
     }
   }

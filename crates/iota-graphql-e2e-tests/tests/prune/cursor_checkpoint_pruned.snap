@@ -116,7 +116,7 @@ Response: {
         }
       ],
       "pageInfo": {
-        "startCursor": "eyJjIjoxMCwidCI6NywiaSI6ZmFsc2V9"
+        "startCursor": "eyJjIjoxMCwidCI6N30"
       }
     }
   }

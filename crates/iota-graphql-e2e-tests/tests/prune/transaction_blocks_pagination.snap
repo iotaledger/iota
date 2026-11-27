@@ -1,7 +1,7 @@
 ---
 source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
 ---
-processed 24 tasks
+processed 23 tasks
 
 init:
 A: object(0,0), B: object(0,1)
@@ -272,28 +272,4 @@ Response: {
       }
     }
   ]
-}
-
-task 23, lines 124-133:
-//# run-graphql
-Response: {
-  "data": {
-    "transactionBlocks": {
-      "nodes": [
-        {
-          "digest": "AdhXLxRHeWpRMVc5eQUZ3D4t9vFbQUnre9uQYp4Jidyj"
-        },
-        {
-          "digest": "DqfAehDoUapzpCYwh6HjJDhGWj6TAxsDZeYg7MfdTxEM"
-        }
-      ],
-      "oldestAvailableCheckpoint": 7,
-      "pageInfo": {
-        "endCursor": "eyJjIjoxMCwidCI6NywiaSI6dHJ1ZX0",
-        "hasNextPage": true,
-        "hasPreviousPage": false,
-        "startCursor": "eyJjIjoxMCwidCI6NiwiaSI6dHJ1ZX0"
-      }
-    }
-  }
 }

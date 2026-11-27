@@ -42,7 +42,7 @@ use crate::{
         big_int::BigInt,
         coin::Coin,
         coin_metadata::CoinMetadata,
-        cursor::{self, Page, RawPaginated, ScanLimited, Target},
+        cursor::{self, Page, RawPaginated, Target},
         digest::Digest,
         display::{Display, DisplayEntry},
         dynamic_field::{DynamicField, DynamicFieldName},
@@ -289,11 +289,6 @@ pub(crate) struct HistoricalObjectCursor {
         arg(name = "last", ty = "Option<u64>"),
         arg(name = "before", ty = "Option<transaction_block::Cursor>"),
         arg(name = "filter", ty = "Option<TransactionBlockFilter>"),
-        arg(
-            name = "scan_limit",
-            ty = "Option<u64>",
-            deprecation = "`scanLimit` will be removed with v1.38, along with the support for combining complex filters."
-        ),
         ty = "TransactionBlockConnection",
         desc = "The transaction blocks that sent objects to this object."
     ),
@@ -501,35 +496,6 @@ impl Object {
     }
 
     /// The transaction blocks that sent objects to this object.
-    ///
-    /// `scanLimit` restricts the number of candidate transactions scanned when
-    /// gathering a page of results. It is required for queries that apply two
-    /// or more complex filters (on function, affected address, recipient, input
-    /// object, changed object, or wrapped or deleted object), and can be at
-    /// most `serviceConfig.maxScanLimit`. A `kind` filter cannot be
-    /// combined with any of them.
-    ///
-    /// When the scan limit is reached the page will be returned even if it has
-    /// fewer than `first` results when paginating forward (`last` when
-    /// paginating backwards). If there are more transactions to scan,
-    /// `pageInfo.hasNextPage` (or `pageInfo.hasPreviousPage`) will be set to
-    /// `true`, and `PageInfo.endCursor` (or `PageInfo.startCursor`) will be set
-    /// to the last transaction that was scanned as opposed to the last (or
-    /// first) transaction in the page.
-    ///
-    /// Requesting the next (or previous) page after this cursor will resume the
-    /// search, scanning the next `scanLimit` many transactions in the
-    /// direction of pagination, and so on until all transactions in the
-    /// scanning range have been visited.
-    ///
-    /// By default, the scanning range includes all transactions known to
-    /// GraphQL, but it can be restricted by the `after` and `before`
-    /// cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
-    /// `atCheckpoint` filters.
-    ///
-    /// DEPRECATION NOTICE: Support for the combination of two or more complex
-    /// filters as discussed above will stop with the v1.38 release. `scanLimit`
-    /// will thus become obsolete and will be removed as well.
     #[graphql(
         complexity = "first.or(last).unwrap_or(DEFAULT_PAGE_SIZE as u64) as usize * child_complexity"
     )]
@@ -541,13 +507,9 @@ impl Object {
         last: Option<u64>,
         before: Option<transaction_block::Cursor>,
         filter: Option<TransactionBlockFilter>,
-        #[graphql(
-            deprecation = "`scanLimit` will be removed with v1.38, along with the support for combining complex filters."
-        )]
-        scan_limit: Option<u64>,
     ) -> Result<TransactionBlockConnection> {
         ObjectImpl(self)
-            .received_transaction_blocks(ctx, first, after, last, before, filter, scan_limit)
+            .received_transaction_blocks(ctx, first, after, last, before, filter)
             .await
     }
 
@@ -701,7 +663,6 @@ impl ObjectImpl<'_> {
         last: Option<u64>,
         before: Option<transaction_block::Cursor>,
         filter: Option<TransactionBlockFilter>,
-        scan_limit: Option<u64>,
     ) -> Result<TransactionBlockConnection> {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
 
@@ -712,10 +673,14 @@ impl ObjectImpl<'_> {
                 ..Default::default()
             })
         else {
-            return Ok(TransactionBlockConnection::new(false, false));
+            return Ok(Connection::with_additional_fields(
+                false,
+                false,
+                Default::default(),
+            ));
         };
 
-        TransactionBlock::paginate(ctx, page, filter, self.0.checkpoint_viewed_at, scan_limit)
+        TransactionBlock::paginate(ctx, page, filter, self.0.checkpoint_viewed_at)
             .await
             .extend()
     }
@@ -1300,8 +1265,6 @@ impl Checkpointed for Cursor {
         self.checkpoint_viewed_at.into()
     }
 }
-
-impl ScanLimited for Cursor {}
 
 /// Query-result struct for the backward diff read path. Used by
 /// `build_backward_objects_query` which unions `checkpointed_objects` and

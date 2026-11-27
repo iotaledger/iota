@@ -32,7 +32,7 @@ query {
   affectedBoth: transactionBlocks(filter: { affectedAddress: "@{B}" }) {
     nodes { digest }
   }
-  combinedWithKind: transactionBlocks(filter: { affectedAddress: "@{B}", kind: PROGRAMMABLE_TX }, scanLimit: 10) {
+  combinedWithKind: transactionBlocks(filter: { affectedAddress: "@{B}", kind: PROGRAMMABLE_TX }) {
     nodes { digest }
   }
   combinedWithSent: transactionBlocks(filter: { affectedAddress: "@{B}", sentAddress: "@{B}" }) {

@@ -198,8 +198,6 @@ pub struct Limits {
     /// Maximum number of transaction ids that can be passed to a
     /// `TransactionBlockFilter` or to `transactions_by_digests`.
     pub max_transaction_ids: u32,
-    /// Maximum number of candidates to scan when gathering a page of results.
-    pub max_scan_limit: u32,
     /// Maximum number of checkpoints a subscription may replay from the
     /// database when resuming from `startAfter`, measured as the difference
     /// between the sequence number of the latest indexed checkpoint and that
@@ -430,11 +428,6 @@ impl ServiceConfig {
     async fn max_transaction_ids(&self) -> Result<i32> {
         try_into_int(self.limits.max_transaction_ids).extend()
     }
-
-    /// Maximum number of candidates to scan when gathering a page of results.
-    async fn max_scan_limit(&self) -> Result<i32> {
-        try_into_int(self.limits.max_scan_limit).extend()
-    }
 }
 
 impl ConnectionConfig {
@@ -604,7 +597,6 @@ impl Default for Limits {
             // Filter-specific limits, such as the number of transaction ids that can be specified
             // for the `TransactionBlockFilter`.
             max_transaction_ids: 1000,
-            max_scan_limit: 1_000_000,
             // Protocol limit for max transaction bytes allowed + base64
             // overhead (roughly 1/3 of the original string). This is rounded up.
             //
@@ -677,7 +669,6 @@ mod tests {
                 max-type-nodes = 128
                 max-move-value-depth = 256
                 max-transaction-ids = 11
-                max-scan-limit = 50
                 max-subscription-recovery-checkpoints = 500
                 max-active-subscriptions = 20
             "#,
@@ -701,7 +692,6 @@ mod tests {
                 max_type_nodes: 128,
                 max_move_value_depth: 256,
                 max_transaction_ids: 11,
-                max_scan_limit: 50,
                 max_subscription_recovery_checkpoints: NonZeroU32::new(500).unwrap(),
                 max_active_subscriptions: NonZeroU32::new(20).unwrap(),
             },
@@ -768,7 +758,6 @@ mod tests {
                 max-type-nodes = 128
                 max-move-value-depth = 256
                 max-transaction-ids = 42
-                max-scan-limit = 420
                 max-subscription-recovery-checkpoints = 4200
                 max-active-subscriptions = 42
 
@@ -795,7 +784,6 @@ mod tests {
                 max_type_nodes: 128,
                 max_move_value_depth: 256,
                 max_transaction_ids: 42,
-                max_scan_limit: 420,
                 max_subscription_recovery_checkpoints: NonZeroU32::new(4200).unwrap(),
                 max_active_subscriptions: NonZeroU32::new(42).unwrap(),
             },
