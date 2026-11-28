@@ -69,13 +69,6 @@ impl<L> JsonRpcService<L> {
     }
 }
 
-/// Request extension with the IP address of the client of a request: the one
-/// traffic control charges, or the address of the connection when traffic
-/// control resolves none. A server that calls a fullnode for its users, such
-/// as the indexer, names this client to the fullnode.
-#[derive(Clone, Copy, Debug)]
-pub struct RequestClientIp(pub IpAddr);
-
 /// Request extension through which a simulation method reserves gas from its
 /// client's simulation gas balance. It carries the client of the request and
 /// what the traffic controller decided for it.
@@ -161,6 +154,12 @@ pub(crate) fn ok_response(body: String) -> Response {
     const JSON: &str = "application/json; charset=utf-8";
     from_template(hyper::StatusCode::OK, body, JSON)
 }
+
+/// Request extension with the IP address of the client of a request: the
+/// client that traffic control checks and charges, or the address of the
+/// connection when traffic control resolves none.
+#[derive(Clone, Copy, Debug)]
+pub struct RequestClientIp(pub IpAddr);
 
 pub async fn json_rpc_handler<L: Logger>(
     ConnectInfo(client_addr): ConnectInfo<SocketAddr>,
