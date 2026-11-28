@@ -8363,6 +8363,7 @@ dependencies = [
  "iota-protocol-config",
  "iota-sdk-types",
  "iota-types",
+ "move-trace-format",
  "tracing",
 ]
 
