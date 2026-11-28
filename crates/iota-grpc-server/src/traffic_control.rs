@@ -114,8 +114,6 @@ where
                 None
             }
         };
-        // The rules and every policy apply to the user a forwarder names, after
-        // the deny rules and blocks of the forwarder itself.
         let (client, access) =
             traffic_controller.resolve_forwarded_client_and_check(client, req.headers());
 
