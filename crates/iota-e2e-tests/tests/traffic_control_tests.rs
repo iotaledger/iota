@@ -7,9 +7,14 @@
 //! simtest.
 
 use core::panic;
-use std::{num::NonZeroUsize, time::Duration};
+use std::{
+    net::{Ipv4Addr, SocketAddr},
+    num::NonZeroUsize,
+    time::Duration,
+};
 
 use fastcrypto::encoding::Base64;
+use iota_config::local_ip_utils::get_available_port;
 use iota_core::authority_client::{
     NetworkAuthorityClient, make_network_authority_clients_with_network_config,
     validator::ValidatorAPI, validator_v2::ValidatorV2API,
@@ -34,7 +39,8 @@ use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType,
     traffic_control::{
         AccessRules, DefaultAction, FORWARDED_CLIENT_IP_HEADER, FreqThresholdConfig, PolicyConfig,
-        PolicyType, SimulationGasLimitConfig, TrafficControlReconfigParams, Weight,
+        PolicyType, SimulationGasLimitConfig, TRAFFIC_CONTROL_ROUTE, TrafficControlReconfigParams,
+        TrafficControlStatus, Weight,
     },
     transaction::{SenderSignedTransactionAPI, TransactionEnvelope},
 };
@@ -903,6 +909,71 @@ async fn test_fullnode_deny_rule_refuses_a_forwarded_user() -> Result<(), anyhow
         .await
         .expect("the forwarder itself is served");
     Ok(())
+}
+
+/// The admin server of a node serves the traffic-control routes next to its
+/// other routes.
+#[tokio::test]
+async fn test_admin_server_serves_the_traffic_control_routes() -> Result<(), anyhow::Error> {
+    // The admin server takes the handle of the global tracing subscriber,
+    // which only `TelemetryConfig::init` gives. That call panics when a global
+    // subscriber is set already, so this test does not call
+    // `init_for_testing`, and needs a process of its own, as nextest gives
+    // each test.
+    let (_guards, tracing_handle) = telemetry_subscribers::TelemetryConfig::new().init();
+    let test_cluster = TestClusterBuilder::new()
+        .with_fullnode_policy_config(Some(PolicyConfig::default()))
+        .build()
+        .await;
+    let address = SocketAddr::new(
+        Ipv4Addr::LOCALHOST.into(),
+        get_available_port(&Ipv4Addr::LOCALHOST.to_string()),
+    );
+    tokio::spawn(iota_node::admin::run_admin_server(
+        test_cluster.fullnode_handle.iota_node.inner().clone(),
+        address,
+        tracing_handle,
+    ));
+
+    let (status_code, body) = tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            if let Ok(answer) = send_http_get(address, TRAFFIC_CONTROL_ROUTE).await {
+                break answer;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("the admin server listens within 10 seconds");
+    assert_eq!(status_code, 200, "{body}");
+    let status: TrafficControlStatus = serde_json::from_str(&body)?;
+    assert_eq!(status.default_action, DefaultAction::Limit);
+    Ok(())
+}
+
+/// Sends `GET path` to the HTTP server at `address`, and returns the status
+/// code and the body of the answer.
+async fn send_http_get(address: SocketAddr, path: &str) -> std::io::Result<(u16, String)> {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    let mut stream = tokio::net::TcpStream::connect(address).await?;
+    stream
+        .write_all(
+            format!("GET {path} HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\n\r\n")
+                .as_bytes(),
+        )
+        .await?;
+    let mut answer = String::new();
+    stream.read_to_string(&mut answer).await?;
+    let (head, body) = answer
+        .split_once("\r\n\r\n")
+        .expect("an HTTP answer has a head");
+    let status_code = head
+        .split(' ')
+        .nth(1)
+        .and_then(|code| code.parse().ok())
+        .expect("an HTTP answer has a status code");
+    Ok((status_code, body.to_string()))
 }
 
 #[tokio::test]
