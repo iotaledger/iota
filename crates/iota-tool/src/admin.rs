@@ -262,7 +262,9 @@ impl TrafficControlCommand {
                 write!(output.notes, "{answer}")?;
                 let status: TrafficControlStatus =
                     client.get(TRAFFIC_CONTROL_ROUTE, &()).await.context(
-                        "the node made the change, but reading the settings in force failed",
+                        "the node accepted the request, but reading the settings in force \
+                         failed; a node of an older version may have ignored the settings it \
+                         does not know",
                     )?;
                 print_status(&status, output)?;
                 writeln!(output.notes, "{SAVE_HINT}")?;
@@ -806,10 +808,11 @@ mod tests {
     };
 
     use axum::{
+        Router,
         extract::{Request, State},
         middleware::{self, Next},
         response::Response,
-        routing::get,
+        routing::{get, post},
     };
     use iota_config::{Config, NodeConfig};
     use iota_core::authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder};
@@ -891,16 +894,22 @@ mod tests {
                 requests.clone(),
                 record_request,
             ));
+        AdminServer {
+            url: serve_on_a_free_port(router).await,
+            state,
+            requests,
+        }
+    }
+
+    /// Serves `router` on a free port of the loopback address, and returns
+    /// its URL.
+    async fn serve_on_a_free_port(router: Router) -> String {
         let listener = tokio::net::TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
             .await
             .unwrap();
         let url = format!("http://{}", listener.local_addr().unwrap());
         tokio::spawn(async move { axum::serve(listener, router).await });
-        AdminServer {
-            url,
-            state,
-            requests,
-        }
+        url
     }
 
     /// What a command printed: its result, and its notes.
@@ -1044,6 +1053,30 @@ mod tests {
                     burst_gas: 20_000_001,
                 }),
             }
+        );
+    }
+
+    #[tokio::test]
+    async fn set_against_an_older_node_says_that_it_may_have_ignored_settings() {
+        // A node of a version without `GET /traffic-control` answers the change
+        // with success, and ignores the settings it does not know.
+        let url = serve_on_a_free_port(Router::new().route(
+            TRAFFIC_CONTROL_ROUTE,
+            post(|| async { "Traffic control configured with:\n" }),
+        ))
+        .await;
+        let error = run(
+            &url,
+            &["traffic-control", "set", "--default-action", "limit"],
+        )
+        .await
+        .err()
+        .unwrap();
+        assert!(
+            error
+                .to_string()
+                .contains("may have ignored the settings it does not know"),
+            "{error:#}"
         );
     }
 
