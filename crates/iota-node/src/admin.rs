@@ -901,7 +901,7 @@ fn block_traffic_control_client_response(
         state
             .block_traffic_control_client(&client, ttl_sec)
             .map(|block| {
-                let served = if state.traffic_control_dry_run().unwrap_or(false) {
+                let dry_run_note = if state.traffic_control_dry_run().unwrap_or(false) {
                     " Dry run is on, so the node still serves it."
                 } else {
                     ""
@@ -910,13 +910,13 @@ fn block_traffic_control_client_response(
                     block.reason == BlockReason::Manual && block.seconds_left <= ttl_sec;
                 if new_block_is_in_force {
                     format!(
-                        "Blocked {} for {} seconds.{served}",
+                        "Blocked {} for {} seconds.{dry_run_note}",
                         block.client, block.seconds_left
                     )
                 } else {
                     format!(
                         "{} keeps the longer block in force: {} seconds left, with the reason \
-                         {}.{served}",
+                         {}.{dry_run_note}",
                         block.client, block.seconds_left, block.reason
                     )
                 }
