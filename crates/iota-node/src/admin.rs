@@ -1216,7 +1216,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn every_route_rejects_a_request_while_traffic_control_is_off() {
+    async fn every_traffic_control_route_rejects_a_request_while_traffic_control_is_off() {
         let state = authority(None).await;
         let mut responses = vec![
             reconfigure_traffic_control(&state, TrafficControlReconfigParams::default()).await,

@@ -1592,7 +1592,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_client_blocked_directly_and_behind_a_fullnode_counts_once() {
+    async fn a_client_blocked_directly_and_behind_a_fullnode_counts_as_one_blocked_client() {
         let controller = TrafficController::init_for_test(PolicyConfig {
             spam_policy_type: freq_threshold(0),
             ..policy_config(false, PolicyKind::Spam)
