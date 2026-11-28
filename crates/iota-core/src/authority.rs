@@ -2541,7 +2541,9 @@ impl AuthorityState {
     }
 
     /// Drops the blocks of `client`, an IP address or an IPv6 prefix as the
-    /// blocklist names it, and returns whether it had one in force.
+    /// blocklist names it, and returns whether it had one in force. Also
+    /// resets what the spam and error policies counted for `client` and its
+    /// simulation gas balance, also when it had no block.
     pub fn unblock_traffic_control_client(&self, client: &str) -> IotaResult<bool> {
         self.traffic_controller_for_admin()?.unblock_client(client)
     }

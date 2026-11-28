@@ -109,7 +109,9 @@ use crate::IotaNode;
 //
 //  $ curl 'http://127.0.0.1:1337/traffic-control/blocklist?limit=100'
 //
-// Block a client for `ttl_sec` seconds, and unblock it
+// Block a client for `ttl_sec` seconds, and unblock it. An unblock also resets
+// what the spam and error policies counted for the client and its simulation
+// gas balance, also when the client had no block.
 //
 //  $ curl -X POST 'http://127.0.0.1:1337/traffic-control/block?client=203.0.113.9&ttl_sec=3600'
 //  $ curl -X POST 'http://127.0.0.1:1337/traffic-control/unblock?client=203.0.113.9'

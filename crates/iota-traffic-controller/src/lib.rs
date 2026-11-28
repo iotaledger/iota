@@ -243,8 +243,8 @@ impl TrafficController {
     /// reached this node through a fullnode, and returns whether it had one in
     /// force. `client` is an IP address, or an IPv6 prefix as the blocklist
     /// names it. Also drops what the spam and error policies counted for
-    /// the client, and its simulation gas balance, so that its next request
-    /// does not block it again at once. Logs the unblock line for a block
+    /// the client, and its simulation gas balance, also when it had no block,
+    /// so that its next request does not block it again at once. Logs the unblock line for a block
     /// whose block line was logged.
     pub fn unblock_client(&self, client: &str) -> Result<bool, IotaError> {
         let client = self.parse_client(client)?;

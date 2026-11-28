@@ -270,7 +270,7 @@ The admin API of the node (`admin-interface-address`, `127.0.0.1:1337` by defaul
 | `POST /traffic-control/rules/remove?list=allow&client=198.51.100.0/24` | Removes a rule |
 | `GET /traffic-control/blocklist?limit=200` | Shows the blocked clients, with the reason (`spam`, `error` or `manual`) and the seconds left |
 | `POST /traffic-control/block?client=203.0.113.9&ttl_sec=3600` | Blocks a client, with the reason `manual` |
-| `POST /traffic-control/unblock?client=203.0.113.9` | Removes the block of a client |
+| `POST /traffic-control/unblock?client=203.0.113.9` | Removes the block of a client, and resets its policy counts and gas balance, also when it had no block |
 | `GET /traffic-control/clients?top=20` | Shows the clients with the lowest simulation gas balances, and the blocked clients |
 
 `blocklist` shows at most `limit` blocks, and `clients` at most `top` gas balances and `top` blocks, 200 by default. A listing says how many entries it left out. The spam and error policies cannot report what they counted for a client, so `clients` shows only the gas balances and the blocks.
@@ -284,7 +284,7 @@ When the node starts to refuse a client outside dry run, it logs the line `clien
 - A manual block never shortens a block in force. When it outlasts a block whose line the node logged, the node logs the block line again.
 - The node rejects a manual block of a client that an allow rule serves, since a firewall that acts on the block line would ban that client.
 - Under dry run the node keeps the block, but still serves the client.
-- An unblock also removes the block of the client where it reached the node through a fullnode. It resets what the spam and error policies counted for the client, and its gas balance; otherwise the next request of the client would block it again.
+- An unblock also removes the block of the client where it reached the node through a fullnode. It resets what the spam and error policies counted for the client, and its gas balance, also when the client had no block; otherwise the next request of the client would block it again.
 - For a block whose block line it logged, the node logs a `client_unblocked client=<client>` line under the same log target, `iota_node::client_blocked`, so a firewall that acts on the block line can lift its ban.
 
 Outside dry run, `default_action=deny` refuses every client that no allow rule names. On a validator this also refuses the other nodes that send it requests. With `client-id-source: socket-addr`, add allow rules for them first. With `x-forwarded-for`, allow rules cannot admit them, as [Proxy Mode Configuration](#proxy-mode-configuration) explains.
