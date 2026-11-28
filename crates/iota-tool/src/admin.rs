@@ -70,18 +70,22 @@ enum TrafficControlCommand {
         #[arg(long)]
         limit: Option<usize>,
     },
-    /// Block a client that connects to the node: an IP address, or an IPv6
-    /// prefix as the blocklist names it. An IPv6 address is blocked with its
-    /// whole `ipv6-prefix-len` prefix.
+    /// Block a client: refuse the requests whose client it is. The client of
+    /// a request is the address that connects to the node, or the one that
+    /// `client-id-source` names. A block does not refuse requests that reach
+    /// the node through a fullnode. An IPv6 address is blocked with its whole
+    /// `ipv6-prefix-len` prefix.
     Block {
-        /// The IP address or IPv6 prefix to block.
+        /// The IP address, or the IPv6 prefix as the blocklist names it, such
+        /// as `2001:db8:1:2::/64`.
         client: String,
         /// How long to block the client, in seconds.
         #[arg(long)]
         ttl: u64,
     },
-    /// Remove the blocks of a client, and reset what the spam and error
-    /// policies counted for it and its simulation gas balance.
+    /// Remove the blocks of a client. Also reset what the spam and error
+    /// policies counted for it, and its simulation gas balance, also when it
+    /// had no block.
     Unblock {
         /// The IP address or IPv6 prefix to unblock.
         client: String,
@@ -125,8 +129,9 @@ struct SetArgs {
     /// Turns dry run on or off. Under dry run the node serves every client.
     #[arg(long, action = ArgAction::Set, group = "settings")]
     dry_run: Option<bool>,
-    /// Sets how long a client that connects to the node stays blocked, in
-    /// seconds.
+    /// Sets how long the node blocks a client that breaches the spam or error
+    /// policy, in seconds. The client is the address that connects to the
+    /// node, or the one that `client-id-source` names.
     #[arg(long, group = "settings")]
     connection_blocklist_ttl_sec: Option<u64>,
     /// Sets how long a client behind a fullnode stays blocked, in seconds.
