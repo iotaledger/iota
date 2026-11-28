@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 use rand::{RngExt, SeedableRng, rngs::StdRng};
+use starfish_config::AuthorityIndex;
 
 use crate::{
     authority_set::AuthoritySet,
