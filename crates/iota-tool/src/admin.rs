@@ -1594,7 +1594,7 @@ mod tests {
     /// The `yes` of `save`: it asks before it writes.
     const ASK_THE_QUESTION: bool = false;
 
-    fn backups(dir: &Path) -> Vec<PathBuf> {
+    fn find_backups(dir: &Path) -> Vec<PathBuf> {
         let mut backups = std::fs::read_dir(dir)
             .unwrap()
             .map(|entry| entry.unwrap().path())
@@ -1653,7 +1653,7 @@ mod tests {
         .unwrap()
         .out;
         assert!(out.contains("kept the old file"), "{out}");
-        let [backup] = backups(dir.path()).try_into().unwrap();
+        let [backup] = find_backups(dir.path()).try_into().unwrap();
         assert_eq!(
             std::fs::read_to_string(&backup).unwrap(),
             FULLNODE_CONFIG_TEMPLATE
@@ -1813,7 +1813,7 @@ mod tests {
             std::fs::read_to_string(&path).unwrap(),
             FULLNODE_CONFIG_TEMPLATE
         );
-        assert_eq!(backups(dir.path()), Vec::<PathBuf>::new());
+        assert_eq!(find_backups(dir.path()), Vec::<PathBuf>::new());
         assert_eq!(
             load(&output_path).policy_config.unwrap().access_rules,
             policy().access_rules
@@ -1986,7 +1986,7 @@ mod tests {
             "{error}"
         );
         assert_eq!(std::fs::read_to_string(&path).unwrap(), edited);
-        assert_eq!(backups(dir.path()), Vec::<PathBuf>::new());
+        assert_eq!(find_backups(dir.path()), Vec::<PathBuf>::new());
     }
 
     #[test]
