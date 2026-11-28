@@ -236,8 +236,9 @@ pub async fn run_admin_server(
     .unwrap();
 }
 
-/// The routes that read and change the traffic control of `state`.
-fn traffic_control_router(state: Arc<AuthorityState>) -> Router {
+/// The routes of the admin API that read and change the traffic control of
+/// `state`. `run_admin_server` serves them next to the other admin routes.
+pub fn traffic_control_router(state: Arc<AuthorityState>) -> Router {
     Router::new()
         .route(TRAFFIC_CONTROL_ROUTE, post(traffic_control))
         .route(TRAFFIC_CONTROL_ROUTE, get(traffic_control_status))
