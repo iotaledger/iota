@@ -993,6 +993,55 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn set_passes_each_setting_to_the_node() {
+        let node = start_admin_server(policy()).await;
+        run(
+            &node.url,
+            &[
+                "traffic-control",
+                "set",
+                "--spam-threshold",
+                "501",
+                "--error-threshold",
+                "51",
+                "--dry-run",
+                "true",
+                "--connection-blocklist-ttl-sec",
+                "61",
+                "--proxy-blocklist-ttl-sec",
+                "62",
+                "--default-action",
+                "deny",
+                "--simulation-gas-per-sec",
+                "1000001",
+                "--simulation-burst-gas",
+                "20000001",
+                "--yes",
+            ],
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            node.status(),
+            TrafficControlStatus {
+                error_threshold: Some(51),
+                spam_threshold: Some(501),
+                dry_run: true,
+                connection_blocklist_ttl_sec: 61,
+                proxy_blocklist_ttl_sec: 62,
+                default_action: DefaultAction::Deny,
+                allow_rules: 1,
+                deny_rules: 0,
+                blocked_clients: 0,
+                simulation_gas_limit: Some(SimulationGasLimitConfig {
+                    gas_per_sec: 1_000_001,
+                    burst_gas: 20_000_001,
+                }),
+            }
+        );
+    }
+
+    #[tokio::test]
     async fn set_takes_at_least_one_setting() {
         let node = start_admin_server(policy()).await;
         assert!(run(&node.url, &["traffic-control", "set"]).await.is_err());
