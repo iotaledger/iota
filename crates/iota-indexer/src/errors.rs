@@ -194,7 +194,7 @@ pub enum IndexerError {
     /// The fullnode refused the request for now, and the client can retry it
     /// later.
     #[error("{0}")]
-    ServerBusy(String),
+    ServerIsBusy(String),
 
     #[error(transparent)]
     SdkTypeConversion(#[from] SdkTypeConversionError),
@@ -240,7 +240,7 @@ impl From<IndexerError> for ErrorObjectOwned {
             );
         }
 
-        if let IndexerError::ServerBusy(message) = value {
+        if let IndexerError::ServerIsBusy(message) = value {
             return ErrorObjectOwned::owned(ErrorCode::ServerIsBusy.code(), message, None::<()>);
         }
 
@@ -269,22 +269,18 @@ impl From<url::ParseError> for IndexerError {
 impl From<iota_grpc_client::GrpcError> for IndexerError {
     /// A refusal of the fullnode stays a refusal, which its caller can retry.
     fn from(err: iota_grpc_client::GrpcError) -> Self {
-        let refusal = match &err {
+        match &err {
             iota_grpc_client::GrpcError::Server(status)
                 if tonic::Code::from(status.code) == tonic::Code::ResourceExhausted =>
             {
-                Some(status.message.clone())
+                IndexerError::ServerIsBusy(status.message.clone())
             }
             iota_grpc_client::GrpcError::Grpc(status)
                 if status.code() == tonic::Code::ResourceExhausted =>
             {
-                Some(status.message().to_string())
+                IndexerError::ServerIsBusy(status.message().to_string())
             }
-            _ => None,
-        };
-        match refusal {
-            Some(message) => IndexerError::ServerBusy(message),
-            None => IndexerError::Grpc(err.to_string()),
+            _ => IndexerError::Grpc(err.to_string()),
         }
     }
 }

@@ -151,7 +151,7 @@ impl From<IndexerError> for Error {
                 message,
                 oldest_available_checkpoint,
             },
-            IndexerError::ServerBusy(message) => Error::TooManyRequests(message),
+            IndexerError::ServerIsBusy(message) => Error::TooManyRequests(message),
             _ => Error::Internal(e.to_string()),
         }
     }
@@ -163,7 +163,7 @@ impl From<IndexerError> for Error {
 /// GraphQL error code.
 pub(crate) fn view_call_error(err: IndexerError) -> async_graphql::Error {
     match err {
-        IndexerError::ServerBusy(message) => Error::TooManyRequests(message).extend(),
+        IndexerError::ServerIsBusy(message) => Error::TooManyRequests(message).extend(),
         err => jsonrpsee::types::ErrorObjectOwned::from(err).into(),
     }
 }
@@ -186,7 +186,8 @@ mod tests {
     /// `TOO_MANY_REQUESTS` and the message of the fullnode.
     #[test]
     fn a_refusal_of_the_fullnode_reaches_the_client_as_a_refusal() {
-        let error = Error::from(IndexerError::ServerBusy("Too many requests".to_string())).extend();
+        let error =
+            Error::from(IndexerError::ServerIsBusy("Too many requests".to_string())).extend();
         assert_eq!(error.message, "Too many requests");
         assert_eq!(
             error.extensions.unwrap().get("code"),
@@ -204,7 +205,7 @@ mod tests {
     /// JSON-RPC error of the write API, with no GraphQL error code.
     #[test]
     fn a_view_call_refusal_is_a_refusal_and_other_errors_are_unchanged() {
-        let error = view_call_error(IndexerError::ServerBusy("Too many requests".to_string()));
+        let error = view_call_error(IndexerError::ServerIsBusy("Too many requests".to_string()));
         assert_eq!(error.message, "Too many requests");
         assert_eq!(
             error.extensions.unwrap().get("code"),
