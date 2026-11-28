@@ -900,12 +900,15 @@ fn warn_about_rules(rules: &RuleSet, policy_config: &PolicyConfig) {
             }
         }
     }
-    if !rules.allow.is_empty() && client_from_x_forwarded_for {
+    let warn_about_entries_that_trust_the_header = |entries: &str| {
         warn!(
-            "The allow rules match the client that the x-forwarded-for header names. They hold \
+            "The {entries} match the client that the x-forwarded-for header names. They hold \
              only if clients reach the node through its proxy alone, since a client that \
              reaches the node directly writes the whole header"
         );
+    };
+    if !rules.allow.is_empty() && client_from_x_forwarded_for {
+        warn_about_entries_that_trust_the_header("allow rules");
     }
     if rules.default == DefaultAction::Deny && client_from_x_forwarded_for {
         warn!(
@@ -915,17 +918,8 @@ fn warn_about_rules(rules: &RuleSet, policy_config: &PolicyConfig) {
              directly"
         );
     }
-    if !rules.forwarders.is_empty()
-        && matches!(
-            policy_config.client_id_source,
-            ClientIdSource::XForwardedFor(_)
-        )
-    {
-        warn!(
-            "The forwarders match the client that the x-forwarded-for header names. They hold \
-             only if clients reach the node through its proxy alone, since a client that \
-             reaches the node directly writes the whole header"
-        );
+    if !rules.forwarders.is_empty() && client_from_x_forwarded_for {
+        warn_about_entries_that_trust_the_header("forwarders");
     }
 }
 
