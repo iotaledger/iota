@@ -17,7 +17,11 @@ use comfy_table::Table;
 use iota_types::traffic_control::{
     AccessRuleChangeQuery, AccessRuleList, AccessRules, BlockedClients, BlocklistQuery,
     ClientUsage, ClientUsageQuery, DEFAULT_DENY_WARNING, DefaultAction, ManualBlockQuery,
-    PolicyConfig, TrafficControlReconfigParams, TrafficControlStatus, UnblockQuery,
+    PolicyConfig, TRAFFIC_CONTROL_BLOCK_ROUTE, TRAFFIC_CONTROL_BLOCKLIST_ROUTE,
+    TRAFFIC_CONTROL_CLIENTS_ROUTE, TRAFFIC_CONTROL_CONFIG_ROUTE, TRAFFIC_CONTROL_ROUTE,
+    TRAFFIC_CONTROL_RULES_ADD_ROUTE, TRAFFIC_CONTROL_RULES_REMOVE_ROUTE,
+    TRAFFIC_CONTROL_RULES_ROUTE, TRAFFIC_CONTROL_UNBLOCK_ROUTE, TrafficControlReconfigParams,
+    TrafficControlStatus, UnblockQuery,
 };
 use reqwest::{StatusCode, Url};
 use serde::{Serialize, de::DeserializeOwned};
@@ -230,7 +234,7 @@ impl TrafficControlCommand {
     ) -> Result<()> {
         match self {
             Self::Status => {
-                let status: TrafficControlStatus = client.get("/traffic-control", &()).await?;
+                let status: TrafficControlStatus = client.get(TRAFFIC_CONTROL_ROUTE, &()).await?;
                 print_status(&status, output)?;
             }
             Self::Set(args) => {
@@ -253,17 +257,17 @@ impl TrafficControlCommand {
                 }
                 // The answer holds the warning for the default action deny, and
                 // says how long the change lasts.
-                let answer = client.post("/traffic-control", &params).await?;
+                let answer = client.post(TRAFFIC_CONTROL_ROUTE, &params).await?;
                 write!(output.notes, "{answer}")?;
                 let status: TrafficControlStatus =
-                    client.get("/traffic-control", &()).await.context(
+                    client.get(TRAFFIC_CONTROL_ROUTE, &()).await.context(
                         "the node made the change, but reading the settings in force failed",
                     )?;
                 print_status(&status, output)?;
                 writeln!(output.notes, "{SAVE_HINT}")?;
             }
             Self::Rules(RulesCommand::List) => {
-                let rules: AccessRules = client.get("/traffic-control/rules", &()).await?;
+                let rules: AccessRules = client.get(TRAFFIC_CONTROL_RULES_ROUTE, &()).await?;
                 print_rules(&rules, output)?;
             }
             Self::Rules(RulesCommand::Allow(change)) => {
@@ -274,7 +278,7 @@ impl TrafficControlCommand {
             }
             Self::Blocklist { limit } => {
                 let blocklist: BlockedClients = client
-                    .get("/traffic-control/blocklist", &BlocklistQuery { limit })
+                    .get(TRAFFIC_CONTROL_BLOCKLIST_ROUTE, &BlocklistQuery { limit })
                     .await?;
                 print_blocklist(&blocklist, output)?;
             }
@@ -284,7 +288,7 @@ impl TrafficControlCommand {
             } => {
                 let answer = client
                     .post(
-                        "/traffic-control/block",
+                        TRAFFIC_CONTROL_BLOCK_ROUTE,
                         &ManualBlockQuery {
                             client: blocked,
                             ttl_sec: ttl,
@@ -296,7 +300,7 @@ impl TrafficControlCommand {
             Self::Unblock { client: unblocked } => {
                 let answer = client
                     .post(
-                        "/traffic-control/unblock",
+                        TRAFFIC_CONTROL_UNBLOCK_ROUTE,
                         &UnblockQuery { client: unblocked },
                     )
                     .await?;
@@ -304,7 +308,7 @@ impl TrafficControlCommand {
             }
             Self::Clients { top } => {
                 let usage: ClientUsage = client
-                    .get("/traffic-control/clients", &ClientUsageQuery { top })
+                    .get(TRAFFIC_CONTROL_CLIENTS_ROUTE, &ClientUsageQuery { top })
                     .await?;
                 print_usage(&usage, output)?;
             }
@@ -314,7 +318,7 @@ impl TrafficControlCommand {
                 yes,
             } => {
                 let policy = parse_policy_config_without_loss(
-                    client.get("/traffic-control/config", &()).await?,
+                    client.get(TRAFFIC_CONTROL_CONFIG_ROUTE, &()).await?,
                 )?;
                 save(
                     &config,
@@ -337,8 +341,8 @@ async fn change_rule(
     output: &mut Output<'_>,
 ) -> Result<()> {
     let (path, rule) = match change {
-        RuleChange::Add { client } => ("/traffic-control/rules/add", client),
-        RuleChange::Remove { client } => ("/traffic-control/rules/remove", client),
+        RuleChange::Add { client } => (TRAFFIC_CONTROL_RULES_ADD_ROUTE, client),
+        RuleChange::Remove { client } => (TRAFFIC_CONTROL_RULES_REMOVE_ROUTE, client),
     };
     let answer = client
         .post(path, &AccessRuleChangeQuery { list, client: rule })
