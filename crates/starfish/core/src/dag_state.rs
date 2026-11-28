@@ -207,9 +207,8 @@ pub(crate) struct DagState {
     /// The genesis blocks
     genesis: BTreeMap<BlockRef, VerifiedBlock>,
 
-    /// Contains recent block headers within CACHED_ROUNDS from the last
-    /// traversed round per authority. Note: all uncommitted block headers
-    /// are kept in memory.
+    /// Contains the block headers above the evicted header round of their
+    /// authority.
     recent_block_headers: BTreeMap<BlockRef, VerifiedBlockHeader>,
 
     /// Contains recent verified transactions per authority. To access a
@@ -419,7 +418,7 @@ impl DagState {
             highest_accepted_round: 0,
             last_commit,
             last_commit_round_advancement_time: None,
-            last_committed_rounds: last_committed_rounds.clone(),
+            last_committed_rounds,
             last_solid_subdag_base: None, /* Later the commit observer might update
                                            * this value during recovery process. */
             pending_commit_votes: BTreeSet::new(),
@@ -443,9 +442,9 @@ impl DagState {
         };
 
         // Load cached data for each authority from storage
-        for (i, round) in last_committed_rounds.into_iter().enumerate() {
+        for i in 0..num_authorities {
             let authority_index = state.context.committee.to_authority_index(i).unwrap();
-            state.load_cached_data_for_authority(authority_index, round, DataSource::Recover);
+            state.load_cached_data_for_authority(authority_index, DataSource::Recover);
         }
 
         // Restore persisted counts from storage and compute in-memory counts
@@ -528,15 +527,17 @@ impl DagState {
     fn load_cached_data_for_authority(
         &mut self,
         authority_index: AuthorityIndex,
-        committed_round: Round,
         data_source: DataSource,
     ) {
-        // Load everything above `cached_rounds` below the authority's last
-        // committed round. As in live eviction, never evict above the GC round
-        // of the last commit: headers there can still be sequenced, and
-        // misbehavior counts above it are recomputed from them.
-        let eviction_round = Self::eviction_round(committed_round, self.cached_rounds)
-            .min(self.gc_round_for_last_commit());
+        // Cut where live header eviction does. The committed round covers fast
+        // sync, which stores payloads and commits without their headers.
+        let last_header_round = self
+            .store
+            .read_last_block_header_round(authority_index)
+            .expect("Database error")
+            .unwrap_or(GENESIS_ROUND);
+        let committed_round = self.last_committed_rounds[authority_index];
+        let eviction_round = self.eviction_round(max(last_header_round, committed_round));
         self.evicted_header_rounds[authority_index] = eviction_round;
         self.evicted_transaction_rounds[authority_index] = eviction_round;
 
@@ -592,13 +593,9 @@ impl DagState {
         self.threshold_clock = ThresholdClock::new(current_round, self.context.clone());
 
         // 3. Reload cached data for each authority
-        for (i, &committed_round) in self.last_committed_rounds.clone().iter().enumerate() {
+        for i in 0..num_authorities {
             let authority_index = self.context.committee.to_authority_index(i).unwrap();
-            self.load_cached_data_for_authority(
-                authority_index,
-                committed_round,
-                DataSource::FastCommitSyncer,
-            );
+            self.load_cached_data_for_authority(authority_index, DataSource::FastCommitSyncer);
         }
 
         info!("DagState reinitialized successfully");
@@ -1114,11 +1111,10 @@ impl DagState {
             .collect();
 
         if !missing.is_empty() {
-            // Look up block digests from in-memory map
             let refs_with_indices: Vec<_> = missing
                 .iter()
                 .flat_map(|(idx, tx)| {
-                    self.resolve_block_refs(tx)
+                    self.resolve_block_refs_with_store(tx)
                         .into_iter()
                         .map(move |br| (*idx, br))
                 })
@@ -1283,6 +1279,39 @@ impl DagState {
             .iter()
             .map(|&digest| BlockRef::new(tx_ref.round, tx_ref.author, digest))
             .collect()
+    }
+
+    /// Like `resolve_block_refs`, but also finds the headers in the store at
+    /// or below the evicted transaction round of the author, where the
+    /// in-memory lookup can miss them, such as after a restart. A store error
+    /// is logged and finds nothing.
+    pub(crate) fn resolve_block_refs_with_store(&self, tx_ref: &TransactionRef) -> Vec<BlockRef> {
+        let block_refs = self.resolve_block_refs(tx_ref);
+        if !block_refs.is_empty() || tx_ref.round > self.evicted_transaction_rounds[tx_ref.author] {
+            return block_refs;
+        }
+        self.context
+            .metrics
+            .node_metrics
+            .dag_state_store_read_count
+            .with_label_values(&["resolve_block_refs_with_store"])
+            .inc();
+        let headers = self
+            .store
+            .scan_block_references_at_slot(Slot::new(tx_ref.round, tx_ref.author))
+            .and_then(|slot_refs| self.store.read_verified_block_headers(&slot_refs));
+        match headers {
+            Ok(headers) => headers
+                .into_iter()
+                .flatten()
+                .filter(|header| header.transaction_ref() == *tx_ref)
+                .map(|header| header.reference())
+                .collect(),
+            Err(e) => {
+                warn!("Failed to read the block headers of {tx_ref:?}: {e:?}");
+                Vec::new()
+            }
+        }
     }
 
     /// Gets cached block headers for a list of TransactionRefs by first looking
@@ -2530,18 +2559,19 @@ impl DagState {
             .last()
             .map(|block_ref| block_ref.round)
             .unwrap_or(GENESIS_ROUND);
-        // Keep at least cached_rounds of blocks and evict nothing above the GC
-        // round of the last commit. Never go below the current round: recovery
-        // loads no headers at or below it.
-        self.gc_round_for_last_commit()
-            .min(Self::eviction_round(last_round, self.cached_rounds))
+        // Never go below the current round: recovery loads no headers at or
+        // below it.
+        self.eviction_round(last_round)
             .max(self.evicted_header_rounds[authority_index])
     }
 
-    /// Calculates the last eviction round based on the provided `commit_round`.
-    /// Any blocks with round <= the evict round have been cleaned up.
-    fn eviction_round(commit_round: Round, cached_rounds: Round) -> Round {
-        commit_round.saturating_sub(cached_rounds)
+    /// Eviction round for an authority whose last header is at `last_round`.
+    /// Keeps `cached_rounds` rounds below it, and everything above the GC
+    /// round of the last commit: headers there can still be sequenced, and
+    /// misbehavior counts above it are recomputed from them.
+    fn eviction_round(&self, last_round: Round) -> Round {
+        self.gc_round_for_last_commit()
+            .min(last_round.saturating_sub(self.cached_rounds))
     }
 
     /// Computes misbehavior counts for all authorities and returns those whose
@@ -3112,11 +3142,15 @@ mod test {
 
     /// A restart during fast sync recovers the committed rounds from the
     /// commits stored after the last `CommitInfo`, which fast sync stores
-    /// without their headers.
+    /// without their headers, and evicts at those rounds.
     #[tokio::test]
     async fn test_recovery_during_fast_sync_updates_committed_rounds_from_stored_commits() {
         telemetry_subscribers::init_for_testing();
-        let context = Arc::new(Context::new_for_test(4).0);
+        const CACHED_ROUNDS: Round = 2;
+        let (mut context, _) = Context::new_for_test(4);
+        context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
+        context.protocol_config.set_gc_depth_for_testing(1);
+        let context = Arc::new(context);
         let mut dag_builder = DagBuilder::new(context.clone());
         dag_builder.layers(1..=6).build();
 
@@ -3157,6 +3191,18 @@ mod test {
             dag_state.last_committed_rounds(),
             dag_builder.last_committed_rounds
         );
+        let evicted_rounds = dag_builder
+            .last_committed_rounds
+            .iter()
+            .map(|round| {
+                dag_state
+                    .gc_round_for_last_commit()
+                    .min(round.saturating_sub(CACHED_ROUNDS))
+            })
+            .collect::<Vec<_>>();
+        assert!(evicted_rounds.iter().all(|&round| round > GENESIS_ROUND));
+        assert_eq!(dag_state.evicted_header_rounds, evicted_rounds);
+        assert_eq!(dag_state.evicted_transaction_rounds, evicted_rounds);
     }
 
     #[tokio::test]
@@ -4283,6 +4329,150 @@ mod test {
         assert_eq!(
             cached_headers.last().map(|header| header.round()),
             Some(last_accepted_round)
+        );
+    }
+
+    /// Recovery, at startup and after fast sync, cuts the cache where live
+    /// eviction does, also for an authority whose blocks are never committed.
+    #[tokio::test]
+    async fn test_recovery_keeps_live_window_of_uncommitted_authority() {
+        telemetry_subscribers::init_for_testing();
+        const CACHED_ROUNDS: Round = 10;
+        const GC_DEPTH: Round = 2;
+        const NUM_ROUNDS: Round = 30;
+
+        let (mut context, _) = Context::new_for_test(4);
+        context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
+        context.protocol_config.set_gc_depth_for_testing(GC_DEPTH);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store.clone());
+
+        // `uncommitted` and the others never reference each other's blocks.
+        let uncommitted = AuthorityIndex::new_for_test(3);
+        let others = (0..3).map(AuthorityIndex::new_for_test).collect::<Vec<_>>();
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder
+            .layers(1..=NUM_ROUNDS)
+            .authorities(others.clone())
+            .skip_ancestor_links(vec![uncommitted])
+            .build();
+        let mut uncommitted_builder = DagBuilder::new(context.clone());
+        uncommitted_builder
+            .layers(1..=NUM_ROUNDS)
+            .authorities(vec![uncommitted])
+            .skip_ancestor_links(others)
+            .build();
+        for builder in [&dag_builder, &uncommitted_builder] {
+            dag_state.accept_block_headers(builder.block_headers(1..=NUM_ROUNDS), DataSource::Test);
+            for transactions in builder.transactions(1..=NUM_ROUNDS) {
+                dag_state.add_transactions(transactions, DataSource::Test);
+            }
+        }
+        let subdags_and_commits = dag_builder.get_sub_dag_and_commits(1..=NUM_ROUNDS);
+        for (_, commit) in &subdags_and_commits {
+            dag_state.add_commit(commit.clone());
+        }
+        let (last_subdag, _) = subdags_and_commits.last().unwrap();
+        dag_state.update_last_solid_subdag_base(last_subdag.base.clone());
+        dag_state.flush();
+
+        assert_eq!(
+            dag_state.last_committed_rounds()[uncommitted],
+            GENESIS_ROUND
+        );
+        let live_rounds = vec![NUM_ROUNDS - CACHED_ROUNDS; 4];
+        assert_eq!(dag_state.evicted_header_rounds, live_rounds);
+        assert_eq!(dag_state.evicted_transaction_rounds, live_rounds);
+
+        let cached_data = |state: &DagState| {
+            (
+                state.evicted_header_rounds.clone(),
+                state.evicted_transaction_rounds.clone(),
+                state.recent_headers_refs_by_authority.clone(),
+                state
+                    .recent_transactions_by_authority
+                    .iter()
+                    .map(|transactions| transactions.keys().copied().collect::<Vec<_>>())
+                    .collect::<Vec<_>>(),
+                state.tx_ref_to_block_digests_by_authority.clone(),
+            )
+        };
+        let live = cached_data(&dag_state);
+        let recovered = DagState::new(context, store);
+        assert_eq!(cached_data(&recovered), live);
+        dag_state.reinitialize();
+        assert_eq!(cached_data(&dag_state), live);
+    }
+
+    /// After a restart, the headers of committed blocks whose commit is not
+    /// solid yet are still found from their payload refs.
+    #[tokio::test]
+    async fn test_recovery_resolves_headers_of_committed_blocks_not_solid_yet() {
+        const NUM_ROUNDS: Round = 30;
+        let (mut context, _) = Context::new_for_test(4);
+        context.parameters.dag_state_cached_rounds = 10;
+        context.protocol_config.set_gc_depth_for_testing(2);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store.clone());
+
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=NUM_ROUNDS).build();
+        dag_state.accept_block_headers(dag_builder.block_headers(1..=NUM_ROUNDS), DataSource::Test);
+        // A second header at a slot of round 20, with another payload.
+        dag_state.accept_block_header(
+            VerifiedBlockHeader::new_for_test(TestBlockHeader::new(20, 1).build()),
+            DataSource::Test,
+        );
+        for transactions in dag_builder.transactions(1..=NUM_ROUNDS) {
+            dag_state.add_transactions(transactions, DataSource::Test);
+        }
+        let subdags_and_commits = dag_builder.get_sub_dag_and_commits(1..=24);
+        for (_, commit) in &subdags_and_commits {
+            dag_state.add_commit(commit.clone());
+        }
+        // Only the commits led at rounds up to 19 are solid.
+        dag_state.update_last_solid_subdag_base(subdags_and_commits[18].0.base.clone());
+        dag_state.flush();
+
+        let tx_refs = dag_builder
+            .block_headers(20..=20)
+            .iter()
+            .map(|header| header.transaction_ref())
+            .collect::<Vec<_>>();
+        let resolve_with_store = |state: &DagState| {
+            tx_refs
+                .iter()
+                .map(|tx_ref| state.resolve_block_refs_with_store(tx_ref))
+                .collect::<Vec<_>>()
+        };
+        let live_block_refs = tx_refs
+            .iter()
+            .map(|tx_ref| dag_state.resolve_block_refs(tx_ref))
+            .collect::<Vec<_>>();
+        assert!(
+            live_block_refs
+                .iter()
+                .all(|block_refs| block_refs.len() == 1)
+        );
+        assert_eq!(resolve_with_store(&dag_state), live_block_refs);
+        assert_eq!(
+            dag_state.contains_verified_block_headers_for_transaction_refs(&tx_refs),
+            vec![true; 4]
+        );
+        assert_eq!(store_reads(&dag_state, "resolve_block_refs_with_store"), 0);
+
+        let recovered = DagState::new(context, store);
+        assert!(
+            tx_refs
+                .iter()
+                .all(|tx_ref| recovered.resolve_block_refs(tx_ref).is_empty())
+        );
+        assert_eq!(resolve_with_store(&recovered), live_block_refs);
+        assert_eq!(
+            recovered.contains_verified_block_headers_for_transaction_refs(&tx_refs),
+            vec![true; 4]
         );
     }
 

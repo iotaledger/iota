@@ -406,6 +406,23 @@ impl Store for RocksDBStore {
             .is_some();
         Ok(found)
     }
+
+    fn scan_block_references_at_slot(
+        &self,
+        slot: crate::block_header::Slot,
+    ) -> ConsensusResult<Vec<BlockRef>> {
+        self.digests_by_authorities
+            .safe_range_iter((
+                Included((slot.authority, slot.round, BlockHeaderDigest::MIN)),
+                Included((slot.authority, slot.round, BlockHeaderDigest::MAX)),
+            ))
+            .map(|res| {
+                let ((author, round, digest), _) = res?;
+                Ok(BlockRef::new(round, author, digest))
+            })
+            .collect()
+    }
+
     fn scan_block_references_by_author(
         &self,
         author: AuthorityIndex,
@@ -421,6 +438,24 @@ impl Store for RocksDBStore {
                 Ok(BlockRef::new(round, author, digest))
             })
             .collect()
+    }
+
+    fn read_last_block_header_round(
+        &self,
+        author: AuthorityIndex,
+    ) -> ConsensusResult<Option<Round>> {
+        let Some(entry) = self
+            .digests_by_authorities
+            .safe_range_iter_reversed(
+                (author, Round::MIN, BlockHeaderDigest::MIN)
+                    ..=(author, Round::MAX, BlockHeaderDigest::MAX),
+            )
+            .next()
+        else {
+            return Ok(None);
+        };
+        let ((_, round, _), _) = entry?;
+        Ok(Some(round))
     }
 
     fn scan_transaction_references_by_author(

@@ -406,11 +406,14 @@ impl Linearizer {
         let mut acknowledged_map = BTreeMap::new();
 
         for missing_ref in missing_refs {
-            let block_refs = self.dag_state.read().resolve_block_refs(&missing_ref);
+            let block_refs = self
+                .dag_state
+                .read()
+                .resolve_block_refs_with_store(&missing_ref);
             if block_refs.is_empty() {
                 error!(
                     "block_digest not found for {missing_ref:?} in transactions_ack_tracker lookup; \
-                     entry should exist since missing txns are above eviction boundary"
+                     no accepted header carries it"
                 );
             }
             // More than one header can carry the same payload.
@@ -532,7 +535,7 @@ mod tests {
         context::Context,
         dag_state::DataSource,
         leader_schedule::{LeaderSchedule, LeaderSwapTable},
-        storage::{Store, mem_store::MemStore},
+        storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
         test_dag_parser::parse_dag,
     };
@@ -1620,6 +1623,57 @@ mod tests {
         assert_eq!(
             ack_authors[&tx_ref],
             (0..3).map(AuthorityIndex::new_for_test).collect()
+        );
+    }
+
+    /// After a restart, the acknowledgers of a payload are found even when its
+    /// header is only in the store.
+    #[tokio::test]
+    async fn transaction_ack_authors_after_restart() {
+        let (mut context, _) = Context::new_for_test(4);
+        context.parameters.dag_state_cached_rounds = 1;
+        context.protocol_config.set_gc_depth_for_testing(1);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        // With the last commit at round 10 and a later header of the same
+        // author at round 5, recovery does not load the header at round 1.
+        let header = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(1, 3).build());
+        let leader = BlockRef::new(10, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN);
+        store
+            .write(
+                WriteBatch::default()
+                    .block_headers(vec![
+                        header.clone(),
+                        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(5, 3).build()),
+                    ])
+                    .commits(vec![TrustedCommit::new_for_test(
+                        1,
+                        CommitDigest::MIN,
+                        0,
+                        leader,
+                        vec![leader],
+                        vec![],
+                    )]),
+            )
+            .unwrap();
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let tx_ref = header.transaction_ref();
+        assert!(dag_state.read().resolve_block_refs(&tx_ref).is_empty());
+
+        let leader_schedule = Arc::new(LeaderSchedule::new(
+            context.clone(),
+            LeaderSwapTable::default(),
+        ));
+        let mut linearizer = Linearizer::new(context, dag_state, leader_schedule);
+        linearizer.add_committed_transaction_acks(
+            2,
+            AuthorityIndex::new_for_test(0),
+            &[header.reference()],
+        );
+        let ack_authors = linearizer.get_transaction_ack_authors(vec![tx_ref]);
+        assert_eq!(
+            ack_authors[&tx_ref],
+            BTreeSet::from([AuthorityIndex::new_for_test(0)])
         );
     }
 
