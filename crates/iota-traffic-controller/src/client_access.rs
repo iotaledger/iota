@@ -690,10 +690,10 @@ impl ClientAccessManager {
     /// The client of a request that `client` sent with the client IP header
     /// values `forwarded`, and whether to serve the request, with dry run
     /// considered. When `client` is a forwarder and the header names one IP
-    /// address, the client is that user, and the request is checked as
-    /// [`Self::check_forwarder_then_user`] does. Any other request, also a forwarder's
-    /// request whose header is missing, repeated or not an IP address, is
-    /// `client`'s own, and is checked as [`Self::check`] does.
+    /// address, the client is that user. The request is then checked as
+    /// [`Self::check_forwarder_then_user`] does. Any other request is
+    /// `client`'s own, also a forwarder's request whose header is missing,
+    /// repeated or not an IP address. It is checked as [`Self::check`] does.
     pub(crate) fn resolve_forwarded_client_and_check(
         &self,
         client: Option<IpAddr>,

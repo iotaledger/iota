@@ -208,11 +208,11 @@ impl TrafficController {
     }
 
     /// The client of a request that `client` sent with `headers`, and whether
-    /// to serve the request, with dry run considered. When a forwarder names
-    /// a user in one [`FORWARDED_CLIENT_IP_HEADER`] header, a deny rule or a
-    /// block of the forwarder refuses the request, unless an allow rule serves
-    /// the forwarder. Otherwise the user is checked as [`Self::check`] checks
-    /// a client, and is the client returned. Any other request is `client`'s
+    /// to serve the request, with dry run considered. A forwarder can name a
+    /// user in one [`FORWARDED_CLIENT_IP_HEADER`] header. A deny rule or a
+    /// block of the forwarder then refuses the request, unless an allow rule
+    /// serves the forwarder. Otherwise the user is checked as [`Self::check`]
+    /// checks a client, and is the client returned. Any other request is `client`'s
     /// own, checked as [`Self::check`] does. Tally the request to the client
     /// this returns.
     pub fn resolve_forwarded_client_and_check(

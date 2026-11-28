@@ -409,10 +409,11 @@ pub enum DefaultAction {
 /// them.
 ///
 /// `forwarders` names the services, such as GraphQL and the indexer, that
-/// call a fullnode for their own users and name each user in the
-/// [`FORWARDED_CLIENT_IP_HEADER`] header. The fullnode then takes that user as
+/// call a fullnode for their own users. They name each user in the
+/// [`FORWARDED_CLIENT_IP_HEADER`] header. A deny rule or a block of the
+/// forwarder refuses such a request. Otherwise the fullnode takes the user as
 /// the client of the request, for the rules and every policy, and does not
-/// count the forwarder. The header is ignored from any other client, and a
+/// count the forwarder. The header is ignored from any other client. A
 /// forwarder's request without exactly one such header holding an IP address
 /// is the forwarder's own. Validators do not apply `forwarders`.
 ///
