@@ -423,6 +423,24 @@ impl Store for RocksDBStore {
             .collect()
     }
 
+    fn read_last_block_header_round(
+        &self,
+        author: AuthorityIndex,
+    ) -> ConsensusResult<Option<Round>> {
+        let Some(entry) = self
+            .digests_by_authorities
+            .safe_range_iter_reversed(
+                (author, Round::MIN, BlockHeaderDigest::MIN)
+                    ..=(author, Round::MAX, BlockHeaderDigest::MAX),
+            )
+            .next()
+        else {
+            return Ok(None);
+        };
+        let ((_, round, _), _) = entry?;
+        Ok(Some(round))
+    }
+
     fn scan_transaction_references_by_author(
         &self,
         author: AuthorityIndex,

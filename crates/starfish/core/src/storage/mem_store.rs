@@ -361,6 +361,22 @@ impl Store for MemStore {
         Ok(res)
     }
 
+    fn read_last_block_header_round(
+        &self,
+        author: AuthorityIndex,
+    ) -> ConsensusResult<Option<Round>> {
+        Ok(self
+            .inner
+            .read()
+            .digests_by_authorities
+            .range((
+                Included((author, Round::MIN, BlockHeaderDigest::MIN)),
+                Included((author, Round::MAX, BlockHeaderDigest::MAX)),
+            ))
+            .next_back()
+            .map(|&(_, round, _)| round))
+    }
+
     fn scan_transaction_references_by_author(
         &self,
         author: AuthorityIndex,

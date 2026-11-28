@@ -194,6 +194,18 @@ async fn scan_block_headers(
         .expect("Scan headers should not fail");
     assert!(scanned_headers.is_empty(), "{scanned_headers:?}");
 
+    let last_header_rounds = (0..5)
+        .map(|author| {
+            store
+                .read_last_block_header_round(AuthorityIndex::new_for_test(author))
+                .expect("Read last header round should not fail")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        last_header_rounds,
+        vec![Some(10), Some(13), Some(13), Some(11), None]
+    );
+
     // Test scanning with specific start round
     let scanned_headers = store
         .scan_block_headers_by_author(AuthorityIndex::new_for_test(1), 12)

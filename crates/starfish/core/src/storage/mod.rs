@@ -95,6 +95,12 @@ pub(crate) trait Store: Send + Sync {
         start_round: Round,
     ) -> ConsensusResult<Vec<BlockRef>>;
 
+    /// Returns the highest round of a stored block header by `author`.
+    fn read_last_block_header_round(
+        &self,
+        author: AuthorityIndex,
+    ) -> ConsensusResult<Option<Round>>;
+
     fn scan_transaction_references_by_author(
         &self,
         author: AuthorityIndex,
