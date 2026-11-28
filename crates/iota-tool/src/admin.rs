@@ -71,10 +71,10 @@ enum TrafficControlCommand {
         limit: Option<usize>,
     },
     /// Block a client: refuse the requests whose client it is. The client of
-    /// a request is the address that connects to the node, or the one that
-    /// `client-id-source` names. A block does not refuse requests that reach
-    /// the node through a fullnode. An IPv6 address is blocked with its whole
-    /// `ipv6-prefix-len` prefix.
+    /// a request is the address that connects to the node, the one that
+    /// `client-id-source` names, or a user that a trusted forwarder names. A
+    /// block does not refuse requests that reach the node through a fullnode.
+    /// An IPv6 address is blocked with its whole `ipv6-prefix-len` prefix.
     Block {
         /// The IP address, or the IPv6 prefix as the blocklist names it, such
         /// as `2001:db8:1:2::/64`.
@@ -131,7 +131,8 @@ struct SetArgs {
     dry_run: Option<bool>,
     /// Sets how long the node blocks a client that breaches the spam or error
     /// policy, in seconds. The client is the address that connects to the
-    /// node, or the one that `client-id-source` names.
+    /// node, the one that `client-id-source` names, or a user that a trusted
+    /// forwarder names.
     #[arg(long, group = "settings")]
     connection_blocklist_ttl_sec: Option<u64>,
     /// Sets how long a client behind a fullnode stays blocked, in seconds.
