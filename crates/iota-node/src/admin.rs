@@ -169,11 +169,6 @@ const TRAFFIC_CONTROL_BLOCK: &str = "/traffic-control/block";
 const TRAFFIC_CONTROL_UNBLOCK: &str = "/traffic-control/unblock";
 const TRAFFIC_CONTROL_CLIENTS: &str = "/traffic-control/clients";
 
-/// How many blocked clients `/traffic-control/blocklist` lists by default.
-const DEFAULT_BLOCKLIST_LIMIT: usize = 200;
-/// How many clients `/traffic-control/clients` lists by default, of each
-/// kind.
-const DEFAULT_CLIENTS_TOP: usize = 200;
 /// Ends the response to every traffic control change.
 const UNTIL_RESTART: &str = "The change lasts until the node restarts.\n";
 const METRICS_FILTER_ROUTE: &str = "/metrics/filters";
@@ -879,6 +874,7 @@ fn traffic_control_blocklist_response(
     state: &AuthorityState,
     BlocklistQuery { limit }: BlocklistQuery,
 ) -> Response {
+    const DEFAULT_BLOCKLIST_LIMIT: usize = 200;
     json_response(state.traffic_control_blocklist(limit.unwrap_or(DEFAULT_BLOCKLIST_LIMIT)))
 }
 
@@ -973,6 +969,7 @@ fn traffic_control_clients_response(
     state: &AuthorityState,
     ClientUsageQuery { top }: ClientUsageQuery,
 ) -> Response {
+    const DEFAULT_CLIENTS_TOP: usize = 200;
     json_response(state.traffic_control_client_usage(top.unwrap_or(DEFAULT_CLIENTS_TOP)))
 }
 
