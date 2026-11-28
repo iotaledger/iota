@@ -94,9 +94,9 @@ impl BlocklistTtls {
 }
 
 /// The clients that breached a policy or that an operator blocked, which the
-/// node refuses until their blocks expire. It holds each client as [`client_prefix`] gives it, cut
-/// with `ipv6_prefix_len`. A background task drops expired blocks until the
-/// blocklist is dropped.
+/// node refuses until their blocks expire. It holds each client as
+/// [`client_prefix`] gives it, cut with `ipv6_prefix_len`. A background task
+/// drops expired blocks until the blocklist is dropped.
 struct Blocklist {
     clients: BlockMap,
     /// Clients that reached this node through a fullnode.
