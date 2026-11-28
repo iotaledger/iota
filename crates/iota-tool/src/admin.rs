@@ -383,10 +383,10 @@ fn parse_policy_config_without_loss(policy: serde_json::Value) -> Result<PolicyC
 
 /// Writes `policy`, the `policy-config` the node holds, to the node config
 /// file at `path`, once the operator confirmed the change it shows. Keeps the
-/// old file next to it, as `<file>.<unix seconds>.bak`. With `output_path`, writes
-/// the new config there instead and leaves `path` as it is. The new file
-/// keeps the mode and, where it may, the owner of the old one, and a symbolic
-/// link to the file stays one.
+/// old file next to it, as `<file>.<unix seconds>.bak`. With `output_path`,
+/// writes the new config there instead and leaves `path` as it is. The new
+/// file keeps the mode and, where it may, the owner of the old one, and a
+/// symbolic link to the file stays one.
 fn save(
     path: &Path,
     output_path: Option<&Path>,
@@ -395,65 +395,118 @@ fn save(
     out: &mut dyn Write,
     confirm: AskOperator<'_>,
 ) -> Result<()> {
-    let path = &std::fs::canonicalize(path)
-        .with_context(|| format!("cannot read the node config {}", path.display()))?;
-    if output_path.is_some_and(|output_path| {
-        std::fs::canonicalize(output_path).is_ok_and(|output_path| output_path == *path)
-    }) {
-        bail!("--output names the node config; leave it out to write the config in place");
-    }
+    let path = &resolve_node_config(path, output_path)?;
     let old = std::fs::read_to_string(path)
         .with_context(|| format!("cannot read the node config {}", path.display()))?;
-    let mut config: serde_yaml::Value =
-        serde_yaml::from_str(&old).with_context(|| format!("{} is not YAML", path.display()))?;
-    let mapping = config
-        .as_mapping_mut()
-        .with_context(|| format!("{} is not a node config", path.display()))?;
-    let key = serde_yaml::Value::from("policy-config");
-    let policy = serde_yaml::to_value(policy)?;
-    let old_policy = mapping.get(&key).cloned();
-    if same_policy(old_policy.as_ref(), &policy) {
+    let Some(change) = PolicyConfigChange::new(path, &old, policy)? else {
         writeln!(out, "The node config already holds the settings in force.")?;
         return Ok(());
-    }
-    mapping.insert(key, policy.clone());
-    let new = serde_yaml::to_string(&config)?;
-    let name = path.display().to_string();
-    writeln!(out, "The policy-config changes:")?;
-    let old_section = old_policy
-        .as_ref()
-        .map(serde_yaml::to_string)
-        .transpose()?
-        .unwrap_or_default();
-    write!(
-        out,
-        "{}",
-        similar::TextDiff::from_lines(&old_section, &serde_yaml::to_string(&policy)?)
-            .unified_diff()
-            .header("policy-config", "policy-config")
-    )?;
+    };
     let target = output_path.unwrap_or(path);
-    writeln!(
-        out,
-        "The whole file, written again (its comments are not kept):"
-    )?;
-    write!(
-        out,
-        "{}",
-        similar::TextDiff::from_lines(&old, &new)
-            .unified_diff()
-            .header(&name, &target.display().to_string())
-    )?;
+    change.show(path, target, out)?;
     if !yes && !confirm(&format!("Write this change to {}?", target.display()))? {
         writeln!(out, "Nothing written.")?;
         return Ok(());
     }
     if std::fs::read_to_string(path).ok().as_deref() != Some(old.as_str()) {
-        bail!("{name} changed since it was read; run save again");
+        bail!(
+            "{} changed since it was read; run save again",
+            path.display()
+        );
     }
+    write_saved_config(path, output_path, &change, out)
+}
+
+/// The node config file that `path` names, with symbolic links resolved.
+/// Fails when `output_path` names the same file.
+fn resolve_node_config(path: &Path, output_path: Option<&Path>) -> Result<PathBuf> {
+    let path = std::fs::canonicalize(path)
+        .with_context(|| format!("cannot read the node config {}", path.display()))?;
+    if output_path.is_some_and(|output_path| {
+        std::fs::canonicalize(output_path).is_ok_and(|output_path| output_path == path)
+    }) {
+        bail!("--output names the node config; leave it out to write the config in place");
+    }
+    Ok(path)
+}
+
+/// What `save` changes in the text of a node config.
+struct PolicyConfigChange {
+    old_config: String,
+    new_config: String,
+    /// The `policy-config` of the old config as YAML, empty when it has
+    /// none.
+    old_policy_config: String,
+    new_policy_config: String,
+}
+
+impl PolicyConfigChange {
+    /// The change that puts `policy` into `old_config`, the text of the node
+    /// config at `path`, or `None` when the config already means the same.
+    fn new(path: &Path, old_config: &str, policy: &PolicyConfig) -> Result<Option<Self>> {
+        let mut config: serde_yaml::Value = serde_yaml::from_str(old_config)
+            .with_context(|| format!("{} is not YAML", path.display()))?;
+        let mapping = config
+            .as_mapping_mut()
+            .with_context(|| format!("{} is not a node config", path.display()))?;
+        let key = serde_yaml::Value::from("policy-config");
+        let policy = serde_yaml::to_value(policy)?;
+        let old_policy = mapping.get(&key).cloned();
+        if same_policy(old_policy.as_ref(), &policy) {
+            return Ok(None);
+        }
+        mapping.insert(key, policy.clone());
+        Ok(Some(Self {
+            old_config: old_config.to_string(),
+            new_config: serde_yaml::to_string(&config)?,
+            old_policy_config: old_policy
+                .as_ref()
+                .map(serde_yaml::to_string)
+                .transpose()?
+                .unwrap_or_default(),
+            new_policy_config: serde_yaml::to_string(&policy)?,
+        }))
+    }
+
+    /// Prints the change of the `policy-config`, then of the whole file at
+    /// `path` as it is written to `target`, which loses its comments.
+    fn show(&self, path: &Path, target: &Path, out: &mut dyn Write) -> Result<()> {
+        writeln!(out, "The policy-config changes:")?;
+        write!(
+            out,
+            "{}",
+            similar::TextDiff::from_lines(&self.old_policy_config, &self.new_policy_config)
+                .unified_diff()
+                .header("policy-config", "policy-config")
+        )?;
+        writeln!(
+            out,
+            "The whole file, written again (its comments are not kept):"
+        )?;
+        write!(
+            out,
+            "{}",
+            similar::TextDiff::from_lines(&self.old_config, &self.new_config)
+                .unified_diff()
+                .header(&path.display().to_string(), &target.display().to_string())
+        )?;
+        Ok(())
+    }
+}
+
+/// Writes the new config of `change` to `output_path`, or, without it, over
+/// the node config at `path` after keeping its old config as a backup, and
+/// says where it went.
+fn write_saved_config(
+    path: &Path,
+    output_path: Option<&Path>,
+    change: &PolicyConfigChange,
+    out: &mut dyn Write,
+) -> Result<()> {
+    let name = path.display();
     match output_path {
         Some(output_path) => {
-            replace_file_atomically(output_path, &new, path)?;
+            replace_file_atomically(output_path, &change.new_config, path)?;
             writeln!(
                 out,
                 "Wrote {}. Move it over {name} for the node to read it at its next start.",
@@ -462,8 +515,8 @@ fn save(
         }
         None => {
             let seconds = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
-            let backup = backup(path, &old, seconds)?;
-            replace_file_atomically(path, &new, path)?;
+            let backup = backup(path, &change.old_config, seconds)?;
+            replace_file_atomically(path, &change.new_config, path)?;
             writeln!(
                 out,
                 "Wrote {name}, and kept the old file at {}. The node reads it at its next start.",
