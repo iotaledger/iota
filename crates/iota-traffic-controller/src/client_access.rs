@@ -11,7 +11,7 @@ use std::{
     net::{IpAddr, Ipv6Addr},
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicU64, Ordering},
+        atomic::{AtomicU64, Ordering},
     },
     time::{Duration, SystemTime},
 };
@@ -164,9 +164,9 @@ impl Blocklist {
 
     /// Refuses each client that a policy reports as breaching it. The
     /// addresses in `response` must already be cut by [`client_prefix`].
-    fn block(&self, response: PolicyResponse, reason: BlockReason, dry_run: &AtomicBool) {
+    fn block(&self, response: PolicyResponse, reason: BlockReason, rules: &ArcSwap<RuleSet>) {
         if let Some(client) = response.block_client {
-            self.block_client(client, reason, dry_run);
+            self.block_client(client, reason, rules);
         }
         if let Some(client) = response.block_proxied_client {
             self.block_proxied_client(client, reason);
@@ -175,12 +175,12 @@ impl Blocklist {
 
     /// Refuses `client` for the connection TTL, and logs the block line when
     /// this starts a block outside dry run. No-op while the TTL is zero.
-    fn block_client(&self, client: IpAddr, reason: BlockReason, dry_run: &AtomicBool) {
+    fn block_client(&self, client: IpAddr, reason: BlockReason, rules: &ArcSwap<RuleSet>) {
         self.block_client_for(
             client,
             reason,
             self.ttls.connection_blocklist_ttl_sec(),
-            dry_run,
+            rules,
         );
     }
 
@@ -192,9 +192,9 @@ impl Blocklist {
         &self,
         client: IpAddr,
         ttl_secs: u64,
-        dry_run: &AtomicBool,
+        rules: &ArcSwap<RuleSet>,
     ) -> Option<BlockedClient> {
-        self.block_client_for(client, BlockReason::Manual, ttl_secs, dry_run);
+        self.block_client_for(client, BlockReason::Manual, ttl_secs, rules);
         let block = self.clients.get(&client)?;
         self.describe(
             client,
@@ -211,7 +211,7 @@ impl Blocklist {
         client: IpAddr,
         reason: BlockReason,
         ttl_secs: u64,
-        dry_run: &AtomicBool,
+        rules: &ArcSwap<RuleSet>,
     ) {
         if insert_block(
             &self.clients,
@@ -219,7 +219,7 @@ impl Blocklist {
             client,
             ttl_secs,
             reason,
-            || !dry_run.load(Ordering::Relaxed),
+            || !rules.load().dry_run,
         ) {
             log_block(client, self.ipv6_prefix_len, reason, ttl_secs);
         }
@@ -375,8 +375,9 @@ impl Blocklist {
     }
 }
 
-/// The access rules in force, swapped as one unit so that a check never sees
-/// half of a change. Every rule is canonical: an IPv4 network written as an
+/// The access rules and the dry-run flag in force, swapped as one unit so
+/// that a check never sees half of a change, nor rules and a dry-run flag of
+/// two moments. Every rule is canonical: an IPv4 network written as an
 /// IPv4-mapped IPv6 network is held as the IPv4 network, and host bits are
 /// cleared.
 #[derive(Clone)]
@@ -384,6 +385,9 @@ struct RuleSet {
     allow: Vec<IpNet>,
     deny: Vec<IpNet>,
     default: DefaultAction,
+    /// Whether the node serves the clients that a deny rule, the blocklist or
+    /// the default action refuses, and only counts them.
+    dry_run: bool,
 }
 
 impl RuleSet {
@@ -412,9 +416,6 @@ pub(crate) struct ClientAccessManager {
     rules_update: Mutex<()>,
     blocklist: Blocklist,
     metrics: Arc<TrafficControllerMetrics>,
-    // Read on the request path in `check` and by the blocklist when it logs a
-    // block, and toggled by the admin API.
-    dry_run: AtomicBool,
 }
 
 impl ClientAccessManager {
@@ -447,6 +448,7 @@ impl ClientAccessManager {
             allow: parse(&access_rules.allow),
             deny: parse(&access_rules.deny),
             default: access_rules.default,
+            dry_run: policy_config.dry_run,
         };
         warn_about_rules(&rules, policy_config);
         set_rule_metrics(&rules, &metrics);
@@ -455,7 +457,6 @@ impl ClientAccessManager {
             rules_update: Mutex::new(()),
             blocklist: Blocklist::new(policy_config, metrics.clone()),
             metrics,
-            dry_run: AtomicBool::new(policy_config.dry_run),
         }
     }
 
@@ -467,10 +468,20 @@ impl ClientAccessManager {
         client: &Option<IpAddr>,
         proxied_client: &Option<IpAddr>,
     ) -> ClientAccess {
+        self.check_with_rules(&self.rules.load(), client, proxied_client)
+    }
+
+    /// Decides as [`Self::check`] does, with `rules` as the rules and the
+    /// dry-run flag in force.
+    fn check_with_rules(
+        &self,
+        rules: &RuleSet,
+        client: &Option<IpAddr>,
+        proxied_client: &Option<IpAddr>,
+    ) -> ClientAccess {
         if client.is_none() {
             self.metrics.unresolved_client_requests.inc();
         }
-        let rules = self.rules.load();
         let client_address = client.map(|client| client.to_canonical());
         let matches = |list: &[IpNet]| {
             client_address.is_some_and(|client| list.iter().any(|rule| rule.contains(&client)))
@@ -488,7 +499,7 @@ impl ClientAccessManager {
         } else {
             return ClientAccess::Limited;
         };
-        if self.dry_run() {
+        if rules.dry_run {
             debug!("Dry run mode: Blocked request from client {:?}", client);
             match refusal {
                 Refusal::DenyRule => &self.metrics.num_dry_run_deny_rule_requests,
@@ -530,8 +541,8 @@ impl ClientAccessManager {
         })
     }
 
-    /// Applies `update` to a copy of the rules in force and puts the copy in
-    /// force.
+    /// Applies `update` to a copy of the rules in force, puts the copy in
+    /// force, and returns what `update` returns.
     fn update_rules(&self, update: impl FnOnce(&mut RuleSet) -> bool) -> bool {
         let _update = self.rules_update.lock();
         let mut rules = RuleSet::clone(&self.rules.load());
@@ -577,7 +588,7 @@ impl ClientAccessManager {
             ));
         }
         self.blocklist
-            .block_manually(client, ttl_sec, &self.dry_run)
+            .block_manually(client, ttl_sec, &self.rules)
             .ok_or_else(|| {
                 format!(
                     "An unblock of {} at the same time dropped the block",
@@ -627,11 +638,11 @@ impl ClientAccessManager {
     /// Refuses each client that a policy reports as breaching it. The
     /// addresses in `response` must already be cut by [`client_prefix`].
     pub(crate) fn block(&self, response: PolicyResponse, reason: BlockReason) {
-        self.blocklist.block(response, reason, &self.dry_run);
+        self.blocklist.block(response, reason, &self.rules);
     }
 
     pub(crate) fn dry_run(&self) -> bool {
-        self.dry_run.load(Ordering::Relaxed)
+        self.rules.load().dry_run
     }
 
     /// The connection and proxy blocklist TTLs in force.
@@ -653,23 +664,25 @@ impl ClientAccessManager {
     }
 
     /// Applies the settings that are given, and leaves the others as they are.
-    /// A changed TTL applies to the blocks applied from now on. The TTLs must
-    /// pass [`Self::validate_reconfigure`].
+    /// A changed TTL applies to the blocks applied from now on, also to a block
+    /// applied as dry run goes off. The TTLs must pass
+    /// [`Self::validate_reconfigure`].
     pub(crate) fn reconfigure(
         &self,
         dry_run: Option<bool>,
         connection_blocklist_ttl_sec: Option<u64>,
         proxy_blocklist_ttl_sec: Option<u64>,
     ) {
+        self.blocklist
+            .reconfigure_ttls(connection_blocklist_ttl_sec, proxy_blocklist_ttl_sec);
         if let Some(dry_run) = dry_run {
             self.metrics.dry_run_enabled.set(dry_run as i64);
-            let was_dry_run = self.dry_run.swap(dry_run, Ordering::Relaxed);
+            let was_dry_run =
+                self.update_rules(|rules| std::mem::replace(&mut rules.dry_run, dry_run));
             if was_dry_run && !dry_run {
                 self.blocklist.log_unlogged_blocks();
             }
         }
-        self.blocklist
-            .reconfigure_ttls(connection_blocklist_ttl_sec, proxy_blocklist_ttl_sec);
     }
 }
 
@@ -1074,6 +1087,23 @@ mod tests {
 
     fn v6(segments: [u16; 8]) -> IpAddr {
         IpAddr::V6(Ipv6Addr::from(segments))
+    }
+
+    #[tokio::test]
+    async fn a_check_decides_by_the_dry_run_of_the_rules_it_loaded() {
+        let manager = manager(PolicyConfig {
+            dry_run: true,
+            ..with_rules(&[], &[], DefaultAction::Deny)
+        });
+        // A check that loaded the rules before a change that turns the default
+        // action deny and dry run off, and decides after the change.
+        let rules = manager.rules.load_full();
+        manager.set_default_action(DefaultAction::Limit);
+        manager.reconfigure(Some(false), None, None);
+        assert_eq!(
+            manager.check_with_rules(&rules, &Some(CLIENT), &None),
+            ClientAccess::Limited
+        );
     }
 
     fn with_rules(allow: &[&str], deny: &[&str], default: DefaultAction) -> PolicyConfig {

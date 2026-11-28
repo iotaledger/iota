@@ -1703,6 +1703,60 @@ mod tests {
         std::mem::take(&mut *decisions)
     }
 
+    /// Tallies a breach of `client` at the first block log line that the
+    /// subscriber sees.
+    struct BreachAtFirstBlockLine {
+        controller: TrafficController,
+        client: IpAddr,
+        breached: std::sync::atomic::AtomicBool,
+    }
+
+    impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for BreachAtFirstBlockLine {
+        fn on_event(
+            &self,
+            event: &tracing::Event<'_>,
+            _: tracing_subscriber::layer::Context<'_, S>,
+        ) {
+            if event.metadata().target() == block_log::BLOCK_LOG_TARGET
+                && !self
+                    .breached
+                    .swap(true, std::sync::atomic::Ordering::Relaxed)
+            {
+                let tally = TrafficTally::new(Some(self.client), None, None, Weight::one());
+                self.controller.tally(tally);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn a_client_blocked_as_dry_run_goes_off_gets_the_new_ttl() {
+        let controller = TrafficController::init_for_test(policy_config(true, PolicyKind::Spam));
+        // A block that dry run kept from the log, so that turning dry run off
+        // logs its line.
+        controller.tally(breach(PolicyKind::Spam));
+        let subscriber = tracing_subscriber::registry().with(BreachAtFirstBlockLine {
+            controller: controller.clone(),
+            client: IpAddr::V4(Ipv4Addr::new(10, 0, 0, 2)),
+            breached: Default::default(),
+        });
+        tracing::subscriber::with_default(subscriber, || {
+            controller
+                .admin_reconfigure(TrafficControlReconfigParams {
+                    dry_run: Some(false),
+                    connection_blocklist_ttl_sec: Some(30),
+                    ..Default::default()
+                })
+                .unwrap();
+        });
+        let blocklist = controller.blocklist(10);
+        let block = blocklist
+            .clients
+            .iter()
+            .find(|block| block.client == "10.0.0.2")
+            .expect("the breach blocked the client");
+        assert!(block.seconds_left <= 30, "{block:?}");
+    }
+
     #[tokio::test]
     async fn turning_dry_run_off_and_the_default_deny_off_at_once_refuses_no_client() {
         let controller = TrafficController::init_for_test(PolicyConfig {
