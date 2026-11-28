@@ -323,14 +323,15 @@ impl Blocklist {
         let now = SystemTime::now();
         let mut blocks = Vec::new();
         for (map, proxied) in [(&self.clients, false), (&self.proxied_clients, true)] {
-            let mut kind = map
+            let mut blocks_in_map = map
                 .iter()
                 .filter(|entry| now < entry.value().expiration)
                 .map(|entry| (*entry.key(), entry.value().reason, entry.value().expiration))
                 .collect::<Vec<_>>();
-            kind.sort_unstable_by_key(|(client, ..)| *client);
+            blocks_in_map.sort_unstable_by_key(|(client, ..)| *client);
             blocks.extend(
-                kind.into_iter()
+                blocks_in_map
+                    .into_iter()
                     .map(|(client, reason, expiration)| (client, proxied, reason, expiration)),
             );
         }
