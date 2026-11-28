@@ -702,6 +702,47 @@ async fn the_default_deny_refuses_an_unidentified_request_over_grpc() {
         .expect("a request naming an allowed client is served");
 }
 
+/// The spam policy counts a forwarded request for the user that the
+/// forwarder names, not for the forwarder. A user that breaches it is refused,
+/// while the other users of the forwarder and the forwarder itself are served.
+#[tokio::test]
+async fn the_spam_policy_counts_a_forwarded_request_for_its_user() {
+    let handle = server_with_policy(
+        PolicyConfig {
+            connection_blocklist_ttl_sec: 120,
+            spam_policy_type: PolicyType::TestNConnIP(1),
+            spam_sample_rate: Weight::one(),
+            ..with_the_test_client_as_forwarder(&[])
+        },
+        Some(Arc::new(UnreachableExecutor)),
+    )
+    .await;
+    let mut client = TransactionExecutionServiceClient::new(connect(&handle).await);
+    let user_request = |user: &str| with_header(FORWARDED_CLIENT_IP_HEADER, user, execute_batch(1));
+
+    client
+        .execute_transactions(user_request("198.51.100.7"))
+        .await
+        .expect("the first request of the user is served");
+    assert_client_blocked(1, || {
+        let mut client = client.clone();
+        async move {
+            client
+                .execute_transactions(user_request("198.51.100.7"))
+                .await
+        }
+    })
+    .await;
+    client
+        .execute_transactions(user_request("198.51.100.8"))
+        .await
+        .expect("another user of the forwarder is served");
+    client
+        .execute_transactions(execute_batch(1))
+        .await
+        .expect("the forwarder itself is served");
+}
+
 /// `message` as a request that carries `value` in the header `name`.
 fn with_header<T>(name: &'static str, value: &str, message: T) -> tonic::Request<T> {
     let mut request = tonic::Request::new(message);

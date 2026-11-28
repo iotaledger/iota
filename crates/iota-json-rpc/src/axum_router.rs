@@ -652,6 +652,31 @@ mod tests {
         assert_refused_by_traffic_control(&call_test_client(&router, &["198.51.100.8"]).await);
     }
 
+    /// The spam policy counts a forwarded request for the user that the
+    /// forwarder names, not for the forwarder. A user that breaches it is
+    /// refused, while the other users of the forwarder and the forwarder
+    /// itself are served.
+    #[tokio::test]
+    async fn the_spam_policy_counts_a_forwarded_request_for_its_user() {
+        let (router, _) = router_with_policy_config_and_methods(
+            PolicyConfig {
+                spam_policy_type: PolicyType::TestNConnIP(1),
+                ..with_the_test_client_as_forwarder(&[])
+            },
+            client_methods(),
+        );
+        assert_eq!(
+            request_client(&router, &["198.51.100.7"]).await,
+            "198.51.100.7"
+        );
+        assert_refused_by_traffic_control(&call_test_client(&router, &["198.51.100.7"]).await);
+        assert_eq!(
+            request_client(&router, &["198.51.100.8"]).await,
+            "198.51.100.8"
+        );
+        assert_eq!(request_client(&router, &[]).await, CLIENT.ip().to_string());
+    }
+
     /// A gas limit of 100, equal to the computation limit of one transaction
     /// that [`router_with_policy_config_and_methods`] sets, so that one held
     /// reservation takes the whole balance, and an error policy that blocks a
