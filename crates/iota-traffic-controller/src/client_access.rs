@@ -4,7 +4,7 @@
 
 //! Decides, by IP address, whether the node serves a client's request: by the
 //! access rules of the node, and by the blocklist of the clients that breached
-//! a policy, until their blocks expire.
+//! a policy or that an operator blocked, until their blocks expire.
 
 use std::{
     collections::HashSet,

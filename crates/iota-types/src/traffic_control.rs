@@ -330,7 +330,8 @@ pub enum DefaultAction {
 ///
 /// 1. `allow`: the node serves the client, and no policy counts or blocks it.
 /// 2. `deny`: the node refuses the client.
-/// 3. The blocklist: the node refuses a client that a policy blocked, until the block expires.
+/// 3. The blocklist: the node refuses a client that a policy or an operator blocked, until the
+///    block expires.
 /// 4. `default`: what the node does with every other client.
 ///
 /// A rule is an IP address, or a network in CIDR notation such as

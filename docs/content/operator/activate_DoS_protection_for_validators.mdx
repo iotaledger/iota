@@ -87,7 +87,7 @@ The node decides each request by the first of these steps that matches its clien
 
 1. **`allow`**: the node serves the request. No policy counts the client, and no policy blocks it. Use this for trusted clients, such as your own services or a partner's.
 2. **`deny`**: the node refuses the request.
-3. **The blocklist**: the node refuses a client that the spam or error policy blocked, until its block expires.
+3. **The blocklist**: the node refuses a client that the spam or error policy blocked, or that an operator blocked through the admin API, until its block expires.
 4. **`default`**: with `limit` the node serves the request and the policies count it; with `deny` the node refuses it.
 
 A rule is an IP address or a network in CIDR notation, and matches the full address of the client. The node clears the host bits of a network, so `198.51.100.7/24` is the rule `198.51.100.0/24`. A `/128` rule matches one IPv6 address. An IPv4 client can reach the node as an IPv4-mapped IPv6 address. The node matches such a client by its IPv4 address, so IPv4 rules match it. IPv6 rules do not match an IPv4 client. The one exception is an IPv4-mapped rule of `/96` or longer, which the node reads as the IPv4 rule. Write IPv4 rules for IPv4 clients. A request whose client IP the node cannot resolve matches no rule, so the default action decides it.
