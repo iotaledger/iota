@@ -697,29 +697,26 @@ async fn the_default_deny_refuses_an_unidentified_request_over_grpc() {
     .await;
 
     client
-        .execute_transactions(forwarded_for(LISTED, execute_batch(1)))
+        .execute_transactions(with_header("x-forwarded-for", LISTED, execute_batch(1)))
         .await
         .expect("a request naming an allowed client is served");
 }
 
-/// `message` as a request carrying an `x-forwarded-for` header that names
-/// `client` as the request's origin.
-fn forwarded_for<T>(client: &str, message: T) -> tonic::Request<T> {
+/// `message` as a request that carries `value` in the header `name`.
+fn with_header<T>(name: &'static str, value: &str, message: T) -> tonic::Request<T> {
     let mut request = tonic::Request::new(message);
-    request
-        .metadata_mut()
-        .insert("x-forwarded-for", client.parse().unwrap());
+    request.metadata_mut().insert(name, value.parse().unwrap());
     request
 }
 
-/// A deny rule of a forwarder refuses its requests also when they name a
-/// user, and the user that a forwarder names goes through the rules on its
-/// own.
-#[tokio::test]
-async fn a_denied_forwarder_is_refused_for_the_users_it_names() {
-    // The test client connects from loopback.
-    const FORWARDERS: [&str; 2] = ["127.0.0.1", "::1"];
-    let policy_config = |deny: &[&str]| PolicyConfig {
+/// The forwarders of the forwarder tests: the test client connects from
+/// loopback.
+const FORWARDERS: [&str; 2] = ["127.0.0.1", "::1"];
+
+/// A config with [`FORWARDERS`] as its forwarders and `deny` as its deny
+/// rules, outside dry run.
+fn with_the_test_client_as_forwarder(deny: &[&str]) -> PolicyConfig {
+    PolicyConfig {
         access_rules: AccessRules {
             deny: deny.iter().map(|rule| rule.to_string()).collect(),
             forwarders: FORWARDERS.map(String::from).to_vec(),
@@ -727,43 +724,56 @@ async fn a_denied_forwarder_is_refused_for_the_users_it_names() {
         },
         dry_run: false,
         ..Default::default()
-    };
+    }
+}
 
-    let handle = server_with_policy(policy_config(&["198.51.100.7"]), None).await;
+/// A deny rule of a user that a forwarder names refuses that user, and the
+/// other users of the forwarder are served.
+#[tokio::test]
+async fn a_denied_user_of_a_forwarder_is_refused_and_its_other_users_are_served() {
+    let handle =
+        server_with_policy(with_the_test_client_as_forwarder(&["198.51.100.7"]), None).await;
     let mut client = LedgerServiceClient::new(connect(&handle).await);
     assert_client_blocked(1, || {
         let mut client = client.clone();
         async move {
             client
-                .get_objects(named_by_forwarder("198.51.100.7", get_objects_batch(1)))
+                .get_objects(with_header(
+                    FORWARDED_CLIENT_IP_HEADER,
+                    "198.51.100.7",
+                    get_objects_batch(1),
+                ))
                 .await
         }
     })
     .await;
     client
-        .get_objects(named_by_forwarder("198.51.100.8", get_objects_batch(1)))
+        .get_objects(with_header(
+            FORWARDED_CLIENT_IP_HEADER,
+            "198.51.100.8",
+            get_objects_batch(1),
+        ))
         .await
         .expect("another user of the forwarder is served");
+}
 
-    let handle = server_with_policy(policy_config(&FORWARDERS), None).await;
+/// A deny rule of a forwarder refuses its requests also when they name a
+/// user.
+#[tokio::test]
+async fn a_denied_forwarder_is_refused_for_the_users_it_names() {
+    let handle = server_with_policy(with_the_test_client_as_forwarder(&FORWARDERS), None).await;
     let client = LedgerServiceClient::new(connect(&handle).await);
     assert_client_blocked(1, || {
         let mut client = client.clone();
         async move {
             client
-                .get_objects(named_by_forwarder("198.51.100.8", get_objects_batch(1)))
+                .get_objects(with_header(
+                    FORWARDED_CLIENT_IP_HEADER,
+                    "198.51.100.8",
+                    get_objects_batch(1),
+                ))
                 .await
         }
     })
     .await;
-}
-
-/// `message` as a request in which a forwarder names `user` in the client IP
-/// header.
-fn named_by_forwarder<T>(user: &str, message: T) -> tonic::Request<T> {
-    let mut request = tonic::Request::new(message);
-    request
-        .metadata_mut()
-        .insert(FORWARDED_CLIENT_IP_HEADER, user.parse().unwrap());
-    request
 }

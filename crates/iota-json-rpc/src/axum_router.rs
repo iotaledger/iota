@@ -518,9 +518,9 @@ mod tests {
         module.into()
     }
 
-    /// The JSON-RPC response of `router` to a `test_client` request with one
-    /// client IP header for each of `users`.
-    async fn respond_to_test_client(router: &axum::Router, users: &[&str]) -> serde_json::Value {
+    /// Sends `router` a `test_client` request with one client IP header for
+    /// each of `users`, and returns the JSON-RPC response.
+    async fn call_test_client(router: &axum::Router, users: &[&str]) -> serde_json::Value {
         let mut request = Request::post("/")
             .extension(ConnectInfo(CLIENT))
             .header("content-type", "application/json");
@@ -542,7 +542,7 @@ mod tests {
     /// The `test_client` answer of `router` to a request with one client IP
     /// header for each of `users`.
     async fn request_client(router: &axum::Router, users: &[&str]) -> String {
-        let response = respond_to_test_client(router, users).await;
+        let response = call_test_client(router, users).await;
         response["result"]
             .as_str()
             .unwrap_or_else(|| panic!("no result in {response}"))
@@ -599,43 +599,57 @@ mod tests {
         );
     }
 
-    /// A deny rule of a forwarder refuses its requests also when they name a
-    /// user, and the user that a forwarder names goes through the rules on
-    /// its own.
-    #[tokio::test]
-    async fn a_denied_forwarder_is_refused_for_the_users_it_names() {
-        let forwarder = CLIENT.ip().to_string();
-        let policy_config = |deny: &str| PolicyConfig {
+    /// Asserts that `response` refuses its request as traffic control does:
+    /// `ServerIsBusy` with the message "Too many requests".
+    fn assert_refused_by_traffic_control(response: &serde_json::Value) {
+        assert_eq!(
+            response["error"]["code"],
+            ErrorCode::ServerIsBusy.code(),
+            "{response}"
+        );
+        assert_eq!(
+            response["error"]["message"], TOO_MANY_REQUESTS_MSG,
+            "{response}"
+        );
+    }
+
+    /// A config whose one forwarder is the client of the test requests, with
+    /// `deny` as its deny rules.
+    fn with_the_test_client_as_forwarder(deny: &[&str]) -> PolicyConfig {
+        PolicyConfig {
             access_rules: AccessRules {
-                deny: vec![deny.to_string()],
-                forwarders: vec![forwarder.clone()],
+                deny: deny.iter().map(|rule| rule.to_string()).collect(),
+                forwarders: vec![CLIENT.ip().to_string()],
                 ..Default::default()
             },
             ..Default::default()
-        };
-        let assert_refused = |response: serde_json::Value| {
-            assert_eq!(
-                response["error"]["code"],
-                ErrorCode::ServerIsBusy.code(),
-                "{response}"
-            );
-            assert_eq!(
-                response["error"]["message"], TOO_MANY_REQUESTS_MSG,
-                "{response}"
-            );
-        };
+        }
+    }
 
-        let (router, _) =
-            router_with_policy_config_and_methods(policy_config("198.51.100.7"), client_methods());
-        assert_refused(respond_to_test_client(&router, &["198.51.100.7"]).await);
+    /// A deny rule of a user that a forwarder names refuses that user, and the
+    /// other users of the forwarder are served.
+    #[tokio::test]
+    async fn a_denied_user_of_a_forwarder_is_refused_and_its_other_users_are_served() {
+        let (router, _) = router_with_policy_config_and_methods(
+            with_the_test_client_as_forwarder(&["198.51.100.7"]),
+            client_methods(),
+        );
+        assert_refused_by_traffic_control(&call_test_client(&router, &["198.51.100.7"]).await);
         assert_eq!(
             request_client(&router, &["198.51.100.8"]).await,
             "198.51.100.8"
         );
+    }
 
-        let (router, _) =
-            router_with_policy_config_and_methods(policy_config(&forwarder), client_methods());
-        assert_refused(respond_to_test_client(&router, &["198.51.100.8"]).await);
+    /// A deny rule of a forwarder refuses its requests also when they name a
+    /// user.
+    #[tokio::test]
+    async fn a_denied_forwarder_is_refused_for_the_users_it_names() {
+        let (router, _) = router_with_policy_config_and_methods(
+            with_the_test_client_as_forwarder(&[&CLIENT.ip().to_string()]),
+            client_methods(),
+        );
+        assert_refused_by_traffic_control(&call_test_client(&router, &["198.51.100.8"]).await);
     }
 
     /// A gas limit of 100, equal to the computation limit of one transaction
