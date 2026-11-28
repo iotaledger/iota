@@ -185,6 +185,7 @@ pub async fn run_admin_server(
     tracing_handle: TracingHandle,
 ) {
     let filter = tracing_handle.get_log().unwrap();
+    let traffic_control_routes = traffic_control_router(node.state());
 
     let app_state = AppState {
         node,
@@ -217,26 +218,11 @@ pub async fn run_admin_server(
             post(randomness_inject_full_sig),
         )
         .route(FLAMEGRAPH_ROUTE, get(flamegraph))
-        .route(TRAFFIC_CONTROL, post(traffic_control))
-        .route(TRAFFIC_CONTROL, get(traffic_control_status))
-        .route(TRAFFIC_CONTROL_CONFIG, get(traffic_control_config))
-        .route(TRAFFIC_CONTROL_RULES, get(traffic_control_rules))
-        .route(TRAFFIC_CONTROL_RULES_ADD, post(add_traffic_control_rule))
-        .route(
-            TRAFFIC_CONTROL_RULES_REMOVE,
-            post(remove_traffic_control_rule),
-        )
-        .route(TRAFFIC_CONTROL_BLOCKLIST, get(traffic_control_blocklist))
-        .route(TRAFFIC_CONTROL_BLOCK, post(block_traffic_control_client))
-        .route(
-            TRAFFIC_CONTROL_UNBLOCK,
-            post(unblock_traffic_control_client),
-        )
-        .route(TRAFFIC_CONTROL_CLIENTS, get(traffic_control_clients))
         .route(METRICS_FILTER_ROUTE, get(get_metrics_filter))
         .route(METRICS_FILTER_ROUTE, post(set_metrics_filter))
         .route(METRICS_FILTER_RESET_ROUTE, post(reset_metrics_filter))
-        .with_state(Arc::new(app_state));
+        .with_state(Arc::new(app_state))
+        .merge(traffic_control_routes);
 
     info!(
         filter =% filter,
@@ -253,6 +239,28 @@ pub async fn run_admin_server(
     )
     .await
     .unwrap();
+}
+
+/// The routes that read and change the traffic control of `state`.
+fn traffic_control_router(state: Arc<AuthorityState>) -> Router {
+    Router::new()
+        .route(TRAFFIC_CONTROL, post(traffic_control))
+        .route(TRAFFIC_CONTROL, get(traffic_control_status))
+        .route(TRAFFIC_CONTROL_CONFIG, get(traffic_control_config))
+        .route(TRAFFIC_CONTROL_RULES, get(traffic_control_rules))
+        .route(TRAFFIC_CONTROL_RULES_ADD, post(add_traffic_control_rule))
+        .route(
+            TRAFFIC_CONTROL_RULES_REMOVE,
+            post(remove_traffic_control_rule),
+        )
+        .route(TRAFFIC_CONTROL_BLOCKLIST, get(traffic_control_blocklist))
+        .route(TRAFFIC_CONTROL_BLOCK, post(block_traffic_control_client))
+        .route(
+            TRAFFIC_CONTROL_UNBLOCK,
+            post(unblock_traffic_control_client),
+        )
+        .route(TRAFFIC_CONTROL_CLIENTS, get(traffic_control_clients))
+        .with_state(state)
 }
 
 #[derive(Deserialize)]
@@ -665,10 +673,10 @@ async fn flamegraph(State(state): State<Arc<AppState>>, query: Query<Flamegraph>
 }
 
 async fn traffic_control(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AuthorityState>>,
     Query(params): Query<TrafficControlReconfigParams>,
 ) -> (StatusCode, String) {
-    reconfigure_traffic_control(&state.node.state(), params).await
+    reconfigure_traffic_control(&state, params).await
 }
 
 async fn reconfigure_traffic_control(
@@ -749,10 +757,10 @@ struct NoQueryParameters {}
 /// The traffic control settings in force, as JSON. Refuses a query, since a
 /// `GET` that carries the settings of a `POST` would change nothing.
 async fn traffic_control_status(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AuthorityState>>,
     query: Result<Query<NoQueryParameters>, QueryRejection>,
 ) -> Response {
-    traffic_control_status_response(&state.node.state(), query.map(|_| ()))
+    traffic_control_status_response(&state, query.map(|_| ()))
 }
 
 fn traffic_control_status_response(
@@ -773,10 +781,10 @@ fn traffic_control_status_response(
 }
 
 async fn traffic_control_config(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AuthorityState>>,
     _: Query<NoQueryParameters>,
 ) -> Response {
-    traffic_control_config_response(&state.node.state())
+    traffic_control_config_response(&state)
 }
 
 fn traffic_control_config_response(state: &AuthorityState) -> Response {
@@ -784,10 +792,10 @@ fn traffic_control_config_response(state: &AuthorityState) -> Response {
 }
 
 async fn traffic_control_rules(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AuthorityState>>,
     _: Query<NoQueryParameters>,
 ) -> Response {
-    traffic_control_rules_response(&state.node.state())
+    traffic_control_rules_response(&state)
 }
 
 fn traffic_control_rules_response(state: &AuthorityState) -> Response {
@@ -811,10 +819,10 @@ fn list_name(list: AccessRuleList) -> &'static str {
 }
 
 async fn add_traffic_control_rule(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AuthorityState>>,
     Query(change): Query<AccessRuleChangeQuery>,
 ) -> (StatusCode, String) {
-    add_traffic_control_rule_response(&state.node.state(), change)
+    add_traffic_control_rule_response(&state, change)
 }
 
 fn add_traffic_control_rule_response(
@@ -833,10 +841,10 @@ fn add_traffic_control_rule_response(
 }
 
 async fn remove_traffic_control_rule(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AuthorityState>>,
     Query(change): Query<AccessRuleChangeQuery>,
 ) -> (StatusCode, String) {
-    remove_traffic_control_rule_response(&state.node.state(), change)
+    remove_traffic_control_rule_response(&state, change)
 }
 
 fn remove_traffic_control_rule_response(
@@ -862,10 +870,10 @@ struct BlocklistQuery {
 }
 
 async fn traffic_control_blocklist(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AuthorityState>>,
     Query(query): Query<BlocklistQuery>,
 ) -> Response {
-    traffic_control_blocklist_response(&state.node.state(), query)
+    traffic_control_blocklist_response(&state, query)
 }
 
 fn traffic_control_blocklist_response(
@@ -884,10 +892,10 @@ struct ManualBlockQuery {
 }
 
 async fn block_traffic_control_client(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AuthorityState>>,
     Query(query): Query<ManualBlockQuery>,
 ) -> (StatusCode, String) {
-    block_traffic_control_client_response(&state.node.state(), query)
+    block_traffic_control_client_response(&state, query)
 }
 
 fn block_traffic_control_client_response(
@@ -927,10 +935,10 @@ struct UnblockQuery {
 }
 
 async fn unblock_traffic_control_client(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AuthorityState>>,
     Query(query): Query<UnblockQuery>,
 ) -> (StatusCode, String) {
-    unblock_traffic_control_client_response(&state.node.state(), query)
+    unblock_traffic_control_client_response(&state, query)
 }
 
 fn unblock_traffic_control_client_response(
@@ -956,10 +964,10 @@ struct ClientUsageQuery {
 }
 
 async fn traffic_control_clients(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AuthorityState>>,
     Query(query): Query<ClientUsageQuery>,
 ) -> Response {
-    traffic_control_clients_response(&state.node.state(), query)
+    traffic_control_clients_response(&state, query)
 }
 
 fn traffic_control_clients_response(
@@ -1024,6 +1032,7 @@ mod tests {
         AccessRules, BlockedClients, ClientUsage, PolicyConfig, TrafficControlStatus,
     };
     use serde::de::DeserializeOwned;
+    use tower::ServiceExt;
 
     use super::*;
 
@@ -1083,55 +1092,126 @@ mod tests {
         assert_eq!(params.simulation_burst_gas, Some(20));
     }
 
-    #[test]
-    fn the_traffic_control_routes_reject_an_unknown_query_parameter() {
-        fn rejection<T: DeserializeOwned>(uri: &str) -> QueryRejection {
-            match Query::<T>::try_from_uri(&uri.parse::<Uri>().unwrap()) {
-                Ok(_) => panic!("{uri} was accepted"),
-                Err(rejection) => rejection,
-            }
-        }
-        for (rejection, parameter) in [
+    /// Sends a `method` request for `uri` through the traffic control routes
+    /// of `state`, and returns the status and the body of the answer.
+    async fn send_to_traffic_control_router(
+        state: &Arc<AuthorityState>,
+        method: &str,
+        uri: &str,
+    ) -> (StatusCode, String) {
+        let request = axum::http::Request::builder()
+            .method(method)
+            .uri(uri)
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let response = traffic_control_router(state.clone())
+            .oneshot(request)
+            .await
+            .unwrap();
+        body(response).await
+    }
+
+    #[tokio::test]
+    async fn the_admin_router_serves_the_traffic_control_routes() {
+        let state = authority(Some(PolicyConfig {
+            dry_run: false,
+            ..Default::default()
+        }))
+        .await;
+        let send = |method, uri| send_to_traffic_control_router(&state, method, uri);
+        let ok = |(status, body): (StatusCode, String)| {
+            assert_eq!(status, StatusCode::OK, "{body}");
+            body
+        };
+
+        let body = ok(send("POST", "/traffic-control?default_action=deny").await);
+        assert!(body.contains("Default action: Some(Deny)"), "{body}");
+        let status: TrafficControlStatus =
+            serde_json::from_str(&ok(send("GET", "/traffic-control").await)).unwrap();
+        assert_eq!(status.default_action, DefaultAction::Deny);
+        ok(send("POST", "/traffic-control?default_action=limit").await);
+        let config: PolicyConfig =
+            serde_json::from_str(&ok(send("GET", "/traffic-control/config").await)).unwrap();
+        assert_eq!(config.access_rules.default, DefaultAction::Limit);
+
+        ok(send(
+            "POST",
+            "/traffic-control/rules/add?list=deny&client=192.0.2.0/24",
+        )
+        .await);
+        let rules: AccessRules =
+            serde_json::from_str(&ok(send("GET", "/traffic-control/rules").await)).unwrap();
+        assert_eq!(rules.deny, ["192.0.2.0/24"]);
+        ok(send(
+            "POST",
+            "/traffic-control/rules/remove?list=deny&client=192.0.2.0/24",
+        )
+        .await);
+
+        ok(send(
+            "POST",
+            "/traffic-control/block?client=203.0.113.9&ttl_sec=60",
+        )
+        .await);
+        let blocklist: BlockedClients =
+            serde_json::from_str(&ok(send("GET", "/traffic-control/blocklist?limit=10").await))
+                .unwrap();
+        assert_eq!(blocklist.clients.len(), 1, "{blocklist:?}");
+        let usage: ClientUsage =
+            serde_json::from_str(&ok(send("GET", "/traffic-control/clients?top=10").await))
+                .unwrap();
+        assert_eq!(usage.blocked.clients.len(), 1, "{usage:?}");
+        let body = ok(send("POST", "/traffic-control/unblock?client=203.0.113.9").await);
+        assert!(body.starts_with("Unblocked 203.0.113.9."), "{body}");
+
+        let (status, _) = send(
+            "GET",
+            "/traffic-control/block?client=203.0.113.9&ttl_sec=60",
+        )
+        .await;
+        assert_eq!(status, StatusCode::METHOD_NOT_ALLOWED);
+    }
+
+    #[tokio::test]
+    async fn the_admin_router_rejects_an_unknown_query_parameter_of_a_traffic_control_route() {
+        let state = authority(Some(PolicyConfig::default())).await;
+        for (method, uri, parameter) in [
             (
-                rejection::<TrafficControlReconfigParams>(
-                    "/traffic-control?dry_run=false&default-action=deny",
-                ),
+                "POST",
+                "/traffic-control?dry_run=false&default-action=deny",
                 "default-action",
             ),
+            ("GET", "/traffic-control?dry_run=true", "dry_run"),
+            ("GET", "/traffic-control/config?limit=5", "limit"),
+            ("GET", "/traffic-control/rules?list=allow", "list"),
             (
-                rejection::<NoQueryParameters>("/traffic-control/config?limit=5"),
-                "limit",
-            ),
-            (
-                rejection::<AccessRuleChangeQuery>(
-                    "/traffic-control/rules/add?list=allow&client=192.0.2.1&ttl_sec=60",
-                ),
+                "POST",
+                "/traffic-control/rules/add?list=allow&client=192.0.2.1&ttl_sec=60",
                 "ttl_sec",
             ),
             (
-                rejection::<BlocklistQuery>("/traffic-control/blocklist?top=5"),
-                "top",
+                "POST",
+                "/traffic-control/rules/remove?list=allow&client=192.0.2.1&ttl_sec=60",
+                "ttl_sec",
             ),
+            ("GET", "/traffic-control/blocklist?top=5", "top"),
             (
-                rejection::<ManualBlockQuery>(
-                    "/traffic-control/block?client=192.0.2.1&ttl_sec=60&ttl=60",
-                ),
+                "POST",
+                "/traffic-control/block?client=192.0.2.1&ttl_sec=60&ttl=60",
                 "ttl",
             ),
             (
-                rejection::<UnblockQuery>("/traffic-control/unblock?client=192.0.2.1&list=deny"),
+                "POST",
+                "/traffic-control/unblock?client=192.0.2.1&list=deny",
                 "list",
             ),
-            (
-                rejection::<ClientUsageQuery>("/traffic-control/clients?limit=5"),
-                "limit",
-            ),
+            ("GET", "/traffic-control/clients?limit=5", "limit"),
         ] {
-            assert_eq!(rejection.status(), StatusCode::BAD_REQUEST);
-            let body = rejection.body_text();
+            let (status, body) = send_to_traffic_control_router(&state, method, uri).await;
+            assert_eq!(status, StatusCode::BAD_REQUEST, "{method} {uri}: {body}");
             assert!(
                 body.contains(&format!("unknown field `{parameter}`")),
-                "{body}"
+                "{method} {uri}: {body}"
             );
         }
     }
