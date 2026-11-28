@@ -436,9 +436,8 @@ impl TrafficController {
         self.simulation_gas
             .reconfigure(simulation_gas_per_sec, simulation_burst_gas);
         if let Some(default_action) = default_action {
-            if self.client_access.set_default_action(default_action)
-                && default_action == DefaultAction::Deny
-            {
+            let changed = self.client_access.set_default_action(default_action);
+            if changed && default_action == DefaultAction::Deny {
                 warn!("The admin API set the default action deny. {DEFAULT_DENY_WARNING}");
             }
         }
