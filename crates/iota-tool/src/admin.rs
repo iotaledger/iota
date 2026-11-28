@@ -1754,6 +1754,8 @@ mod tests {
                     "::ffff:198.51.100.0/120".to_string(),
                 ],
                 deny: vec!["2001:db8::1".to_string()],
+                // The node reports it as 10.0.0.5/32.
+                forwarders: vec!["10.0.0.5".to_string()],
                 ..Default::default()
             },
             ..policy()
