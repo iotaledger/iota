@@ -31,7 +31,7 @@ const SAVE_HINT: &str = "Run `iota-tool admin traffic-control save --config <fil
     it to the node config.";
 
 /// Call the admin API of a running node.
-#[derive(Parser)]
+#[derive(Debug, Parser)]
 pub struct AdminCommand {
     /// The admin API of the node: its `admin-interface-address`, such as
     /// `127.0.0.1:1337`, or a URL.
@@ -46,14 +46,14 @@ pub struct AdminCommand {
     command: AdminSubcommand,
 }
 
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 enum AdminSubcommand {
     /// Read and change the traffic control of the node.
     #[command(subcommand, name = "traffic-control")]
     TrafficControl(TrafficControlCommand),
 }
 
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 enum TrafficControlCommand {
     /// Show the settings in force.
     Status,
@@ -110,7 +110,7 @@ enum TrafficControlCommand {
     },
 }
 
-#[derive(Args)]
+#[derive(Args, Debug)]
 #[group(skip)]
 #[command(group(clap::ArgGroup::new("settings").required(true).multiple(true)))]
 struct SetArgs {
@@ -147,7 +147,7 @@ struct SetArgs {
     yes: bool,
 }
 
-#[derive(Clone, Copy, ValueEnum)]
+#[derive(Clone, Copy, Debug, ValueEnum)]
 enum DefaultActionArg {
     Limit,
     Deny,
@@ -162,7 +162,7 @@ impl From<DefaultActionArg> for DefaultAction {
     }
 }
 
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 enum RulesCommand {
     /// Show the access rules.
     List,
@@ -174,7 +174,7 @@ enum RulesCommand {
     Deny(RuleChange),
 }
 
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 enum RuleChange {
     /// Add a rule.
     Add {
