@@ -34,7 +34,7 @@ rustls.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml.workspace = true
-similar.workspace = true
+similar = { workspace = true, features = ["text"] }
 strum.workspace = true
 strum_macros.workspace = true
 tempfile.workspace = true
