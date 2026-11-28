@@ -800,12 +800,14 @@ mod tests {
     };
 
     use axum::{
-        Json, Router,
-        extract::{Query, State},
-        http::{Method, StatusCode, Uri},
-        routing::{get, post},
+        extract::{Request, State},
+        middleware::{self, Next},
+        response::Response,
+        routing::get,
     };
     use iota_config::{Config, NodeConfig};
+    use iota_core::authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder};
+    use iota_node::admin::traffic_control_router;
     use iota_types::traffic_control::{
         BlockReason, BlockedClient, ClientGasBalance, DEFAULT_DENY_WARNING,
         SimulationGasLimitConfig, Weight,
@@ -813,31 +815,13 @@ mod tests {
 
     use super::*;
 
-    /// The requests the stub node got, as `<method> <path>?<query>`.
+    /// The requests the admin server got, as `<method> <path>?<query>`.
     type Requests = Arc<Mutex<Vec<String>>>;
 
-    /// What the node answers to a change.
-    const CHANGED: &str = "Changed.\nThe change lasts until the node restarts.\n";
+    /// How the node ends its answer to a traffic control change.
+    const UNTIL_RESTART: &str = "The change lasts until the node restarts.\n";
 
     const TEMPLATE: &str = include_str!("../../iota-config/data/fullnode-template.yaml");
-
-    fn status() -> TrafficControlStatus {
-        TrafficControlStatus {
-            error_threshold: Some(50),
-            spam_threshold: Some(1000),
-            dry_run: false,
-            connection_blocklist_ttl_sec: 60,
-            proxy_blocklist_ttl_sec: 60,
-            default_action: DefaultAction::Limit,
-            allow_rules: 1,
-            deny_rules: 0,
-            blocked_clients: 1,
-            simulation_gas_limit: Some(SimulationGasLimitConfig {
-                gas_per_sec: 1_000_000,
-                burst_gas: 20_000_000,
-            }),
-        }
-    }
 
     fn policy() -> PolicyConfig {
         PolicyConfig {
@@ -846,131 +830,71 @@ mod tests {
                 allow: vec!["198.51.100.0/24".to_string()],
                 ..Default::default()
             },
+            simulation_gas_limit: Some(SimulationGasLimitConfig {
+                gas_per_sec: 1_000_000,
+                burst_gas: 20_000_000,
+            }),
             ..PolicyConfig::default_dos_protection_policy()
         }
     }
 
-    fn blocklist() -> BlockedClients {
-        BlockedClients {
-            clients: vec![BlockedClient {
-                client: "203.0.113.9".to_string(),
-                proxied: false,
-                reason: BlockReason::Manual,
-                seconds_left: 3600,
-            }],
-            omitted: 2,
+    /// The traffic control routes of a node, served on a free port of the
+    /// loopback address.
+    struct AdminServer {
+        url: String,
+        state: Arc<AuthorityState>,
+        requests: Requests,
+    }
+
+    impl AdminServer {
+        fn requests(&self) -> Vec<String> {
+            self.requests.lock().unwrap().clone()
+        }
+
+        fn status(&self) -> TrafficControlStatus {
+            self.state.traffic_control_status().unwrap()
         }
     }
 
-    fn record(requests: &Requests, method: &Method, uri: &Uri) {
+    async fn record_request(
+        State(requests): State<Requests>,
+        request: Request,
+        next: Next,
+    ) -> Response {
         requests.lock().unwrap().push(format!(
-            "{method} {}?{}",
-            uri.path(),
-            uri.query().unwrap_or_default()
+            "{} {}?{}",
+            request.method(),
+            request.uri().path(),
+            request.uri().query().unwrap_or_default()
         ));
+        next.run(request).await
     }
 
-    async fn changed(State(requests): State<Requests>, method: Method, uri: Uri) -> &'static str {
-        record(&requests, &method, &uri);
-        CHANGED
-    }
-
-    /// Answers a change of the settings as the node does, with the warning
-    /// for the default action deny.
-    async fn reconfigure(
-        State(requests): State<Requests>,
-        method: Method,
-        uri: Uri,
-        Query(params): Query<TrafficControlReconfigParams>,
-    ) -> String {
-        record(&requests, &method, &uri);
-        match params.default_action {
-            Some(DefaultAction::Deny) => format!("{CHANGED}{DEFAULT_DENY_WARNING}"),
-            _ => CHANGED.to_string(),
-        }
-    }
-
-    async fn get_status(
-        State(requests): State<Requests>,
-        method: Method,
-        uri: Uri,
-    ) -> Json<TrafficControlStatus> {
-        record(&requests, &method, &uri);
-        Json(status())
-    }
-
-    async fn get_blocklist(
-        State(requests): State<Requests>,
-        method: Method,
-        uri: Uri,
-    ) -> Json<BlockedClients> {
-        record(&requests, &method, &uri);
-        Json(blocklist())
-    }
-
-    async fn get_clients(
-        State(requests): State<Requests>,
-        method: Method,
-        uri: Uri,
-    ) -> Json<ClientUsage> {
-        record(&requests, &method, &uri);
-        Json(ClientUsage {
-            gas_balances: vec![ClientGasBalance {
-                client: None,
-                gas: 42,
-            }],
-            omitted_gas_balances: 1,
-            blocked: blocklist(),
-        })
-    }
-
-    /// Refuses `ttl_sec=9999999`, as the node refuses a TTL above its maximum.
-    async fn block(
-        State(requests): State<Requests>,
-        method: Method,
-        uri: Uri,
-    ) -> (StatusCode, &'static str) {
-        record(&requests, &method, &uri);
-        if uri
-            .query()
-            .is_some_and(|query| query.ends_with("ttl_sec=9999999"))
-        {
-            (StatusCode::BAD_REQUEST, "The TTL is too long\n")
-        } else {
-            (StatusCode::OK, CHANGED)
-        }
-    }
-
-    /// Starts a stub of the admin API of a node, which records each request
-    /// other than reads of the config and the rules.
-    async fn stub_node() -> (String, Requests) {
+    /// Starts the real traffic control routes of a node that runs
+    /// `policy_config`, with one more route, `/text`, that answers text that
+    /// is not JSON.
+    async fn start_admin_server(policy_config: PolicyConfig) -> AdminServer {
+        let state = TestAuthorityBuilder::new()
+            .with_policy_config(policy_config)
+            .build()
+            .await;
         let requests = Requests::default();
-        let router = Router::new()
-            .route("/traffic-control", get(get_status).post(reconfigure))
-            .route("/traffic-control/config", get(|| async { Json(policy()) }))
-            .route(
-                "/traffic-control/rules",
-                get(|| async {
-                    Json(AccessRules {
-                        allow: vec!["198.51.100.0/24".to_string()],
-                        ..Default::default()
-                    })
-                }),
-            )
-            .route("/traffic-control/rules/add", post(changed))
-            .route("/traffic-control/rules/remove", post(changed))
-            .route("/traffic-control/blocklist", get(get_blocklist))
-            .route("/traffic-control/clients", get(get_clients))
-            .route("/traffic-control/block", post(block))
-            .route("/traffic-control/unblock", post(changed))
+        let router = traffic_control_router(state.clone())
             .route("/text", get(|| async { "not JSON" }))
-            .with_state(requests.clone());
+            .layer(middleware::from_fn_with_state(
+                requests.clone(),
+                record_request,
+            ));
         let listener = tokio::net::TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
             .await
             .unwrap();
         let url = format!("http://{}", listener.local_addr().unwrap());
         tokio::spawn(async move { axum::serve(listener, router).await });
-        (url, requests)
+        AdminServer {
+            url,
+            state,
+            requests,
+        }
     }
 
     /// What a command printed: its result, and its notes.
@@ -979,8 +903,25 @@ mod tests {
         notes: String,
     }
 
-    async fn run(url: &str, args: &[&str], confirmed: bool) -> Result<Printed> {
-        run_asking(url, args, &|_: &str| Ok(confirmed)).await
+    /// Runs `iota-tool admin` with `args` against `url`, and fails the test
+    /// if the command asks to confirm.
+    async fn run(url: &str, args: &[&str]) -> Result<Printed> {
+        run_asking(url, args, &|question: &str| {
+            panic!("the command asked {question:?}")
+        })
+        .await
+    }
+
+    /// Runs `iota-tool admin` with `args` against `url`, and confirms what
+    /// the command asks.
+    async fn run_confirming(url: &str, args: &[&str]) -> Result<Printed> {
+        run_asking(url, args, &|_: &str| Ok(true)).await
+    }
+
+    /// Runs `iota-tool admin` with `args` against `url`, and declines what
+    /// the command asks.
+    async fn run_declining(url: &str, args: &[&str]) -> Result<Printed> {
+        run_asking(url, args, &|_: &str| Ok(false)).await
     }
 
     async fn run_asking(url: &str, args: &[&str], confirm: Confirm<'_>) -> Result<Printed> {
@@ -1003,52 +944,71 @@ mod tests {
 
     #[tokio::test]
     async fn set_sends_only_the_given_settings_and_prints_the_result() {
-        let (url, requests) = stub_node().await;
+        let node = start_admin_server(policy()).await;
         let printed = run(
-            &url,
+            &node.url,
             &[
                 "traffic-control",
                 "set",
                 "--spam-threshold",
                 "500",
                 "--dry-run",
-                "false",
+                "true",
                 "--simulation-gas-per-sec",
-                "1000000",
+                "2000000",
             ],
-            false,
         )
         .await
         .unwrap();
         assert_eq!(
-            *requests.lock().unwrap(),
+            node.requests(),
             [
-                "POST /traffic-control?spam_threshold=500&dry_run=false&simulation_gas_per_sec=1000000",
+                "POST /traffic-control?spam_threshold=500&dry_run=true&simulation_gas_per_sec=2000000",
                 "GET /traffic-control?",
             ]
         );
+        let status = node.status();
+        assert_eq!(status.spam_threshold, Some(500));
+        assert!(status.dry_run);
+        assert_eq!(
+            status.simulation_gas_limit.map(|limit| limit.gas_per_sec),
+            Some(2_000_000)
+        );
         assert!(printed.out.contains("spam threshold"), "{}", printed.out);
-        assert!(printed.out.contains("1000000"), "{}", printed.out);
-        assert_eq!(printed.notes, format!("{CHANGED}{SAVE_HINT}\n"));
+        assert!(printed.out.contains("2000000"), "{}", printed.out);
+        assert!(
+            printed
+                .notes
+                .starts_with("Traffic control configured with:\n"),
+            "{}",
+            printed.notes
+        );
+        assert!(
+            printed
+                .notes
+                .ends_with(&format!("{UNTIL_RESTART}{SAVE_HINT}\n")),
+            "{}",
+            printed.notes
+        );
     }
 
     #[tokio::test]
     async fn set_takes_at_least_one_setting() {
-        let (url, requests) = stub_node().await;
-        assert!(run(&url, &["traffic-control", "set"], false).await.is_err());
+        let node = start_admin_server(policy()).await;
+        assert!(run(&node.url, &["traffic-control", "set"]).await.is_err());
         assert!(
-            run(&url, &["traffic-control", "set", "--yes"], false)
+            run(&node.url, &["traffic-control", "set", "--yes"])
                 .await
                 .is_err()
         );
-        assert!(requests.lock().unwrap().is_empty());
+        assert!(node.requests().is_empty());
     }
 
     #[tokio::test]
     async fn json_prints_only_json() {
-        let (url, _) = stub_node().await;
+        let node = start_admin_server(policy()).await;
         let printed = run(
-            &url,
+            &node.url,
             &[
                 "--json",
                 "traffic-control",
@@ -1056,105 +1016,111 @@ mod tests {
                 "--spam-threshold",
                 "500",
             ],
-            false,
         )
         .await
         .unwrap();
         assert_eq!(
             serde_json::from_str::<TrafficControlStatus>(&printed.out).unwrap(),
-            status()
+            node.status()
         );
-        assert!(printed.notes.starts_with(CHANGED), "{}", printed.notes);
+        assert!(
+            printed
+                .notes
+                .starts_with("Traffic control configured with:\n"),
+            "{}",
+            printed.notes
+        );
 
         let printed = run(
-            &url,
+            &node.url,
             &["--json", "traffic-control", "unblock", "203.0.113.9"],
-            false,
         )
         .await
         .unwrap();
-        assert_eq!(
-            serde_json::from_str::<serde_json::Value>(&printed.out).unwrap(),
-            serde_json::json!({ "answer": CHANGED.trim_end() })
+        let printed: serde_json::Value = serde_json::from_str(&printed.out).unwrap();
+        let printed = printed.as_object().unwrap();
+        assert_eq!(printed.len(), 1, "{printed:?}");
+        assert!(
+            printed["answer"]
+                .as_str()
+                .unwrap()
+                .ends_with(UNTIL_RESTART.trim_end()),
+            "{printed:?}"
         );
     }
 
     #[tokio::test]
     async fn the_default_action_deny_shows_the_warning_and_takes_a_confirmation() {
-        let (url, requests) = stub_node().await;
+        let node = start_admin_server(policy()).await;
         let args = ["traffic-control", "set", "--default-action", "deny"];
         let questions = Mutex::new(Vec::new());
-        let printed = run_asking(&url, &args, &|question: &str| {
+        let printed = run_asking(&node.url, &args, &|question: &str| {
             questions.lock().unwrap().push(question.to_string());
             Ok(false)
         })
         .await
         .unwrap();
         assert_eq!(printed.notes, "Nothing changed.\n");
-        assert!(requests.lock().unwrap().is_empty());
+        assert!(node.requests().is_empty());
+        assert_eq!(node.status().default_action, DefaultAction::Limit);
         let [question] = questions.into_inner().unwrap().try_into().unwrap();
-        assert!(
-            question.contains(DEFAULT_DENY_WARNING.trim_end()),
-            "{question}"
-        );
+        assert_eq!(question, format!("{DEFAULT_DENY_WARNING} Continue?"));
 
-        let printed = run(&url, &args, true).await.unwrap();
-        assert!(
-            printed.notes.contains(DEFAULT_DENY_WARNING),
-            "{}",
-            printed.notes
-        );
+        let warning = format!("Warning: {DEFAULT_DENY_WARNING}\n");
+        let printed = run_confirming(&node.url, &args).await.unwrap();
+        assert!(printed.notes.contains(&warning), "{}", printed.notes);
+        assert_eq!(node.status().default_action, DefaultAction::Deny);
         let mut with_yes = args.to_vec();
         with_yes.push("--yes");
-        let printed = run_asking(&url, &with_yes, &|question: &str| {
-            panic!("--yes asked {question:?}")
-        })
-        .await
-        .unwrap();
-        assert!(
-            printed.notes.contains(DEFAULT_DENY_WARNING),
-            "{}",
-            printed.notes
-        );
-        let posts = requests
-            .lock()
-            .unwrap()
-            .iter()
+        let printed = run(&node.url, &with_yes).await.unwrap();
+        assert!(printed.notes.contains(&warning), "{}", printed.notes);
+        let posts = node
+            .requests()
+            .into_iter()
             .filter(|request| request.starts_with("POST"))
-            .cloned()
             .collect::<Vec<_>>();
         assert_eq!(posts, ["POST /traffic-control?default_action=deny"; 2]);
     }
 
     #[tokio::test]
     async fn rule_and_unblock_commands_send_their_queries() {
-        let (url, requests) = stub_node().await;
-        for args in [
-            &[
-                "traffic-control",
-                "rules",
-                "allow",
-                "add",
-                "198.51.100.0/24",
-            ][..],
+        let node = start_admin_server(policy()).await;
+        let printed = run(
+            &node.url,
+            &["traffic-control", "rules", "allow", "add", "203.0.113.0/24"],
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            printed.out,
+            format!("Added 203.0.113.0/24 to the allow rules.\n{UNTIL_RESTART}")
+        );
+        assert_eq!(printed.notes, format!("{SAVE_HINT}\n"));
+        let printed = run(
+            &node.url,
             &["traffic-control", "rules", "deny", "remove", "192.0.2.0/24"],
-        ] {
-            let printed = run(&url, args, false).await.unwrap();
-            assert_eq!(printed.out, CHANGED);
-            assert_eq!(printed.notes, format!("{SAVE_HINT}\n"));
-        }
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            printed.out,
+            format!("The deny rules do not hold 192.0.2.0/24.\n{UNTIL_RESTART}")
+        );
+        assert_eq!(printed.notes, format!("{SAVE_HINT}\n"));
+        assert_eq!(
+            node.state.traffic_control_access_rules().unwrap().allow,
+            ["198.51.100.0/24", "203.0.113.0/24"]
+        );
         // A block is not part of the config, so there is nothing to save.
-        let printed = run(&url, &["traffic-control", "unblock", "203.0.113.9"], false)
+        let printed = run(&node.url, &["traffic-control", "unblock", "203.0.113.9"])
             .await
             .unwrap();
+        assert!(printed.out.ends_with(UNTIL_RESTART), "{}", printed.out);
+        assert_eq!(printed.notes, "");
         assert_eq!(
-            (printed.out.as_str(), printed.notes.as_str()),
-            (CHANGED, "")
-        );
-        assert_eq!(
-            *requests.lock().unwrap(),
+            node.requests(),
             [
-                "POST /traffic-control/rules/add?list=allow&client=198.51.100.0%2F24",
+                "POST /traffic-control/rules/add?list=allow&client=203.0.113.0%2F24",
                 "POST /traffic-control/rules/remove?list=deny&client=192.0.2.0%2F24",
                 "POST /traffic-control/unblock?client=203.0.113.9",
             ]
@@ -1163,9 +1129,9 @@ mod tests {
 
     #[tokio::test]
     async fn a_refusal_of_the_node_is_an_error_with_its_answer() {
-        let (url, _) = stub_node().await;
+        let node = start_admin_server(policy()).await;
         let error = run(
-            &url,
+            &node.url,
             &[
                 "traffic-control",
                 "block",
@@ -1173,16 +1139,18 @@ mod tests {
                 "--ttl",
                 "9999999",
             ],
-            false,
         )
         .await
         .err()
         .unwrap();
-        assert_eq!(
-            error.to_string(),
-            "the node answered 400 Bad Request: The TTL is too long"
+        assert!(
+            error.to_string().starts_with(
+                "the node answered 400 Bad Request: Invalid admin request: The TTL of a manual \
+                 block must be between 1 and "
+            ),
+            "{error}"
         );
-        let missing = AdminClient::new(&url)
+        let missing = AdminClient::new(&node.url)
             .unwrap()
             .get::<serde_json::Value>("/no-such-route", &())
             .await
@@ -1191,7 +1159,7 @@ mod tests {
             missing.to_string().contains("without this admin route"),
             "{missing}"
         );
-        let text = AdminClient::new(&url)
+        let text = AdminClient::new(&node.url)
             .unwrap()
             .get::<serde_json::Value>("/text", &())
             .await
@@ -1211,46 +1179,45 @@ mod tests {
 
     #[tokio::test]
     async fn the_admin_url_may_be_an_address() {
-        let (url, requests) = stub_node().await;
-        let address = url.trim_start_matches("http://");
-        run(address, &["traffic-control", "status"], false)
-            .await
-            .unwrap();
-        assert_eq!(*requests.lock().unwrap(), ["GET /traffic-control?"]);
+        let node = start_admin_server(policy()).await;
+        let address = node.url.trim_start_matches("http://");
+        run(address, &["traffic-control", "status"]).await.unwrap();
+        assert_eq!(node.requests(), ["GET /traffic-control?"]);
         let error = AdminClient::new("http://[not an address").err().unwrap();
         assert!(error.to_string().contains("is not an address"), "{error}");
     }
 
     #[tokio::test]
     async fn block_and_listings_send_their_queries() {
-        let (url, requests) = stub_node().await;
+        let node = start_admin_server(policy()).await;
         let printed = run(
-            &url,
+            &node.url,
             &["traffic-control", "block", "203.0.113.9", "--ttl", "3600"],
-            false,
         )
         .await
         .unwrap();
-        assert_eq!(printed.out, CHANGED);
+        assert!(
+            printed.out.starts_with("Blocked 203.0.113.9 for "),
+            "{}",
+            printed.out
+        );
+        assert!(printed.out.ends_with(UNTIL_RESTART), "{}", printed.out);
         run(
-            &url,
+            &node.url,
             &["traffic-control", "blocklist", "--limit", "100"],
-            false,
         )
         .await
         .unwrap();
-        let out = run(&url, &["traffic-control", "clients", "--top", "5"], false)
+        let out = run(&node.url, &["traffic-control", "clients", "--top", "5"])
             .await
             .unwrap()
             .out;
-        assert!(out.contains("(no resolved IP)"), "{out}");
-        assert!(out.contains("1 more gas balances not shown."), "{out}");
         assert!(out.contains("203.0.113.9"), "{out}");
-        run(&url, &["traffic-control", "clients"], false)
+        run(&node.url, &["traffic-control", "clients"])
             .await
             .unwrap();
         assert_eq!(
-            *requests.lock().unwrap(),
+            node.requests(),
             [
                 "POST /traffic-control/block?client=203.0.113.9&ttl_sec=3600",
                 "GET /traffic-control/blocklist?limit=100",
@@ -1262,39 +1229,85 @@ mod tests {
 
     #[tokio::test]
     async fn listings_print_as_tables_or_json() {
-        let (url, _) = stub_node().await;
-        let out = run(&url, &["traffic-control", "blocklist"], false)
+        let node = start_admin_server(policy()).await;
+        for client in ["203.0.113.9", "203.0.113.10", "203.0.113.11"] {
+            run(
+                &node.url,
+                &["traffic-control", "block", client, "--ttl", "3600"],
+            )
+            .await
+            .unwrap();
+        }
+        let out = run(&node.url, &["traffic-control", "blocklist", "--limit", "1"])
             .await
             .unwrap()
             .out;
-        assert!(out.contains("203.0.113.9"), "{out}");
         assert!(out.contains("manual"), "{out}");
         assert!(
             out.ends_with("2 more blocked clients not shown.\n"),
             "{out}"
         );
 
-        let out = run(&url, &["traffic-control", "status"], false)
+        let out = run(&node.url, &["traffic-control", "status"])
             .await
             .unwrap()
             .out;
         assert!(out.contains("default action"), "{out}");
         assert!(out.contains("20000000"), "{out}");
-        let out = run(&url, &["--json", "traffic-control", "status"], false)
+        let out = run(&node.url, &["--json", "traffic-control", "status"])
             .await
             .unwrap()
             .out;
         assert_eq!(
             serde_json::from_str::<TrafficControlStatus>(&out).unwrap(),
-            status()
+            node.status()
         );
 
-        let out = run(&url, &["traffic-control", "rules", "list"], false)
+        let out = run(&node.url, &["traffic-control", "rules", "list"])
             .await
             .unwrap()
             .out;
         assert!(out.contains("198.51.100.0/24"), "{out}");
         assert!(out.ends_with("Default action: limit\n"), "{out}");
+    }
+
+    #[test]
+    fn the_client_usage_names_the_shared_balance_and_counts_the_entries_left_out() {
+        let usage = ClientUsage {
+            gas_balances: vec![ClientGasBalance {
+                client: None,
+                gas: 42,
+            }],
+            omitted_gas_balances: 1,
+            blocked: BlockedClients {
+                clients: vec![BlockedClient {
+                    client: "203.0.113.9".to_string(),
+                    proxied: false,
+                    reason: BlockReason::Manual,
+                    seconds_left: 3600,
+                }],
+                omitted: 2,
+            },
+        };
+        let (mut out, mut notes) = (Vec::new(), Vec::new());
+        print_usage(
+            &usage,
+            &mut Output {
+                out: &mut out,
+                notes: &mut notes,
+                json: false,
+            },
+        )
+        .unwrap();
+        let out = String::from_utf8(out).unwrap();
+        assert!(out.contains("(no resolved IP)"), "{out}");
+        assert!(out.contains("1 more gas balances not shown."), "{out}");
+        assert!(out.contains("203.0.113.9"), "{out}");
+        assert!(
+            out.ends_with("2 more blocked clients not shown.\n"),
+            "{out}"
+        );
+        assert!(notes.is_empty());
     }
 
     fn backups(dir: &Path) -> Vec<PathBuf> {
@@ -1320,7 +1333,7 @@ mod tests {
 
     #[tokio::test]
     async fn save_shows_the_change_keeps_a_backup_and_writes_a_config_that_loads() {
-        let (url, _) = stub_node().await;
+        let node = start_admin_server(policy()).await;
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("fullnode.yaml");
         std::fs::write(&path, TEMPLATE).unwrap();
@@ -1333,10 +1346,9 @@ mod tests {
         let path_arg = path.to_str().unwrap();
 
         // Not confirmed: the file stays as it was.
-        let out = run(
-            &url,
+        let out = run_declining(
+            &node.url,
             &["traffic-control", "save", "--config", path_arg],
-            false,
         )
         .await
         .unwrap()
@@ -1347,9 +1359,8 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&path).unwrap(), TEMPLATE);
 
         let out = run(
-            &url,
+            &node.url,
             &["traffic-control", "save", "--config", path_arg, "--yes"],
-            false,
         )
         .await
         .unwrap()
@@ -1373,9 +1384,8 @@ mod tests {
 
         // A second save finds nothing to change.
         let out = run(
-            &url,
+            &node.url,
             &["traffic-control", "save", "--config", path_arg],
-            false,
         )
         .await
         .unwrap()
@@ -1388,7 +1398,7 @@ mod tests {
 
     #[tokio::test]
     async fn save_replaces_the_policy_config_the_file_holds() {
-        let (url, _) = stub_node().await;
+        let node = start_admin_server(policy()).await;
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("fullnode.yaml");
         let old_policy = PolicyConfig {
@@ -1403,7 +1413,7 @@ mod tests {
         std::fs::write(&path, serde_yaml::to_string(&old).unwrap()).unwrap();
 
         let out = run(
-            &url,
+            &node.url,
             &[
                 "traffic-control",
                 "save",
@@ -1411,7 +1421,6 @@ mod tests {
                 path.to_str().unwrap(),
                 "--yes",
             ],
-            false,
         )
         .await
         .unwrap()
@@ -1437,14 +1446,14 @@ mod tests {
 
     #[tokio::test]
     async fn save_with_an_output_leaves_the_config_as_it_is() {
-        let (url, _) = stub_node().await;
+        let node = start_admin_server(policy()).await;
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("fullnode.yaml");
         let written = dir.path().join("new.yaml");
         std::fs::write(&path, TEMPLATE).unwrap();
 
         let out = run(
-            &url,
+            &node.url,
             &[
                 "traffic-control",
                 "save",
@@ -1454,7 +1463,6 @@ mod tests {
                 written.to_str().unwrap(),
                 "--yes",
             ],
-            false,
         )
         .await
         .unwrap()
@@ -1475,7 +1483,7 @@ mod tests {
         );
 
         let error = run(
-            &url,
+            &node.url,
             &[
                 "traffic-control",
                 "save",
@@ -1485,7 +1493,6 @@ mod tests {
                 path.to_str().unwrap(),
                 "--yes",
             ],
-            false,
         )
         .await
         .err()
@@ -1673,7 +1680,7 @@ mod tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn save_through_a_symbolic_link_writes_the_file_it_names() {
-        let (url, _) = stub_node().await;
+        let node = start_admin_server(policy()).await;
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("fullnode.yaml");
         let link = dir.path().join("config.yaml");
@@ -1681,7 +1688,7 @@ mod tests {
         std::os::unix::fs::symlink(&path, &link).unwrap();
 
         run(
-            &url,
+            &node.url,
             &[
                 "traffic-control",
                 "save",
@@ -1689,7 +1696,6 @@ mod tests {
                 link.to_str().unwrap(),
                 "--yes",
             ],
-            false,
         )
         .await
         .unwrap();

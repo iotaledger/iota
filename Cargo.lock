@@ -8284,6 +8284,7 @@ dependencies = [
  "iota-macros",
  "iota-multiaddr",
  "iota-network",
+ "iota-node",
  "iota-package-dump",
  "iota-protocol-config",
  "iota-replay",

@@ -74,7 +74,9 @@ rand.workspace = true
 
 # internal dependencies
 iota-common.workspace = true
+iota-core = { workspace = true, features = ["test-utils"] }
 iota-macros.workspace = true
+iota-node.workspace = true
 
 [package.metadata.cargo-machete]
 ignored = [
