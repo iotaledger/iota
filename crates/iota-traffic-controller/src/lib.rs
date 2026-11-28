@@ -1423,6 +1423,52 @@ mod tests {
         );
     }
 
+    /// Sets dry run through the admin API.
+    fn set_dry_run(controller: &TrafficController, dry_run: bool) {
+        controller
+            .admin_reconfigure(TrafficControlReconfigParams {
+                dry_run: Some(dry_run),
+                ..Default::default()
+            })
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn a_longer_manual_block_under_dry_run_is_logged_when_dry_run_goes_off() {
+        let controller = TrafficController::init_for_test(policy_config(false, PolicyKind::Spam));
+        let log = capture_plain(|| {
+            controller.tally(breach(PolicyKind::Spam));
+            set_dry_run(&controller, true);
+            controller.block_client("10.0.0.1", 3600).unwrap();
+            set_dry_run(&controller, false);
+        });
+        let lines = log.block_lines();
+        assert_eq!(lines.len(), 2, "{lines:?}");
+        assert!(lines[0].ends_with("reason=spam ttl_secs=120"), "{lines:?}");
+        let (_, ttl_secs) = lines[1]
+            .split_once("client_blocked client=10.0.0.1 reason=manual ttl_secs=")
+            .expect("the second line logs the manual block");
+        assert!(["3599", "3600"].contains(&ttl_secs), "{lines:?}");
+    }
+
+    #[tokio::test]
+    async fn an_unblock_under_dry_run_lifts_the_logged_ban_that_a_longer_manual_block_outlasts() {
+        let controller = TrafficController::init_for_test(policy_config(false, PolicyKind::Spam));
+        let log = capture_plain(|| {
+            controller.tally(breach(PolicyKind::Spam));
+            set_dry_run(&controller, true);
+            controller.block_client("10.0.0.1", 3600).unwrap();
+            assert!(controller.unblock_client("10.0.0.1").unwrap());
+        });
+        assert!(
+            log.lines()
+                .iter()
+                .any(|line| line.ends_with("client_unblocked client=10.0.0.1")),
+            "{:?}",
+            log.lines()
+        );
+    }
+
     #[tokio::test]
     async fn an_ipv6_client_is_blocked_and_unblocked_by_the_name_the_blocklist_gives() {
         let controller = TrafficController::init_for_test(policy_config(false, PolicyKind::Spam));

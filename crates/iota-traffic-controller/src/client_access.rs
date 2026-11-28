@@ -48,9 +48,22 @@ pub(crate) const MAX_BLOCKLIST_TTL_SEC: u64 = 30 * 24 * 60 * 60;
 struct Block {
     expiration: SystemTime,
     reason: BlockReason,
-    /// Whether the block log line was written for this block. Dry run blocks
-    /// without logging, so that it logs nothing for clients it still serves.
-    logged: bool,
+    /// The expiration that the last block log line of this block gave, if a
+    /// line was logged. Dry run blocks without logging, so that it logs
+    /// nothing for clients it still serves.
+    logged_until: Option<SystemTime>,
+}
+
+impl Block {
+    /// Whether the block needs a block log line: none was logged, or a manual
+    /// block outlasts the logged one, so that the firewall keeps its ban as
+    /// long. A breach that outlasts the logged block does not, since it can
+    /// repeat on every request.
+    fn needs_log_line(&self) -> bool {
+        self.logged_until.is_none_or(|logged_until| {
+            self.reason == BlockReason::Manual && self.expiration > logged_until
+        })
+    }
 }
 
 type BlockMap = Arc<DashMap<IpAddr, Block>>;
@@ -276,7 +289,7 @@ impl Blocklist {
             self.metrics.connection_ip_blocklist_len.dec();
             if now < block.expiration {
                 in_force = true;
-                if block.logged {
+                if block.logged_until.is_some() {
                     log_unblock(client, self.ipv6_prefix_len);
                 }
             }
@@ -363,10 +376,10 @@ impl Blocklist {
             let Ok(remaining) = block.expiration.duration_since(now) else {
                 continue;
             };
-            if block.logged {
+            if !block.needs_log_line() {
                 continue;
             }
-            block.logged = true;
+            block.logged_until = Some(block.expiration);
             unlogged.push((client, block.reason, remaining.as_secs_f64().ceil() as u64));
         }
         for (client, reason, ttl_secs) in unlogged {
@@ -856,14 +869,13 @@ fn insert_block(
             entry.insert(Block {
                 expiration,
                 reason,
-                logged: log,
+                logged_until: log.then_some(expiration),
             });
             log
         }
         Entry::Occupied(mut entry) => {
             let block = entry.get_mut();
             let active = now < block.expiration;
-            let already_logged = block.logged && active;
             // A breach never shortens an active block, so that the block lasts
             // at least as long as its log line told the firewall. The block
             // that sets the expiration gives the reason.
@@ -872,17 +884,16 @@ fn insert_block(
             } else {
                 (expiration, reason)
             };
-            // A manual block that outlasts a logged one is logged again, so
-            // that the firewall keeps its ban as long. A breach is not, since
-            // it can repeat on every request.
-            let outlasts_logged =
-                already_logged && reason == BlockReason::Manual && expiration > block.expiration;
             *block = Block {
                 expiration,
                 reason,
-                logged: already_logged || log,
+                logged_until: block.logged_until.filter(|_| active),
             };
-            log && (!already_logged || outlasts_logged)
+            let log = log && block.needs_log_line();
+            if log {
+                block.logged_until = Some(expiration);
+            }
+            log
         }
     }
 }
