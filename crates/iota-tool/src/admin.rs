@@ -844,7 +844,8 @@ mod tests {
     /// How the node ends its answer to a traffic control change.
     const UNTIL_RESTART: &str = "The change lasts until the node restarts.\n";
 
-    const TEMPLATE: &str = include_str!("../../iota-config/data/fullnode-template.yaml");
+    const FULLNODE_CONFIG_TEMPLATE: &str =
+        include_str!("../../iota-config/data/fullnode-template.yaml");
 
     fn policy() -> PolicyConfig {
         PolicyConfig {
@@ -1561,7 +1562,7 @@ mod tests {
         let node = start_admin_server(policy()).await;
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("fullnode.yaml");
-        std::fs::write(&path, TEMPLATE).unwrap();
+        std::fs::write(&path, FULLNODE_CONFIG_TEMPLATE).unwrap();
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -1581,7 +1582,10 @@ mod tests {
         assert!(out.starts_with("The policy-config changes:\n"), "{out}");
         assert!(out.contains("+policy-config:"), "{out}");
         assert!(out.ends_with("Nothing written.\n"), "{out}");
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), TEMPLATE);
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            FULLNODE_CONFIG_TEMPLATE
+        );
 
         let out = run(
             &node.url,
@@ -1592,7 +1596,10 @@ mod tests {
         .out;
         assert!(out.contains("kept the old file"), "{out}");
         let [backup] = backups(dir.path()).try_into().unwrap();
-        assert_eq!(std::fs::read_to_string(&backup).unwrap(), TEMPLATE);
+        assert_eq!(
+            std::fs::read_to_string(&backup).unwrap(),
+            FULLNODE_CONFIG_TEMPLATE
+        );
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -1630,7 +1637,7 @@ mod tests {
             dry_run: true,
             ..policy()
         };
-        let mut old: serde_yaml::Mapping = serde_yaml::from_str(TEMPLATE).unwrap();
+        let mut old: serde_yaml::Mapping = serde_yaml::from_str(FULLNODE_CONFIG_TEMPLATE).unwrap();
         old.insert(
             "policy-config".into(),
             serde_yaml::to_value(&old_policy).unwrap(),
@@ -1685,7 +1692,8 @@ mod tests {
         let node = start_admin_server(plain_rules.clone()).await;
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("fullnode.yaml");
-        let mut config: serde_yaml::Mapping = serde_yaml::from_str(TEMPLATE).unwrap();
+        let mut config: serde_yaml::Mapping =
+            serde_yaml::from_str(FULLNODE_CONFIG_TEMPLATE).unwrap();
         config.insert(
             "policy-config".into(),
             serde_yaml::to_value(&plain_rules).unwrap(),
@@ -1718,7 +1726,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("fullnode.yaml");
         let output_path = dir.path().join("new.yaml");
-        std::fs::write(&path, TEMPLATE).unwrap();
+        std::fs::write(&path, FULLNODE_CONFIG_TEMPLATE).unwrap();
 
         let out = run(
             &node.url,
@@ -1743,7 +1751,10 @@ mod tests {
             )),
             "{out}"
         );
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), TEMPLATE);
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            FULLNODE_CONFIG_TEMPLATE
+        );
         assert_eq!(backups(dir.path()), Vec::<PathBuf>::new());
         assert_eq!(
             load(&output_path).policy_config.unwrap().access_rules,
@@ -1769,14 +1780,17 @@ mod tests {
             error.to_string().contains("names the node config"),
             "{error}"
         );
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), TEMPLATE);
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            FULLNODE_CONFIG_TEMPLATE
+        );
     }
 
     #[test]
     fn a_save_whose_write_fails_changes_no_file_and_leaves_no_temporary_file() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("fullnode.yaml");
-        std::fs::write(&path, TEMPLATE).unwrap();
+        std::fs::write(&path, FULLNODE_CONFIG_TEMPLATE).unwrap();
         // A file cannot replace a directory, so the write fails after the new
         // config is written to its temporary file.
         let output_path = dir.path().join("new.yaml");
@@ -1793,7 +1807,10 @@ mod tests {
         )
         .unwrap_err();
         assert!(error.to_string().contains("cannot write"), "{error}");
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), TEMPLATE);
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            FULLNODE_CONFIG_TEMPLATE
+        );
         assert_eq!(
             std::fs::read_to_string(output_path.join("kept")).unwrap(),
             "kept"
@@ -1810,7 +1827,7 @@ mod tests {
     fn save_leaves_a_config_that_takes_the_settings_in_force_by_default() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("fullnode.yaml");
-        std::fs::write(&path, TEMPLATE).unwrap();
+        std::fs::write(&path, FULLNODE_CONFIG_TEMPLATE).unwrap();
         let mut out = Vec::new();
         save(
             &path,
@@ -1825,7 +1842,10 @@ mod tests {
             String::from_utf8(out).unwrap(),
             "The node config already holds the settings in force.\n"
         );
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), TEMPLATE);
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            FULLNODE_CONFIG_TEMPLATE
+        );
     }
 
     /// Output that a test can read while the code under test still holds it.
@@ -1853,7 +1873,7 @@ mod tests {
     fn save_shows_the_lost_comments_before_it_asks() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("fullnode.yaml");
-        std::fs::write(&path, TEMPLATE).unwrap();
+        std::fs::write(&path, FULLNODE_CONFIG_TEMPLATE).unwrap();
         let shown = SharedOutput::default();
         let shown_when_asked = Mutex::new(None);
         save(
@@ -1879,15 +1899,18 @@ mod tests {
             ),
             "{shown_when_asked}"
         );
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), TEMPLATE);
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            FULLNODE_CONFIG_TEMPLATE
+        );
     }
 
     #[test]
     fn save_refuses_a_config_that_changed_while_it_asked() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("fullnode.yaml");
-        std::fs::write(&path, TEMPLATE).unwrap();
-        let edited = format!("{TEMPLATE}\n# edited\n");
+        std::fs::write(&path, FULLNODE_CONFIG_TEMPLATE).unwrap();
+        let edited = format!("{FULLNODE_CONFIG_TEMPLATE}\n# edited\n");
         let error = save(
             &path,
             None,
@@ -1965,7 +1988,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("fullnode.yaml");
         let link = dir.path().join("config.yaml");
-        std::fs::write(&path, TEMPLATE).unwrap();
+        std::fs::write(&path, FULLNODE_CONFIG_TEMPLATE).unwrap();
         std::os::unix::fs::symlink(&path, &link).unwrap();
 
         run(
