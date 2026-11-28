@@ -250,7 +250,7 @@ impl TrafficControlCommand {
                 };
                 if params.default_action == Some(DefaultAction::Deny)
                     && !args.yes
-                    && !confirm(&format!("{} Continue?", DEFAULT_DENY_WARNING.trim_end()))?
+                    && !confirm(&format!("{DEFAULT_DENY_WARNING} Continue?"))?
                 {
                     writeln!(output.notes, "Nothing changed.")?;
                     return Ok(());
