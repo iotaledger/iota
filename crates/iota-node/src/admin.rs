@@ -170,7 +170,7 @@ const TRAFFIC_CONTROL_UNBLOCK: &str = "/traffic-control/unblock";
 const TRAFFIC_CONTROL_CLIENTS: &str = "/traffic-control/clients";
 
 /// Ends the response to every traffic control change.
-const UNTIL_RESTART: &str = "The change lasts until the node restarts.\n";
+const UNTIL_RESTART_NOTE: &str = "The change lasts until the node restarts.\n";
 const METRICS_FILTER_ROUTE: &str = "/metrics/filters";
 const METRICS_FILTER_RESET_ROUTE: &str = "/metrics/filters/reset";
 
@@ -697,7 +697,7 @@ async fn traffic_control_response(
                  Simulation gas per sec: {:?}\n\
                  Simulation burst gas: {:?}\n\
                  Default action: {:?}\n\
-                 {}{UNTIL_RESTART}",
+                 {}{UNTIL_RESTART_NOTE}",
                 updated_state.error_threshold,
                 updated_state.spam_threshold,
                 updated_state.dry_run,
@@ -728,7 +728,7 @@ fn json_response<T: Serialize>(result: IotaResult<T>) -> Response {
 /// A text response to a change, or the error.
 fn change_response(result: IotaResult<String>) -> (StatusCode, String) {
     match result {
-        Ok(message) => (StatusCode::OK, format!("{message}\n{UNTIL_RESTART}")),
+        Ok(message) => (StatusCode::OK, format!("{message}\n{UNTIL_RESTART_NOTE}")),
         Err(err) => error_response(err),
     }
 }
@@ -1274,7 +1274,7 @@ mod tests {
         ] {
             assert!(body.contains(advice), "{body}");
         }
-        assert!(body.ends_with(UNTIL_RESTART), "{body}");
+        assert!(body.ends_with(UNTIL_RESTART_NOTE), "{body}");
         let status: TrafficControlStatus =
             json(traffic_control_status_response(&state, Ok(()))).await;
         assert_eq!(status.default_action, DefaultAction::Deny);
@@ -1288,7 +1288,7 @@ mod tests {
             body.starts_with("Added 198.51.100.7 to the allow rules."),
             "{body}"
         );
-        assert!(body.ends_with(UNTIL_RESTART), "{body}");
+        assert!(body.ends_with(UNTIL_RESTART_NOTE), "{body}");
         let rules: AccessRules = json(traffic_control_rules_response(&state)).await;
         assert_eq!(rules.allow, ["198.51.100.7/32"]);
         let (_, body) =
