@@ -94,7 +94,7 @@ use iota_metrics::{
     metrics_network::{MetricsMakeCallbackHandler, NetworkConnectionMetrics, NetworkMetrics},
     server_timing_middleware, spawn_monitored_task,
 };
-use iota_names::config::IotaNamesConfig;
+use iota_names::config::{IotaNamesConfig, IotaNamesConfigExt};
 use iota_network::{
     api::{ValidatorPeerServer, ValidatorServer, ValidatorV2Server},
     discovery,

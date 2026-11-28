@@ -18,7 +18,7 @@ use iota_json_rpc_types::{
 };
 use iota_names::{
     IotaNamesNft, NameRegistration, SubnameRegistration,
-    config::IotaNamesConfig,
+    config::{IotaNamesConfig, IotaNamesConfigExt},
     name::Name,
     registry::{NameRecord, RegistryEntry, ReverseRegistryEntry},
 };
@@ -341,23 +341,22 @@ impl NameCommand {
             }
             Self::GetUserData { name, key } => {
                 let entry = get_registry_entry(&name, &iota_client).await?;
+                let mut data = entry.name_record.data;
 
-                if let Some(key) = key {
-                    let Some(value) = entry
-                        .name_record
-                        .data
-                        .contents
-                        .into_iter()
-                        .find(|entry| entry.key == key)
-                    else {
+                let contents = if let Some(key) = key {
+                    let Some(value) = data.remove(&key) else {
                         bail!("no value found for key `{key}`");
                     };
-                    NameCommandResult::UserData(VecMap {
-                        contents: vec![value],
-                    })
+                    vec![Entry { key, value }]
                 } else {
-                    NameCommandResult::UserData(entry.name_record.data)
-                }
+                    let mut contents: Vec<_> = data
+                        .into_iter()
+                        .map(|(key, value)| Entry { key, value })
+                        .collect();
+                    contents.sort_by(|a, b| a.key.cmp(&b.key));
+                    contents
+                };
+                NameCommandResult::UserData(VecMap { contents })
             }
             Self::List { address } => {
                 let address = get_identity_address(address, context).await?;
@@ -1541,7 +1540,7 @@ fn format_name_record(f: &mut std::fmt::Formatter, record: &NameRecord) -> std::
 }
 
 fn build_name_record_table(table_builder: &mut TableBuilder, record: &NameRecord) {
-    table_builder.push_record(["NFT ID", record.nft_id.bytes.to_string().as_str()]);
+    table_builder.push_record(["NFT ID", record.nft_id.to_string().as_str()]);
     table_builder.push_record([
         "Target Address",
         record
@@ -1560,8 +1559,10 @@ fn build_name_record_table(table_builder: &mut TableBuilder, record: &NameRecord
         format!("{} ({expiration_datetime})", record.expiration_timestamp_ms),
     ]);
 
-    for entry in &record.data.contents {
-        table_builder.push_record([&entry.key, &entry.value]);
+    let mut data: Vec<_> = record.data.iter().collect();
+    data.sort();
+    for (key, value) in data {
+        table_builder.push_record([key, value]);
     }
 }
 
@@ -1632,7 +1633,7 @@ async fn get_owned_nfts<T: DeserializeOwned + IotaNamesNft>(
 ) -> anyhow::Result<Vec<T>> {
     let client = context.get_client().await?;
     let iota_names_config = get_iota_names_config(&client).await?;
-    let nft_type = T::struct_tag(iota_names_config.package_address);
+    let nft_type = T::type_(iota_names_config.package_address);
     let responses = PagedFn::collect::<Vec<_>>(async |cursor| {
         client
             .read_api()
@@ -1867,8 +1868,8 @@ impl IotaNamesNftProxy {
 
     fn type_(&self, package_id: Address) -> StructTag {
         match self {
-            IotaNamesNftProxy::Name(_) => NameRegistration::struct_tag(package_id),
-            IotaNamesNftProxy::Subname(_) => SubnameRegistration::struct_tag(package_id),
+            IotaNamesNftProxy::Name(_) => NameRegistration::type_(package_id),
+            IotaNamesNftProxy::Subname(_) => SubnameRegistration::type_(package_id),
         }
     }
 

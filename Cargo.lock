@@ -7225,13 +7225,10 @@ dependencies = [
 name = "iota-names"
 version = "1.38.0-alpha"
 dependencies = [
- "anyhow",
  "bcs 0.2.1",
  "iota-sdk-move-types",
  "iota-sdk-types",
  "iota-types",
- "serde",
- "thiserror 1.0.64",
 ]
 
 [[package]]

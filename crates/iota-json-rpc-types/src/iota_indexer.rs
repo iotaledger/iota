@@ -39,15 +39,10 @@ pub struct IotaNameRecord {
 impl From<NameRecord> for IotaNameRecord {
     fn from(record: NameRecord) -> Self {
         Self {
-            nft_id: record.nft_id.bytes,
+            nft_id: record.nft_id,
             expiration_timestamp_ms: record.expiration_timestamp_ms,
             target_address: record.target_address,
-            data: record
-                .data
-                .contents
-                .into_iter()
-                .map(|entry| (entry.key.to_string(), entry.value))
-                .collect(),
+            data: record.data.into_iter().collect(),
         }
     }
 }

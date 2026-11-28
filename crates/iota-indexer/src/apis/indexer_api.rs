@@ -14,7 +14,10 @@ use iota_json_rpc_types::{
     OwnedObjectCursor, Page, TransactionBlocksPage,
 };
 use iota_names::{
-    IotaNamesNft, NameRegistration, config::IotaNamesConfig, error::IotaNamesError, name::Name,
+    IotaNamesNft, NameRegistration,
+    config::{IotaNamesConfig, IotaNamesConfigExt},
+    error::IotaNamesError,
+    name::Name,
     registry::NameRecord,
 };
 use iota_open_rpc::Module;
@@ -404,7 +407,7 @@ impl IndexerApiServer for IndexerApi {
             .map(iota_types::object::Object::try_from)
             .try_fold(HashMap::new(), |mut map, res| {
                 let obj = res?;
-                map.insert(obj.id(), obj.try_into()?);
+                map.insert(obj.id(), obj.into_inner().try_into()?);
                 Ok::<HashMap<ObjectId, NameRecord>, IndexerError>(map)
             })?;
 
@@ -488,9 +491,9 @@ impl IndexerApiServer for IndexerApi {
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<ObjectsPage> {
         let query = IotaObjectResponseQuery {
-            filter: Some(IotaObjectDataFilter::StructType(
-                NameRegistration::struct_tag(self.iota_names_config.package_address),
-            )),
+            filter: Some(IotaObjectDataFilter::StructType(NameRegistration::type_(
+                self.iota_names_config.package_address,
+            ))),
             options,
         };
 

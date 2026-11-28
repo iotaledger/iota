@@ -7,8 +7,11 @@ use std::str::FromStr;
 use async_graphql::{connection::Connection, *};
 use iota_indexer::models::objects::StoredHistoryObject;
 use iota_names::{
-    IotaNamesNft, config::IotaNamesConfig, error::IotaNamesError, name::Name as NativeName,
-    registry::NameRecord,
+    IotaNamesNft,
+    config::{IotaNamesConfig, IotaNamesConfigExt},
+    error::IotaNamesError,
+    name::Name as NativeName,
+    registry::{NameRecord, name_record_from_move_struct},
 };
 use iota_sdk_move_types::iota_framework::{dynamic_field::Field, object::UID};
 use iota_sdk_types::{Address, StructTag};
@@ -545,7 +548,7 @@ impl IotaNames {
                 ))
             })?;
 
-            let record = NameRecord::try_from(move_object.native)?;
+            let record = name_record_from_move_struct(&move_object.native)?;
 
             if object.address == object_ids[0] {
                 name_expiration.name_record = Some(record);
@@ -603,7 +606,7 @@ impl NameRegistration {
     /// Return the type representing a `NameRegistration` on chain. This
     /// can change from chain to chain (mainnet, testnet, devnet etc).
     pub(crate) fn struct_tag(package: IotaAddress) -> StructTag {
-        iota_names::NameRegistration::struct_tag(package.into())
+        iota_names::NameRegistration::type_(package.into())
     }
 
     // Because the type of the NameRegistration object is not constant,

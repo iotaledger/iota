@@ -64,31 +64,24 @@ impl From<IotaNamesOptions> for IotaNamesConfig {
             registry_id,
             reverse_registry_id,
         } = options;
-        Self {
+        Self::new(
             package_address,
             object_id,
             payments_package_address,
             registry_id,
             reverse_registry_id,
-        }
+        )
     }
 }
 
 impl From<IotaNamesConfig> for IotaNamesOptions {
     fn from(config: IotaNamesConfig) -> Self {
-        let IotaNamesConfig {
-            package_address,
-            object_id,
-            payments_package_address,
-            registry_id,
-            reverse_registry_id,
-        } = config;
         Self {
-            package_address,
-            object_id,
-            payments_package_address,
-            registry_id,
-            reverse_registry_id,
+            package_address: config.package_address,
+            object_id: config.object_id,
+            payments_package_address: config.payments_package_address,
+            registry_id: config.registry_id,
+            reverse_registry_id: config.reverse_registry_id,
         }
     }
 }
