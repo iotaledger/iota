@@ -639,7 +639,13 @@ impl AdminClient {
             .send()
             .await
             .with_context(|| self.no_answer())?;
-        Ok(require_success(response).await?.text().await?)
+        require_success(response)
+            .await?
+            .text()
+            .await
+            .with_context(|| {
+                format!("the node made the change, but reading its answer to {path} failed")
+            })
     }
 }
 
@@ -1263,6 +1269,37 @@ mod tests {
             .await
             .unwrap_err();
         assert!(down.to_string().contains("cannot be reached"), "{down}");
+    }
+
+    #[tokio::test]
+    async fn a_change_whose_answer_breaks_off_says_that_the_node_made_it() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        let listener = tokio::net::TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+            .await
+            .unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        // Answers with success, then closes the connection before the end of
+        // the announced body.
+        tokio::spawn(async move {
+            let (mut connection, _) = listener.accept().await.unwrap();
+            let mut request = [0; 4096];
+            let _ = connection.read(&mut request).await.unwrap();
+            connection
+                .write_all(b"HTTP/1.1 200 OK\r\ncontent-length: 100\r\n\r\nUnblocked")
+                .await
+                .unwrap();
+        });
+        let error = run(&url, &["traffic-control", "unblock", "203.0.113.9"])
+            .await
+            .err()
+            .unwrap();
+        assert!(
+            error
+                .to_string()
+                .starts_with("the node made the change, but reading its answer"),
+            "{error:#}"
+        );
     }
 
     #[tokio::test]
