@@ -1356,7 +1356,12 @@ mod tests {
             ("10.0.0.1", false, BlockReason::Manual)
         );
         assert!((299..=300).contains(&block.seconds_left), "{block:?}");
-        assert_eq!(controller.blocklist(10).clients, vec![block]);
+        let [listed] = controller.blocklist(10).clients.try_into().unwrap();
+        assert_eq!(
+            (listed.client.as_str(), listed.proxied, listed.reason),
+            ("10.0.0.1", false, BlockReason::Manual)
+        );
+        assert!((299..=300).contains(&listed.seconds_left), "{listed:?}");
     }
 
     #[tokio::test]

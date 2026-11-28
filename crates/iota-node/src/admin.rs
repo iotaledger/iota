@@ -1319,7 +1319,19 @@ mod tests {
         assert_eq!(blocklist.clients.len(), 1);
         assert_eq!(blocklist.clients[0].reason, BlockReason::Manual);
         let usage: ClientUsage = json(traffic_control_clients_response(&state, query("/"))).await;
-        assert_eq!(usage.blocked, blocklist);
+        // Two reads, so the seconds left can differ.
+        let clients_and_reasons = |blocks: &BlockedClients| {
+            blocks
+                .clients
+                .iter()
+                .map(|block| (block.client.clone(), block.proxied, block.reason))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            clients_and_reasons(&usage.blocked),
+            clients_and_reasons(&blocklist)
+        );
+        assert_eq!(usage.blocked.omitted, blocklist.omitted);
 
         let (status, body) =
             unblock_traffic_control_client_response(&state, query("/?client=203.0.113.9"));

@@ -1100,6 +1100,17 @@ mod tests {
         IpAddr::V6(Ipv6Addr::from(segments))
     }
 
+    #[test]
+    fn the_seconds_left_of_a_block_are_rounded_up() {
+        let now = SystemTime::now();
+        assert_eq!(
+            seconds_left(now + Duration::from_millis(299_001), now),
+            Some(300)
+        );
+        assert_eq!(seconds_left(now + Duration::from_secs(300), now), Some(300));
+        assert_eq!(seconds_left(now - Duration::from_millis(1), now), None);
+    }
+
     #[tokio::test]
     async fn a_check_decides_by_the_dry_run_of_the_rules_it_loaded() {
         let manager = manager(PolicyConfig {
