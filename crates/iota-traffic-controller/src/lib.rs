@@ -233,7 +233,11 @@ impl TrafficController {
     /// `InvalidAdminRequest` when `client` is neither an IP address nor an
     /// IPv6 prefix as the blocklist names it, when `ttl_sec` is 0 or above the
     /// longest blocklist TTL, or when an allow rule serves `client`.
-    pub fn block_client(&self, client: &str, ttl_sec: u64) -> Result<BlockedClient, IotaError> {
+    pub fn block_client_manually(
+        &self,
+        client: &str,
+        ttl_sec: u64,
+    ) -> Result<BlockedClient, IotaError> {
         let client = self.parse_client(client)?;
         self.client_access
             .block_manually(client, ttl_sec)
@@ -1347,7 +1351,9 @@ mod tests {
     async fn a_manual_block_refuses_the_client_and_logs_it() {
         let controller = TrafficController::init_for_test(policy_config(false, PolicyKind::Spam));
         let mut block = None;
-        let log = capture_plain(|| block = Some(controller.block_client("10.0.0.1", 300).unwrap()));
+        let log = capture_plain(|| {
+            block = Some(controller.block_client_manually("10.0.0.1", 300).unwrap())
+        });
         let block = block.unwrap();
         let [line] = log.block_lines().try_into().unwrap();
         assert!(
@@ -1383,7 +1389,7 @@ mod tests {
             ("2001:db8:1:2::/48", 60),
         ] {
             assert!(matches!(
-                controller.block_client(client, ttl_sec),
+                controller.block_client_manually(client, ttl_sec),
                 Err(IotaError::InvalidAdminRequest(_))
             ));
         }
@@ -1402,7 +1408,7 @@ mod tests {
         let log = capture_plain(|| {
             for client in ["10.0.0.1", "2001:db8:1:2::5"] {
                 let Err(IotaError::InvalidAdminRequest(message)) =
-                    controller.block_client(client, 60)
+                    controller.block_client_manually(client, 60)
                 else {
                     panic!("the block of {client} was not rejected");
                 };
@@ -1411,7 +1417,7 @@ mod tests {
         });
         assert_eq!(log.block_lines(), Vec::<String>::new());
         assert_eq!(controller.blocklist(10).clients, vec![]);
-        controller.block_client("10.0.1.1", 60).unwrap();
+        controller.block_client_manually("10.0.1.1", 60).unwrap();
     }
 
     #[tokio::test]
@@ -1419,10 +1425,10 @@ mod tests {
         let controller = TrafficController::init_for_test(policy_config(false, PolicyKind::Spam));
         let log = capture_plain(|| {
             controller.tally(breach(PolicyKind::Spam));
-            let shorter = controller.block_client("10.0.0.1", 60).unwrap();
+            let shorter = controller.block_client_manually("10.0.0.1", 60).unwrap();
             assert_eq!(shorter.reason, BlockReason::Spam);
             assert!((119..=120).contains(&shorter.seconds_left), "{shorter:?}");
-            let longer = controller.block_client("10.0.0.1", 3600).unwrap();
+            let longer = controller.block_client_manually("10.0.0.1", 3600).unwrap();
             assert_eq!(longer.reason, BlockReason::Manual);
             assert!((3599..=3600).contains(&longer.seconds_left), "{longer:?}");
         });
@@ -1451,7 +1457,7 @@ mod tests {
         let log = capture_plain(|| {
             controller.tally(breach(PolicyKind::Spam));
             set_dry_run(&controller, true);
-            controller.block_client("10.0.0.1", 3600).unwrap();
+            controller.block_client_manually("10.0.0.1", 3600).unwrap();
             set_dry_run(&controller, false);
         });
         let lines = log.block_lines();
@@ -1469,7 +1475,7 @@ mod tests {
         let log = capture_plain(|| {
             controller.tally(breach(PolicyKind::Spam));
             set_dry_run(&controller, true);
-            controller.block_client("10.0.0.1", 3600).unwrap();
+            controller.block_client_manually("10.0.0.1", 3600).unwrap();
             assert!(controller.unblock_client("10.0.0.1").unwrap());
         });
         assert!(
@@ -1484,7 +1490,9 @@ mod tests {
     #[tokio::test]
     async fn an_ipv6_client_is_blocked_and_unblocked_by_the_name_the_blocklist_gives() {
         let controller = TrafficController::init_for_test(policy_config(false, PolicyKind::Spam));
-        let block = controller.block_client("2001:db8:1:2::5", 60).unwrap();
+        let block = controller
+            .block_client_manually("2001:db8:1:2::5", 60)
+            .unwrap();
         assert_eq!(block.client, "2001:db8:1:2::/64");
         let other = IpAddr::V6(Ipv6Addr::new(0x2001, 0xdb8, 1, 2, 0, 0, 0, 9));
         assert_eq!(controller.check(&Some(other), &None), ClientAccess::Refused);
@@ -1591,7 +1599,7 @@ mod tests {
             ..policy_config(false, PolicyKind::Spam)
         });
         controller.tally(TrafficTally::new(None, Some(CLIENT), None, Weight::one()));
-        controller.block_client("10.0.0.1", 60).unwrap();
+        controller.block_client_manually("10.0.0.1", 60).unwrap();
         assert_eq!(controller.blocklist(10).clients.len(), 2);
         assert_eq!(controller.status().blocked_clients, 1);
     }
@@ -1600,7 +1608,7 @@ mod tests {
     async fn a_manual_block_under_dry_run_is_kept_and_its_unblock_is_not_logged() {
         let controller = TrafficController::init_for_test(policy_config(true, PolicyKind::Spam));
         let log = capture_plain(|| {
-            controller.block_client("10.0.0.1", 300).unwrap();
+            controller.block_client_manually("10.0.0.1", 300).unwrap();
             assert!(controller.dry_run());
             assert!(controller.check(&Some(CLIENT), &None).is_served());
             assert_eq!(controller.blocklist(10).clients.len(), 1);
@@ -1640,7 +1648,7 @@ mod tests {
         let controller = TrafficController::init_for_test(policy_config(false, PolicyKind::Spam));
         for last in 1..=5 {
             controller
-                .block_client(&format!("10.0.0.{last}"), 60)
+                .block_client_manually(&format!("10.0.0.{last}"), 60)
                 .unwrap();
         }
         let blocklist = controller.blocklist(2);

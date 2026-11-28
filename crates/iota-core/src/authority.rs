@@ -2572,14 +2572,14 @@ impl AuthorityState {
     /// # Errors
     ///
     /// `InvalidAdminRequest` when traffic control is off on this node, or when
-    /// [`TrafficController::block_client`] rejects the block.
+    /// [`TrafficController::block_client_manually`] rejects the block.
     pub fn block_traffic_control_client(
         &self,
         client: &str,
         ttl_sec: u64,
     ) -> IotaResult<BlockedClient> {
         self.traffic_controller_for_admin()?
-            .block_client(client, ttl_sec)
+            .block_client_manually(client, ttl_sec)
     }
 
     /// Drops the blocks of `client`, an IP address or an IPv6 prefix as the
