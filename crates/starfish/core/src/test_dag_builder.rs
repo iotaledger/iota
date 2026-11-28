@@ -49,7 +49,7 @@ use crate::{
 /// dag_builder.layers(2..=10).build(); // Rounds 2 ~ 10 are fully connected with parents by default.
 /// dag_builder.layers(11).skip_acknowledgements(vec![1,2]).build(); // Round 11 skips acknowledgments for blocks from authorities 1 and 2.
 /// dag_builder.layers(12).min_parent_links().build(); // Round 11 is minimally and randomly connected with parents, without weak links.
-/// dag_builder.layers(14).no_leader_link(12, 0).build(); // Round 13 misses votes for leader block. Other blocks are fully connected with parents.
+/// dag_builder.layer(13).no_leader_link(12); // Round 13 omits links to the round-12 leader.
 /// dag_builder.layers(15).authorities(vec![3,5]).skip_block().build(); // Round 14 authorities 3 and 5 will not propose any block.
 /// dag_builder.layers(16).authorities(vec![3,5]).skip_ancestor_links(vec![1,2]).build(); // Round 15 authorities 3 and 5 will not link to ancestors 1 and 2
 /// dag_builder.layers(17).authorities(vec![3,5]).equivocate(3).build(); // Round 16 authorities 3 and 5 will produce 3 equivocating blocks.
@@ -388,7 +388,7 @@ impl DagBuilder {
         );
         self.block_headers.iter().find_map(|(block_ref, block)| {
             (block_ref.round == round
-                && block_ref.author == self.leader_schedule.elect_leader(round, 0))
+                && block_ref.author == self.leader_schedule.elect_leader(round))
             .then_some(block.clone())
         })
     }
@@ -642,7 +642,7 @@ impl DagBuilder {
         self.available_transactions[author].extend(acknowledgments.iter().copied());
 
         let leader_round = round - 1;
-        let leader_authority = self.leader_schedule.elect_leader(leader_round, 0);
+        let leader_authority = self.leader_schedule.elect_leader(leader_round);
         let mut missing = AuthoritySet::new();
         if leader_round == GENESIS_ROUND {
             // A genesis block carries no transactions, so none can be missing.
@@ -700,7 +700,6 @@ pub struct LayerBuilder<'a> {
     no_leader_link: bool,
 
     // Used for leader based configurations
-    specified_leader_link_offsets: Option<Vec<u32>>,
     leader_round: Option<Round>,
 
     // All ancestors will be linked to the current layer
@@ -743,7 +742,6 @@ impl<'a> LayerBuilder<'a> {
             skip_block: false,
             skip_ancestor_links: None,
             no_leader_link: false,
-            specified_leader_link_offsets: None,
             leader_round: None,
             fully_linked_ancestors: true,
             min_ancestor_links: false,
@@ -795,18 +793,11 @@ impl<'a> LayerBuilder<'a> {
         self
     }
 
-    // Should be called when building a voting round. Will ensure vote is missing.
-    // A list of specified leader offsets can be provided to skip those leader
-    // links. If none are provided all potential leaders for the round will be
-    // skipped. note: configuration is terminal and layer will be built after
-    // this call.
-    pub fn no_leader_link(
-        mut self,
-        leader_round: Round,
-        specified_leader_offsets: Vec<u32>,
-    ) -> Self {
+    // Should be called when building a voting round. Will ensure the vote for
+    // the leader of `leader_round` is missing. note: configuration is terminal
+    // and layer will be built after this call.
+    pub fn no_leader_link(mut self, leader_round: Round) -> Self {
         self.no_leader_link = true;
-        self.specified_leader_link_offsets = Some(specified_leader_offsets);
         self.leader_round = Some(leader_round);
         self.fully_linked_ancestors = false;
         self.build()
@@ -979,11 +970,7 @@ impl<'a> LayerBuilder<'a> {
 
         let mut leaders = vec![];
         if let Some(leader_round) = self.leader_round {
-            leaders.push(
-                self.dag_builder
-                    .leader_schedule
-                    .elect_leader(leader_round, 0),
-            );
+            leaders.push(self.dag_builder.leader_schedule.elect_leader(leader_round));
         }
 
         authorities
@@ -1036,28 +1023,9 @@ impl<'a> LayerBuilder<'a> {
         authorities: &[AuthorityIndex],
         round: Round,
     ) -> Vec<(AuthorityIndex, Vec<BlockRef>)> {
-        let mut missing_leaders = Vec::new();
-        let mut specified_leader_offsets = self
-            .specified_leader_link_offsets
-            .clone()
-            .expect("specified_leader_offsets should be set");
         let leader_round = self.leader_round.expect("leader round should be set");
-
-        // When no leader offsets are specified, the leader is expected to be
-        // missing.
-        if specified_leader_offsets.is_empty() {
-            specified_leader_offsets.push(0);
-        }
-
-        for leader_offset in specified_leader_offsets {
-            missing_leaders.push(
-                self.dag_builder
-                    .leader_schedule
-                    .elect_leader(leader_round, leader_offset),
-            );
-        }
-
-        self.configure_skipped_ancestor_links(authorities, missing_leaders)
+        let leader = self.dag_builder.leader_schedule.elect_leader(leader_round);
+        self.configure_skipped_ancestor_links(authorities, vec![leader])
     }
 
     fn configure_random_acknowledgments(

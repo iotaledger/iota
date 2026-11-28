@@ -2519,7 +2519,7 @@ mod test {
         // A round 1 block votes on the genesis leader, whose transactions are
         // always available, so peers send a strong vote for it.
         let round_1_strong_vote = Some(StrongVote {
-            leader_authority: core.leader_schedule.elect_leader(GENESIS_ROUND, 0),
+            leader_authority: core.leader_schedule.elect_leader(GENESIS_ROUND),
             missing: AuthoritySet::new(),
         });
         let round_1_block = |author: u8| {

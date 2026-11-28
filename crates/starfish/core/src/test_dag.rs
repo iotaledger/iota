@@ -93,7 +93,7 @@ fn strong_vote_for_leader(
     ancestors: &[BlockRef],
 ) -> Option<StrongVote> {
     let leader_round = round - 1;
-    let leader_authority = leader_schedule.elect_leader(leader_round, 0);
+    let leader_authority = leader_schedule.elect_leader(leader_round);
     let mut missing = AuthoritySet::new();
     if leader_round != GENESIS_ROUND {
         if !ancestors

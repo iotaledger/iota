@@ -747,7 +747,7 @@ mod tests {
         // Filter out leader block of round `leader_round_wave_1`
         block_headers_wave_2.retain(|block| {
             !(block.round() == leader_round_wave_1
-                && block.author() == leader_schedule.elect_leader(leader_round_wave_1, 0))
+                && block.author() == leader_schedule.elect_leader(leader_round_wave_1))
         });
         // Add the leader block of round `leader_round_wave_2`
         block_headers_wave_2.push(

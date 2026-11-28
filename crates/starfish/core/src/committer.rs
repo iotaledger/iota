@@ -161,7 +161,7 @@ impl Committer {
 
     /// The leader slot of `round`.
     pub(crate) fn elect_leader(&self, round: Round) -> Slot {
-        Slot::new(round, self.leader_schedule.elect_leader(round, 0))
+        Slot::new(round, self.leader_schedule.elect_leader(round))
     }
 
     /// Check whether the specified block (`potential_vote`) is a vote for
