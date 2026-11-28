@@ -1478,15 +1478,14 @@ mod tests {
         assert!(warnings[0].contains("The forwarders"), "{warnings:?}");
     }
 
-    fn with_forwarders(forwarders: &[&str]) -> ClientAccessManager {
-        manager(forwarders_with_rules(
-            forwarders,
-            with_rules(&[], &[], DefaultAction::Limit),
-        ))
+    /// A config with `forwarders` as its forwarders, no access rules and the
+    /// default action `limit`.
+    fn with_forwarders(forwarders: &[&str]) -> PolicyConfig {
+        add_forwarders(forwarders, with_rules(&[], &[], DefaultAction::Limit))
     }
 
     /// `policy_config` with `forwarders` as its forwarders.
-    fn forwarders_with_rules(forwarders: &[&str], mut policy_config: PolicyConfig) -> PolicyConfig {
+    fn add_forwarders(forwarders: &[&str], mut policy_config: PolicyConfig) -> PolicyConfig {
         policy_config.access_rules.forwarders =
             forwarders.iter().map(|rule| rule.to_string()).collect();
         policy_config
@@ -1506,7 +1505,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_forwarder_request_is_the_client_it_names() {
-        let manager = with_forwarders(&["10.0.0.5/24"]);
+        let manager = manager(with_forwarders(&["10.0.0.5/24"]));
         assert_eq!(manager.access_rules().forwarders, ["10.0.0.0/24"]);
         let forwarded = |header: &[u8]| forwarded_client(&manager, ip("10.0.0.5"), &[header]);
         assert_eq!(forwarded(b"198.51.100.7"), ip("198.51.100.7"));
@@ -1523,7 +1522,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_forwarder_request_without_one_client_ip_is_its_own() {
-        let manager = with_forwarders(&["10.0.0.5"]);
+        let manager = manager(with_forwarders(&["10.0.0.5"]));
         assert_eq!(
             forwarded_client(&manager, ip("10.0.0.5"), &[]),
             ip("10.0.0.5")
@@ -1553,14 +1552,14 @@ mod tests {
 
     #[tokio::test]
     async fn the_client_ip_header_of_another_client_is_ignored() {
-        let manager = with_forwarders(&["10.0.0.5"]);
+        let manager = manager(with_forwarders(&["10.0.0.5"]));
         assert_eq!(
             forwarded_client(&manager, ip("10.0.0.6"), &[b"198.51.100.7"]),
             ip("10.0.0.6")
         );
         // A request whose client the node could not resolve is no forwarder's.
         assert_eq!(forwarded_client(&manager, None, &[b"198.51.100.7"]), None);
-        let manager = with_forwarders(&[]);
+        let manager = manager(with_forwarders(&[]));
         assert_eq!(
             forwarded_client(&manager, ip("10.0.0.5"), &[b"198.51.100.7"]),
             ip("10.0.0.5")
@@ -1574,7 +1573,7 @@ mod tests {
         let user_request = |manager: &ClientAccessManager| {
             manager.resolve_forwarded_client_and_check(Some(forwarder), &[b"198.51.100.7"])
         };
-        let manager = manager(forwarders_with_rules(
+        let manager = manager(add_forwarders(
             &["10.0.0.5"],
             with_rules(&[], &["10.0.0.5"], DefaultAction::Limit),
         ));
@@ -1584,7 +1583,7 @@ mod tests {
         );
         assert_eq!(manager.metrics.deny_rule_requests.get(), 1);
 
-        let manager = with_forwarders(&["10.0.0.5"]);
+        let manager = manager(with_forwarders(&["10.0.0.5"]));
         assert_eq!(
             user_request(&manager),
             (ip("198.51.100.7"), ClientAccess::Limited)
@@ -1598,7 +1597,7 @@ mod tests {
 
     #[tokio::test]
     async fn under_dry_run_a_refused_forwarder_is_counted_and_its_user_checked() {
-        let mut policy_config = forwarders_with_rules(
+        let mut policy_config = add_forwarders(
             &["10.0.0.5"],
             with_rules(&[], &["10.0.0.5", "198.51.100.7"], DefaultAction::Limit),
         );
@@ -1624,7 +1623,7 @@ mod tests {
     async fn the_user_that_a_forwarder_names_goes_through_the_rules_on_its_own() {
         // An allow rule of the forwarder spares it its own deny rule, as for
         // its own requests, and serves none of its users.
-        let manager = manager(forwarders_with_rules(
+        let manager = manager(add_forwarders(
             &["10.0.0.5"],
             with_rules(
                 &["10.0.0.5"],
@@ -1654,7 +1653,7 @@ mod tests {
     #[tokio::test]
     #[should_panic(expected = "access rule \"not-an-address\" in access-rules.forwarders")]
     async fn an_invalid_forwarder_stops_the_node() {
-        with_forwarders(&["not-an-address"]);
+        manager(with_forwarders(&["not-an-address"]));
     }
 
     #[tokio::test]
