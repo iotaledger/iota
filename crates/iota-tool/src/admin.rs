@@ -1271,6 +1271,89 @@ mod tests {
         assert!(out.ends_with("Default action: limit\n"), "{out}");
     }
 
+    /// The value in the row of `setting` of the status table `table`.
+    fn status_row(table: &str, setting: &str) -> String {
+        table
+            .lines()
+            .find_map(|line| {
+                let cells = line
+                    .split(['|', '│'])
+                    .map(str::trim)
+                    .filter(|cell| !cell.is_empty())
+                    .collect::<Vec<_>>();
+                (cells.first() == Some(&setting)).then(|| cells[1].to_string())
+            })
+            .unwrap_or_else(|| panic!("no row {setting:?} in\n{table}"))
+    }
+
+    #[test]
+    fn the_status_table_prints_each_setting_in_its_own_row() {
+        let status = TrafficControlStatus {
+            error_threshold: Some(50),
+            spam_threshold: Some(1000),
+            dry_run: true,
+            connection_blocklist_ttl_sec: 60,
+            proxy_blocklist_ttl_sec: 70,
+            default_action: DefaultAction::Deny,
+            allow_rules: 2,
+            deny_rules: 3,
+            blocked_clients: 4,
+            simulation_gas_limit: Some(SimulationGasLimitConfig {
+                gas_per_sec: 1_000_000,
+                burst_gas: 20_000_000,
+            }),
+        };
+        let without_limits = TrafficControlStatus {
+            error_threshold: None,
+            spam_threshold: None,
+            simulation_gas_limit: None,
+            ..status.clone()
+        };
+        for (status, rows) in [
+            (
+                status,
+                [
+                    ("spam threshold", "1000"),
+                    ("error threshold", "50"),
+                    ("simulation gas per sec", "1000000"),
+                    ("simulation burst gas", "20000000"),
+                ],
+            ),
+            (
+                without_limits,
+                [
+                    ("spam threshold", "-"),
+                    ("error threshold", "-"),
+                    ("simulation gas per sec", "-"),
+                    ("simulation burst gas", "-"),
+                ],
+            ),
+        ] {
+            let (mut out, mut notes) = (Vec::new(), Vec::new());
+            print_status(
+                &status,
+                &mut Output {
+                    out: &mut out,
+                    notes: &mut notes,
+                    json: false,
+                },
+            )
+            .unwrap();
+            let table = String::from_utf8(out).unwrap();
+            for (setting, value) in rows.into_iter().chain([
+                ("dry run", "true"),
+                ("connection blocklist TTL (s)", "60"),
+                ("proxy blocklist TTL (s)", "70"),
+                ("default action", "deny"),
+                ("allow rules", "2"),
+                ("deny rules", "3"),
+                ("blocked clients", "4"),
+            ]) {
+                assert_eq!(status_row(&table, setting), value, "{table}");
+            }
+        }
+    }
+
     #[test]
     fn the_client_usage_names_the_shared_balance_and_counts_the_entries_left_out() {
         let usage = ClientUsage {
