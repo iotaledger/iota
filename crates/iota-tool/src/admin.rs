@@ -311,7 +311,7 @@ impl TrafficControlCommand {
                 let usage: ClientUsage = admin_api
                     .get(TRAFFIC_CONTROL_CLIENTS_ROUTE, &ClientUsageQuery { top })
                     .await?;
-                print_usage(&usage, output)?;
+                print_client_usage(&usage, output)?;
             }
             Self::Save {
                 config,
@@ -788,7 +788,7 @@ fn print_blocklist(blocklist: &BlockedClients, output: &mut Output<'_>) -> Resul
     Ok(())
 }
 
-fn print_usage(usage: &ClientUsage, output: &mut Output<'_>) -> Result<()> {
+fn print_client_usage(usage: &ClientUsage, output: &mut Output<'_>) -> Result<()> {
     if output.json {
         return print_json(usage, output.out);
     }
@@ -1515,7 +1515,7 @@ mod tests {
             },
         };
         let (mut out, mut notes) = (Vec::new(), Vec::new());
-        print_usage(
+        print_client_usage(
             &usage,
             &mut Output {
                 out: &mut out,
