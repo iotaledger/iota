@@ -367,7 +367,7 @@ fn print_answer(answer: &str, output: &mut Output<'_>) -> Result<()> {
 
 /// `policy`, the `policy-config` the node answers, read as this tool knows it.
 /// Fails when this tool reads it differently from what the node holds, such as
-/// a setting it does not know, since `save` would then write other settings.
+/// a setting it does not know.
 fn parse_policy_config_without_loss(policy: serde_json::Value) -> Result<PolicyConfig> {
     const OTHER_VERSION: &str = "the node and this iota-tool read the policy-config \
         differently; use the iota-tool of the same version as the node";
