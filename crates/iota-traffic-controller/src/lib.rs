@@ -1752,7 +1752,7 @@ mod tests {
 
     /// What `controller` decides for a client that no rule names at each event
     /// of `target` at `level` that `change` logs.
-    fn decisions_at_events(
+    fn collect_decisions_at_events(
         controller: &TrafficController,
         target: &'static str,
         level: tracing::Level,
@@ -1836,7 +1836,7 @@ mod tests {
         // A block that dry run kept from the log, so that turning dry run off
         // logs its line.
         controller.tally(breach(PolicyKind::Spam));
-        let decisions = decisions_at_events(
+        let decisions = collect_decisions_at_events(
             &controller,
             block_log::BLOCK_LOG_TARGET,
             tracing::Level::INFO,
@@ -1857,7 +1857,7 @@ mod tests {
     async fn turning_dry_run_on_and_the_default_deny_on_at_once_refuses_no_client() {
         let controller = TrafficController::init_for_test(policy_config(false, PolicyKind::Spam));
         // The node warns once the default action deny is in force.
-        let decisions = decisions_at_events(
+        let decisions = collect_decisions_at_events(
             &controller,
             "iota_traffic_controller",
             tracing::Level::WARN,
