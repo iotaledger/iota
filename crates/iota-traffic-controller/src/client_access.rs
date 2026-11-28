@@ -1559,7 +1559,7 @@ mod tests {
         );
         // A request whose client the node could not resolve is no forwarder's.
         assert_eq!(forwarded_client(&manager, None, &[b"198.51.100.7"]), None);
-        let manager = manager(with_forwarders(&[]));
+        let manager = self::manager(with_forwarders(&[]));
         assert_eq!(
             forwarded_client(&manager, ip("10.0.0.5"), &[b"198.51.100.7"]),
             ip("10.0.0.5")
@@ -1583,7 +1583,7 @@ mod tests {
         );
         assert_eq!(manager.metrics.deny_rule_requests.get(), 1);
 
-        let manager = manager(with_forwarders(&["10.0.0.5"]));
+        let manager = self::manager(with_forwarders(&["10.0.0.5"]));
         assert_eq!(
             user_request(&manager),
             (ip("198.51.100.7"), ClientAccess::Limited)
