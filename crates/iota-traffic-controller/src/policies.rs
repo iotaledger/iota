@@ -157,7 +157,7 @@ impl Limiter {
 
     fn forget(&self, client: IpAddr) {
         if let Self::Cells(cells) = self {
-            cells.cells.lock().pop(&client);
+            cells.forget(client);
         }
     }
 }
@@ -194,6 +194,11 @@ impl ClientCells {
             self.evictions.inc();
         }
         breached
+    }
+
+    /// Drops the cell of `client`.
+    fn forget(&self, client: IpAddr) {
+        self.cells.lock().pop(&client);
     }
 }
 
