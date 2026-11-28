@@ -676,10 +676,10 @@ async fn traffic_control(
     State(state): State<Arc<AuthorityState>>,
     Query(params): Query<TrafficControlReconfigParams>,
 ) -> (StatusCode, String) {
-    reconfigure_traffic_control(&state, params).await
+    traffic_control_response(&state, params).await
 }
 
-async fn reconfigure_traffic_control(
+async fn traffic_control_response(
     state: &AuthorityState,
     params: TrafficControlReconfigParams,
 ) -> (StatusCode, String) {
@@ -1216,7 +1216,7 @@ mod tests {
     async fn every_traffic_control_route_rejects_a_request_while_traffic_control_is_off() {
         let state = authority(None).await;
         let mut responses = vec![
-            reconfigure_traffic_control(&state, TrafficControlReconfigParams::default()).await,
+            traffic_control_response(&state, TrafficControlReconfigParams::default()).await,
             add_traffic_control_rule_response(&state, query("/?list=allow&client=192.0.2.1")),
             remove_traffic_control_rule_response(&state, query("/?list=allow&client=192.0.2.1")),
             block_traffic_control_client_response(&state, query("/?client=192.0.2.1&ttl_sec=9")),
@@ -1263,8 +1263,7 @@ mod tests {
         let config: PolicyConfig = json(traffic_control_config_response(&state)).await;
         assert!(!config.dry_run);
 
-        let (status, body) =
-            reconfigure_traffic_control(&state, query("/?default_action=deny")).await;
+        let (status, body) = traffic_control_response(&state, query("/?default_action=deny")).await;
         assert_eq!(status, StatusCode::OK);
         assert!(body.contains(DEFAULT_DENY_WARNING), "{body}");
         for advice in [
@@ -1277,7 +1276,7 @@ mod tests {
         let status: TrafficControlStatus =
             json(traffic_control_status_response(&state, Ok(()))).await;
         assert_eq!(status.default_action, DefaultAction::Deny);
-        let (_, body) = reconfigure_traffic_control(&state, query("/?default_action=limit")).await;
+        let (_, body) = traffic_control_response(&state, query("/?default_action=limit")).await;
         assert!(!body.contains(DEFAULT_DENY_WARNING), "{body}");
 
         let (status, body) =
@@ -1368,9 +1367,9 @@ mod tests {
         unblock_traffic_control_client_response(&state, query("/?client=192.0.2.1"));
         assert!(served());
 
-        reconfigure_traffic_control(&state, query("/?default_action=deny")).await;
+        traffic_control_response(&state, query("/?default_action=deny")).await;
         assert!(!served());
-        reconfigure_traffic_control(&state, query("/?default_action=limit")).await;
+        traffic_control_response(&state, query("/?default_action=limit")).await;
         assert!(served());
     }
 
