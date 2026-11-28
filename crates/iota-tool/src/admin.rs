@@ -308,7 +308,7 @@ impl TrafficControlCommand {
             }
             Self::Save {
                 config,
-                output: written,
+                output: output_path,
                 yes,
             } => {
                 let policy = parse_policy_config_without_loss(
@@ -316,7 +316,7 @@ impl TrafficControlCommand {
                 )?;
                 save(
                     &config,
-                    written.as_deref(),
+                    output_path.as_deref(),
                     &policy,
                     yes,
                     output.out,
@@ -376,13 +376,13 @@ fn parse_policy_config_without_loss(policy: serde_json::Value) -> Result<PolicyC
 
 /// Writes `policy`, the `policy-config` the node holds, to the node config
 /// file at `path`, once the operator confirmed the change it shows. Keeps the
-/// old file next to it, as `<file>.<unix seconds>.bak`. With `written`, writes
+/// old file next to it, as `<file>.<unix seconds>.bak`. With `output_path`, writes
 /// the new config there instead and leaves `path` as it is. The new file
 /// keeps the mode and, where it may, the owner of the old one, and a symbolic
 /// link to the file stays one.
 fn save(
     path: &Path,
-    written: Option<&Path>,
+    output_path: Option<&Path>,
     policy: &PolicyConfig,
     yes: bool,
     out: &mut dyn Write,
@@ -390,9 +390,9 @@ fn save(
 ) -> Result<()> {
     let path = &std::fs::canonicalize(path)
         .with_context(|| format!("cannot read the node config {}", path.display()))?;
-    if written
-        .is_some_and(|written| std::fs::canonicalize(written).is_ok_and(|written| written == *path))
-    {
+    if output_path.is_some_and(|output_path| {
+        std::fs::canonicalize(output_path).is_ok_and(|output_path| output_path == *path)
+    }) {
         bail!("--output names the node config; leave it out to write the config in place");
     }
     let old = std::fs::read_to_string(path)
@@ -425,7 +425,7 @@ fn save(
             .unified_diff()
             .header("policy-config", "policy-config")
     )?;
-    let target = written.unwrap_or(path);
+    let target = output_path.unwrap_or(path);
     writeln!(
         out,
         "The whole file, written again (its comments are not kept):"
@@ -444,13 +444,13 @@ fn save(
     if std::fs::read_to_string(path).ok().as_deref() != Some(old.as_str()) {
         bail!("{name} changed since it was read; run save again");
     }
-    match written {
-        Some(written) => {
-            replace_file_atomically(written, &new, path)?;
+    match output_path {
+        Some(output_path) => {
+            replace_file_atomically(output_path, &new, path)?;
             writeln!(
                 out,
                 "Wrote {}. Move it over {name} for the node to read it at its next start.",
-                written.display()
+                output_path.display()
             )?;
         }
         None => {
@@ -507,10 +507,10 @@ fn backup(path: &Path, old: &str, seconds: u64) -> Result<PathBuf> {
         std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
         match options.open(&backup) {
             Ok(mut file) => {
-                let written = copy_mode_and_owner(&file, &metadata)
+                let write_result = copy_mode_and_owner(&file, &metadata)
                     .and_then(|()| file.write_all(old.as_bytes()))
                     .and_then(|()| file.sync_all());
-                if let Err(err) = written {
+                if let Err(err) = write_result {
                     let _ = std::fs::remove_file(&backup);
                     return Err(err)
                         .with_context(|| format!("cannot keep a backup at {}", backup.display()));
@@ -1655,7 +1655,7 @@ mod tests {
 
     #[tokio::test]
     async fn save_finds_no_change_in_rules_that_the_node_holds_in_canonical_form() {
-        let written_rules = PolicyConfig {
+        let plain_rules = PolicyConfig {
             access_rules: AccessRules {
                 allow: vec![
                     "203.0.113.7".to_string(),
@@ -1666,16 +1666,16 @@ mod tests {
             },
             ..policy()
         };
-        let node = start_admin_server(written_rules.clone()).await;
+        let node = start_admin_server(plain_rules.clone()).await;
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("fullnode.yaml");
         let mut config: serde_yaml::Mapping = serde_yaml::from_str(TEMPLATE).unwrap();
         config.insert(
             "policy-config".into(),
-            serde_yaml::to_value(&written_rules).unwrap(),
+            serde_yaml::to_value(&plain_rules).unwrap(),
         );
-        let written = serde_yaml::to_string(&config).unwrap();
-        std::fs::write(&path, &written).unwrap();
+        let config_text = serde_yaml::to_string(&config).unwrap();
+        std::fs::write(&path, &config_text).unwrap();
 
         let out = run_declining(
             &node.url,
@@ -1693,7 +1693,7 @@ mod tests {
             out,
             "The node config already holds the settings in force.\n"
         );
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), written);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), config_text);
     }
 
     #[tokio::test]
@@ -1701,7 +1701,7 @@ mod tests {
         let node = start_admin_server(policy()).await;
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("fullnode.yaml");
-        let written = dir.path().join("new.yaml");
+        let output_path = dir.path().join("new.yaml");
         std::fs::write(&path, TEMPLATE).unwrap();
 
         let out = run(
@@ -1712,7 +1712,7 @@ mod tests {
                 "--config",
                 path.to_str().unwrap(),
                 "--output",
-                written.to_str().unwrap(),
+                output_path.to_str().unwrap(),
                 "--yes",
             ],
         )
@@ -1722,7 +1722,7 @@ mod tests {
         assert!(
             out.ends_with(&format!(
                 "Wrote {}. Move it over {} for the node to read it at its next start.\n",
-                written.display(),
+                output_path.display(),
                 std::fs::canonicalize(&path).unwrap().display()
             )),
             "{out}"
@@ -1730,7 +1730,7 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&path).unwrap(), TEMPLATE);
         assert_eq!(backups(dir.path()), Vec::<PathBuf>::new());
         assert_eq!(
-            load(&written).policy_config.unwrap().access_rules,
+            load(&output_path).policy_config.unwrap().access_rules,
             policy().access_rules
         );
 
@@ -1763,13 +1763,13 @@ mod tests {
         std::fs::write(&path, TEMPLATE).unwrap();
         // A file cannot replace a directory, so the write fails after the new
         // config is written to its temporary file.
-        let written = dir.path().join("new.yaml");
-        std::fs::create_dir(&written).unwrap();
-        std::fs::write(written.join("kept"), "kept").unwrap();
+        let output_path = dir.path().join("new.yaml");
+        std::fs::create_dir(&output_path).unwrap();
+        std::fs::write(output_path.join("kept"), "kept").unwrap();
 
         let error = save(
             &path,
-            Some(&written),
+            Some(&output_path),
             &policy(),
             true,
             &mut Vec::new(),
@@ -1779,7 +1779,7 @@ mod tests {
         assert!(error.to_string().contains("cannot write"), "{error}");
         assert_eq!(std::fs::read_to_string(&path).unwrap(), TEMPLATE);
         assert_eq!(
-            std::fs::read_to_string(written.join("kept")).unwrap(),
+            std::fs::read_to_string(output_path.join("kept")).unwrap(),
             "kept"
         );
         let mut entries = std::fs::read_dir(dir.path())
