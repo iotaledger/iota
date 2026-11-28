@@ -29,10 +29,6 @@ use serde::{Serialize, de::DeserializeOwned};
 
 const SAVE_HINT: &str = "Run `iota-tool admin traffic-control save --config <file>` to write \
     it to the node config.";
-/// How long to wait for the admin API to accept a connection.
-const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
-/// How long to wait for the whole answer of the admin API.
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// Call the admin API of a running node.
 #[derive(Parser)]
@@ -591,6 +587,10 @@ struct AdminClient {
 impl AdminClient {
     /// `url` is a URL, or an address such as `127.0.0.1:1337`.
     fn new(url: &str) -> Result<Self> {
+        /// How long to wait for the admin API to accept a connection.
+        const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+        /// How long to wait for the whole answer of the admin API.
+        const REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
         let with_scheme = if url.contains("://") {
             url.to_string()
         } else {
