@@ -14,6 +14,7 @@ use std::{
 use anyhow::{Context, Result, bail};
 use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum};
 use comfy_table::Table;
+use iota_config::node::default_admin_interface_address;
 use iota_traffic_controller::canonical_access_rules;
 use iota_types::traffic_control::{
     AccessRuleChangeQuery, AccessRuleList, AccessRules, BlockedClients, BlocklistQuery,
@@ -35,7 +36,7 @@ const SAVE_HINT: &str = "Run `iota-tool admin traffic-control save --config <fil
 pub struct AdminCommand {
     /// The admin API of the node: its `admin-interface-address`, such as
     /// `127.0.0.1:1337`, or a URL.
-    #[arg(long, default_value = "http://127.0.0.1:1337", global = true)]
+    #[arg(long, default_value_t = default_admin_interface_address().to_string(), global = true)]
     admin_url: String,
     /// Print JSON, for scripts: what the node answers to a read, the settings
     /// in force for `set`, and `{"answer": ...}` for the other changes. `save`
@@ -1300,6 +1301,15 @@ mod tests {
                 .to_string()
                 .starts_with("the node made the change, but reading its answer"),
             "{error:#}"
+        );
+    }
+
+    #[test]
+    fn the_admin_url_is_by_default_the_default_admin_address_of_a_node() {
+        let command = AdminCommand::try_parse_from(["admin", "traffic-control", "status"]).unwrap();
+        assert_eq!(
+            command.admin_url,
+            default_admin_interface_address().to_string()
         );
     }
 
