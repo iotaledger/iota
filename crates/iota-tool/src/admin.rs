@@ -1503,7 +1503,7 @@ mod tests {
             error_threshold: None,
             spam_threshold: None,
             simulation_gas_limit: None,
-            ..status.clone()
+            ..status
         };
         for (status, rows) in [
             (
