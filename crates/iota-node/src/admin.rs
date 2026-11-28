@@ -753,8 +753,8 @@ fn error_response(err: IotaError) -> (StatusCode, String) {
 #[serde(deny_unknown_fields)]
 struct NoQueryParameters {}
 
-/// The traffic control settings in force, as JSON. Refuses a query, since a
-/// `GET` that carries the settings of a `POST` would change nothing.
+/// The traffic control settings in force, as JSON. Rejects every query
+/// parameter.
 async fn traffic_control_status(
     State(state): State<Arc<AuthorityState>>,
     query: Result<Query<NoQueryParameters>, QueryRejection>,

@@ -569,8 +569,7 @@ impl ClientAccessManager {
     /// seconds with the reason `manual`, and returns its block in force. Logs
     /// the block line outside dry run. A block in force that lasts longer keeps
     /// its expiration and its reason. Rejects a TTL of 0 or above
-    /// [`MAX_BLOCKLIST_TTL_SEC`], and a client that an allow rule serves,
-    /// since a firewall that acts on the block line would ban it.
+    /// [`MAX_BLOCKLIST_TTL_SEC`], and a client that an allow rule serves.
     pub(crate) fn block_manually(
         &self,
         client: IpAddr,

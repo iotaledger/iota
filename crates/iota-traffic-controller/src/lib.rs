@@ -255,9 +255,8 @@ impl TrafficController {
     }
 
     /// The `top` clients with the lowest simulation gas balances, lowest
-    /// first, and up to `top` blocked clients. The spam and error policies
-    /// cannot report what they counted for a client without charging it, so
-    /// their usage is not listed.
+    /// first, and up to `top` blocked clients. What the spam and error policies
+    /// counted is not listed.
     pub fn client_usage(&self, top: usize) -> ClientUsage {
         let (balances, omitted_gas_balances) =
             self.simulation_gas.lowest_balances(top, Instant::now());
