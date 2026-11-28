@@ -6,7 +6,6 @@ mod acknowledgment_stats;
 mod authority_node;
 mod authority_service;
 mod authority_set;
-mod base_committer;
 mod block_header;
 mod block_manager;
 mod block_rate_limiter;
@@ -16,6 +15,7 @@ mod commit_consumer;
 mod commit_observer;
 mod commit_syncer;
 mod commit_vote_monitor;
+mod committer;
 mod context;
 mod core;
 mod core_thread;
@@ -49,8 +49,6 @@ mod transactions_synchronizer;
 
 #[cfg(feature = "dag-visualizer")]
 pub mod dag_visualizer;
-
-mod universal_committer;
 
 #[cfg(test)]
 #[path = "tests/randomized_tests.rs"]

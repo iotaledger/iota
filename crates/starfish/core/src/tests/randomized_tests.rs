@@ -12,15 +12,12 @@ use crate::{
     block_header::{BlockHeaderAPI, GENESIS_ROUND, Round, Slot},
     block_manager::{BlockManager, block_suspender::tests::evaluate_block_headers},
     commit::{CommitMetastate, DecidedLeader},
+    committer::Committer,
     context::Context,
     dag_state::{DagState, DataSource},
-    leader_schedule::{LeaderSchedule, LeaderSwapTable},
     storage::mem_store::MemStore,
     test_dag::create_random_dag,
     test_dag_builder::DagBuilder,
-    universal_committer::{
-        UniversalCommitter, universal_committer_builder::UniversalCommitterBuilder,
-    },
 };
 
 const NUM_RUNS: u32 = 100;
@@ -273,7 +270,7 @@ async fn test_randomized_dag_with_equivocations() {
 async fn test_blamed_leader_is_committed_as_standard() {
     let num_authorities = 4;
     let mut authority = authority_setup(num_authorities, 2);
-    let leader = authority.committer.get_leaders(1)[0];
+    let leader = authority.committer.elect_leader(1).authority;
     // The observer cannot accept a second block of its own, and an
     // equivocating leader is not certain to be committed.
     let equivocator = authority
@@ -377,13 +374,13 @@ fn assert_parents_follow_verifier(dag_builder: &DagBuilder) {
 /// leader and strongly votes for it; none otherwise. An author that
 /// equivocated in the next round can be listed once per block.
 fn assert_decision_is_valid(
-    committer: &UniversalCommitter,
+    committer: &Committer,
     dag_builder: &DagBuilder,
     dag_state: &DagState,
     decision: &DecidedLeader,
     round: Round,
 ) {
-    let leader = committer.get_leaders(round)[0];
+    let leader = committer.elect_leader(round).authority;
     assert_eq!(
         (decision.round(), decision.authority()),
         (round, leader),
@@ -525,7 +522,7 @@ fn decisions_without_strong_voters(leaders: &[DecidedLeader]) -> Vec<DecidedLead
 struct AuthorityTestFixture {
     context: Arc<Context>,
     dag_state: Arc<RwLock<DagState>>,
-    committer: UniversalCommitter,
+    committer: Committer,
     block_manager: BlockManager,
 }
 
@@ -534,17 +531,12 @@ fn authority_setup(num_authorities: usize, authority_index: u8) -> AuthorityTest
         .0
         .with_authority_index(AuthorityIndex::new_for_test(authority_index));
     let context = Arc::new(context);
-    let leader_schedule = Arc::new(LeaderSchedule::new(
-        context.clone(),
-        LeaderSwapTable::default(),
-    ));
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
         Arc::new(MemStore::new()),
     )));
 
-    let committer =
-        UniversalCommitterBuilder::new(context.clone(), leader_schedule, dag_state.clone()).build();
+    let committer = Committer::new_for_test(context.clone(), dag_state.clone());
 
     let block_manager = BlockManager::new(context.clone(), dag_state.clone());
 

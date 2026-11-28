@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, HashSet, hash_map::Entry},
+    collections::{BTreeMap, HashSet, VecDeque, hash_map::Entry},
     sync::Arc,
 };
 
@@ -11,9 +11,11 @@ use ahash::AHashMap;
 use parking_lot::RwLock;
 use starfish_config::{AuthorityIndex, Committee, Stake};
 
+#[cfg(test)]
+use crate::leader_schedule::LeaderSwapTable;
 use crate::{
-    block_header::{BlockHeaderAPI, BlockRef, Round, Slot, VerifiedBlockHeader},
-    commit::{CommitMetastate, LeaderStatus, WAVE_LENGTH},
+    block_header::{BlockHeaderAPI, BlockRef, GENESIS_ROUND, Round, Slot, VerifiedBlockHeader},
+    commit::{CommitMetastate, DecidedLeader, Decision, LeaderStatus, WAVE_LENGTH},
     context::Context,
     dag_state::DagState,
     leader_schedule::LeaderSchedule,
@@ -21,23 +23,15 @@ use crate::{
 };
 
 #[cfg(test)]
-#[path = "tests/base_committer_tests.rs"]
-mod base_committer_tests;
+#[path = "tests/committer_tests.rs"]
+mod committer_tests;
 
 #[cfg(test)]
-#[path = "tests/base_committer_declarative_tests.rs"]
-mod base_committer_declarative_tests;
+#[path = "tests/committer_metastate_tests.rs"]
+mod committer_metastate_tests;
 
-#[cfg(test)]
-#[path = "tests/base_committer_metastate_tests.rs"]
-mod base_committer_metastate_tests;
-
-/// The [`BaseCommitter`] contains the bare bone commit logic. It elects one
-/// leader for every round. Once instantiated, the method `try_direct_decide`
-/// and `try_indirect_decide` can be called at any time and any number of times
-/// (it is idempotent) to determine whether a leader can be committed or
-/// skipped.
-pub(crate) struct BaseCommitter {
+/// Elects one leader for every round and decides whether to commit or skip it.
+pub(crate) struct Committer {
     /// The per-epoch configuration of this authority.
     context: Arc<Context>,
     /// The consensus leader schedule to be used to resolve the leader for a
@@ -53,8 +47,8 @@ pub(crate) struct BaseCommitter {
     certificates: BTreeMap<Round, AHashMap<(BlockRef, BlockRef), (bool, bool)>>,
 }
 
-impl BaseCommitter {
-    pub fn new(
+impl Committer {
+    pub(crate) fn new(
         context: Arc<Context>,
         leader_schedule: Arc<LeaderSchedule>,
         dag_state: Arc<RwLock<DagState>>,
@@ -70,14 +64,14 @@ impl BaseCommitter {
     /// Drops the cached classifications of certifying blocks below `round`.
     /// Call once the committer can no longer be asked about slots whose
     /// certifying round is below it.
-    pub(crate) fn evict_cache_below(&mut self, round: Round) {
+    fn evict_cache_below(&mut self, round: Round) {
         self.certificates = self.certificates.split_off(&round);
     }
 
     /// Apply the direct decision rule to the specified leader to see whether we
     /// can direct-commit or direct-skip it.
     #[tracing::instrument(skip_all, fields(leader = %leader))]
-    pub fn try_direct_decide(&mut self, leader: Slot) -> LeaderStatus {
+    fn try_direct_decide(&mut self, leader: Slot) -> LeaderStatus {
         // Check whether the leader has enough blame. That is, whether there are 2f+1
         // non-votes for that leader (which ensure there will never be a
         // certificate for that leader).
@@ -145,7 +139,7 @@ impl BaseCommitter {
     /// Apply the indirect rule; return `current` unchanged if no committed
     /// anchor is reachable.
     #[tracing::instrument(skip_all, fields(leader = %current))]
-    pub fn try_indirect_decide<'a>(
+    fn try_indirect_decide<'a>(
         &mut self,
         current: LeaderStatus,
         leaders: impl Iterator<Item = &'a LeaderStatus>,
@@ -166,7 +160,7 @@ impl BaseCommitter {
     }
 
     /// The leader slot of `round`.
-    pub fn elect_leader(&self, round: Round) -> Slot {
+    pub(crate) fn elect_leader(&self, round: Round) -> Slot {
         Slot::new(round, self.leader_schedule.elect_leader(round, 0))
     }
 
@@ -471,33 +465,114 @@ impl BaseCommitter {
         }
         false
     }
-}
 
-/// A builder for the base committer with the default leader schedule.
-#[cfg(test)]
-mod base_committer_builder {
-    use super::*;
-    use crate::leader_schedule::LeaderSwapTable;
+    /// Try to decide part of the dag. This function is idempotent and returns
+    /// an ordered list of decided leaders.
+    #[tracing::instrument(skip_all, fields(last_finalized = %last_finalized))]
+    pub(crate) fn try_decide(&mut self, last_finalized: Slot) -> Vec<DecidedLeader> {
+        // Slots up to `last_finalized` are never examined again; the next
+        // slot's certifying round is `last_finalized.round + WAVE_LENGTH`.
+        self.evict_cache_below(last_finalized.round + WAVE_LENGTH);
+        let highest_accepted_round = self.dag_state.read().highest_accepted_round();
 
-    pub(crate) struct BaseCommitterBuilder {
-        context: Arc<Context>,
-        dag_state: Arc<RwLock<DagState>>,
+        // Try to decide as many leaders as possible, starting with the highest round.
+        let mut leaders: VecDeque<(LeaderStatus, Decision)> = VecDeque::new();
+
+        let last_round = last_finalized.round + 1;
+
+        // try to commit a leader up to the highest_accepted_round - 2. There is no
+        // reason to try and iterate on higher rounds as in order to make a direct
+        // decision for a leader at round R we need blocks from round R+2 to figure
+        // out that enough certificates and support exist to commit a leader.
+        for round in (last_round..=highest_accepted_round.saturating_sub(2)).rev() {
+            let slot = self.elect_leader(round);
+            tracing::trace!("Trying to decide {slot}");
+
+            let mut status = self.try_direct_decide(slot);
+            let mut decision = Decision::Direct;
+            tracing::debug!("Outcome of direct rule: {status}");
+
+            // If the direct result is not resolved (Commit(Pending) or
+            // Undecided), run the indirect rule. For Pending, a
+            // committed anchor's path can upgrade the metastate; for
+            // Undecided, indirect may resolve the slot entirely.
+            if !status.is_resolved() {
+                let indirect =
+                    self.try_indirect_decide(status.clone(), leaders.iter().map(|(x, _)| x));
+                if indirect != status {
+                    tracing::debug!("Outcome of indirect rule: {indirect}");
+                    decision = match (&status, &indirect) {
+                        (
+                            LeaderStatus::Commit(_, CommitMetastate::Pending, _),
+                            LeaderStatus::Commit(_, m, _),
+                        ) if *m != CommitMetastate::Pending => Decision::Upgraded,
+                        _ => Decision::Indirect,
+                    };
+                    status = indirect;
+                }
+            }
+            leaders.push_front((status, decision));
+        }
+
+        // The decided sequence is the longest prefix where every leader is
+        // resolved. Commit(Pending) is decided but not resolved — its metastate
+        // is still pending — so sequencing stops there until a later commit pass
+        // upgrades it.
+        let mut decided_leaders = Vec::new();
+        for (leader, decision) in leaders {
+            if leader.round() == GENESIS_ROUND {
+                continue;
+            }
+            if !leader.is_resolved() {
+                break;
+            }
+            let decided_leader = leader
+                .into_decided_leader()
+                .expect("is_resolved implies a DecidedLeader");
+            self.update_metrics(&decided_leader, decision);
+            decided_leaders.push(decided_leader);
+        }
+        if !decided_leaders.is_empty() {
+            tracing::debug!("Decided {decided_leaders:?}");
+        }
+        decided_leaders
     }
 
-    impl BaseCommitterBuilder {
-        pub(crate) fn new(context: Arc<Context>, dag_state: Arc<RwLock<DagState>>) -> Self {
-            Self { context, dag_state }
-        }
+    /// Counts the decided leader in `decided_leaders_total`.
+    fn update_metrics(&self, decided_leader: &DecidedLeader, decision: Decision) {
+        let decision_str = match decision {
+            Decision::Direct => "direct",
+            Decision::Upgraded => "upgraded",
+            Decision::Indirect => "indirect",
+        };
+        let status = match decided_leader {
+            DecidedLeader::Commit(_, metastate, _) => {
+                format!("{decision_str}-commit-{metastate}")
+            }
+            DecidedLeader::Skip(..) => format!("{decision_str}-skip"),
+        };
+        let leader_host = &self
+            .context
+            .committee
+            .authority(decided_leader.slot().authority)
+            .hostname;
+        self.context
+            .metrics
+            .node_metrics
+            .decided_leaders_total
+            .with_label_values(&[leader_host, &status])
+            .inc();
+    }
+}
 
-        pub(crate) fn build(self) -> BaseCommitter {
-            BaseCommitter::new(
-                self.context.clone(),
-                Arc::new(LeaderSchedule::new(
-                    self.context,
-                    LeaderSwapTable::default(),
-                )),
-                self.dag_state,
-            )
-        }
+#[cfg(test)]
+impl Committer {
+    /// A committer with the default leader schedule.
+    pub(crate) fn new_for_test(context: Arc<Context>, dag_state: Arc<RwLock<DagState>>) -> Self {
+        let leader_schedule = Arc::new(LeaderSchedule::new(
+            context.clone(),
+            LeaderSwapTable::default(),
+        ));
+        Self::new(context, leader_schedule, dag_state)
     }
 }
