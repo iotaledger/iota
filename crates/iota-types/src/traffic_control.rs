@@ -80,6 +80,14 @@ pub struct TrafficControlReconfigParams {
     pub default_action: Option<DefaultAction>,
 }
 
+/// What the default action `deny`, set at runtime, refuses. The admin API
+/// answer and the node log give it.
+pub const DEFAULT_DENY_WARNING: &str = "Outside dry run, the default action deny refuses every \
+    client that no allow rule names. On a validator this also refuses the other nodes that send \
+    it requests. With `client-id-source: socket-addr`, add allow rules for them first. With \
+    `x-forwarded-for`, allow rules cannot admit them: their requests carry no x-forwarded-for \
+    header, so the node resolves no client to match.";
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Weight(f32);
 

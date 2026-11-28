@@ -19,7 +19,10 @@ use iota_types::{
     base_types::AuthorityName,
     crypto::{RandomnessPartialSignature, RandomnessSignature},
     error::{IotaError, IotaResult},
-    traffic_control::{AccessRuleList, BlockReason, DefaultAction, TrafficControlReconfigParams},
+    traffic_control::{
+        AccessRuleList, BlockReason, DEFAULT_DENY_WARNING, DefaultAction,
+        TrafficControlReconfigParams,
+    },
 };
 use serde::{Deserialize, Serialize};
 use telemetry_subscribers::{TelemetryError, TracingHandle};
@@ -707,21 +710,15 @@ async fn reconfigure_traffic_control(
                 updated_state.simulation_burst_gas,
                 updated_state.default_action,
                 if sets_default_deny {
-                    DEFAULT_DENY_WARNING
+                    format!("Warning: {DEFAULT_DENY_WARNING}\n")
                 } else {
-                    ""
+                    String::new()
                 },
             ),
         ),
         Err(err) => error_response(err),
     }
 }
-
-const DEFAULT_DENY_WARNING: &str = "Warning: outside dry run, the default action deny refuses \
-    every client that no allow rule names. On a validator this also refuses the other nodes \
-    that send it requests. With `client-id-source: socket-addr`, add allow rules for them first. \
-    With `x-forwarded-for`, allow rules cannot admit them: their requests carry no \
-    x-forwarded-for header, so the node resolves no client to match.\n";
 
 /// A JSON response with `result`, or the error.
 fn json_response<T: Serialize>(result: IotaResult<T>) -> Response {

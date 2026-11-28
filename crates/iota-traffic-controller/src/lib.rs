@@ -25,7 +25,7 @@ use iota_types::{
     error::IotaError,
     traffic_control::{
         AccessRuleList, AccessRules, BlockedClient, BlockedClients, ClientGasBalance,
-        ClientIdSource, ClientUsage, DefaultAction, PolicyConfig, PolicyType,
+        ClientIdSource, ClientUsage, DEFAULT_DENY_WARNING, DefaultAction, PolicyConfig, PolicyType,
         TrafficControlReconfigParams, TrafficControlStatus,
     },
 };
@@ -424,11 +424,7 @@ impl TrafficController {
             if self.client_access.set_default_action(default_action)
                 && default_action == DefaultAction::Deny
             {
-                warn!(
-                    "The admin API set the default action deny: outside dry run the node \
-                     refuses every client that no allow rule names, on a validator also the \
-                     other nodes that send it requests"
-                );
+                warn!("The admin API set the default action deny. {DEFAULT_DENY_WARNING}");
             }
         }
         self.client_access.reconfigure(
@@ -1614,9 +1610,11 @@ mod tests {
                 .unwrap()
         };
         let warned = |log: &block_log::tests::CapturedLog| {
-            log.lines()
-                .iter()
-                .any(|line| line.contains("WARN") && line.contains("default action deny"))
+            log.lines().iter().any(|line| {
+                line.contains("WARN")
+                    && line.contains("The admin API set the default action deny.")
+                    && line.contains(DEFAULT_DENY_WARNING)
+            })
         };
         assert!(warned(&capture_plain(|| {
             deny();
