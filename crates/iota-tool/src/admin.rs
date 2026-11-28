@@ -65,7 +65,8 @@ enum TrafficControlCommand {
     Rules(RulesCommand),
     /// Show the blocked clients.
     Blocklist {
-        /// How many clients to show at most. The node shows 200 by default.
+        /// How many clients to show at most. Without it, the node shows its
+        /// default number.
         #[arg(long)]
         limit: Option<usize>,
     },
@@ -88,8 +89,8 @@ enum TrafficControlCommand {
     /// Show the clients with the lowest simulation gas balances, and the
     /// blocked clients.
     Clients {
-        /// How many clients of each kind to show at most. The node shows 200 by
-        /// default.
+        /// How many clients of each kind to show at most. Without it, the node
+        /// shows its default number of each.
         #[arg(long)]
         top: Option<usize>,
     },
