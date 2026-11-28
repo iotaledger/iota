@@ -12,7 +12,7 @@ use crate::{
     block_header::{
         BlockHeaderAPI, Slot, TestBlockHeader, TestBlockHeaderVersion, VerifiedBlockHeader,
     },
-    commit::{DecidedLeader, WaveNumber},
+    commit::DecidedLeader,
     context::Context,
     dag_state::{DagState, DataSource},
     leader_schedule::{LeaderSchedule, LeaderSwapTable},
@@ -168,11 +168,11 @@ async fn indirect_commit_with_missing_old_own_ancestor() {
     );
     assert!(block_manager.blocks_to_fetch().is_empty());
     assert!(matches!(
-        committer.committers[0].try_direct_decide(Slot::new(15, 3)),
+        committer.committer.try_direct_decide(Slot::new(15, 3)),
         LeaderStatus::Undecided(_)
     ));
     assert!(matches!(
-        committer.committers[0].try_direct_decide(Slot::new(18, 2)),
+        committer.committer.try_direct_decide(Slot::new(18, 2)),
         LeaderStatus::Commit(_, _, _)
     ));
 
@@ -269,8 +269,9 @@ async fn multiple_direct_commit() {
     for n in 1..=10 {
         // Build the DAG up to the certifying round for leader blocks of authority 1,
         // i.e. full DAG is built with chunks of 3 rounds
-        // note: waves & rounds are zero-indexed.
-        let certifying_round = committer.committers[0].certifying_round(n);
+        // note: rounds are zero-indexed.
+        let leader_round = 3 * n;
+        let certifying_round = leader_round + 2;
         ancestors = Some(build_dag(
             context.clone(),
             dag_state.clone(),
@@ -279,7 +280,6 @@ async fn multiple_direct_commit() {
         ));
 
         // After every 3 rounds, try commit all leaders in between
-        let leader_round = committer.committers[0].leader_round(n);
         let sequence = committer.try_decide(last_finalized);
         tracing::info!("Commit sequence: {sequence:#?}");
         assert_eq!(sequence.len(), 3);
@@ -305,7 +305,7 @@ async fn direct_commit_late_call() {
 
     // note: waves & rounds are zero-indexed.
     let num_waves = 11;
-    let certifying_round_wave_10 = committer.committers[0].certifying_round(10);
+    let certifying_round_wave_10 = 32;
     build_dag(context, dag_state, None, certifying_round_wave_10);
 
     let last_finalized = Slot::new(0, 0);
@@ -316,7 +316,7 @@ async fn direct_commit_late_call() {
     // its leader round, ensure we have 30 leaders are committed.
     assert_eq!(sequence.len(), 3 * (num_waves - 1_usize));
     for (i, leader_block) in sequence.iter().enumerate() {
-        let leader_round = committer.committers[(i + 1) % 3].leader_round((i as u32 + 1) / 3);
+        let leader_round = i as Round + 1;
         if let DecidedLeader::Commit(ref block, _, _) = leader_block {
             assert_eq!(block.round(), leader_round);
             assert_eq!(block.author(), committer.get_leaders(leader_round)[0]);
@@ -349,7 +349,6 @@ async fn no_genesis_commit() {
 async fn direct_skip_no_leader_votes() {
     telemetry_subscribers::init_for_testing();
     // Dag Notes:
-    // Pipeline is enabled
     // Leader of Round 1, i.e. B1, should be skipped due to lack of votes
     let dag_str = "DAG {
         Round 0 : { 4 },
@@ -379,12 +378,8 @@ async fn direct_skip_no_leader_votes() {
     dag_builder.print();
     dag_builder.persist_all_blocks(dag_state.clone());
 
-    // Create committer with pipelining and 1 leader per round
     let mut committer =
         UniversalCommitterBuilder::new(dag_builder.context, leader_schedule, dag_state).build();
-    // note: without pipelining or multi-leader enabled there should only be one
-    // committer.
-    assert_eq!(committer.committers.len(), 3);
 
     let last_finalized = Slot::new(0, 0);
     let sequence = committer.try_decide(last_finalized);
@@ -454,7 +449,6 @@ async fn direct_skip_missing_leader_block() {
 async fn indirect_commit() {
     telemetry_subscribers::init_for_testing();
     // Dag Notes:
-    // Pipeline is enabled
     // For the first 3 waves, the leaders are directly committed.
     // The leader of round 3 is not directly committed as there are f+1 certificates
     // only One needs to wait until the leader of Round 6 is directly decided
@@ -497,12 +491,8 @@ async fn indirect_commit() {
     dag_builder.print();
     dag_builder.persist_all_blocks(dag_state.clone());
 
-    // Create committer with pipelining and 1 leader per round
     let mut committer =
         UniversalCommitterBuilder::new(dag_builder.context, leader_schedule, dag_state).build();
-    // note: with pipelining or multi-leader enabled there should be three
-    // committer.
-    assert_eq!(committer.committers.len(), 3);
 
     // Ensure we indirectly commit the leader of round 3 via the directly committed
     // leader of round 6.
@@ -512,8 +502,7 @@ async fn indirect_commit() {
     assert_eq!(sequence.len(), 6);
 
     for (idx, decided_leader) in sequence.iter().enumerate() {
-        let leader_round =
-            committer.committers[(idx + 1) % 3].leader_round(((idx + 1) / 3) as WaveNumber);
+        let leader_round = idx as Round + 1;
         let expected_leader = committer.get_leaders(leader_round)[0];
         if let DecidedLeader::Commit(ref block, _, _) = decided_leader {
             assert_eq!(block.round(), leader_round);
@@ -529,7 +518,6 @@ async fn indirect_commit() {
 async fn indirect_skip() {
     telemetry_subscribers::init_for_testing();
     // Dag Notes:
-    // Pipeline is enabled
     // Leader of round 4 is not directly skipped due to a quorum of votes
     // But it is skipped indirectly since the leader of round 7 is directly
     // committed and is not linked with the leader of round 4 through a
@@ -577,12 +565,8 @@ async fn indirect_skip() {
     dag_builder.print();
     dag_builder.persist_all_blocks(dag_state.clone());
 
-    // Create committer with pipelining and 1 leader per round
     let mut committer =
         UniversalCommitterBuilder::new(dag_builder.context, leader_schedule, dag_state).build();
-    // note: with pipelining or multi-leader enabled there should be three
-    // committers.
-    assert_eq!(committer.committers.len(), 3);
 
     // Ensure we indirectly skip the leader of round 4 via the directly committed
     // leader of round 7.
@@ -611,7 +595,6 @@ async fn indirect_skip() {
 async fn undecided() {
     telemetry_subscribers::init_for_testing();
     // Dag Notes:
-    // Pipeline is enabled
     // Construct DAG such that no leader is directly committed
     // For instance, for round 1 leader, not enough certificates exist
     // For round 2 leader, not enough votes, etc.
@@ -659,12 +642,8 @@ async fn undecided() {
     dag_builder.print();
     dag_builder.persist_all_blocks(dag_state.clone());
 
-    // Create committer with pipelining and 1 leader per round
     let mut committer =
         UniversalCommitterBuilder::new(dag_builder.context, leader_schedule, dag_state).build();
-    // note: without pipelining or multi-leader enabled there should only be one
-    // committer.
-    assert_eq!(committer.committers.len(), 3);
 
     // Ensure we indirectly commit the leader of round3 via the directly committed
     // leader of round 6.
@@ -856,13 +835,8 @@ fn basic_test_setup() -> (
         LeaderSwapTable::default(),
     ));
 
-    // Create committer with pipelining and only 1 leader per leader round
     let committer =
         UniversalCommitterBuilder::new(context.clone(), leader_schedule, dag_state.clone()).build();
-
-    // note: with pipelining or multi-leader enabled there should be three pipelined
-    // committers.
-    assert!(committer.committers.len() == 3);
 
     (context, dag_state, committer)
 }
@@ -888,16 +862,12 @@ fn basic_dag_builder_test_setup() -> TestSetup {
         LeaderSwapTable::default(),
     ));
 
-    // Create committer with pipelining and only 1 leader per leader round
     let committer = UniversalCommitterBuilder::new(
         dag_builder.context.clone(),
         leader_schedule,
         dag_state.clone(),
     )
     .build();
-    // note: with pipelining or no multi-leader enabled there should be three
-    // committers.
-    assert_eq!(committer.committers.len(), 3);
 
     TestSetup {
         dag_builder,

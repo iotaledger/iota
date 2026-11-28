@@ -38,10 +38,6 @@ pub(crate) const GENESIS_COMMIT_INDEX: CommitIndex = 0;
 /// round.
 pub(crate) const WAVE_LENGTH: Round = 3;
 
-/// The consensus protocol operates in 'waves'. Each wave is composed of a
-/// leader round, at least one voting round, and one certifying round.
-pub(crate) type WaveNumber = u32;
-
 /// Upper bound on the BCS-serialized size of a [`Commit`] for a committee of
 /// `committee_size` authorities and a GC depth of `gc_depth` rounds. It holds
 /// when no validator is Byzantine.

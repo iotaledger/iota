@@ -23,20 +23,15 @@ mod universal_committer_tests;
 #[path = "tests/pipelined_committer_tests.rs"]
 mod pipelined_committer_tests;
 
-/// The first round of each wave has one leader by default. We leave this as a
-/// parameter of UniversalCommitter as we might change this in future
-pub(crate) const DEFAULT_NUMBER_OF_LEADERS_IN_ROUND: usize = 1;
-
-/// A universal committer uses a collection of committers to commit a sequence
-/// of leaders. It can be configured to use a combination of different commit
-/// strategies, including multi-leaders, backup leaders, and pipelines.
+/// A universal committer uses a [`BaseCommitter`] to commit a sequence of
+/// leaders, one per round.
 pub(crate) struct UniversalCommitter {
     /// The per-epoch configuration of this authority.
     context: Arc<Context>,
     /// In memory block store representing the dag state
     dag_state: Arc<RwLock<DagState>>,
-    /// The list of committers for multi-leader or pipelining
-    committers: Vec<BaseCommitter>,
+    /// Decides the leader of every round.
+    committer: BaseCommitter,
 }
 
 impl UniversalCommitter {
@@ -46,9 +41,8 @@ impl UniversalCommitter {
     pub(crate) fn try_decide(&mut self, last_finalized: Slot) -> Vec<DecidedLeader> {
         // Slots up to `last_finalized` are never examined again; the next
         // slot's certifying round is `last_finalized.round + WAVE_LENGTH`.
-        for committer in &mut self.committers {
-            committer.evict_cache_below(last_finalized.round + WAVE_LENGTH);
-        }
+        self.committer
+            .evict_cache_below(last_finalized.round + WAVE_LENGTH);
         let highest_accepted_round = self.dag_state.read().highest_accepted_round();
 
         // Try to decide as many leaders as possible, starting with the highest round.
@@ -60,47 +54,35 @@ impl UniversalCommitter {
         // reason to try and iterate on higher rounds as in order to make a direct
         // decision for a leader at round R we need blocks from round R+2 to figure
         // out that enough certificates and support exist to commit a leader.
-        'outer: for round in (last_round..=highest_accepted_round.saturating_sub(2)).rev() {
-            for committer in self.committers.iter_mut().rev() {
-                // Skip committers that don't have a leader for this round.
-                let Some(slot) = committer.elect_leader(round) else {
-                    tracing::debug!("No leader for round {round}, skipping");
-                    continue;
-                };
+        for round in (last_round..=highest_accepted_round.saturating_sub(2)).rev() {
+            let slot = self.committer.elect_leader(round);
+            tracing::trace!("Trying to decide {slot}");
 
-                // now that we reached the last finalized leader we can stop the commit rule
-                if slot == last_finalized {
-                    tracing::debug!("Reached last finalized {slot}, now exit");
-                    break 'outer;
+            let mut status = self.committer.try_direct_decide(slot);
+            let mut decision = Decision::Direct;
+            tracing::debug!("Outcome of direct rule: {status}");
+
+            // If the direct result is not resolved (Commit(Pending) or
+            // Undecided), run the indirect rule. For Pending, a
+            // committed anchor's path can upgrade the metastate; for
+            // Undecided, indirect may resolve the slot entirely.
+            if !status.is_resolved() {
+                let indirect = self
+                    .committer
+                    .try_indirect_decide(status.clone(), leaders.iter().map(|(x, _)| x));
+                if indirect != status {
+                    tracing::debug!("Outcome of indirect rule: {indirect}");
+                    decision = match (&status, &indirect) {
+                        (
+                            LeaderStatus::Commit(_, CommitMetastate::Pending, _),
+                            LeaderStatus::Commit(_, m, _),
+                        ) if *m != CommitMetastate::Pending => Decision::Upgraded,
+                        _ => Decision::Indirect,
+                    };
+                    status = indirect;
                 }
-
-                tracing::trace!("Trying to decide {slot} with {committer}",);
-
-                let mut status = committer.try_direct_decide(slot);
-                let mut decision = Decision::Direct;
-                tracing::debug!("Outcome of direct rule: {status} with {committer}");
-
-                // If the direct result is not resolved (Commit(Pending) or
-                // Undecided), run the indirect rule. For Pending, a
-                // committed anchor's path can upgrade the metastate; for
-                // Undecided, indirect may resolve the slot entirely.
-                if !status.is_resolved() {
-                    let indirect = committer
-                        .try_indirect_decide(status.clone(), leaders.iter().map(|(x, _)| x));
-                    if indirect != status {
-                        tracing::debug!("Outcome of indirect rule: {indirect} with {committer}");
-                        decision = match (&status, &indirect) {
-                            (
-                                LeaderStatus::Commit(_, CommitMetastate::Pending, _),
-                                LeaderStatus::Commit(_, m, _),
-                            ) if *m != CommitMetastate::Pending => Decision::Upgraded,
-                            _ => Decision::Indirect,
-                        };
-                        status = indirect;
-                    }
-                }
-                leaders.push_front((status, decision));
             }
+            leaders.push_front((status, decision));
         }
 
         // The decided sequence is the longest prefix where every leader is
@@ -127,14 +109,9 @@ impl UniversalCommitter {
         decided_leaders
     }
 
-    /// Return list of leaders for the round.
-    /// Can return empty vec if round does not have a designated leader.
+    /// Return list of leaders for the round. Every round has exactly one.
     pub(crate) fn get_leaders(&self, round: Round) -> Vec<AuthorityIndex> {
-        self.committers
-            .iter()
-            .filter_map(|committer| committer.elect_leader(round))
-            .map(|l| l.authority)
-            .collect()
+        vec![self.committer.elect_leader(round).authority]
     }
 
     /// Update metrics.
@@ -167,25 +144,18 @@ impl UniversalCommitter {
     }
 }
 
-/// A builder for a universal committer. By default, the builder creates a
-/// single base committer, that is, a single leader and no pipeline.
+/// A builder for a universal committer.
 pub(crate) mod universal_committer_builder {
     use super::*;
-    use crate::{
-        base_committer::BaseCommitterOptions, commit::WAVE_LENGTH, leader_schedule::LeaderSchedule,
-    };
+    use crate::leader_schedule::LeaderSchedule;
 
     pub(crate) struct UniversalCommitterBuilder {
         context: Arc<Context>,
         leader_schedule: Arc<LeaderSchedule>,
         dag_state: Arc<RwLock<DagState>>,
-        number_of_leaders: usize,
     }
 
     impl UniversalCommitterBuilder {
-        // We use hardcoded parameters: the wave length is 3 and we use one leader in
-        // each round. Support for multi-leader option might be enabled at a
-        // later stage.
         pub(crate) fn new(
             context: Arc<Context>,
             leader_schedule: Arc<LeaderSchedule>,
@@ -195,41 +165,20 @@ pub(crate) mod universal_committer_builder {
                 context,
                 leader_schedule,
                 dag_state,
-                number_of_leaders: DEFAULT_NUMBER_OF_LEADERS_IN_ROUND,
             }
-        }
-
-        #[expect(unused)]
-        pub(crate) fn with_number_of_leaders(mut self, number_of_leaders: usize) -> Self {
-            self.number_of_leaders = number_of_leaders;
-            self
         }
 
         pub(crate) fn build(self) -> UniversalCommitter {
-            let mut committers = Vec::new();
-            // We use pipelined scheduler by default, thereby there should be 3 intersecting
-            // waves corresponding to each committer
-            let pipeline_stages = WAVE_LENGTH;
-            for round_offset in 0..pipeline_stages {
-                for leader_offset in 0..self.number_of_leaders {
-                    let options = BaseCommitterOptions {
-                        round_offset,
-                        leader_offset: leader_offset as Round,
-                    };
-                    let committer = BaseCommitter::new(
-                        self.context.clone(),
-                        self.leader_schedule.clone(),
-                        self.dag_state.clone(),
-                        options,
-                    );
-                    committers.push(committer);
-                }
-            }
+            let committer = BaseCommitter::new(
+                self.context.clone(),
+                self.leader_schedule,
+                self.dag_state.clone(),
+            );
 
             UniversalCommitter {
                 context: self.context,
                 dag_state: self.dag_state,
-                committers,
+                committer,
             }
         }
     }

@@ -4,18 +4,16 @@
 
 use std::{
     collections::{BTreeMap, HashSet, hash_map::Entry},
-    fmt::Display,
     sync::Arc,
 };
 
 use ahash::AHashMap;
 use parking_lot::RwLock;
 use starfish_config::{AuthorityIndex, Committee, Stake};
-use tracing::warn;
 
 use crate::{
     block_header::{BlockHeaderAPI, BlockRef, Round, Slot, VerifiedBlockHeader},
-    commit::{CommitMetastate, LeaderStatus, WAVE_LENGTH, WaveNumber},
+    commit::{CommitMetastate, LeaderStatus, WAVE_LENGTH},
     context::Context,
     dag_state::DagState,
     leader_schedule::LeaderSchedule,
@@ -34,22 +32,11 @@ mod base_committer_declarative_tests;
 #[path = "tests/base_committer_metastate_tests.rs"]
 mod base_committer_metastate_tests;
 
-#[derive(Default)]
-pub(crate) struct BaseCommitterOptions {
-    /// The offset used in the leader-election protocol. This is used by the
-    /// multi-committer to ensure that each [`BaseCommitter`] instance elects
-    /// a different leader.
-    pub leader_offset: u32,
-    /// The offset of the first wave. This is used by the pipelined committer to
-    /// ensure that each[`BaseCommitter`] instances operates on a different
-    /// view of the dag.
-    pub round_offset: u32,
-}
-
-/// The [`BaseCommitter`] contains the bare bone commit logic. Once
-/// instantiated, the method `try_direct_decide` and `try_indirect_decide` can
-/// be called at any time and any number of times (it is idempotent) to
-/// determine whether a leader can be committed or skipped.
+/// The [`BaseCommitter`] contains the bare bone commit logic. It elects one
+/// leader for every round. Once instantiated, the method `try_direct_decide`
+/// and `try_indirect_decide` can be called at any time and any number of times
+/// (it is idempotent) to determine whether a leader can be committed or
+/// skipped.
 pub(crate) struct BaseCommitter {
     /// The per-epoch configuration of this authority.
     context: Arc<Context>,
@@ -58,8 +45,6 @@ pub(crate) struct BaseCommitter {
     leader_schedule: Arc<LeaderSchedule>,
     /// In memory block store representing the dag state
     dag_state: Arc<RwLock<DagState>>,
-    /// The options used by this committer
-    options: BaseCommitterOptions,
     /// Certificate classification per (certifying block, leader block), keyed
     /// by the certifying block's round. The answer depends only on accepted
     /// blocks (the certifier's ancestors and, through them, the voting-round
@@ -73,13 +58,11 @@ impl BaseCommitter {
         context: Arc<Context>,
         leader_schedule: Arc<LeaderSchedule>,
         dag_state: Arc<RwLock<DagState>>,
-        options: BaseCommitterOptions,
     ) -> Self {
         Self {
             context,
             leader_schedule,
             dag_state,
-            options,
             certificates: BTreeMap::new(),
         }
     }
@@ -118,8 +101,7 @@ impl BaseCommitter {
             return LeaderStatus::Undecided(leader);
         }
 
-        let wave = self.wave_number(leader.round);
-        let certifying_round = self.certifying_round(wave);
+        let certifying_round = leader.round + 2;
         let decision_blocks = self
             .dag_state
             .read()
@@ -152,7 +134,7 @@ impl BaseCommitter {
         // There can be at most one leader with enough support for each round, otherwise
         // it means the BFT assumption is broken.
         if leaders_with_enough_support.len() > 1 {
-            panic!("[{self}] More than one certified block for {leader}")
+            panic!("More than one certified block for {leader}")
         }
 
         leaders_with_enough_support
@@ -171,7 +153,7 @@ impl BaseCommitter {
         let slot = current.slot();
         let anchors = leaders.filter(|x| slot.round + WAVE_LENGTH <= x.round());
         for anchor in anchors {
-            tracing::trace!("[{self}] Trying to indirect-decide {slot} using anchor {anchor}",);
+            tracing::trace!("Trying to indirect-decide {slot} using anchor {anchor}",);
             match anchor {
                 LeaderStatus::Commit(anchor, _, _) => {
                     return self.decide_leader_from_anchor(anchor, slot);
@@ -183,44 +165,9 @@ impl BaseCommitter {
         current
     }
 
-    pub fn elect_leader(&self, round: Round) -> Option<Slot> {
-        let wave = self.wave_number(round);
-        tracing::trace!(
-            "elect_leader: round={}, wave={}, leader_round={}, leader_offset={}",
-            round,
-            wave,
-            self.leader_round(wave),
-            self.options.leader_offset
-        );
-        if self.leader_round(wave) != round {
-            return None;
-        }
-
-        Some(Slot::new(
-            round,
-            self.leader_schedule
-                .elect_leader(round, self.options.leader_offset),
-        ))
-    }
-
-    /// Return the leader round of the specified wave. The leader round is
-    /// always the first round of the wave. This takes into account round
-    /// offset for when pipelining is enabled.
-    pub(crate) fn leader_round(&self, wave_number: WaveNumber) -> Round {
-        (wave_number * WAVE_LENGTH) + self.options.round_offset
-    }
-
-    /// Return the certifying round of the specified wave. The certifying round
-    /// is always the last round of the wave. This takes into account round
-    /// offset for when pipelining is enabled.
-    pub(crate) fn certifying_round(&self, wave_number: WaveNumber) -> Round {
-        (wave_number * WAVE_LENGTH) + WAVE_LENGTH - 1 + self.options.round_offset
-    }
-
-    /// Return the wave in which the specified round belongs. This takes into
-    /// account the round offset for when pipelining is enabled.
-    pub(crate) fn wave_number(&self, round: Round) -> WaveNumber {
-        round.saturating_sub(self.options.round_offset) / WAVE_LENGTH
+    /// The leader slot of `round`.
+    pub fn elect_leader(&self, round: Round) -> Slot {
+        Slot::new(round, self.leader_schedule.elect_leader(round, 0))
     }
 
     /// Check whether the specified block (`potential_vote`) is a vote for
@@ -261,8 +208,7 @@ impl BaseCommitter {
         // Get all blocks that could be potential certificates for the target leader.
         // These blocks are in the certifying round of the target leader and are
         // linked to the anchor.
-        let wave = self.wave_number(leader_slot.round);
-        let certifying_round = self.certifying_round(wave);
+        let certifying_round = leader_slot.round + 2;
         let potential_certificates = self
             .dag_state
             .read()
@@ -315,7 +261,7 @@ impl BaseCommitter {
         // There can be at most one certified leader, otherwise it means the BFT
         // assumption is broken.
         if certified_leader_blocks.len() > 1 {
-            panic!("More than one certified block at wave {wave} from leader {leader_slot}")
+            panic!("More than one certified block for {leader_slot}")
         }
 
         match certified_leader_blocks.pop() {
@@ -343,7 +289,7 @@ impl BaseCommitter {
                 .all(|ancestor| ancestor.author != leader)
             {
                 tracing::trace!(
-                    "[{self}] {voting_block} is a blame for leader {}",
+                    "{voting_block} is a blame for leader {}",
                     Slot::new(voting_round - 1, leader)
                 );
                 if blame_stake_aggregator.add(voter, &self.context.committee) {
@@ -351,7 +297,7 @@ impl BaseCommitter {
                 }
             } else {
                 tracing::trace!(
-                    "[{self}] {voting_block} is not a blame for leader {}",
+                    "{voting_block} is not a blame for leader {}",
                     Slot::new(voting_round - 1, leader)
                 );
             }
@@ -527,19 +473,7 @@ impl BaseCommitter {
     }
 }
 
-impl Display for BaseCommitter {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Committer-L{}-R{}",
-            self.options.leader_offset, self.options.round_offset
-        )
-    }
-}
-
-/// A builder for the base committer. By default, the builder creates a base
-/// committer that has no leader or round offset. Which indicates single leader
-/// & pipelining disabled.
+/// A builder for the base committer with the default leader schedule.
 #[cfg(test)]
 mod base_committer_builder {
     use super::*;
@@ -548,37 +482,14 @@ mod base_committer_builder {
     pub(crate) struct BaseCommitterBuilder {
         context: Arc<Context>,
         dag_state: Arc<RwLock<DagState>>,
-        leader_offset: u32,
-        round_offset: u32,
     }
 
     impl BaseCommitterBuilder {
         pub(crate) fn new(context: Arc<Context>, dag_state: Arc<RwLock<DagState>>) -> Self {
-            Self {
-                context,
-                dag_state,
-                leader_offset: 0,
-                round_offset: 0,
-            }
-        }
-
-        #[expect(unused)]
-        pub(crate) fn with_leader_offset(mut self, leader_offset: u32) -> Self {
-            self.leader_offset = leader_offset;
-            self
-        }
-
-        #[expect(unused)]
-        pub(crate) fn with_round_offset(mut self, round_offset: u32) -> Self {
-            self.round_offset = round_offset;
-            self
+            Self { context, dag_state }
         }
 
         pub(crate) fn build(self) -> BaseCommitter {
-            let options = BaseCommitterOptions {
-                leader_offset: self.leader_offset,
-                round_offset: self.round_offset,
-            };
             BaseCommitter::new(
                 self.context.clone(),
                 Arc::new(LeaderSchedule::new(
@@ -586,7 +497,6 @@ mod base_committer_builder {
                     LeaderSwapTable::default(),
                 )),
                 self.dag_state,
-                options,
             )
         }
     }

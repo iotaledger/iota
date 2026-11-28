@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashSet, sync::Arc};
+use std::sync::Arc;
 
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
@@ -10,7 +10,7 @@ use starfish_config::AuthorityIndex;
 use crate::{
     base_committer::base_committer_builder::BaseCommitterBuilder,
     block_header::{BlockHeaderAPI, TestBlockHeader, VerifiedBlockHeader},
-    commit::LeaderStatus,
+    commit::{LeaderStatus, WAVE_LENGTH},
     context::Context,
     dag_state::{DagState, DataSource},
     storage::mem_store::MemStore,
@@ -33,23 +33,16 @@ async fn try_direct_commit() {
     // so that we have 2 completed waves and one incomplete wave.
     // note: rounds & waves are zero indexed.
     let num_rounds_in_dag = 8;
-    let voting_round_wave_2 = committer.leader_round(2) + 1;
+    let voting_round_wave_2 = 7;
     let incomplete_wave_leader_round = 6;
     build_dag(context, dag_state, None, voting_round_wave_2);
 
     // Leader rounds are the first rounds of each wave. In this case rounds 3 & 6.
-    let mut leader_rounds: Vec<u32> = (1..num_rounds_in_dag)
-        .map(|r| committer.leader_round(r))
-        .collect::<HashSet<_>>()
-        .into_iter()
-        .collect();
+    let leader_rounds = (1..num_rounds_in_dag).map(|wave| wave * WAVE_LENGTH);
 
     // Iterate from highest leader round first
-    leader_rounds.sort_by(|a, b| b.cmp(a));
-    for round in leader_rounds.into_iter() {
-        let leader = committer
-            .elect_leader(round)
-            .expect("should have elected leader");
+    for round in leader_rounds.rev() {
+        let leader = committer.elect_leader(round);
         tracing::info!("Try direct commit for leader {leader}",);
         let leader_status = committer.try_direct_decide(leader);
         tracing::info!("Leader commit status: {leader_status}");
@@ -87,14 +80,12 @@ async fn idempotence() {
 
     // Build fully connected dag with empty blocks. Adding 5 rounds to the dag
     // aka the certifying round of wave 1.
-    let certifying_round_wave_1 = committer.certifying_round(1);
+    let certifying_round_wave_1 = 5;
     build_dag(context, dag_state, None, certifying_round_wave_1);
 
     // Commit one leader.
-    let leader_round_wave_1 = committer.leader_round(1);
-    let leader = committer
-        .elect_leader(leader_round_wave_1)
-        .expect("should have elected leader");
+    let leader_round_wave_1 = 3;
+    let leader = committer.elect_leader(leader_round_wave_1);
     tracing::info!("Try direct commit for leader {leader}",);
     let leader_status = committer.try_direct_decide(leader);
     tracing::info!("Leader commit status: {leader_status}");
@@ -132,7 +123,7 @@ async fn multiple_direct_commit() {
     let mut ancestors = None;
     for n in 1..=10 {
         // note: rounds are zero indexed.
-        let certifying_round = committer.certifying_round(n);
+        let certifying_round = 3 * n + 2;
         ancestors = Some(build_dag(
             context.clone(),
             dag_state.clone(),
@@ -142,10 +133,8 @@ async fn multiple_direct_commit() {
 
         // Leader round is the first round of each wave.
         // note: rounds are zero indexed.
-        let leader_round = committer.leader_round(n);
-        let leader = committer
-            .elect_leader(leader_round)
-            .expect("should have elected leader");
+        let leader_round = 3 * n;
+        let leader = committer.elect_leader(leader_round);
         tracing::info!("Try direct commit for leader {leader}",);
         let leader_status = committer.try_direct_decide(leader);
         tracing::info!("Leader commit status: {leader_status}");
@@ -171,7 +160,7 @@ async fn direct_skip() {
     let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
     // Add enough blocks to reach the leader round of wave 1.
-    let leader_round_wave_1 = committer.leader_round(1);
+    let leader_round_wave_1 = 3;
     let references_leader_round_wave_1 = build_dag(
         context.clone(),
         dag_state.clone(),
@@ -181,16 +170,14 @@ async fn direct_skip() {
 
     // Votes in round 4 will not include the leader of wave 1.
     // Filter out that leader.
-    let leader_wave_1 = committer
-        .elect_leader(leader_round_wave_1)
-        .expect("should have elected leader");
+    let leader_wave_1 = committer.elect_leader(leader_round_wave_1);
     let references_without_leader_wave_1: Vec<_> = references_leader_round_wave_1
         .into_iter()
         .filter(|x| x.author != leader_wave_1.authority)
         .collect();
 
     // Add enough blocks to reach the certifying round of wave 1.
-    let certifying_round_wave_1 = committer.certifying_round(1);
+    let certifying_round_wave_1 = 5;
     build_dag(
         context,
         dag_state,
@@ -223,7 +210,7 @@ async fn indirect_commit() {
     let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
     // Add enough blocks to reach the leader round of wave 1.
-    let leader_round_wave_1 = committer.leader_round(1);
+    let leader_round_wave_1 = 3;
     let references_leader_round_wave_1 = build_dag(
         context.clone(),
         dag_state.clone(),
@@ -232,9 +219,7 @@ async fn indirect_commit() {
     );
 
     // Filter out that leader.
-    let leader_wave_1 = committer
-        .elect_leader(leader_round_wave_1)
-        .expect("should have elected leader");
+    let leader_wave_1 = committer.elect_leader(leader_round_wave_1);
     let references_without_leader_wave_1: Vec<_> = references_leader_round_wave_1
         .iter()
         .cloned()
@@ -302,7 +287,7 @@ async fn indirect_commit() {
 
     // Add enough blocks to decide the leader of wave 2 connecting to the references
     // manually constructed of the certifying round of wave 1.
-    let certifying_round_wave_2 = committer.certifying_round(2);
+    let certifying_round_wave_2 = 8;
     build_dag(
         context,
         dag_state,
@@ -311,9 +296,7 @@ async fn indirect_commit() {
     );
 
     // Try direct commit leader from wave 2 which should result in Commit
-    let leader_wave_2 = committer
-        .elect_leader(committer.leader_round(2))
-        .expect("should have elected leader");
+    let leader_wave_2 = committer.elect_leader(6);
     tracing::info!("Try direct commit for leader {leader_wave_2}");
     let leader_status = committer.try_direct_decide(leader_wave_2);
     tracing::info!("Leader commit status: {leader_status}");
@@ -375,7 +358,7 @@ async fn indirect_skip() {
     let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
     // Add enough blocks to reach the leader round of wave 2.
-    let leader_round_wave_2 = committer.leader_round(2);
+    let leader_round_wave_2 = 6;
     let references_leader_round_wave_2 = build_dag(
         context.clone(),
         dag_state.clone(),
@@ -384,9 +367,7 @@ async fn indirect_skip() {
     );
 
     // Filter out that leader.
-    let leader_wave_2 = committer
-        .elect_leader(leader_round_wave_2)
-        .expect("should have elected leader");
+    let leader_wave_2 = committer.elect_leader(leader_round_wave_2);
     let references_without_leader_wave_2: Vec<_> = references_leader_round_wave_2
         .iter()
         .cloned()
@@ -423,7 +404,7 @@ async fn indirect_skip() {
     ));
 
     // Add enough blocks to reach the certifying round of wave 3.
-    let certifying_round_wave_3 = committer.certifying_round(3);
+    let certifying_round_wave_3 = 11;
     build_dag(
         context,
         dag_state,
@@ -434,10 +415,8 @@ async fn indirect_skip() {
     // Ensure we commit the leaders of wave 1 and 3 and skip the leader of wave 2
 
     // 1. Ensure we commit the leader of wave 3.
-    let leader_round_wave_3 = committer.leader_round(3);
-    let leader_wave_3 = committer
-        .elect_leader(leader_round_wave_3)
-        .expect("should have elected leader");
+    let leader_round_wave_3 = 9;
+    let leader_wave_3 = committer.elect_leader(leader_round_wave_3);
     tracing::info!("Try direct commit for leader {leader_wave_3}");
     let leader_status = committer.try_direct_decide(leader_wave_3);
     tracing::info!("Leader commit status: {leader_status}");
@@ -454,9 +433,7 @@ async fn indirect_skip() {
     // of lack of certified links.
 
     // 2. Ensure we directly mark leader of wave 2 undecided.
-    let leader_wave_2 = committer
-        .elect_leader(leader_round_wave_2)
-        .expect("should have elected leader");
+    let leader_wave_2 = committer.elect_leader(leader_round_wave_2);
     tracing::info!("Try direct commit for leader {leader_wave_2}");
     let leader_status = committer.try_direct_decide(leader_wave_2);
     tracing::info!("Leader commit status: {leader_status}");
@@ -482,10 +459,8 @@ async fn indirect_skip() {
     };
 
     // Ensure we directly commit the leader of wave 1.
-    let leader_round_wave_1 = committer.leader_round(1);
-    let leader_wave_1 = committer
-        .elect_leader(leader_round_wave_1)
-        .expect("should have elected leader");
+    let leader_round_wave_1 = 3;
+    let leader_wave_1 = committer.elect_leader(leader_round_wave_1);
     tracing::info!("Try direct commit for leader {leader_wave_1}");
     let leader_status = committer.try_direct_decide(leader_wave_1);
     tracing::info!("Leader commit status: {leader_status}");
@@ -510,7 +485,7 @@ async fn undecided() {
     let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
     // Add enough blocks to reach the leader round of wave 1.
-    let leader_round_wave_1 = committer.leader_round(1);
+    let leader_round_wave_1 = 3;
     let references_leader_round_wave_1 = build_dag(
         context.clone(),
         dag_state.clone(),
@@ -519,9 +494,7 @@ async fn undecided() {
     );
 
     // Filter out that leader.
-    let leader_wave_1 = committer
-        .elect_leader(leader_round_wave_1)
-        .expect("should have elected leader");
+    let leader_wave_1 = committer.elect_leader(leader_round_wave_1);
     let references_without_leader_wave_1: Vec<_> = references_leader_round_wave_1
         .iter()
         .cloned()
@@ -550,7 +523,7 @@ async fn undecided() {
         build_dag_layer(&context, connections_voting_round_wave_1, dag_state.clone());
 
     // Add enough blocks to reach the certifying round of wave 1.
-    let certifying_round_wave_1 = committer.certifying_round(1);
+    let certifying_round_wave_1 = 5;
     build_dag(
         context.clone(),
         dag_state,
@@ -600,7 +573,7 @@ async fn test_byzantine_direct_commit() {
     let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
     // Add enough blocks to reach leader round of wave 4
-    let leader_round_wave_4 = committer.leader_round(4);
+    let leader_round_wave_4 = 12;
     let references_leader_round_wave_4 = build_dag(
         context.clone(),
         dag_state.clone(),
@@ -628,9 +601,7 @@ async fn test_byzantine_direct_commit() {
     // from a byzantine validator C that sent different blocks to all validators.
 
     // Filter out leader from wave 4.
-    let leader_wave_4 = committer
-        .elect_leader(leader_round_wave_4)
-        .expect("should have elected leader");
+    let leader_wave_4 = committer.elect_leader(leader_round_wave_4);
 
     // B12 C12 D12
     let references_without_leader_round_wave_4: Vec<_> = references_leader_round_wave_4
@@ -751,7 +722,3 @@ async fn test_byzantine_direct_commit() {
 
 // TODO: Add test for indirect commit with a certified link through a byzantine
 // validator.
-
-// TODO: add basic tests for multi leader & pipeline. More tests will be added
-// to thoroughly test pipelining and multileader once universal committer lands
-// so these tests may not be necessary here.
