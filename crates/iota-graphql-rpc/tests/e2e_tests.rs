@@ -4,7 +4,7 @@
 
 #[cfg(feature = "pg_integration")]
 mod tests {
-    use std::{net::IpAddr, sync::Arc, time::Duration};
+    use std::{sync::Arc, time::Duration};
 
     use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
     use fastcrypto::encoding::{Base58, Encoding};
@@ -18,11 +18,9 @@ mod tests {
     use iota_indexer::{
         run_query_async, schema::optimistic_transactions, spawn_read_only_blocking,
     };
-    use iota_json_rpc_types::ObjectChange;
-    use iota_sdk_types::{Address, ObjectId, Owner, StructTag, TransactionDigest, TypeTag};
+    use iota_sdk_types::{Address, ObjectId, StructTag, TransactionDigest, TypeTag};
     use iota_types::{
         digests::ChainIdentifier,
-        traffic_control::{AccessRules, PolicyConfig},
         transaction::{CallArg, TransactionAPI, TransactionEnvelope},
     };
     use rand::{SeedableRng, rngs::StdRng};
@@ -740,9 +738,18 @@ mod tests {
     /// refusal of the fullnode on with the code `TOO_MANY_REQUESTS`. The
     /// fullnode denies `127.0.0.2`, so only a request from that address is
     /// refused.
+    // Other systems than Linux do not send 127.0.0.2 to the loopback interface
+    // by default.
+    #[cfg(target_os = "linux")]
     #[tokio::test]
     #[serial]
     async fn test_simulations_name_their_client_to_the_fullnode() {
+        use std::net::IpAddr;
+
+        use iota_json_rpc_types::ObjectChange;
+        use iota_sdk_types::Owner;
+        use iota_types::traffic_control::{AccessRules, PolicyConfig};
+
         const DENIED_CLIENT: &str = "127.0.0.2";
         let _guard = telemetry_subscribers::TelemetryConfig::new()
             .with_env()
@@ -830,16 +837,17 @@ mod tests {
         // The view call needs the package and the counter in the database of
         // the indexer, so wait until it is served to a client the fullnode
         // does not deny.
-        let mut attempts = 0;
-        while attempts < 60
-            && post(&other_client, &view_call)
+        tokio::time::timeout(Duration::from_secs(30), async {
+            while post(&other_client, &view_call)
                 .await
                 .get("errors")
                 .is_some()
-        {
-            attempts += 1;
-            sleep(Duration::from_millis(500)).await;
-        }
+            {
+                sleep(Duration::from_millis(500)).await;
+            }
+        })
+        .await
+        .expect("the view call is served to a client that the fullnode does not deny");
         for request in [&view_call, &dry_run] {
             let response = post(&other_client, request).await;
             assert!(response.get("errors").is_none(), "{response}");

@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    net::IpAddr,
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -41,19 +40,17 @@ use iota_types::{
     gas_coin::NANOS_PER_IOTA,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
-    traffic_control::{AccessRules, PolicyConfig},
     utils::to_sender_signed_transaction,
 };
 use itertools::Itertools;
-use jsonrpsee::{http_client::HttpClient, types::error::ErrorCode};
-use serde_json::json;
+use jsonrpsee::http_client::HttpClient;
 
 use crate::{
     coin_api::execute_move_call,
     common::{
-        ApiTestSetup, DEFAULT_INDEXER_IP, force_new_epoch_and_wait, indexer_wait_for_checkpoint,
+        ApiTestSetup, force_new_epoch_and_wait, indexer_wait_for_checkpoint,
         indexer_wait_for_object, indexer_wait_for_optimistic_transactions_count,
-        node_wait_for_object, publish_test_move_package, start_indexer_reader,
+        node_wait_for_object, publish_test_move_package,
         start_test_cluster_with_read_write_indexer,
     },
 };
@@ -2024,8 +2021,19 @@ fn dry_run_request_add_stake() {
 /// the fullnode, which lists the indexer as a forwarder, and passes a refusal
 /// of the fullnode on as `ServerIsBusy`. The fullnode denies `127.0.0.2`, so
 /// only a request from that address is refused.
+// Other systems than Linux do not send 127.0.0.2 to the loopback interface by
+// default.
+#[cfg(target_os = "linux")]
 #[tokio::test]
 async fn simulations_name_their_client_to_the_fullnode() -> Result<(), anyhow::Error> {
+    use std::{net::IpAddr, time::Duration};
+
+    use iota_types::traffic_control::{AccessRules, PolicyConfig};
+    use jsonrpsee::types::error::ErrorCode;
+    use serde_json::json;
+
+    use crate::common::{DEFAULT_INDEXER_IP, retry_with_timeout, start_indexer_reader};
+
     const DATABASE_NAME: &str = "write_api_simulations_name_their_client";
     const DENIED_CLIENT: &str = "127.0.0.2";
     let policy_config = PolicyConfig {
@@ -2089,29 +2097,22 @@ async fn simulations_name_their_client_to_the_fullnode() -> Result<(), anyhow::E
     let Transaction::V1(transaction_v1) = &transaction else {
         unreachable!("the test transaction is V1")
     };
-    let requests = [
-        (
-            "iota_dryRunTransactionBlock",
-            json!([Base64::from_bytes(&bcs::to_bytes(&transaction)?)]),
-        ),
-        (
-            "iota_devInspectTransactionBlock",
-            json!([
-                sender,
-                Base64::from_bytes(&bcs::to_bytes(&transaction_v1.kind)?)
-            ]),
-        ),
-        (
-            "iota_view",
-            json!([format!("{package_id}::counter::value"), null, [counter_id]]),
-        ),
-    ]
-    .map(|(method, params)| {
-        (
-            method,
-            json!({ "jsonrpc": "2.0", "id": 1, "method": method, "params": params }),
-        )
-    });
+    let json_rpc_request = |method: &str, params: serde_json::Value| json!({ "jsonrpc": "2.0", "id": 1, "method": method, "params": params });
+    let dry_run = json_rpc_request(
+        "iota_dryRunTransactionBlock",
+        json!([Base64::from_bytes(&bcs::to_bytes(&transaction)?)]),
+    );
+    let dev_inspect = json_rpc_request(
+        "iota_devInspectTransactionBlock",
+        json!([
+            sender,
+            Base64::from_bytes(&bcs::to_bytes(&transaction_v1.kind)?)
+        ]),
+    );
+    let view_call = json_rpc_request(
+        "iota_view",
+        json!([format!("{package_id}::counter::value"), null, [counter_id]]),
+    );
     let denied_client = reqwest::Client::builder()
         .local_address(DENIED_CLIENT.parse::<IpAddr>()?)
         .build()?;
@@ -2131,26 +2132,25 @@ async fn simulations_name_their_client_to_the_fullnode() -> Result<(), anyhow::E
     // The view call needs the package and the counter in the database of the
     // indexer, so wait until it is served to a client the fullnode does not
     // deny.
-    let mut attempts = 0;
-    while attempts < 60
-        && post(&other_client, &requests[2].1)
+    retry_with_timeout(Duration::from_secs(30), || async {
+        post(&other_client, &view_call)
             .await
             .get("error")
-            .is_some()
-    {
-        attempts += 1;
-        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-    }
-    for (method, request) in &requests {
+            .is_none()
+            .then_some(())
+    })
+    .await
+    .expect("the view call is served to a client that the fullnode does not deny");
+    for request in [&dry_run, &dev_inspect] {
         let response = post(&other_client, request).await;
-        assert!(response.get("error").is_none(), "{method}: {response}");
+        assert!(response.get("error").is_none(), "{response}");
     }
 
     let mut not_refused = Vec::new();
-    for (method, request) in &requests {
+    for request in [&dry_run, &dev_inspect, &view_call] {
         let response = post(&denied_client, request).await;
         if response["error"]["code"] != ErrorCode::ServerIsBusy.code() {
-            not_refused.push(format!("{method}: {response}"));
+            not_refused.push(format!("{}: {response}", request["method"]));
         }
     }
     assert!(
