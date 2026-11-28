@@ -906,7 +906,9 @@ fn block_traffic_control_client_response(
                 } else {
                     ""
                 };
-                if block.reason == BlockReason::Manual && block.seconds_left <= ttl_sec {
+                let new_block_is_in_force =
+                    block.reason == BlockReason::Manual && block.seconds_left <= ttl_sec;
+                if new_block_is_in_force {
                     format!(
                         "Blocked {} for {} seconds.{served}",
                         block.client, block.seconds_left
