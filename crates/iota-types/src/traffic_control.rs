@@ -440,16 +440,16 @@ pub struct AccessRules {
     pub forwarders: Vec<String>,
 }
 
-/// The header in which a forwarder (see [`AccessRules`]) names the user it
-/// calls the node for, as an IP address.
-pub const FORWARDED_CLIENT_IP_HEADER: &str = "x-iota-client-ip";
-
 impl AccessRules {
     /// Whether these rules do the same as no `access-rules` in the config.
     pub fn is_default(&self) -> bool {
         *self == Self::default()
     }
 }
+
+/// The header in which a forwarder (see [`AccessRules`]) names the user it
+/// calls the node for, as an IP address.
+pub const FORWARDED_CLIENT_IP_HEADER: &str = "x-iota-client-ip";
 
 /// The error a config that sets `allow-list` fails to load with.
 const ALLOW_LIST_REMOVED: &str = "`allow-list` is no longer supported. To serve only the \
