@@ -193,7 +193,7 @@ enum RuleChange {
 }
 
 /// Asks the operator to confirm a change, and returns whether they did.
-type Confirm<'a> = &'a dyn Fn(&str) -> Result<bool>;
+type AskOperator<'a> = &'a dyn Fn(&str) -> Result<bool>;
 
 /// Where a command prints: `out` for its result, `notes` for what a script
 /// does not read.
@@ -219,7 +219,7 @@ impl AdminCommand {
         self.run(&mut output, &confirm).await
     }
 
-    async fn run(self, output: &mut Output<'_>, confirm: Confirm<'_>) -> Result<()> {
+    async fn run(self, output: &mut Output<'_>, confirm: AskOperator<'_>) -> Result<()> {
         let client = AdminClient::new(&self.admin_url)?;
         let AdminSubcommand::TrafficControl(command) = self.command;
         command.run(&client, output, confirm).await
@@ -231,7 +231,7 @@ impl TrafficControlCommand {
         self,
         client: &AdminClient,
         output: &mut Output<'_>,
-        confirm: Confirm<'_>,
+        confirm: AskOperator<'_>,
     ) -> Result<()> {
         match self {
             Self::Status => {
@@ -395,7 +395,7 @@ fn save(
     policy: &PolicyConfig,
     yes: bool,
     out: &mut dyn Write,
-    confirm: Confirm<'_>,
+    confirm: AskOperator<'_>,
 ) -> Result<()> {
     let path = &std::fs::canonicalize(path)
         .with_context(|| format!("cannot read the node config {}", path.display()))?;
@@ -951,7 +951,7 @@ mod tests {
         run_asking(url, args, &|_: &str| Ok(false)).await
     }
 
-    async fn run_asking(url: &str, args: &[&str], confirm: Confirm<'_>) -> Result<Printed> {
+    async fn run_asking(url: &str, args: &[&str], confirm: AskOperator<'_>) -> Result<Printed> {
         let mut argv = vec!["admin", "--admin-url", url];
         argv.extend_from_slice(args);
         let command = AdminCommand::try_parse_from(argv)?;
