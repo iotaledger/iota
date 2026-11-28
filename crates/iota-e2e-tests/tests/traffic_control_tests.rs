@@ -770,13 +770,13 @@ fn assert_simulation_permit_refusal(error: jsonrpsee::core::ClientError) {
     );
 }
 
-/// A fullnode that serves one simulation per client, and lists `forwarders`
-/// as forwarders.
-async fn cluster_with_forwarders(forwarders: &[&str]) -> TestCluster {
+/// Starts a test cluster whose fullnode serves one simulation per client and
+/// lists `forwarders` as forwarders.
+async fn start_cluster_with_forwarders(forwarders: &[&str]) -> TestCluster {
     let policy_config = PolicyConfig {
         simulation_gas_limit: Some(SimulationGasLimitConfig {
             gas_per_sec: 1,
-            burst_gas: 5_000_000,
+            burst_gas: ProtocolConfig::get_for_max_version_UNSAFE().max_gas_computation_bucket(),
         }),
         access_rules: AccessRules {
             forwarders: forwarders.iter().map(|rule| rule.to_string()).collect(),
@@ -807,10 +807,10 @@ fn grpc_client_for(test_cluster: &TestCluster, user: &str) -> iota_grpc_client::
 #[tokio::test]
 async fn test_fullnode_charges_a_forwarded_simulation_to_its_user() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
-    let test_cluster = cluster_with_forwarders(&["127.0.0.1", "::1"]).await;
+    let test_cluster = start_cluster_with_forwarders(&["127.0.0.1", "::1"]).await;
     let (sender, gas) = test_cluster.wallet.get_one_gas_object().await?.unwrap();
-    let rgp = test_cluster.get_reference_gas_price().await;
-    let transaction = TestTransactionBuilder::new(sender, gas, rgp)
+    let reference_gas_price = test_cluster.get_reference_gas_price().await;
+    let transaction = TestTransactionBuilder::new(sender, gas, reference_gas_price)
         .transfer_iota(None, sender)
         .build();
 
@@ -844,10 +844,10 @@ async fn test_fullnode_charges_a_forwarded_simulation_to_its_user() -> Result<()
 async fn test_fullnode_ignores_the_client_ip_header_of_another_client() -> Result<(), anyhow::Error>
 {
     telemetry_subscribers::init_for_testing();
-    let test_cluster = cluster_with_forwarders(&["192.0.2.1"]).await;
+    let test_cluster = start_cluster_with_forwarders(&["192.0.2.1"]).await;
     let (sender, gas) = test_cluster.wallet.get_one_gas_object().await?.unwrap();
-    let rgp = test_cluster.get_reference_gas_price().await;
-    let transaction = TestTransactionBuilder::new(sender, gas, rgp)
+    let reference_gas_price = test_cluster.get_reference_gas_price().await;
+    let transaction = TestTransactionBuilder::new(sender, gas, reference_gas_price)
         .transfer_iota(None, sender)
         .build();
 
