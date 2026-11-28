@@ -280,7 +280,7 @@ When the node starts to refuse a client outside dry run, it logs the line `clien
 `block` and `unblock` take an IP address, or an IPv6 prefix as the blocklist names it, such as `2001:db8:1:2::/64`:
 
 - A manual block of an IPv6 address blocks its whole `ipv6-prefix-len` prefix.
-- A manual block refuses the client when it connects to the node. Like the access rules, it does not refuse requests that reach the node through a fullnode.
+- A manual block refuses the requests whose client is the blocked address or prefix: the address that connects to the node, or the one that `client-id-source` names. Like the access rules, it does not refuse requests that reach the node through a fullnode.
 - A manual block never shortens a block in force. When it outlasts a block whose line the node logged, the node logs the block line again.
 - The node rejects a manual block of a client that an allow rule serves, since a firewall that acts on the block line would ban that client.
 - Under dry run the node keeps the block, but still serves the client.

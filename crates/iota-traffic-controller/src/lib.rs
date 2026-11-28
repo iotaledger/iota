@@ -217,10 +217,11 @@ impl TrafficController {
         self.client_access.blocklist(limit)
     }
 
-    /// Refuses `client` for `ttl_sec` seconds with the reason `manual` when it
-    /// connects to this node, and returns its block in force. Like the access
-    /// rules, it does not refuse requests that reach this node through a
-    /// fullnode. `client` is an IP address, or an IPv6 prefix as the blocklist
+    /// Refuses the requests whose client is `client` for `ttl_sec` seconds,
+    /// with the reason `manual`, and returns its block in force. The client of
+    /// a request is the address that connects to this node, or the one that
+    /// `client-id-source` names. Like the access rules, it does not refuse
+    /// requests that reach this node through a fullnode. `client` is an IP address, or an IPv6 prefix as the blocklist
     /// names it; an IPv6 address is blocked with its whole `ipv6-prefix-len`
     /// prefix. Logs the block line outside dry run. A block in force that
     /// lasts longer keeps its expiration and its reason. The block lasts until
