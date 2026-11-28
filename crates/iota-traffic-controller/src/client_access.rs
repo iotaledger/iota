@@ -423,7 +423,8 @@ enum Refusal {
     Default,
 }
 
-/// What the access steps decide for a client, before dry run.
+/// What the allow rules, the deny rules, the blocklist and the default action
+/// decide for a client, before dry run.
 enum Decision {
     Allowed,
     Refused(Refusal),
@@ -508,7 +509,20 @@ impl ClientAccessManager {
         if client.is_none() {
             self.metrics.unresolved_client_requests.inc();
         }
-        match self.decide(rules, client, proxied_client) {
+        let decision = self.decide(rules, client, proxied_client);
+        self.apply_decision(rules, client, decision)
+    }
+
+    /// Whether to serve a request of `client` that `decision` decides under
+    /// `rules`. Counts the request in the metrics, and serves a refused
+    /// request when `rules` are in dry run.
+    fn apply_decision(
+        &self,
+        rules: &RuleSet,
+        client: &Option<IpAddr>,
+        decision: Decision,
+    ) -> ClientAccess {
+        match decision {
             Decision::Allowed => {
                 self.metrics.allow_rule_requests.inc();
                 ClientAccess::Allowed
@@ -518,7 +532,9 @@ impl ClientAccessManager {
         }
     }
 
-    /// What the four steps decide for `client` under `rules`, before dry run.
+    /// What the allow rules, the deny rules, the blocklist and the default
+    /// action decide for `client` under `rules`, checked in that order, before
+    /// dry run.
     fn decide(
         &self,
         rules: &RuleSet,
@@ -683,45 +699,78 @@ impl ClientAccessManager {
         client: Option<IpAddr>,
         forwarded: &[&[u8]],
     ) -> (Option<IpAddr>, ClientAccess) {
+        self.resolve_forwarded_client_and_check_with_rules(&self.rules.load(), client, forwarded)
+    }
+
+    /// Decides as [`Self::resolve_forwarded_client_and_check`] does, with
+    /// `rules` as the rules, the forwarders and the dry-run flag in force.
+    fn resolve_forwarded_client_and_check_with_rules(
+        &self,
+        rules: &RuleSet,
+        client: Option<IpAddr>,
+        forwarded: &[&[u8]],
+    ) -> (Option<IpAddr>, ClientAccess) {
         let forwarder_and_user = client.and_then(|direct| {
-            self.user_named_by_forwarder(direct, forwarded)
+            self.user_named_by_forwarder_or_warn(rules, direct, forwarded)
                 .map(|user| (direct, user))
         });
         match forwarder_and_user {
-            Some((forwarder, user)) => {
-                (Some(user), self.check_forwarder_then_user(forwarder, user))
-            }
-            None => (client, self.check(&client, &None)),
+            Some((forwarder, user)) => (
+                Some(user),
+                self.check_forwarder_then_user(rules, forwarder, user),
+            ),
+            None => (client, self.check_with_rules(rules, &client, &None)),
         }
     }
 
-    /// Whether to serve a request in which `forwarder` names `user`, with dry
-    /// run considered. A deny rule or a block of the forwarder refuses the
-    /// request, unless an allow rule serves the forwarder, as for its own
-    /// requests. Otherwise `user` is checked as [`Self::check`] checks a
-    /// client: an allow rule of the forwarder does not serve its users.
-    fn check_forwarder_then_user(&self, forwarder: IpAddr, user: IpAddr) -> ClientAccess {
-        let rules = self.rules.load();
+    /// Whether to serve a request in which `forwarder` names `user`, under
+    /// `rules`, with dry run considered. A deny rule or a block of the
+    /// forwarder refuses the request, unless an allow rule serves the
+    /// forwarder, as for its own requests. Otherwise `user` is checked as
+    /// [`Self::check`] checks a client: an allow rule of the forwarder does not
+    /// serve its users. A request that the forwarder check does not refuse is
+    /// counted as forwarded. Under dry run, a request that the forwarder check
+    /// would refuse is counted once, as refused for the forwarder.
+    fn check_forwarder_then_user(
+        &self,
+        rules: &RuleSet,
+        forwarder: IpAddr,
+        user: IpAddr,
+    ) -> ClientAccess {
         let forwarder = Some(forwarder);
-        if let Decision::Refused(refusal @ (Refusal::DenyRule | Refusal::Blocklist)) =
-            self.decide(&rules, &forwarder, &None)
-        {
-            if self.refuse(&rules, &forwarder, refusal) == ClientAccess::Refused {
-                return ClientAccess::Refused;
+        let user = Some(user);
+        let refusal_counted_for_forwarder = match self.decide(rules, &forwarder, &None) {
+            Decision::Refused(refusal @ (Refusal::DenyRule | Refusal::Blocklist)) => {
+                if self.refuse(rules, &forwarder, refusal) == ClientAccess::Refused {
+                    return ClientAccess::Refused;
+                }
+                true
             }
-        }
-        self.check_with_rules(&rules, &Some(user), &None)
+            _ => false,
+        };
+        self.metrics.forwarded_requests.inc();
+        let user_decision = match self.decide(rules, &user, &None) {
+            Decision::Refused(_) if refusal_counted_for_forwarder => Decision::Limited,
+            decision => decision,
+        };
+        self.apply_decision(rules, &user, user_decision)
     }
 
     /// The user that `direct` names in the client IP header values
-    /// `forwarded`, when `direct` is a forwarder and the header names one IP
-    /// address. `None` when the request is `direct`'s own: `direct` is no
-    /// forwarder, or the header is missing, repeated or not an IP address.
-    fn user_named_by_forwarder(&self, direct: IpAddr, forwarded: &[&[u8]]) -> Option<IpAddr> {
+    /// `forwarded`, when `rules` list `direct` as a forwarder and the header
+    /// names one IP address. `None` when the request is `direct`'s own:
+    /// `direct` is no forwarder, or the header is missing, repeated or not an
+    /// IP address. Logs a warning when a forwarder's header names no one IP
+    /// address.
+    fn user_named_by_forwarder_or_warn(
+        &self,
+        rules: &RuleSet,
+        direct: IpAddr,
+        forwarded: &[&[u8]],
+    ) -> Option<IpAddr> {
         if forwarded.is_empty() {
             return None;
         }
-        let rules = self.rules.load();
         let direct_address = direct.to_canonical();
         if !rules
             .forwarders
@@ -736,16 +785,10 @@ impl ClientAccessManager {
                 .and_then(|forwarded| forwarded.trim().parse::<IpAddr>().ok()),
             _ => None,
         };
-        match user {
-            Some(user) => {
-                self.metrics.forwarded_requests.inc();
-                Some(user.to_canonical())
-            }
-            None => {
-                warn!("The forwarder {direct} did not name one client IP address");
-                None
-            }
+        if user.is_none() {
+            warn!("The forwarder {direct} did not name one client IP address");
         }
+        user.map(|user| user.to_canonical())
     }
 
     /// Puts `default` in force as the default action, from the next check on,
@@ -1610,13 +1653,30 @@ mod tests {
             (ip("198.51.100.8"), ClientAccess::Limited)
         );
         assert_eq!(manager.metrics.num_dry_run_deny_rule_requests.get(), 1);
-        // The deny rule of the user is counted too.
+        // Enforcement would refuse the request once, for the forwarder, so dry
+        // run counts it once too, although the user has a deny rule as well.
         assert_eq!(
             user_request(b"198.51.100.7"),
             (ip("198.51.100.7"), ClientAccess::Limited)
         );
-        assert_eq!(manager.metrics.num_dry_run_deny_rule_requests.get(), 3);
+        assert_eq!(manager.metrics.num_dry_run_deny_rule_requests.get(), 2);
         assert_eq!(manager.metrics.requests_blocked_at_protocol.get(), 0);
+        assert_eq!(manager.metrics.forwarded_requests.get(), 2);
+    }
+
+    #[tokio::test]
+    async fn a_request_that_the_forwarder_check_refuses_is_not_counted_as_forwarded() {
+        let manager = manager(add_forwarders(
+            &["10.0.0.5"],
+            with_rules(&[], &["10.0.0.5"], DefaultAction::Limit),
+        ));
+        assert_eq!(
+            manager
+                .resolve_forwarded_client_and_check(ip("10.0.0.5"), &[b"198.51.100.7"])
+                .1,
+            ClientAccess::Refused
+        );
+        assert_eq!(manager.metrics.forwarded_requests.get(), 0);
     }
 
     #[tokio::test]
@@ -1647,6 +1707,43 @@ mod tests {
         assert_eq!(
             manager.resolve_forwarded_client_and_check(ip("10.0.0.5"), &[]),
             (ip("10.0.0.5"), ClientAccess::Allowed)
+        );
+    }
+
+    #[tokio::test]
+    async fn a_forwarded_request_is_decided_on_one_snapshot_of_the_rules() {
+        // The rules in force have no forwarders and no deny rules. Each
+        // snapshot below has a forwarder and some deny rules, and the decision
+        // must follow the snapshot alone.
+        let manager = manager(with_forwarders(&[]));
+        let snapshot = |deny: &[&str]| RuleSet {
+            allow: vec![],
+            deny: deny
+                .iter()
+                .map(|rule| parse_access_rule(rule).unwrap())
+                .collect(),
+            default: DefaultAction::Limit,
+            forwarders: vec![parse_access_rule("10.0.0.5").unwrap()],
+            dry_run: false,
+        };
+        let user_request = |rules: &RuleSet| {
+            manager.resolve_forwarded_client_and_check_with_rules(
+                rules,
+                ip("10.0.0.5"),
+                &[b"198.51.100.7"],
+            )
+        };
+        assert_eq!(
+            user_request(&snapshot(&[])),
+            (ip("198.51.100.7"), ClientAccess::Limited)
+        );
+        assert_eq!(
+            user_request(&snapshot(&["10.0.0.5"])),
+            (ip("198.51.100.7"), ClientAccess::Refused)
+        );
+        assert_eq!(
+            user_request(&snapshot(&["198.51.100.7"])),
+            (ip("198.51.100.7"), ClientAccess::Refused)
         );
     }
 
