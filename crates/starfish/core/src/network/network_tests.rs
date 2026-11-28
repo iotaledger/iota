@@ -12,7 +12,7 @@ use rstest::rstest;
 use super::{
     NetworkClient, SerializedBlockBundle, test_network::TestService, tonic_network::TonicManager,
 };
-use crate::{Round, context::Context};
+use crate::{Round, context::Context, misbehavior_store::MisbehaviorStore};
 
 fn serialized_block_bundle_for_round(round: Round) -> SerializedBlockBundle {
     SerializedBlockBundle {
@@ -45,7 +45,9 @@ async fn subscribe_and_receive_block_bundles() {
     let mut manager_0 = TonicManager::new(context_0.clone(), keys[0].0.clone());
     let client_0 = manager_0.client();
     let service_0 = service_with_own_block_bundles();
-    manager_0.install_service(service_0.clone()).await;
+    manager_0
+        .install_service(service_0.clone(), Arc::new(MisbehaviorStore::new(&context)))
+        .await;
 
     let context_1 = Arc::new(
         context
@@ -55,7 +57,9 @@ async fn subscribe_and_receive_block_bundles() {
     let mut manager_1 = TonicManager::new(context_1.clone(), keys[1].0.clone());
     let client_1 = manager_1.client();
     let service_1 = service_with_own_block_bundles();
-    manager_1.install_service(service_1.clone()).await;
+    manager_1
+        .install_service(service_1.clone(), Arc::new(MisbehaviorStore::new(&context)))
+        .await;
 
     let client_0_round = 50;
     let receive_stream_0 = client_0
@@ -104,10 +108,13 @@ async fn a_peer_at_its_subscription_cap_is_rejected_on_another_connection() {
     let server_context = Arc::new(context.clone().with_authority_index(server_index));
     let mut server = TonicManager::new(server_context, keys[0].0.clone());
     server
-        .install_service(Arc::new(Mutex::new(TestService {
-            endless_subscriptions: true,
-            ..TestService::new()
-        })))
+        .install_service(
+            Arc::new(Mutex::new(TestService {
+                endless_subscriptions: true,
+                ..TestService::new()
+            })),
+            Arc::new(MisbehaviorStore::new(&context)),
+        )
         .await;
 
     let client_for = |authority: usize| {

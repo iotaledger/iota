@@ -60,6 +60,7 @@ use crate::{
     context::Context,
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::FETCH_FROM_PEERS_TIMEOUT as HEADER_SYNC_FETCH_TIMEOUT,
+    misbehavior_store::MisbehaviorStore,
     network::{
         tonic_gen::consensus_service_server::ConsensusServiceServer,
         tonic_tls::certificate_server_name,
@@ -1422,7 +1423,13 @@ impl<S: NetworkService> TonicManager<S> {
         self.client.clone()
     }
 
-    pub async fn install_service(&mut self, service: Arc<S>) {
+    /// Starts serving `service`. Misbehaviors found before a request reaches
+    /// the service are recorded in `misbehavior_store`.
+    pub async fn install_service(
+        &mut self,
+        service: Arc<S>,
+        misbehavior_store: Arc<MisbehaviorStore>,
+    ) {
         self.context
             .metrics
             .network_metrics
@@ -1486,7 +1493,11 @@ impl<S: NetworkService> TonicManager<S> {
             // Innermost, so a rejected request is still counted and traced by
             // the layers above, and a request stalled in decode has its slots
             // given back when the timeout above fires.
-            .layer(AdmissionLayer::new(self.context.clone(), self.send_timeout));
+            .layer(AdmissionLayer::new(
+                self.context.clone(),
+                self.send_timeout,
+                misbehavior_store,
+            ));
 
         let consensus_service_server = ConsensusServiceServer::new(service)
             .max_encoding_message_size(config.message_size_limit)
@@ -2112,6 +2123,7 @@ mod tests {
         commit_syncer::CommitSyncType,
         context::Context,
         error::ConsensusError,
+        misbehavior_store::MisbehaviorStore,
         network::test_network::TestService,
         transaction_ref::SERIALIZED_TRANSACTION_REF_BYTES,
     };
@@ -2661,7 +2673,10 @@ mod tests {
         server_context.parameters.tonic.subscribe_request_timeout = SUBSCRIBE_REQUEST_TIMEOUT;
         let mut server = TonicManager::new(Arc::new(server_context), keys[0].0.clone());
         server
-            .install_service(Arc::new(Mutex::new(TestService::new())))
+            .install_service(
+                Arc::new(Mutex::new(TestService::new())),
+                Arc::new(MisbehaviorStore::new(&context)),
+            )
             .await;
 
         let client_context = Arc::new(
@@ -2772,7 +2787,10 @@ mod tests {
         let server_context = Arc::new(context.clone().with_authority_index(server_index));
         let mut server = TonicManager::new(server_context.clone(), keys[0].0.clone());
         server
-            .install_service(Arc::new(Mutex::new(TestService::new())))
+            .install_service(
+                Arc::new(Mutex::new(TestService::new())),
+                Arc::new(MisbehaviorStore::new(&context)),
+            )
             .await;
 
         let client_context = Arc::new(
@@ -2915,9 +2933,10 @@ mod tests {
         let server_context = Arc::new(context.clone().with_authority_index(server_index));
         let start_server = || {
             let mut server = TonicManager::new(server_context.clone(), keys[0].0.clone());
+            let misbehavior_store = Arc::new(MisbehaviorStore::new(&server_context));
             async move {
                 server
-                    .install_service(Arc::new(Mutex::new(TestService::new())))
+                    .install_service(Arc::new(Mutex::new(TestService::new())), misbehavior_store)
                     .await;
                 server
             }
@@ -3028,7 +3047,10 @@ mod tests {
         let server_context = Arc::new(server_context);
         let mut server = TonicManager::new(server_context.clone(), keys[0].0.clone());
         server
-            .install_service(Arc::new(Mutex::new(TestService::new())))
+            .install_service(
+                Arc::new(Mutex::new(TestService::new())),
+                Arc::new(MisbehaviorStore::new(&context)),
+            )
             .await;
 
         let client_for = |authority: usize| {
@@ -3114,7 +3136,10 @@ mod tests {
         let server_context = Arc::new(server_context);
         let mut server = TonicManager::new(server_context.clone(), keys[0].0.clone());
         server
-            .install_service(Arc::new(Mutex::new(TestService::new())))
+            .install_service(
+                Arc::new(Mutex::new(TestService::new())),
+                Arc::new(MisbehaviorStore::new(&context)),
+            )
             .await;
 
         let client_context = Arc::new(
@@ -3192,7 +3217,12 @@ mod tests {
             vec![Ok(vec![Bytes::from(vec![0u8; 1 << 20])])];
         let mut server = TonicManager::new(server_context.clone(), keys[0].0.clone());
         server.send_timeout = SEND_TIMEOUT;
-        server.install_service(Arc::new(Mutex::new(service))).await;
+        server
+            .install_service(
+                Arc::new(Mutex::new(service)),
+                Arc::new(MisbehaviorStore::new(&context)),
+            )
+            .await;
 
         let mut client_context = context
             .clone()
@@ -3322,7 +3352,12 @@ mod tests {
             Arc::new(context.clone().with_authority_index(server_index)),
             keys[0].0.clone(),
         );
-        server.install_service(Arc::new(Mutex::new(service))).await;
+        server
+            .install_service(
+                Arc::new(Mutex::new(service)),
+                Arc::new(MisbehaviorStore::new(&context)),
+            )
+            .await;
         let client = TonicManager::<Mutex<TestService>>::new(
             Arc::new(
                 context
@@ -3363,7 +3398,7 @@ mod tests {
         use crate::network::NetworkClient as _;
 
         let service = Arc::new(Mutex::new(TestService::new()));
-        let (_server, client, server_index) = serve(service.clone()).await;
+        let (_server, client, server_index, _) = serve(service.clone()).await;
         // Header sync, which accepts any peer's response up to the ceiling.
         let fetch =
             || client.fetch_block_headers(server_index, vec![], vec![0; 4], Duration::from_secs(5));
@@ -3399,9 +3434,11 @@ mod tests {
         ));
     }
 
-    /// A header request past the ceiling is refused while the server decodes
-    /// it, before the service sees it, and the client does not charge the
-    /// server for it; one at the ceiling is served.
+    /// A request for more headers than the ceiling is refused while the server
+    /// decodes it, so the service never sees it, and the server charges
+    /// the requester. The requester gets a network error, which it does not
+    /// charge to the server. A request above the server's own cap but within the
+    /// ceiling is served and not charged.
     #[cfg(not(msim))]
     #[tokio::test]
     async fn a_header_request_past_the_ceiling_is_refused_while_decoding() {
@@ -3411,7 +3448,8 @@ mod tests {
         use crate::{block_header::BlockRef, network::NetworkClient as _};
 
         let service = Arc::new(Mutex::new(TestService::new()));
-        let (_server, client, server_index) = serve(service.clone()).await;
+        let (_server, client, server_index, misbehavior_store) = serve(service.clone()).await;
+        let faults_of_client = || misbehavior_store.in_memory_faulty_blocks_unprovable()[1];
         let path = format!("{CONSENSUS_SERVICE_PATH_PREFIX}FetchBlockHeaders");
         let fetch = |block_refs: usize| {
             unread_call::<_, FetchBlockHeadersResponse>(
@@ -3430,6 +3468,7 @@ mod tests {
             .expect("a request at the ceiling is served");
         assert!(served.into_inner().message().await.unwrap().is_none());
         assert_eq!(service.lock().handle_fetch_block_headers.len(), 1);
+        assert_eq!(faults_of_client(), 0);
 
         let status = match fetch(HEADERS_PER_FETCH_CEILING + 1).await {
             Err(status) => status,
@@ -3437,6 +3476,7 @@ mod tests {
         };
         assert_eq!(status.code(), tonic::Code::OutOfRange);
         assert_eq!(status.message(), TOO_MANY_ENTRIES_IN_REQUEST);
+        assert_eq!(faults_of_client(), 1);
         let refused = client
             .fetch_block_headers(
                 server_index,
@@ -3447,6 +3487,7 @@ mod tests {
             .await;
         assert!(matches!(refused, Err(ConsensusError::NetworkRequest(_))));
         assert_eq!(service.lock().handle_fetch_block_headers.len(), 1);
+        assert_eq!(faults_of_client(), 2);
     }
 
     /// Sent through the tonic server and client, a transaction response at the
@@ -3463,7 +3504,7 @@ mod tests {
         use crate::{network::NetworkClient as _, transaction_ref::TransactionRef};
 
         let service = Arc::new(Mutex::new(TestService::new()));
-        let (_server, client, server_index) = serve(service.clone()).await;
+        let (_server, client, server_index, _) = serve(service.clone()).await;
         let requested = vec![TransactionRef::default(); TRANSACTIONS_PER_FETCH_CEILING];
         let fetch =
             || client.fetch_transactions(server_index, requested.clone(), Duration::from_secs(5));
@@ -3495,9 +3536,11 @@ mod tests {
         ));
     }
 
-    /// A transaction request past the ceiling is refused while the server
-    /// decodes it, before the service sees it, and the client does not charge
-    /// the server for it; one at the ceiling is served.
+    /// A request for more transactions than the ceiling is refused while the
+    /// server decodes it, so the service never sees it, and the server charges
+    /// the requester. The requester gets a network error, which it does not
+    /// charge to the server. A request above the server's own cap but within the
+    /// ceiling is served and not charged.
     #[cfg(not(msim))]
     #[tokio::test]
     async fn a_transaction_request_past_the_ceiling_is_refused_while_decoding() {
@@ -3509,7 +3552,8 @@ mod tests {
         use crate::{network::NetworkClient as _, transaction_ref::TransactionRef};
 
         let service = Arc::new(Mutex::new(TestService::new()));
-        let (_server, client, server_index) = serve(service.clone()).await;
+        let (_server, client, server_index, misbehavior_store) = serve(service.clone()).await;
+        let faults_of_client = || misbehavior_store.in_memory_faulty_blocks_unprovable()[1];
         let path = format!("{CONSENSUS_SERVICE_PATH_PREFIX}FetchTransactions");
         let fetch = |transaction_refs: usize| {
             unread_call::<_, FetchTransactionsResponse>(
@@ -3527,6 +3571,7 @@ mod tests {
             .expect("a request at the ceiling is served");
         assert!(served.into_inner().message().await.unwrap().is_none());
         assert_eq!(service.lock().handle_fetch_transactions.len(), 1);
+        assert_eq!(faults_of_client(), 0);
 
         let status = match fetch(TRANSACTIONS_PER_FETCH_CEILING + 1).await {
             Err(status) => status,
@@ -3534,6 +3579,7 @@ mod tests {
         };
         assert_eq!(status.code(), tonic::Code::OutOfRange);
         assert_eq!(status.message(), TOO_MANY_ENTRIES_IN_REQUEST);
+        assert_eq!(faults_of_client(), 1);
         let refused = client
             .fetch_transactions(
                 server_index,
@@ -3543,6 +3589,7 @@ mod tests {
             .await;
         assert!(matches!(refused, Err(ConsensusError::NetworkRequest(_))));
         assert_eq!(service.lock().handle_fetch_transactions.len(), 1);
+        assert_eq!(faults_of_client(), 2);
     }
 
     /// Sent through the tonic server and client, a latest header response at
@@ -3560,7 +3607,7 @@ mod tests {
         use crate::network::NetworkClient as _;
 
         let service = Arc::new(Mutex::new(TestService::new()));
-        let (_server, client, server_index) = serve(service.clone()).await;
+        let (_server, client, server_index, _) = serve(service.clone()).await;
         let ceiling = FetchLatestBlockHeadersResponse::MAX_ENTRIES;
         // The client accepts one header per requested authority.
         let fetch = || {
@@ -3615,7 +3662,7 @@ mod tests {
         };
 
         let service = Arc::new(Mutex::new(TestService::new()));
-        let (_server, client, server_index) = serve(service.clone()).await;
+        let (_server, client, server_index, _) = serve(service.clone()).await;
         let ceiling = FetchCommitsResponse::MAX_ENTRIES;
         let empty_commits = |count| {
             vec![TrustedCommit::new_trusted(Commit::V1(CommitV1::default()), Bytes::new()); count]
@@ -3652,7 +3699,7 @@ mod tests {
         use crate::network::NetworkClient as _;
 
         let service = Arc::new(Mutex::new(TestService::new()));
-        let (_server, client, server_index) = serve(service.clone()).await;
+        let (_server, client, server_index, _) = serve(service.clone()).await;
         let ceiling = FetchCommitsAndTransactionsResponse::MAX_ENTRIES;
         let fetch = || {
             client.fetch_commits_and_transactions(
@@ -3698,13 +3745,14 @@ mod tests {
     }
 
     /// Starts a server at index 0 on `service`, and returns it with a client
-    /// at index 1.
+    /// at index 1 and the store of misbehaviors the server records.
     async fn serve(
         service: Arc<Mutex<TestService>>,
     ) -> (
         TonicManager<Mutex<TestService>>,
         Arc<TonicClient>,
         AuthorityIndex,
+        Arc<MisbehaviorStore>,
     ) {
         let (context, keys) = Context::new_for_test(4);
         let server_index = context.committee.to_authority_index(0).unwrap();
@@ -3712,7 +3760,10 @@ mod tests {
             Arc::new(context.clone().with_authority_index(server_index)),
             keys[0].0.clone(),
         );
-        server.install_service(service).await;
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
+        server
+            .install_service(service, misbehavior_store.clone())
+            .await;
         let client = TonicManager::<Mutex<TestService>>::new(
             Arc::new(
                 context
@@ -3722,7 +3773,7 @@ mod tests {
             keys[1].0.clone(),
         )
         .client();
-        (server, client, server_index)
+        (server, client, server_index, misbehavior_store)
     }
 
     /// Opens a server-streaming call and returns its response stream without
@@ -3806,7 +3857,10 @@ mod tests {
         let server_context = Arc::new(context.clone().with_authority_index(server_index));
         let mut server = TonicManager::new(server_context, keys[0].0.clone());
         server
-            .install_service(Arc::new(Mutex::new(TestService::new())))
+            .install_service(
+                Arc::new(Mutex::new(TestService::new())),
+                Arc::new(MisbehaviorStore::new(&context)),
+            )
             .await;
 
         let client_context = Arc::new(
@@ -3970,7 +4024,10 @@ mod tests {
             keys[0].0.clone(),
         );
         server
-            .install_service(Arc::new(Mutex::new(TestService::new())))
+            .install_service(
+                Arc::new(Mutex::new(TestService::new())),
+                Arc::new(MisbehaviorStore::new(&context)),
+            )
             .await;
 
         tokio::time::timeout(Duration::from_secs(10), retrying)

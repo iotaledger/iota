@@ -7091,8 +7091,13 @@ mod tests {
                 async { Ok::<_, Infallible>(http::Response::new(tonic::body::Body::default())) }
             }
         });
-        let service =
-            AdmissionLayer::new(Arc::new(context), Duration::from_secs(60)).layer(handler);
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
+        let service = AdmissionLayer::new(
+            Arc::new(context),
+            Duration::from_secs(60),
+            misbehavior_store,
+        )
+        .layer(handler);
         let fetch_is_rejected = || {
             let mut request = http::Request::new(());
             *request.uri_mut() = format!("{CONSENSUS_SERVICE_PATH_PREFIX}FetchTransactions")
