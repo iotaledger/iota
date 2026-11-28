@@ -1536,6 +1536,11 @@ mod tests {
         assert!(notes.is_empty());
     }
 
+    /// The `yes` of `save`: it writes without asking, as with `--yes`.
+    const SKIP_THE_QUESTION: bool = true;
+    /// The `yes` of `save`: it asks before it writes.
+    const ASK_THE_QUESTION: bool = false;
+
     fn backups(dir: &Path) -> Vec<PathBuf> {
         let mut backups = std::fs::read_dir(dir)
             .unwrap()
@@ -1801,7 +1806,7 @@ mod tests {
             &path,
             Some(&output_path),
             &policy(),
-            true,
+            SKIP_THE_QUESTION,
             &mut Vec::new(),
             &|_: &str| Ok(true),
         )
@@ -1833,7 +1838,7 @@ mod tests {
             &path,
             None,
             &PolicyConfig::default_dos_protection_policy(),
-            true,
+            SKIP_THE_QUESTION,
             &mut out,
             &|_: &str| Ok(true),
         )
@@ -1880,7 +1885,7 @@ mod tests {
             &path,
             None,
             &policy(),
-            false,
+            ASK_THE_QUESTION,
             &mut shown.clone(),
             &|_: &str| {
                 *shown_when_asked.lock().unwrap() = Some(shown.text());
@@ -1915,7 +1920,7 @@ mod tests {
             &path,
             None,
             &policy(),
-            false,
+            ASK_THE_QUESTION,
             &mut Vec::new(),
             &|_: &str| {
                 std::fs::write(&path, &edited).unwrap();
