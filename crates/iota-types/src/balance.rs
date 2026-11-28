@@ -8,24 +8,15 @@ use move_core_types::{
     ident_str,
 };
 use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
 
 use crate::{
     error::{ExecutionError, ExecutionErrorKind},
     iota_sdk_types_conversions::{struct_tag_core_to_sdk, struct_tag_sdk_to_core},
-    iota_serde::{BigInt, Readable},
 };
 pub const BALANCE_CREATE_REWARDS_FUNCTION_NAME: Identifier =
     Identifier::from_static("create_staking_rewards");
 pub const BALANCE_DESTROY_REBATES_FUNCTION_NAME: Identifier =
     Identifier::from_static("destroy_storage_rebates");
-
-#[serde_as]
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct Supply {
-    #[serde_as(as = "Readable<BigInt<u64>, _>")]
-    pub value: u64,
-}
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct Balance {
