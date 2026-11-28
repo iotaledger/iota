@@ -8295,6 +8295,7 @@ dependencies = [
  "iota-snapshot",
  "iota-storage",
  "iota-tls",
+ "iota-traffic-controller",
  "iota-types",
  "itertools 0.13.0",
  "move-core-types",

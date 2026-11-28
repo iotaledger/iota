@@ -530,6 +530,31 @@ fn set_policy_config_metrics(
     }
 }
 
+/// `rules` with each rule in the form that the admin API reports it in, such
+/// as `203.0.113.7/32` for `203.0.113.7`.
+///
+/// # Errors
+///
+/// For a rule that is neither an IP address nor a CIDR network, the rule and
+/// why it does not parse.
+pub fn canonical_access_rules(rules: &AccessRules) -> Result<AccessRules, String> {
+    let canonical = |rules: &[String]| {
+        rules
+            .iter()
+            .map(|rule| {
+                parse_access_rule(rule)
+                    .map(|network| network.to_string())
+                    .map_err(|err| format!("access rule {rule:?}: {err}"))
+            })
+            .collect::<Result<Vec<_>, _>>()
+    };
+    Ok(AccessRules {
+        allow: canonical(&rules.allow)?,
+        deny: canonical(&rules.deny)?,
+        default: rules.default,
+    })
+}
+
 pub fn parse_ip(ip: &str) -> Option<IpAddr> {
     ip.parse::<IpAddr>().ok().or_else(|| {
         ip.parse::<SocketAddr>()
@@ -1976,5 +2001,27 @@ mod tests {
             controller.add_access_rule(AccessRuleList::Deny, "10.0.0.0/40"),
             Err(IotaError::InvalidAdminRequest(_))
         ));
+    }
+
+    #[tokio::test]
+    async fn canonical_access_rules_are_the_rules_the_admin_api_reports() {
+        let rules = AccessRules {
+            allow: vec!["203.0.113.7".to_string(), "::ffff:10.0.0.0/104".to_string()],
+            deny: vec!["2001:db8::1".to_string(), "198.51.100.7/24".to_string()],
+            default: DefaultAction::Deny,
+        };
+        let controller = TrafficController::init_for_test(PolicyConfig {
+            access_rules: rules.clone(),
+            ..Default::default()
+        });
+        let canonical = canonical_access_rules(&rules).unwrap();
+        assert_eq!(canonical, controller.access_rules());
+        assert_eq!(canonical.allow, ["203.0.113.7/32", "10.0.0.0/8"]);
+        let error = canonical_access_rules(&AccessRules {
+            deny: vec!["10.0.0.300".to_string()],
+            ..Default::default()
+        })
+        .unwrap_err();
+        assert!(error.starts_with("access rule \"10.0.0.300\""), "{error}");
     }
 }

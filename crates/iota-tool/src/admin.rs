@@ -14,6 +14,7 @@ use std::{
 use anyhow::{Context, Result, bail};
 use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum};
 use comfy_table::Table;
+use iota_traffic_controller::canonical_access_rules;
 use iota_types::traffic_control::{
     AccessRuleChangeQuery, AccessRuleList, AccessRules, BlockedClients, BlocklistQuery,
     ClientUsage, ClientUsageQuery, DEFAULT_DENY_WARNING, DefaultAction, ManualBlockQuery,
@@ -474,7 +475,8 @@ fn save(
 }
 
 /// Whether the `policy-config` a file holds, or the default it takes when it
-/// holds none, means the same as `policy`.
+/// holds none, means the same as `policy`. Access rules that mean the same,
+/// such as `203.0.113.7` and `203.0.113.7/32`, count as the same.
 fn same_policy(old: Option<&serde_yaml::Value>, policy: &serde_yaml::Value) -> bool {
     let old = match old {
         Some(old) => serde_yaml::from_value::<Option<PolicyConfig>>(old.clone()),
@@ -484,7 +486,11 @@ fn same_policy(old: Option<&serde_yaml::Value>, policy: &serde_yaml::Value) -> b
     else {
         return false;
     };
-    serde_yaml::to_value(old).ok() == serde_yaml::to_value(new).ok()
+    let with_canonical_rules = |mut policy: PolicyConfig| {
+        policy.access_rules = canonical_access_rules(&policy.access_rules).ok()?;
+        serde_yaml::to_value(policy).ok()
+    };
+    with_canonical_rules(old).is_some_and(|old| with_canonical_rules(new) == Some(old))
 }
 
 /// Writes `old`, the contents of `path`, to a new file next to it,
@@ -1574,6 +1580,49 @@ mod tests {
                 .dry_run
         );
         load(&path);
+    }
+
+    #[tokio::test]
+    async fn save_finds_no_change_in_rules_that_the_node_holds_in_canonical_form() {
+        let written_rules = PolicyConfig {
+            access_rules: AccessRules {
+                allow: vec![
+                    "203.0.113.7".to_string(),
+                    "::ffff:198.51.100.0/120".to_string(),
+                ],
+                deny: vec!["2001:db8::1".to_string()],
+                ..Default::default()
+            },
+            ..policy()
+        };
+        let node = start_admin_server(written_rules.clone()).await;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("fullnode.yaml");
+        let mut config: serde_yaml::Mapping = serde_yaml::from_str(TEMPLATE).unwrap();
+        config.insert(
+            "policy-config".into(),
+            serde_yaml::to_value(&written_rules).unwrap(),
+        );
+        let written = serde_yaml::to_string(&config).unwrap();
+        std::fs::write(&path, &written).unwrap();
+
+        let out = run_declining(
+            &node.url,
+            &[
+                "traffic-control",
+                "save",
+                "--config",
+                path.to_str().unwrap(),
+            ],
+        )
+        .await
+        .unwrap()
+        .out;
+        assert_eq!(
+            out,
+            "The node config already holds the settings in force.\n"
+        );
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), written);
     }
 
     #[tokio::test]
