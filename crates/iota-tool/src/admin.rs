@@ -216,22 +216,23 @@ impl AdminCommand {
     }
 
     async fn run(self, output: &mut Output<'_>, confirm: AskOperator<'_>) -> Result<()> {
-        let client = AdminClient::new(&self.admin_url)?;
+        let admin_api = AdminClient::new(&self.admin_url)?;
         let AdminSubcommand::TrafficControl(command) = self.command;
-        command.run(&client, output, confirm).await
+        command.run(&admin_api, output, confirm).await
     }
 }
 
 impl TrafficControlCommand {
     async fn run(
         self,
-        client: &AdminClient,
+        admin_api: &AdminClient,
         output: &mut Output<'_>,
         confirm: AskOperator<'_>,
     ) -> Result<()> {
         match self {
             Self::Status => {
-                let status: TrafficControlStatus = client.get(TRAFFIC_CONTROL_ROUTE, &()).await?;
+                let status: TrafficControlStatus =
+                    admin_api.get(TRAFFIC_CONTROL_ROUTE, &()).await?;
                 print_status(&status, output)?;
             }
             Self::Set(args) => {
@@ -254,10 +255,10 @@ impl TrafficControlCommand {
                 }
                 // The answer holds the warning for the default action deny, and
                 // says how long the change lasts.
-                let answer = client.post(TRAFFIC_CONTROL_ROUTE, &params).await?;
+                let answer = admin_api.post(TRAFFIC_CONTROL_ROUTE, &params).await?;
                 write!(output.notes, "{answer}")?;
                 let status: TrafficControlStatus =
-                    client.get(TRAFFIC_CONTROL_ROUTE, &()).await.context(
+                    admin_api.get(TRAFFIC_CONTROL_ROUTE, &()).await.context(
                         "the node accepted the request, but reading the settings in force \
                          failed; a node of an older version may have ignored the settings it \
                          does not know",
@@ -266,47 +267,41 @@ impl TrafficControlCommand {
                 writeln!(output.notes, "{SAVE_HINT}")?;
             }
             Self::Rules(RulesCommand::List) => {
-                let rules: AccessRules = client.get(TRAFFIC_CONTROL_RULES_ROUTE, &()).await?;
+                let rules: AccessRules = admin_api.get(TRAFFIC_CONTROL_RULES_ROUTE, &()).await?;
                 print_rules(&rules, output)?;
             }
             Self::Rules(RulesCommand::Allow(change)) => {
-                change_rule(client, AccessRuleList::Allow, change, output).await?;
+                change_rule(admin_api, AccessRuleList::Allow, change, output).await?;
             }
             Self::Rules(RulesCommand::Deny(change)) => {
-                change_rule(client, AccessRuleList::Deny, change, output).await?;
+                change_rule(admin_api, AccessRuleList::Deny, change, output).await?;
             }
             Self::Blocklist { limit } => {
-                let blocklist: BlockedClients = client
+                let blocklist: BlockedClients = admin_api
                     .get(TRAFFIC_CONTROL_BLOCKLIST_ROUTE, &BlocklistQuery { limit })
                     .await?;
                 print_blocklist(&blocklist, output)?;
             }
-            Self::Block {
-                client: blocked,
-                ttl,
-            } => {
-                let answer = client
+            Self::Block { client, ttl } => {
+                let answer = admin_api
                     .post(
                         TRAFFIC_CONTROL_BLOCK_ROUTE,
                         &ManualBlockQuery {
-                            client: blocked,
+                            client,
                             ttl_sec: ttl,
                         },
                     )
                     .await?;
                 print_answer(&answer, output)?;
             }
-            Self::Unblock { client: unblocked } => {
-                let answer = client
-                    .post(
-                        TRAFFIC_CONTROL_UNBLOCK_ROUTE,
-                        &UnblockQuery { client: unblocked },
-                    )
+            Self::Unblock { client } => {
+                let answer = admin_api
+                    .post(TRAFFIC_CONTROL_UNBLOCK_ROUTE, &UnblockQuery { client })
                     .await?;
                 print_answer(&answer, output)?;
             }
             Self::Clients { top } => {
-                let usage: ClientUsage = client
+                let usage: ClientUsage = admin_api
                     .get(TRAFFIC_CONTROL_CLIENTS_ROUTE, &ClientUsageQuery { top })
                     .await?;
                 print_usage(&usage, output)?;
@@ -317,7 +312,7 @@ impl TrafficControlCommand {
                 yes,
             } => {
                 let policy = parse_policy_config_without_loss(
-                    client.get(TRAFFIC_CONTROL_CONFIG_ROUTE, &()).await?,
+                    admin_api.get(TRAFFIC_CONTROL_CONFIG_ROUTE, &()).await?,
                 )?;
                 save(
                     &config,
@@ -334,17 +329,17 @@ impl TrafficControlCommand {
 }
 
 async fn change_rule(
-    client: &AdminClient,
+    admin_api: &AdminClient,
     list: AccessRuleList,
     change: RuleChange,
     output: &mut Output<'_>,
 ) -> Result<()> {
-    let (path, rule) = match change {
+    let (path, client) = match change {
         RuleChange::Add { client } => (TRAFFIC_CONTROL_RULES_ADD_ROUTE, client),
         RuleChange::Remove { client } => (TRAFFIC_CONTROL_RULES_REMOVE_ROUTE, client),
     };
-    let answer = client
-        .post(path, &AccessRuleChangeQuery { list, client: rule })
+    let answer = admin_api
+        .post(path, &AccessRuleChangeQuery { list, client })
         .await?;
     print_answer(&answer, output)?;
     writeln!(output.notes, "{SAVE_HINT}")?;
