@@ -24,7 +24,7 @@ use std::{
 use iota_types::{
     error::IotaError,
     traffic_control::{
-        AccessRuleList, AccessRules, BlockedClient, BlockedClients, ClientGasBalance,
+        AccessRuleList, AccessRules, BlockReason, BlockedClient, BlockedClients, ClientGasBalance,
         ClientIdSource, ClientUsage, DEFAULT_DENY_WARNING, DefaultAction, PolicyConfig, PolicyType,
         TrafficControlReconfigParams, TrafficControlStatus,
     },
@@ -32,7 +32,7 @@ use iota_types::{
 use tracing::{error, warn};
 
 use self::{
-    block_log::{BlockReason, client_name},
+    block_log::client_name,
     client_access::{ClientAccessManager, client_prefix, ipv6_prefix_len_of, parse_access_rule},
     metrics::TrafficControllerMetrics,
     simulation_gas::SimulationGasLimiter,

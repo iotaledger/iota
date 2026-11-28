@@ -10,7 +10,7 @@
 
 use std::net::IpAddr;
 
-pub(crate) use iota_types::traffic_control::BlockReason;
+use iota_types::traffic_control::BlockReason;
 use tracing::info;
 
 use crate::client_access::ipv6_prefix_len_of;

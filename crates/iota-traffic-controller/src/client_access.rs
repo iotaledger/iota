@@ -21,8 +21,8 @@ use dashmap::{DashMap, mapref::entry::Entry};
 use iota_common::fatal;
 use iota_metrics::spawn_monitored_task;
 use iota_types::traffic_control::{
-    AccessRuleList, AccessRules, BlockedClient, BlockedClients, ClientIdSource, DefaultAction,
-    PolicyConfig,
+    AccessRuleList, AccessRules, BlockReason, BlockedClient, BlockedClients, ClientIdSource,
+    DefaultAction, PolicyConfig,
 };
 use ipnet::{IpNet, Ipv4Net};
 use parking_lot::Mutex;
@@ -33,7 +33,7 @@ use tracing::{debug, warn};
 
 use crate::{
     ClientAccess,
-    block_log::{BlockReason, client_name, log_block, log_unblock},
+    block_log::{client_name, log_block, log_unblock},
     metrics::TrafficControllerMetrics,
     policies::PolicyResponse,
 };
