@@ -2474,6 +2474,13 @@ impl AuthorityState {
         Ok((effects, execution_error_opt))
     }
 
+    /// Applies a change of the traffic control settings that the admin API
+    /// requested, and returns the settings in force.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidAdminRequest` when traffic control is off on this node, or when
+    /// a value of `params` is out of range.
     pub async fn reconfigure_traffic_control(
         &self,
         params: TrafficControlReconfigParams,
@@ -2483,28 +2490,49 @@ impl AuthorityState {
     }
 
     /// The traffic control settings in force.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidAdminRequest` when traffic control is off on this node.
     pub fn traffic_control_status(&self) -> IotaResult<TrafficControlStatus> {
         Ok(self.traffic_controller_for_admin()?.status())
     }
 
     /// Whether traffic control runs in dry run, in which case the node serves
     /// every client.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidAdminRequest` when traffic control is off on this node.
     pub fn traffic_control_dry_run(&self) -> IotaResult<bool> {
         Ok(self.traffic_controller_for_admin()?.dry_run())
     }
 
     /// The traffic control settings in force, in the shape of `policy-config`.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidAdminRequest` when traffic control is off on this node.
     pub fn traffic_control_policy_config(&self) -> IotaResult<PolicyConfig> {
         Ok(self.traffic_controller_for_admin()?.runtime_policy_config())
     }
 
     /// The access rules of traffic control in force.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidAdminRequest` when traffic control is off on this node.
     pub fn traffic_control_access_rules(&self) -> IotaResult<AccessRules> {
         Ok(self.traffic_controller_for_admin()?.access_rules())
     }
 
     /// Adds an access rule to `list`, and returns whether `list` did not hold
     /// it already.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidAdminRequest` when traffic control is off on this node, or when
+    /// `rule` is neither an IP address nor a CIDR network.
     pub fn add_traffic_control_access_rule(
         &self,
         list: AccessRuleList,
@@ -2515,6 +2543,11 @@ impl AuthorityState {
     }
 
     /// Removes an access rule from `list`, and returns whether `list` held it.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidAdminRequest` when traffic control is off on this node, or when
+    /// `rule` is neither an IP address nor a CIDR network.
     pub fn remove_traffic_control_access_rule(
         &self,
         list: AccessRuleList,
@@ -2525,12 +2558,21 @@ impl AuthorityState {
     }
 
     /// The clients that traffic control refuses, at most `limit` of them.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidAdminRequest` when traffic control is off on this node.
     pub fn traffic_control_blocklist(&self, limit: usize) -> IotaResult<BlockedClients> {
         Ok(self.traffic_controller_for_admin()?.blocklist(limit))
     }
 
     /// Refuses `client`, an IP address or an IPv6 prefix as the blocklist
     /// names it, for `ttl_sec` seconds, and returns its block in force.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidAdminRequest` when traffic control is off on this node, or when
+    /// [`TrafficController::block_client`] rejects the block.
     pub fn block_traffic_control_client(
         &self,
         client: &str,
@@ -2544,12 +2586,22 @@ impl AuthorityState {
     /// blocklist names it, and returns whether it had one in force. Also
     /// resets what the spam and error policies counted for `client` and its
     /// simulation gas balance, also when it had no block.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidAdminRequest` when traffic control is off on this node, or when
+    /// `client` is neither an IP address nor an IPv6 prefix as the blocklist
+    /// names it.
     pub fn unblock_traffic_control_client(&self, client: &str) -> IotaResult<bool> {
         self.traffic_controller_for_admin()?.unblock_client(client)
     }
 
     /// The `top` clients with the lowest simulation gas balances, and up to
     /// `top` blocked clients.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidAdminRequest` when traffic control is off on this node.
     pub fn traffic_control_client_usage(&self, top: usize) -> IotaResult<ClientUsage> {
         Ok(self.traffic_controller_for_admin()?.client_usage(top))
     }

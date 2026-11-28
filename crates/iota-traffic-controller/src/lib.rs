@@ -226,8 +226,13 @@ impl TrafficController {
     /// is blocked with its whole `ipv6-prefix-len` prefix. Logs the block line
     /// outside dry run. A block in force that lasts longer keeps its
     /// expiration and its reason. The block lasts until it expires or the node
-    /// restarts. Rejects a client that an allow rule serves. Under dry run the
-    /// node still serves the client.
+    /// restarts. Under dry run the node still serves the client.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidAdminRequest` when `client` is neither an IP address nor an
+    /// IPv6 prefix as the blocklist names it, when `ttl_sec` is 0 or above the
+    /// longest blocklist TTL, or when an allow rule serves `client`.
     pub fn block_client(&self, client: &str, ttl_sec: u64) -> Result<BlockedClient, IotaError> {
         let client = self.parse_client(client)?;
         self.client_access
@@ -245,8 +250,13 @@ impl TrafficController {
     /// force. `client` is an IP address, or an IPv6 prefix as the blocklist
     /// names it. Also drops what the spam and error policies counted for
     /// the client, and its simulation gas balance, also when it had no block,
-    /// so that its next request does not block it again at once. Logs the unblock line for a block
-    /// whose block line was logged.
+    /// so that its next request does not block it again at once. Logs the
+    /// unblock line for a block whose block line was logged.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidAdminRequest` when `client` is neither an IP address nor an
+    /// IPv6 prefix as the blocklist names it.
     pub fn unblock_client(&self, client: &str) -> Result<bool, IotaError> {
         let client = self.parse_client(client)?;
         self.policies.spam.forget(client);
