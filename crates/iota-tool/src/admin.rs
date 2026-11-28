@@ -500,7 +500,7 @@ fn same_policy(old: Option<&serde_yaml::Value>, policy: &serde_yaml::Value) -> b
 /// taken, with the mode and, where it may, the owner of `path`. Returns its
 /// path.
 fn backup(path: &Path, old: &str, seconds: u64) -> Result<PathBuf> {
-    let metadata = std::fs::metadata(path)?;
+    let metadata = mode_and_owner(path)?;
     let mut n = 0;
     loop {
         let mut name = OsString::from(path.as_os_str());
@@ -535,6 +535,12 @@ fn backup(path: &Path, old: &str, seconds: u64) -> Result<PathBuf> {
     }
 }
 
+/// The metadata of `path`, which holds its mode and owner.
+fn mode_and_owner(path: &Path) -> Result<std::fs::Metadata> {
+    std::fs::metadata(path)
+        .with_context(|| format!("cannot read the mode and owner of {}", path.display()))
+}
+
 /// Gives `file` the mode and, where it may, the owner of the file `metadata`
 /// describes.
 fn copy_mode_and_owner(file: &File, metadata: &std::fs::Metadata) -> std::io::Result<()> {
@@ -561,7 +567,7 @@ fn replace_file_atomically(target: &Path, contents: &str, mode_and_owner_of: &Pa
     // Created readable by its owner only, so that no one else reads the
     // config before its mode is set.
     let mut file = tempfile::NamedTempFile::new_in(folder).with_context(failed)?;
-    copy_mode_and_owner(file.as_file(), &std::fs::metadata(mode_and_owner_of)?)
+    copy_mode_and_owner(file.as_file(), &mode_and_owner(mode_and_owner_of)?)
         .with_context(failed)?;
     file.write_all(contents.as_bytes())
         .and_then(|()| file.as_file().sync_all())
@@ -1913,6 +1919,19 @@ mod tests {
             error.to_string().contains("read the policy-config"),
             "{error}"
         );
+    }
+
+    #[test]
+    fn a_config_that_disappears_before_its_mode_is_read_is_named_in_the_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let missing = dir.path().join("fullnode.yaml");
+        let missing_name = missing.display().to_string();
+        let error = backup(&missing, "old", 7).unwrap_err();
+        assert!(error.to_string().contains(&missing_name), "{error:#}");
+        let target = dir.path().join("new.yaml");
+        let error = replace_file_atomically(&target, "new", &missing).unwrap_err();
+        assert!(error.to_string().contains(&missing_name), "{error:#}");
+        assert!(!target.exists());
     }
 
     #[test]
