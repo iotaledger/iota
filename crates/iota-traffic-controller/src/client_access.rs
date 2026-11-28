@@ -209,9 +209,10 @@ impl Blocklist {
     ) -> Option<BlockedClient> {
         self.block_client_for(client, BlockReason::Manual, ttl_secs, rules);
         let block = self.clients.get(&client)?;
+        let proxied = false;
         self.describe(
             client,
-            false,
+            proxied,
             block.reason,
             block.expiration,
             SystemTime::now(),
