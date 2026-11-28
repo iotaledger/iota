@@ -123,14 +123,15 @@ impl WriteApi {
     /// inspect goes through this, so the simulation and its conversions live in
     /// one place.
     ///
-    /// `client` is the user the simulation runs for, which the fullnode charges
-    /// the simulation to when it lists this indexer as a forwarder.
+    /// `client_ip` is the IP address of the user that the simulation runs
+    /// for. The fullnode charges the simulation to that user when it lists
+    /// this indexer as a forwarder.
     pub async fn simulate_transaction(
         &self,
         tx: Transaction,
         skip_checks: bool,
         fields: SimulationFields,
-        client: Option<IpAddr>,
+        client_ip: Option<IpAddr>,
     ) -> IndexerResult<SimulationOutput> {
         let mut read_mask = SIMULATE_CORE_READ_MASK.to_vec();
         if fields.transaction {
@@ -163,7 +164,10 @@ impl WriteApi {
         let response = self
             .fullnode_grpc_client
             .clone()
-            .with_headers(forwarded_client_headers(&self.fullnode_grpc_client, client))
+            .with_headers(forwarded_client_headers(
+                &self.fullnode_grpc_client,
+                client_ip,
+            ))
             .simulate_transaction(tx)
             .skip_checks(skip_checks)
             .read_mask(read_mask)
@@ -255,15 +259,15 @@ impl WriteApi {
         })
     }
 
-    /// Runs a Move view function for `client`, as
-    /// [`WriteApiServer::view_function_call`] does. `client` is as in
+    /// Runs a Move view function for the user at `client_ip`, as
+    /// [`WriteApiServer::view_function_call`] does. `client_ip` is as in
     /// [`Self::simulate_transaction`].
     pub async fn view_function_call_impl(
         &self,
         function_name: String,
         type_args: Option<Vec<IotaTypeTag>>,
         arguments: Vec<IotaJsonValue>,
-        client: Option<IpAddr>,
+        client_ip: Option<IpAddr>,
     ) -> IndexerResult<IotaMoveViewCallResults> {
         let MoveFunctionName {
             package,
@@ -288,7 +292,7 @@ impl WriteApi {
                 tx_bytes,
                 None,
                 None,
-                client,
+                client_ip,
                 &self.package_resolver,
             )
             .await?;
@@ -303,7 +307,7 @@ impl WriteApi {
     async fn dry_run_transaction_block_impl(
         &self,
         tx_bytes: Base64,
-        client: Option<IpAddr>,
+        client_ip: Option<IpAddr>,
         package_resolver: &Arc<Resolver<impl PackageStore>>,
     ) -> IndexerResult<DryRunTransactionBlockResponse> {
         let tx = bcs::from_bytes::<Transaction>(&tx_bytes.to_vec()?)?;
@@ -319,7 +323,7 @@ impl WriteApi {
                     object_changes: true,
                     ..Default::default()
                 },
-                client,
+                client_ip,
             )
             .await?;
 
@@ -378,7 +382,7 @@ impl WriteApi {
         tx_bytes: Base64,
         gas_price: Option<BigInt<u64>>,
         additional_args: Option<DevInspectArgs>,
-        client: Option<IpAddr>,
+        client_ip: Option<IpAddr>,
         package_resolver: &Arc<Resolver<impl PackageStore>>,
     ) -> IndexerResult<DevInspectResults> {
         let DevInspectArgs {
@@ -420,7 +424,7 @@ impl WriteApi {
                     execution_error: true,
                     ..Default::default()
                 },
-                client,
+                client_ip,
             )
             .await?;
 
@@ -493,10 +497,10 @@ impl OptimisticWriteApi {
         tx: Transaction,
         skip_checks: bool,
         fields: SimulationFields,
-        client: Option<IpAddr>,
+        client_ip: Option<IpAddr>,
     ) -> IndexerResult<SimulationOutput> {
         self.write_api
-            .simulate_transaction(tx, skip_checks, fields, client)
+            .simulate_transaction(tx, skip_checks, fields, client_ip)
             .await
     }
 
@@ -506,23 +510,27 @@ impl OptimisticWriteApi {
         function_name: String,
         type_args: Option<Vec<IotaTypeTag>>,
         arguments: Vec<IotaJsonValue>,
-        client: Option<IpAddr>,
+        client_ip: Option<IpAddr>,
     ) -> IndexerResult<IotaMoveViewCallResults> {
         self.write_api
-            .view_function_call_impl(function_name, type_args, arguments, client)
+            .view_function_call_impl(function_name, type_args, arguments, client_ip)
             .await
     }
 }
 
-/// The headers of `fullnode_grpc_client`, with `client`, when given, named in
+/// The headers of `fullnode_grpc_client`, with `client_ip`, when given, named in
 /// the [`FORWARDED_CLIENT_IP_HEADER`] header.
+///
+/// # Panics
+///
+/// Never: the text of an IP address is a valid header value.
 fn forwarded_client_headers(
     fullnode_grpc_client: &GrpcClient,
-    client: Option<IpAddr>,
+    client_ip: Option<IpAddr>,
 ) -> HeadersInterceptor {
     let mut headers = fullnode_grpc_client.headers().clone();
-    if let Some(client) = client {
-        let value = tonic::metadata::MetadataValue::try_from(client.to_string())
+    if let Some(client_ip) = client_ip {
+        let value = tonic::metadata::MetadataValue::try_from(client_ip.to_string())
             .expect("an IP address is a valid header value");
         headers
             .headers_mut()
@@ -531,9 +539,10 @@ fn forwarded_client_headers(
     headers
 }
 
-/// The user of a JSON-RPC request, which the indexer names to the fullnode.
-fn request_client(ext: &Extensions) -> Option<IpAddr> {
-    ext.get::<RequestClientIp>().map(|client| client.0)
+/// The IP address of the user of a JSON-RPC request, which the indexer names
+/// to the fullnode.
+fn client_ip_of_request(ext: &Extensions) -> Option<IpAddr> {
+    ext.get::<RequestClientIp>().map(|client_ip| client_ip.0)
 }
 
 #[async_trait]
@@ -567,7 +576,7 @@ impl WriteApiServer for WriteApi {
             tx_bytes,
             gas_price,
             additional_args,
-            request_client(ext),
+            client_ip_of_request(ext),
             &self.package_resolver,
         )
         .await
@@ -579,9 +588,13 @@ impl WriteApiServer for WriteApi {
         ext: &Extensions,
         tx_bytes: Base64,
     ) -> RpcResult<DryRunTransactionBlockResponse> {
-        self.dry_run_transaction_block_impl(tx_bytes, request_client(ext), &self.package_resolver)
-            .await
-            .map_err(Into::into)
+        self.dry_run_transaction_block_impl(
+            tx_bytes,
+            client_ip_of_request(ext),
+            &self.package_resolver,
+        )
+        .await
+        .map_err(Into::into)
     }
 
     async fn view_function_call(
@@ -591,9 +604,14 @@ impl WriteApiServer for WriteApi {
         type_args: Option<Vec<IotaTypeTag>>,
         arguments: Vec<IotaJsonValue>,
     ) -> RpcResult<IotaMoveViewCallResults> {
-        self.view_function_call_impl(function_name, type_args, arguments, request_client(ext))
-            .await
-            .map_err(Into::into)
+        self.view_function_call_impl(
+            function_name,
+            type_args,
+            arguments,
+            client_ip_of_request(ext),
+        )
+        .await
+        .map_err(Into::into)
     }
 }
 
