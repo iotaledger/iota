@@ -95,6 +95,12 @@ pub(crate) trait Store: Send + Sync {
         start_round: Round,
     ) -> ConsensusResult<Vec<BlockRef>>;
 
+    /// Returns the refs of the block headers stored at `slot`.
+    fn scan_block_references_at_slot(
+        &self,
+        slot: crate::block_header::Slot,
+    ) -> ConsensusResult<Vec<BlockRef>>;
+
     /// Returns the highest round of a stored block header by `author`.
     fn read_last_block_header_round(
         &self,

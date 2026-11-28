@@ -344,6 +344,19 @@ impl Store for MemStore {
         Ok(found)
     }
 
+    fn scan_block_references_at_slot(&self, slot: Slot) -> ConsensusResult<Vec<BlockRef>> {
+        Ok(self
+            .inner
+            .read()
+            .digests_by_authorities
+            .range((
+                Included((slot.authority, slot.round, BlockHeaderDigest::MIN)),
+                Included((slot.authority, slot.round, BlockHeaderDigest::MAX)),
+            ))
+            .map(|&(author, round, digest)| BlockRef::new(round, author, digest))
+            .collect())
+    }
+
     fn scan_block_references_by_author(
         &self,
         author: AuthorityIndex,

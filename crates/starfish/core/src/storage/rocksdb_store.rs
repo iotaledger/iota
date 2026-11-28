@@ -406,6 +406,23 @@ impl Store for RocksDBStore {
             .is_some();
         Ok(found)
     }
+
+    fn scan_block_references_at_slot(
+        &self,
+        slot: crate::block_header::Slot,
+    ) -> ConsensusResult<Vec<BlockRef>> {
+        self.digests_by_authorities
+            .safe_range_iter((
+                Included((slot.authority, slot.round, BlockHeaderDigest::MIN)),
+                Included((slot.authority, slot.round, BlockHeaderDigest::MAX)),
+            ))
+            .map(|res| {
+                let ((author, round, digest), _) = res?;
+                Ok(BlockRef::new(round, author, digest))
+            })
+            .collect()
+    }
+
     fn scan_block_references_by_author(
         &self,
         author: AuthorityIndex,

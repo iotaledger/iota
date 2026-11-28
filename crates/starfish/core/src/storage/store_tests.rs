@@ -11,7 +11,7 @@ use super::{Store, WriteBatch, mem_store::MemStore, rocksdb_store::RocksDBStore}
 use crate::{
     block_header::{
         BlockHeaderAPI, BlockHeaderDigest, BlockRef, Slot, TestBlockHeader, TransactionsCommitment,
-        VerifiedBlock,
+        VerifiedBlock, VerifiedBlockHeader,
     },
     commit::{CommitDigest, CommitRef, TrustedCommit},
     transaction_ref::TransactionRef,
@@ -149,6 +149,30 @@ async fn read_and_contain_block_headers(
         .contains_block_at_slot(Slot::new(10, AuthorityIndex::new_for_test(0)))
         .expect("Check slot should not fail");
     assert!(!found);
+
+    // Two headers at one slot, and the same author's headers next to it.
+    let twin = VerifiedBlock::new_for_test(TestBlockHeader::new(2, 3).set_timestamp_ms(1).build());
+    store
+        .write(WriteBatch::default().block_headers(vec![
+            twin.verified_block_header.clone(),
+            VerifiedBlockHeader::new_for_test(TestBlockHeader::new(1, 3).build()),
+            VerifiedBlockHeader::new_for_test(TestBlockHeader::new(3, 3).build()),
+        ]))
+        .unwrap();
+    let mut expected = vec![written_blocks[3].reference(), twin.reference()];
+    expected.sort();
+    assert_eq!(
+        store
+            .scan_block_references_at_slot(written_blocks[3].slot())
+            .expect("Scan slot should not fail"),
+        expected
+    );
+    assert!(
+        store
+            .scan_block_references_at_slot(Slot::new(10, AuthorityIndex::new_for_test(0)))
+            .expect("Scan slot should not fail")
+            .is_empty()
+    );
 }
 
 #[rstest]

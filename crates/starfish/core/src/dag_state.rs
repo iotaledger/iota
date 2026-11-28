@@ -1111,11 +1111,10 @@ impl DagState {
             .collect();
 
         if !missing.is_empty() {
-            // Look up block digests from in-memory map
             let refs_with_indices: Vec<_> = missing
                 .iter()
                 .flat_map(|(idx, tx)| {
-                    self.resolve_block_refs(tx)
+                    self.resolve_block_refs_with_store(tx)
                         .into_iter()
                         .map(move |br| (*idx, br))
                 })
@@ -1280,6 +1279,39 @@ impl DagState {
             .iter()
             .map(|&digest| BlockRef::new(tx_ref.round, tx_ref.author, digest))
             .collect()
+    }
+
+    /// Like `resolve_block_refs`, but also finds the headers in the store at
+    /// or below the evicted transaction round of the author, where the
+    /// in-memory lookup can miss them, such as after a restart. A store error
+    /// is logged and finds nothing.
+    pub(crate) fn resolve_block_refs_with_store(&self, tx_ref: &TransactionRef) -> Vec<BlockRef> {
+        let block_refs = self.resolve_block_refs(tx_ref);
+        if !block_refs.is_empty() || tx_ref.round > self.evicted_transaction_rounds[tx_ref.author] {
+            return block_refs;
+        }
+        self.context
+            .metrics
+            .node_metrics
+            .dag_state_store_read_count
+            .with_label_values(&["resolve_block_refs_with_store"])
+            .inc();
+        let headers = self
+            .store
+            .scan_block_references_at_slot(Slot::new(tx_ref.round, tx_ref.author))
+            .and_then(|slot_refs| self.store.read_verified_block_headers(&slot_refs));
+        match headers {
+            Ok(headers) => headers
+                .into_iter()
+                .flatten()
+                .filter(|header| header.transaction_ref() == *tx_ref)
+                .map(|header| header.reference())
+                .collect(),
+            Err(e) => {
+                warn!("Failed to read the block headers of {tx_ref:?}: {e:?}");
+                Vec::new()
+            }
+        }
     }
 
     /// Gets cached block headers for a list of TransactionRefs by first looking
@@ -4371,6 +4403,77 @@ mod test {
         assert_eq!(cached_data(&recovered), live);
         dag_state.reinitialize();
         assert_eq!(cached_data(&dag_state), live);
+    }
+
+    /// After a restart, the headers of committed blocks whose commit is not
+    /// solid yet are still found from their payload refs.
+    #[tokio::test]
+    async fn test_recovery_resolves_headers_of_committed_blocks_not_solid_yet() {
+        const NUM_ROUNDS: Round = 30;
+        let (mut context, _) = Context::new_for_test(4);
+        context.parameters.dag_state_cached_rounds = 10;
+        context.protocol_config.set_gc_depth_for_testing(2);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store.clone());
+
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=NUM_ROUNDS).build();
+        dag_state.accept_block_headers(dag_builder.block_headers(1..=NUM_ROUNDS), DataSource::Test);
+        // A second header at a slot of round 20, with another payload.
+        dag_state.accept_block_header(
+            VerifiedBlockHeader::new_for_test(TestBlockHeader::new(20, 1).build()),
+            DataSource::Test,
+        );
+        for transactions in dag_builder.transactions(1..=NUM_ROUNDS) {
+            dag_state.add_transactions(transactions, DataSource::Test);
+        }
+        let subdags_and_commits = dag_builder.get_sub_dag_and_commits(1..=24);
+        for (_, commit) in &subdags_and_commits {
+            dag_state.add_commit(commit.clone());
+        }
+        // Only the commits led at rounds up to 19 are solid.
+        dag_state.update_last_solid_subdag_base(subdags_and_commits[18].0.base.clone());
+        dag_state.flush();
+
+        let tx_refs = dag_builder
+            .block_headers(20..=20)
+            .iter()
+            .map(|header| header.transaction_ref())
+            .collect::<Vec<_>>();
+        let resolve_with_store = |state: &DagState| {
+            tx_refs
+                .iter()
+                .map(|tx_ref| state.resolve_block_refs_with_store(tx_ref))
+                .collect::<Vec<_>>()
+        };
+        let live_block_refs = tx_refs
+            .iter()
+            .map(|tx_ref| dag_state.resolve_block_refs(tx_ref))
+            .collect::<Vec<_>>();
+        assert!(
+            live_block_refs
+                .iter()
+                .all(|block_refs| block_refs.len() == 1)
+        );
+        assert_eq!(resolve_with_store(&dag_state), live_block_refs);
+        assert_eq!(
+            dag_state.contains_verified_block_headers_for_transaction_refs(&tx_refs),
+            vec![true; 4]
+        );
+        assert_eq!(store_reads(&dag_state, "resolve_block_refs_with_store"), 0);
+
+        let recovered = DagState::new(context, store);
+        assert!(
+            tx_refs
+                .iter()
+                .all(|tx_ref| recovered.resolve_block_refs(tx_ref).is_empty())
+        );
+        assert_eq!(resolve_with_store(&recovered), live_block_refs);
+        assert_eq!(
+            recovered.contains_verified_block_headers_for_transaction_refs(&tx_refs),
+            vec![true; 4]
+        );
     }
 
     /// Shards are evicted at the GC round even for an author without accepted
