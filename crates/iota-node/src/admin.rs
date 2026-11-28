@@ -21,8 +21,11 @@ use iota_types::{
     error::{IotaError, IotaResult},
     traffic_control::{
         AccessRuleChangeQuery, AccessRuleList, BlockReason, BlocklistQuery, ClientUsageQuery,
-        DEFAULT_DENY_WARNING, DefaultAction, ManualBlockQuery, TrafficControlReconfigParams,
-        UnblockQuery,
+        DEFAULT_DENY_WARNING, DefaultAction, ManualBlockQuery, TRAFFIC_CONTROL_BLOCK_ROUTE,
+        TRAFFIC_CONTROL_BLOCKLIST_ROUTE, TRAFFIC_CONTROL_CLIENTS_ROUTE,
+        TRAFFIC_CONTROL_CONFIG_ROUTE, TRAFFIC_CONTROL_ROUTE, TRAFFIC_CONTROL_RULES_ADD_ROUTE,
+        TRAFFIC_CONTROL_RULES_REMOVE_ROUTE, TRAFFIC_CONTROL_RULES_ROUTE,
+        TRAFFIC_CONTROL_UNBLOCK_ROUTE, TrafficControlReconfigParams, UnblockQuery,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -160,15 +163,6 @@ const RANDOMNESS_PARTIAL_SIGS_ROUTE: &str = "/randomness-partial-sigs";
 const RANDOMNESS_INJECT_PARTIAL_SIGS_ROUTE: &str = "/randomness-inject-partial-sigs";
 const RANDOMNESS_INJECT_FULL_SIG_ROUTE: &str = "/randomness-inject-full-sig";
 const FLAMEGRAPH_ROUTE: &str = "/flamegraph";
-const TRAFFIC_CONTROL: &str = "/traffic-control";
-const TRAFFIC_CONTROL_CONFIG: &str = "/traffic-control/config";
-const TRAFFIC_CONTROL_RULES: &str = "/traffic-control/rules";
-const TRAFFIC_CONTROL_RULES_ADD: &str = "/traffic-control/rules/add";
-const TRAFFIC_CONTROL_RULES_REMOVE: &str = "/traffic-control/rules/remove";
-const TRAFFIC_CONTROL_BLOCKLIST: &str = "/traffic-control/blocklist";
-const TRAFFIC_CONTROL_BLOCK: &str = "/traffic-control/block";
-const TRAFFIC_CONTROL_UNBLOCK: &str = "/traffic-control/unblock";
-const TRAFFIC_CONTROL_CLIENTS: &str = "/traffic-control/clients";
 
 /// Ends the response to every traffic control change.
 const UNTIL_RESTART_NOTE: &str = "The change lasts until the node restarts.\n";
@@ -245,22 +239,31 @@ pub async fn run_admin_server(
 /// The routes that read and change the traffic control of `state`.
 fn traffic_control_router(state: Arc<AuthorityState>) -> Router {
     Router::new()
-        .route(TRAFFIC_CONTROL, post(traffic_control))
-        .route(TRAFFIC_CONTROL, get(traffic_control_status))
-        .route(TRAFFIC_CONTROL_CONFIG, get(traffic_control_config))
-        .route(TRAFFIC_CONTROL_RULES, get(traffic_control_rules))
-        .route(TRAFFIC_CONTROL_RULES_ADD, post(add_traffic_control_rule))
+        .route(TRAFFIC_CONTROL_ROUTE, post(traffic_control))
+        .route(TRAFFIC_CONTROL_ROUTE, get(traffic_control_status))
+        .route(TRAFFIC_CONTROL_CONFIG_ROUTE, get(traffic_control_config))
+        .route(TRAFFIC_CONTROL_RULES_ROUTE, get(traffic_control_rules))
         .route(
-            TRAFFIC_CONTROL_RULES_REMOVE,
+            TRAFFIC_CONTROL_RULES_ADD_ROUTE,
+            post(add_traffic_control_rule),
+        )
+        .route(
+            TRAFFIC_CONTROL_RULES_REMOVE_ROUTE,
             post(remove_traffic_control_rule),
         )
-        .route(TRAFFIC_CONTROL_BLOCKLIST, get(traffic_control_blocklist))
-        .route(TRAFFIC_CONTROL_BLOCK, post(block_traffic_control_client))
         .route(
-            TRAFFIC_CONTROL_UNBLOCK,
+            TRAFFIC_CONTROL_BLOCKLIST_ROUTE,
+            get(traffic_control_blocklist),
+        )
+        .route(
+            TRAFFIC_CONTROL_BLOCK_ROUTE,
+            post(block_traffic_control_client),
+        )
+        .route(
+            TRAFFIC_CONTROL_UNBLOCK_ROUTE,
             post(unblock_traffic_control_client),
         )
-        .route(TRAFFIC_CONTROL_CLIENTS, get(traffic_control_clients))
+        .route(TRAFFIC_CONTROL_CLIENTS_ROUTE, get(traffic_control_clients))
         .with_state(state)
 }
 

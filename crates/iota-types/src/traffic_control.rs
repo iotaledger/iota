@@ -126,6 +126,33 @@ pub struct ClientUsageQuery {
     pub top: Option<usize>,
 }
 
+/// The admin API route of the traffic control settings: `GET` reads them,
+/// `POST` changes them with a [`TrafficControlReconfigParams`] query.
+pub const TRAFFIC_CONTROL_ROUTE: &str = "/traffic-control";
+/// The admin API route that reads the settings in force in the shape of
+/// `policy-config`, with `GET`.
+pub const TRAFFIC_CONTROL_CONFIG_ROUTE: &str = "/traffic-control/config";
+/// The admin API route that reads the access rules, with `GET`.
+pub const TRAFFIC_CONTROL_RULES_ROUTE: &str = "/traffic-control/rules";
+/// The admin API route that adds an access rule, with `POST` and an
+/// [`AccessRuleChangeQuery`].
+pub const TRAFFIC_CONTROL_RULES_ADD_ROUTE: &str = "/traffic-control/rules/add";
+/// The admin API route that removes an access rule, with `POST` and an
+/// [`AccessRuleChangeQuery`].
+pub const TRAFFIC_CONTROL_RULES_REMOVE_ROUTE: &str = "/traffic-control/rules/remove";
+/// The admin API route that reads the blocklist, with `GET` and a
+/// [`BlocklistQuery`].
+pub const TRAFFIC_CONTROL_BLOCKLIST_ROUTE: &str = "/traffic-control/blocklist";
+/// The admin API route that blocks a client, with `POST` and a
+/// [`ManualBlockQuery`].
+pub const TRAFFIC_CONTROL_BLOCK_ROUTE: &str = "/traffic-control/block";
+/// The admin API route that unblocks a client, with `POST` and an
+/// [`UnblockQuery`].
+pub const TRAFFIC_CONTROL_UNBLOCK_ROUTE: &str = "/traffic-control/unblock";
+/// The admin API route that reads the gas balances and the blocks of
+/// clients, with `GET` and a [`ClientUsageQuery`].
+pub const TRAFFIC_CONTROL_CLIENTS_ROUTE: &str = "/traffic-control/clients";
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Weight(f32);
 
